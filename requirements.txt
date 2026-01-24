@@ -1,1 +1,1 @@
-# No external runtime dependencies yet.
+requests

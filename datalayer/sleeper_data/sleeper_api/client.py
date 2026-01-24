@@ -5,9 +5,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urljoin
-from urllib.request import Request, urlopen
+
+import requests
 
 
 class SleeperApiError(RuntimeError):
@@ -22,30 +21,27 @@ class SleeperClient:
     def get_json(
         self, path: str, params: Optional[Mapping[str, Any]] = None
     ) -> Any:
-        url = urljoin(self.base_url, path.lstrip("/"))
-        if params:
-            url = f"{url}?{urlencode(params)}"
-
-        req = Request(url, headers={"User-Agent": "sleeper-data-layer"})
         try:
-            with urlopen(req, timeout=self.timeout_seconds) as resp:
-                status = getattr(resp, "status", resp.getcode())
-                body = resp.read().decode("utf-8")
-        except HTTPError as exc:
-            error_body = exc.read().decode("utf-8") if exc.fp else ""
+            response = requests.get(
+                f"{self.base_url.rstrip('/')}/{path.lstrip('/')}",
+                params=params,
+                headers={"User-Agent": "sleeper-data-layer"},
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            error_body = exc.response.text if exc.response is not None else ""
             raise SleeperApiError(
-                f"HTTP {exc.code} for {url}: {error_body or exc.reason}"
+                f"HTTP {exc.response.status_code} for {response.url}: "
+                f"{error_body or exc}"
             ) from exc
-        except URLError as exc:
-            raise SleeperApiError(f"Request failed for {url}: {exc.reason}") from exc
+        except requests.RequestException as exc:
+            raise SleeperApiError(f"Request failed for {self.base_url}: {exc}") from exc
 
-        if status and status >= 400:
-            raise SleeperApiError(f"HTTP {status} for {url}: {body}")
-
-        if not body:
-            raise SleeperApiError(f"Empty response for {url}")
+        if not response.text:
+            raise SleeperApiError(f"Empty response for {response.url}")
 
         try:
-            return json.loads(body)
+            return response.json()
         except json.JSONDecodeError as exc:
-            raise SleeperApiError(f"Invalid JSON from {url}") from exc
+            raise SleeperApiError(f"Invalid JSON from {response.url}") from exc
