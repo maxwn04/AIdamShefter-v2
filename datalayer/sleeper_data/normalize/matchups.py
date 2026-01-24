@@ -37,6 +37,7 @@ def normalize_matchups(
                 points=float(raw_row.get("points", 0.0)),
                 starters_json=_json_dumps(raw_row.get("starters")),
                 players_json=_json_dumps(raw_row.get("players")),
+                players_points_json=_json_dumps(raw_row.get("players_points")),
             )
         )
     return rows
