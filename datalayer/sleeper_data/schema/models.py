@@ -122,6 +122,8 @@ class Player(RowMixin):
     nfl_team: Optional[str] = None
     status: Optional[str] = None
     injury_status: Optional[str] = None
+    age: Optional[int] = None
+    years_exp: Optional[int] = None
     metadata_json: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -148,10 +150,15 @@ class TransactionMove(RowMixin):
     transaction_id: str
     roster_id: Optional[int]
     player_id: Optional[str]
+    asset_type: str
     direction: str
     bid_amount: Optional[int] = None
     from_roster_id: Optional[int] = None
     to_roster_id: Optional[int] = None
+    pick_season: Optional[str] = None
+    pick_round: Optional[int] = None
+    pick_original_roster_id: Optional[int] = None
+    pick_id: Optional[str] = None
 
 
 @dataclass
