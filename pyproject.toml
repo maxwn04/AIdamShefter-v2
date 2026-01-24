@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Sleeper fantasy league data layer"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["requests"]
+dependencies = ["requests", "python-dotenv"]
 
 [project.scripts]
 sleeperdl = "datalayer.cli.main:main"

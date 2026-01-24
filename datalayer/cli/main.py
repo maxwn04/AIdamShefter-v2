@@ -6,6 +6,8 @@ import argparse
 import os
 import sys
 
+from dotenv import load_dotenv
+
 from datalayer.sleeper_data import SleeperLeagueData
 
 
@@ -33,6 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    load_dotenv()
     parser = _build_parser()
     args = parser.parse_args(argv)
 
