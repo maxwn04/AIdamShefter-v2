@@ -24,6 +24,7 @@
 - `snapshot [week]`
 - `games [week]`
 - `team <roster_id> [week]`
+- `roster <roster_id> [week]`
 - `transactions <week_from> <week_to>`
 - `player <player_id> [week_to]`
 - `sql <select_query>`

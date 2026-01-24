@@ -14,6 +14,7 @@ from .normalize import (
     normalize_league,
     normalize_matchups,
     normalize_players,
+    normalize_roster_players,
     normalize_rosters,
     normalize_standings,
     normalize_transaction_moves,
@@ -35,6 +36,8 @@ from .store.sqlite_store import bulk_insert, create_tables
 from .queries.defaults import (
     get_league_snapshot,
     get_player_summary,
+    get_roster_current,
+    get_roster_snapshot,
     get_team_dossier,
     get_transactions as query_get_transactions,
     get_week_games,
@@ -68,6 +71,7 @@ class SleeperLeagueData:
         league = normalize_league(raw_league)
         users = normalize_users(raw_users)
         rosters = normalize_rosters(raw_rosters, league_id=self.league_id)
+        roster_players = normalize_roster_players(raw_rosters, league_id=self.league_id)
         team_profiles = derive_team_profiles(raw_rosters, raw_users, league_id=self.league_id)
 
         bulk_insert(self.conn, league.table_name, [league])
@@ -116,6 +120,8 @@ class SleeperLeagueData:
         players = normalize_players(raw_players)
         if players:
             bulk_insert(self.conn, players[0].table_name, players)
+        if roster_players:
+            bulk_insert(self.conn, roster_players[0].table_name, roster_players)
 
         season_context = SeasonContext(
             league_id=self.league_id,
@@ -148,12 +154,14 @@ class SleeperLeagueData:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_league_snapshot(self.conn, week)
 
-    def get_team_dossier(self, roster_id: int, week: int | None = None) -> dict[str, Any]:
+    def get_team_dossier(self, roster_key: Any, week: int | None = None) -> dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_team_dossier(self.conn, roster_id, week)
+        return get_team_dossier(self.conn, self.league_id, roster_key, week)
 
-    def get_week_games(self, week: int | None = None) -> list[dict[str, Any]]:
+    def get_week_games(
+        self, week: int | None = None, roster_key: Any | None = None
+    ) -> list[dict[str, Any]]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         if week is None:
@@ -164,17 +172,31 @@ class SleeperLeagueData:
                 week = context[0]
         if week is None:
             return []
-        return get_week_games(self.conn, int(week))
+        return get_week_games(self.conn, self.league_id, int(week), roster_key=roster_key)
 
-    def get_transactions(self, week_from: int, week_to: int) -> list[dict[str, Any]]:
+    def get_transactions(
+        self, week_from: int, week_to: int, roster_key: Any | None = None
+    ) -> list[dict[str, Any]]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return query_get_transactions(self.conn, week_from, week_to)
+        return query_get_transactions(
+            self.conn, self.league_id, week_from, week_to, roster_key=roster_key
+        )
 
-    def get_player_summary(self, player_id: str, week_to: int | None = None) -> dict[str, Any]:
+    def get_player_summary(self, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_player_summary(self.conn, player_id, week_to)
+        return get_player_summary(self.conn, player_key, week_to)
+
+    def get_roster_current(self, roster_key: Any) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_roster_current(self.conn, self.league_id, roster_key)
+
+    def get_roster_snapshot(self, roster_key: Any, week: int) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_roster_snapshot(self.conn, self.league_id, roster_key, week)
 
     def run_sql(
         self,

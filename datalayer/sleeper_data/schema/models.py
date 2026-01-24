@@ -62,6 +62,16 @@ class Roster(RowMixin):
 
 
 @dataclass
+class RosterPlayer(RowMixin):
+    table_name: ClassVar[str] = "roster_players"
+
+    league_id: str
+    roster_id: int
+    player_id: str
+    role: str
+
+
+@dataclass
 class TeamProfile(RowMixin):
     table_name: ClassVar[str] = "team_profiles"
 

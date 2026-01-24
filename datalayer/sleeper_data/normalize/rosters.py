@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Mapping
 
-from ..schema.models import Roster, TeamProfile
+from ..schema.models import Roster, RosterPlayer, TeamProfile
 
 
 def _json_dumps(value: Any) -> str | None:
@@ -29,6 +29,64 @@ def normalize_rosters(
             )
         )
     return rosters
+
+
+def normalize_roster_players(
+    raw_rosters: Iterable[Mapping[str, Any]], league_id: str
+) -> list[RosterPlayer]:
+    players: list[RosterPlayer] = []
+    role_priority = (
+        ("starter", "starters"),
+        ("taxi", "taxi"),
+        ("reserve", "reserve"),
+        ("ir", "ir"),
+    )
+
+    for raw_roster in raw_rosters:
+        roster_id = int(raw_roster["roster_id"])
+        roster_players = [str(pid) for pid in (raw_roster.get("players") or []) if pid]
+        starters = {str(pid) for pid in (raw_roster.get("starters") or []) if pid}
+        taxi = {str(pid) for pid in (raw_roster.get("taxi") or []) if pid}
+        reserve = {str(pid) for pid in (raw_roster.get("reserve") or []) if pid}
+        ir = {str(pid) for pid in (raw_roster.get("ir") or []) if pid}
+
+        role_lookup = {
+            "starters": starters,
+            "taxi": taxi,
+            "reserve": reserve,
+            "ir": ir,
+        }
+
+        def _resolve_role(player_id: str) -> str:
+            for role, key in role_priority:
+                if player_id in role_lookup[key]:
+                    return role
+            return "bench"
+
+        seen: set[str] = set()
+        for player_id in roster_players:
+            seen.add(player_id)
+            players.append(
+                RosterPlayer(
+                    league_id=str(league_id),
+                    roster_id=roster_id,
+                    player_id=player_id,
+                    role=_resolve_role(player_id),
+                )
+            )
+
+        extra_players = (starters | taxi | reserve | ir) - seen
+        for player_id in sorted(extra_players):
+            players.append(
+                RosterPlayer(
+                    league_id=str(league_id),
+                    roster_id=roster_id,
+                    player_id=player_id,
+                    role=_resolve_role(player_id),
+                )
+            )
+
+    return players
 
 
 def _first_metadata_value(metadata: Mapping[str, Any] | None, keys: Iterable[str]) -> str | None:
