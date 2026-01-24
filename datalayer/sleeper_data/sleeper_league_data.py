@@ -4,11 +4,33 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from datetime import datetime, timezone
 from typing import Optional
 
 from .config import SleeperConfig, load_config
-from .normalize import derive_team_profiles, normalize_league, normalize_rosters, normalize_users
-from .sleeper_api import SleeperClient, get_league, get_league_rosters, get_league_users
+from .normalize import (
+    derive_games,
+    derive_team_profiles,
+    normalize_league,
+    normalize_matchups,
+    normalize_players,
+    normalize_rosters,
+    normalize_standings,
+    normalize_transaction_moves,
+    normalize_transactions,
+    normalize_users,
+)
+from .schema.models import SeasonContext
+from .sleeper_api import (
+    SleeperClient,
+    get_league,
+    get_league_rosters,
+    get_league_users,
+    get_matchups,
+    get_players,
+    get_state,
+    get_transactions,
+)
 from .store.sqlite_store import bulk_insert, create_tables
 
 
@@ -33,6 +55,7 @@ class SleeperLeagueData:
         raw_league = get_league(self.league_id, client=self.client)
         raw_users = get_league_users(self.league_id, client=self.client)
         raw_rosters = get_league_rosters(self.league_id, client=self.client)
+        raw_state = get_state("nfl", client=self.client)
 
         league = normalize_league(raw_league)
         users = normalize_users(raw_users)
@@ -46,6 +69,52 @@ class SleeperLeagueData:
             bulk_insert(self.conn, rosters[0].table_name, rosters)
         if team_profiles:
             bulk_insert(self.conn, team_profiles[0].table_name, team_profiles)
+
+        computed_week = int(raw_state.get("week") or 0)
+        effective_week = int(self.week_override or computed_week or 0)
+        season = str(raw_league.get("season") or raw_state.get("season") or "")
+
+        if effective_week > 0:
+            for week in range(1, effective_week + 1):
+                raw_matchups = get_matchups(self.league_id, week, client=self.client)
+                matchup_rows = normalize_matchups(
+                    raw_matchups, league_id=self.league_id, season=season, week=week
+                )
+                games = derive_games(matchup_rows, is_playoffs=False)
+                if matchup_rows:
+                    bulk_insert(self.conn, matchup_rows[0].table_name, matchup_rows)
+                if games:
+                    bulk_insert(self.conn, games[0].table_name, games)
+
+                raw_transactions = get_transactions(self.league_id, week, client=self.client)
+                transactions = normalize_transactions(
+                    raw_transactions, league_id=self.league_id, season=season, week=week
+                )
+                moves = normalize_transaction_moves(raw_transactions)
+                if transactions:
+                    bulk_insert(self.conn, transactions[0].table_name, transactions)
+                if moves:
+                    bulk_insert(self.conn, moves[0].table_name, moves)
+
+            standings = normalize_standings(
+                raw_rosters, league_id=self.league_id, season=season, week=effective_week
+            )
+            if standings:
+                bulk_insert(self.conn, standings[0].table_name, standings)
+
+        raw_players = get_players("nfl", client=self.client)
+        players = normalize_players(raw_players)
+        if players:
+            bulk_insert(self.conn, players[0].table_name, players)
+
+        season_context = SeasonContext(
+            league_id=self.league_id,
+            computed_week=computed_week,
+            override_week=self.week_override,
+            effective_week=effective_week,
+            generated_at=datetime.now(timezone.utc).isoformat(),
+        )
+        bulk_insert(self.conn, season_context.table_name, [season_context])
 
     def save_to_file(self, output_path: str) -> str:
         if not self.conn:
