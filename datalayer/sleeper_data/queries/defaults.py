@@ -345,15 +345,20 @@ def get_league_snapshot(conn, week: int | None = None) -> dict[str, Any]:
     }
 
 
-def get_roster_current(conn, roster_id: int) -> dict[str, Any]:
+def get_roster_current(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {**resolved, "as_of_week": None}
+    roster_id = resolved["roster_id"]
+
     team = _fetch_one(
         conn,
         """
         SELECT league_id, roster_id, team_name, manager_name, avatar_url
         FROM team_profiles
-        WHERE roster_id = :roster_id
+        WHERE league_id = :league_id AND roster_id = :roster_id
         """,
-        {"roster_id": roster_id},
+        {"league_id": league_id, "roster_id": roster_id},
     )
 
     players = _fetch_all(
@@ -371,7 +376,7 @@ def get_roster_current(conn, roster_id: int) -> dict[str, Any]:
         FROM roster_players rp
         LEFT JOIN players p
             ON p.player_id = rp.player_id
-        WHERE rp.roster_id = :roster_id
+        WHERE rp.league_id = :league_id AND rp.roster_id = :roster_id
         ORDER BY
             CASE rp.role
                 WHEN 'starter' THEN 0
@@ -383,11 +388,11 @@ def get_roster_current(conn, roster_id: int) -> dict[str, Any]:
             END,
             p.full_name ASC
         """,
-        {"roster_id": roster_id},
+        {"league_id": league_id, "roster_id": roster_id},
     )
 
     if not team and not players:
-        return {"roster_id": roster_id, "found": False}
+        return {"roster_id": roster_id, "found": False, "as_of_week": None}
 
     return {
         "team": team,
@@ -397,18 +402,23 @@ def get_roster_current(conn, roster_id: int) -> dict[str, Any]:
     }
 
 
-def get_roster_snapshot(conn, roster_id: int, week: int) -> dict[str, Any]:
+def get_roster_snapshot(conn, league_id: str, roster_key: Any, week: int) -> dict[str, Any]:
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {**resolved, "as_of_week": week}
+    roster_id = resolved["roster_id"]
+
     matchup = _fetch_one(
         conn,
         """
         SELECT players_json, starters_json
         FROM matchups
-        WHERE roster_id = :roster_id AND week = :week
+        WHERE league_id = :league_id AND roster_id = :roster_id AND week = :week
         """,
-        {"roster_id": roster_id, "week": week},
+        {"league_id": league_id, "roster_id": roster_id, "week": week},
     )
     if not matchup:
-        return {"roster_id": roster_id, "week": week, "found": False}
+        return {"roster_id": roster_id, "week": week, "found": False, "as_of_week": week}
 
     player_ids = _parse_player_ids(matchup.get("players_json"))
     starters = set(_parse_player_ids(matchup.get("starters_json")))
@@ -442,9 +452,9 @@ def get_roster_snapshot(conn, roster_id: int, week: int) -> dict[str, Any]:
         """
         SELECT league_id, roster_id, team_name, manager_name, avatar_url
         FROM team_profiles
-        WHERE roster_id = :roster_id
+        WHERE league_id = :league_id AND roster_id = :roster_id
         """,
-        {"roster_id": roster_id},
+        {"league_id": league_id, "roster_id": roster_id},
     )
 
     return {

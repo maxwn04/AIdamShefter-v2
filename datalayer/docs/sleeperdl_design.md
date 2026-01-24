@@ -265,6 +265,12 @@ data.load()  # fetch → normalize → populate sqlite
    * `get_player_summary(player_key: str, week_to: int | None = None) -> dict`
    * Accepts player ID or full name.
 
+6. **Roster views**
+
+   * `get_roster_current(roster_key: str | int) -> dict`
+   * `get_roster_snapshot(roster_key: str | int, week: int) -> dict`
+   * Accepts roster ID, team name, or manager name.
+
 ### Custom SQL tool (for agent)
 
 * `run_sql(query: str, params: tuple | dict | None = None, *, limit: int = 200) -> dict`

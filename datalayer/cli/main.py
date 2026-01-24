@@ -55,9 +55,10 @@ def _app_help() -> None:
                 "  snapshot [week]",
                 "  games [week]",
                 "  team <roster_id_or_name> [week]",
-                "  roster <roster_id> [week]",
+                "  roster <roster_id_or_name> [week]",
                 "  transactions <week_from> <week_to>",
                 "  player <player_id_or_name> [week_to]",
+                "  save [output_path]",
                 "  sql <select_query>",
                 "  help",
                 "  exit | quit",
@@ -111,14 +112,14 @@ def _run_app(league_id: str | None) -> int:
                 _print_json(data.get_transactions(week_from, week_to))
             elif command == "roster":
                 if not args:
-                    print("Usage: roster <roster_id> [week]")
+                    print("Usage: roster <roster_id_or_name> [week]")
                     continue
-                roster_id = int(args[0])
+                roster_key = args[0]
                 if len(args) > 1:
                     week = int(args[1])
-                    _print_json(data.get_roster_snapshot(roster_id, week))
+                    _print_json(data.get_roster_snapshot(roster_key, week))
                 else:
-                    _print_json(data.get_roster_current(roster_id))
+                    _print_json(data.get_roster_current(roster_key))
             elif command == "player":
                 if not args:
                     print("Usage: player <player_id_or_name> [week_to]")
@@ -132,6 +133,17 @@ def _run_app(league_id: str | None) -> int:
                     continue
                 query = raw[len("sql ") :]
                 _print_json(data.run_sql(query))
+            elif command == "save":
+                output_path = args[0] if args else _default_output_path(data.league_id)
+                if os.path.exists(output_path):
+                    confirm = input(
+                        f"{output_path} exists. Overwrite? [y/N] "
+                    ).strip().lower()
+                    if confirm not in {"y", "yes"}:
+                        print("Save cancelled.")
+                        continue
+                saved_path = data.save_to_file(output_path)
+                print(f"Saved SQLite snapshot to {saved_path}.")
             else:
                 print("Unknown command. Type 'help' for options.")
         except Exception as exc:  # pragma: no cover - interactive convenience

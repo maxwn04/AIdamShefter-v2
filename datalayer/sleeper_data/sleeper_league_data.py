@@ -182,15 +182,15 @@ class SleeperLeagueData:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_player_summary(self.conn, player_key, week_to)
 
-    def get_roster_current(self, roster_id: int) -> dict[str, Any]:
+    def get_roster_current(self, roster_key: Any) -> dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_roster_current(self.conn, roster_id)
+        return get_roster_current(self.conn, self.league_id, roster_key)
 
-    def get_roster_snapshot(self, roster_id: int, week: int) -> dict[str, Any]:
+    def get_roster_snapshot(self, roster_key: Any, week: int) -> dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_roster_snapshot(self.conn, roster_id, week)
+        return get_roster_snapshot(self.conn, self.league_id, roster_key, week)
 
     def run_sql(
         self,
