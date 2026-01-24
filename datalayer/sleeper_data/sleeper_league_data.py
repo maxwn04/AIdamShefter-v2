@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Mapping, Optional
 
 from .config import SleeperConfig, load_config
 from .normalize import (
@@ -29,14 +29,14 @@ from .sleeper_api import (
     get_matchups,
     get_players,
     get_state,
-    get_transactions,
+    get_transactions as api_get_transactions,
 )
 from .store.sqlite_store import bulk_insert, create_tables
 from .queries.defaults import (
     get_league_snapshot,
     get_player_summary,
     get_team_dossier,
-    get_transactions,
+    get_transactions as query_get_transactions,
     get_week_games,
 )
 from .queries.sql_tool import run_sql
@@ -94,7 +94,9 @@ class SleeperLeagueData:
                 if games:
                     bulk_insert(self.conn, games[0].table_name, games)
 
-                raw_transactions = get_transactions(self.league_id, week, client=self.client)
+                raw_transactions = api_get_transactions(
+                    self.league_id, week, client=self.client
+                )
                 transactions = normalize_transactions(
                     raw_transactions, league_id=self.league_id, season=season, week=week
                 )
@@ -167,7 +169,7 @@ class SleeperLeagueData:
     def get_transactions(self, week_from: int, week_to: int) -> list[dict[str, Any]]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_transactions(self.conn, week_from, week_to)
+        return query_get_transactions(self.conn, week_from, week_to)
 
     def get_player_summary(self, player_id: str, week_to: int | None = None) -> dict[str, Any]:
         if not self.conn:
