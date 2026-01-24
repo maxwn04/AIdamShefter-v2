@@ -39,6 +39,12 @@ def get_transactions(
     return _client_or_default(client).get_json(f"/league/{league_id}/transactions/{week}")
 
 
+def get_traded_picks(
+    league_id: str, client: Optional[SleeperClient] = None
+) -> list[dict[str, Any]]:
+    return _client_or_default(client).get_json(f"/league/{league_id}/traded_picks")
+
+
 def get_players(
     sport: str = "nfl", client: Optional[SleeperClient] = None
 ) -> dict[str, Any]:

@@ -22,6 +22,7 @@ from .normalize import (
     normalize_users,
 )
 from .schema.models import SeasonContext
+from .schema.models import DraftPick
 from .sleeper_api import (
     SleeperClient,
     get_league,
@@ -30,6 +31,7 @@ from .sleeper_api import (
     get_matchups,
     get_players,
     get_state,
+    get_traded_picks,
     get_transactions as api_get_transactions,
 )
 from .store.sqlite_store import bulk_insert, create_tables
@@ -81,6 +83,62 @@ class SleeperLeagueData:
             bulk_insert(self.conn, rosters[0].table_name, rosters)
         if team_profiles:
             bulk_insert(self.conn, team_profiles[0].table_name, team_profiles)
+
+        draft_rounds = int((raw_league.get("settings") or {}).get("draft_rounds") or 0)
+        base_season = league.season
+        try:
+            base_year = int(base_season)
+        except (TypeError, ValueError):
+            base_year = None
+
+        draft_picks: list[DraftPick] = []
+        if base_year and draft_rounds > 0 and rosters:
+            for season_offset in range(1, 4):
+                season_value = str(base_year + season_offset)
+                for roster in rosters:
+                    for round_value in range(1, draft_rounds + 1):
+                        draft_picks.append(
+                            DraftPick(
+                                league_id=self.league_id,
+                                season=season_value,
+                                round=round_value,
+                                original_roster_id=roster.roster_id,
+                                current_roster_id=roster.roster_id,
+                                pick_id=None,
+                                source="seed",
+                            )
+                        )
+
+        if draft_picks:
+            bulk_insert(self.conn, draft_picks[0].table_name, draft_picks)
+
+        traded_picks = get_traded_picks(self.league_id, client=self.client)
+        for pick in traded_picks or []:
+            season_value = pick.get("season")
+            round_value = pick.get("round")
+            original_roster_id = pick.get("roster_id")
+            owner_id = pick.get("owner_id")
+            if season_value is None or round_value is None or original_roster_id is None:
+                continue
+            if owner_id is None:
+                continue
+            self.conn.execute(
+                """
+                UPDATE draft_picks
+                SET current_roster_id = :current_roster_id
+                WHERE league_id = :league_id
+                  AND season = :season
+                  AND round = :round
+                  AND original_roster_id = :original_roster_id
+                """,
+                {
+                    "current_roster_id": int(owner_id),
+                    "league_id": self.league_id,
+                    "season": str(season_value),
+                    "round": int(round_value),
+                    "original_roster_id": int(original_roster_id),
+                },
+            )
 
         computed_week = int(raw_state.get("week") or 0)
         effective_week = int(self.week_override or computed_week or 0)

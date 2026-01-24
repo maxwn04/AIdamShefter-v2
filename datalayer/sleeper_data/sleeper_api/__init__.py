@@ -8,6 +8,7 @@ from .endpoints import (
     get_matchups,
     get_players,
     get_state,
+    get_traded_picks,
     get_transactions,
 )
 
@@ -21,4 +22,5 @@ __all__ = [
     "get_players",
     "get_state",
     "get_transactions",
+    "get_traded_picks",
 ]

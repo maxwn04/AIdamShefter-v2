@@ -128,6 +128,26 @@ def _parse_player_ids(raw_json: str | None) -> list[str]:
     return [str(pid) for pid in payload if pid]
 
 
+def _parse_player_points(raw_json: str | None) -> dict[str, float]:
+    if not raw_json:
+        return {}
+    try:
+        payload = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    points: dict[str, float] = {}
+    for player_id, value in payload.items():
+        if player_id is None:
+            continue
+        try:
+            points[str(player_id)] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return points
+
+
 def _load_player_details(conn, player_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
     player_ids = [str(pid) for pid in player_ids]
     if not player_ids:
@@ -146,6 +166,28 @@ def _load_player_details(conn, player_ids: Iterable[str]) -> dict[str, dict[str,
     return {row["player_id"]: row for row in rows}
 
 
+def _strip_id_fields_recursive(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _strip_id_fields_recursive(val)
+            for key, val in value.items()
+            if not key.endswith("_id")
+        }
+    if isinstance(value, list):
+        return [_strip_id_fields_recursive(item) for item in value]
+    return value
+
+
+def _strip_id_fields(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    return _strip_id_fields_recursive(payload)
+
+
+def _strip_id_fields_list(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [_strip_id_fields_recursive(item) for item in items]
+
+
 def get_week_games(
     conn, league_id: str, week: int, roster_key: Any | None = None
 ) -> list[dict[str, Any]]:
@@ -156,7 +198,7 @@ def get_week_games(
             return []
         roster_id = resolved["roster_id"]
 
-    params: dict[str, Any] = {"week": week}
+    params: dict[str, Any] = {"week": week, "league_id": league_id}
     roster_filter = ""
     if roster_id is not None:
         params["roster_id"] = roster_id
@@ -172,23 +214,121 @@ def get_week_games(
             g.roster_id_b,
             g.points_a,
             g.points_b,
-            g.winner_roster_id,
             tpa.team_name AS team_a,
             tpb.team_name AS team_b,
-            tpa.manager_name AS manager_a,
-            tpb.manager_name AS manager_b
+            CASE
+                WHEN g.winner_roster_id = g.roster_id_a THEN tpa.team_name
+                WHEN g.winner_roster_id = g.roster_id_b THEN tpb.team_name
+                ELSE NULL
+            END AS winner
         FROM games g
         LEFT JOIN team_profiles tpa
             ON tpa.league_id = g.league_id AND tpa.roster_id = g.roster_id_a
         LEFT JOIN team_profiles tpb
             ON tpb.league_id = g.league_id AND tpb.roster_id = g.roster_id_b
-        WHERE g.week = :week
+        WHERE g.league_id = :league_id AND g.week = :week
         {roster_filter}
         ORDER BY g.matchup_id;
         """,
         params,
     )
-    return rows
+    if not rows:
+        return []
+
+    matchup_ids = [row["matchup_id"] for row in rows if row.get("matchup_id") is not None]
+    matchup_lookup: dict[tuple[int, int], dict[str, Any]] = {}
+    player_ids: set[str] = set()
+    if matchup_ids:
+        placeholders = ", ".join([f":m{i}" for i in range(len(matchup_ids))])
+        matchup_params = {"league_id": league_id, "week": week}
+        matchup_params.update({f"m{i}": mid for i, mid in enumerate(matchup_ids)})
+        matchup_rows = _fetch_all(
+            conn,
+            f"""
+            SELECT
+                m.matchup_id,
+                m.roster_id,
+                m.players_json,
+                m.starters_json,
+                m.players_points_json,
+                tp.team_name
+            FROM matchups m
+            LEFT JOIN team_profiles tp
+                ON tp.league_id = m.league_id AND tp.roster_id = m.roster_id
+            WHERE m.league_id = :league_id
+              AND m.week = :week
+              AND m.matchup_id IN ({placeholders})
+            """,
+            matchup_params,
+        )
+        for matchup in matchup_rows:
+            roster_key = (matchup["matchup_id"], matchup["roster_id"])
+            players = _parse_player_ids(matchup.get("players_json"))
+            starters = set(_parse_player_ids(matchup.get("starters_json")))
+            points = _parse_player_points(matchup.get("players_points_json"))
+            matchup_lookup[roster_key] = {
+                "team_name": matchup.get("team_name"),
+                "players": players,
+                "starters": starters,
+                "points": points,
+            }
+            player_ids.update(players)
+
+    player_details = _load_player_details(conn, player_ids)
+
+    for row in rows:
+        team_a = row.get("team_a")
+        team_b = row.get("team_b")
+        matchup_id = row.get("matchup_id")
+        team_a_players: list[dict[str, Any]] = []
+        team_b_players: list[dict[str, Any]] = []
+        roster_a_id = row.get("roster_id_a")
+        roster_b_id = row.get("roster_id_b")
+
+        if matchup_id is not None and roster_a_id is not None:
+            roster_entry = matchup_lookup.get((matchup_id, roster_a_id))
+            if roster_entry:
+                for player_id in roster_entry["players"]:
+                    info = player_details.get(
+                        player_id,
+                        {"full_name": None, "position": None, "nfl_team": None},
+                    )
+                    team_a_players.append(
+                        {
+                            "player_name": info.get("full_name"),
+                            "position": info.get("position"),
+                            "nfl_team": info.get("nfl_team"),
+                            "points": roster_entry["points"].get(player_id),
+                            "role": "starter"
+                            if player_id in roster_entry["starters"]
+                            else "bench",
+                        }
+                    )
+
+        if matchup_id is not None and roster_b_id is not None:
+            roster_entry = matchup_lookup.get((matchup_id, roster_b_id))
+            if roster_entry:
+                for player_id in roster_entry["players"]:
+                    info = player_details.get(
+                        player_id,
+                        {"full_name": None, "position": None, "nfl_team": None},
+                    )
+                    team_b_players.append(
+                        {
+                            "player_name": info.get("full_name"),
+                            "position": info.get("position"),
+                            "nfl_team": info.get("nfl_team"),
+                            "points": roster_entry["points"].get(player_id),
+                            "role": "starter"
+                            if player_id in roster_entry["starters"]
+                            else "bench",
+                        }
+                    )
+
+        row["team_a_players"] = team_a_players
+        row["team_b_players"] = team_b_players
+
+    return _strip_id_fields_list(rows)
 
 
 def get_transactions(
@@ -241,7 +381,8 @@ def get_transactions(
             tm.pick_id,
             tm.from_roster_id,
             tm.to_roster_id,
-            tp.team_name
+            tp.team_name,
+            tp_orig.team_name AS pick_original_team_name
         FROM transactions t
         LEFT JOIN transaction_moves tm
             ON tm.transaction_id = t.transaction_id
@@ -249,6 +390,8 @@ def get_transactions(
             ON p.player_id = tm.player_id
         LEFT JOIN team_profiles tp
             ON tp.league_id = t.league_id AND tp.roster_id = tm.roster_id
+        LEFT JOIN team_profiles tp_orig
+            ON tp_orig.league_id = t.league_id AND tp_orig.roster_id = tm.pick_original_roster_id
         WHERE t.week BETWEEN :week_from AND :week_to
         {roster_filter}
         ORDER BY t.week DESC, t.created_ts DESC;
@@ -285,6 +428,7 @@ def get_transactions(
             "years_exp": row.get("years_exp"),
             "pick_season": row.get("pick_season"),
             "pick_round": row.get("pick_round"),
+            "pick_original_team_name": row.get("pick_original_team_name"),
         }
         asset = {key: value for key, value in asset.items() if value is not None}
 
@@ -308,7 +452,7 @@ def get_transactions(
     for transaction_id, grouped_row in grouped.items():
         grouped_row["details"] = list(details_by_team[transaction_id].values())
 
-    return ordered
+    return _strip_id_fields_list(ordered)
 
 
 def get_player_summary(conn, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
@@ -329,7 +473,7 @@ def get_player_summary(conn, player_key: Any, week_to: int | None = None) -> dic
         return {"player_id": resolved["player_id"], "found": False, "as_of_week": week_to}
 
     player["player_name"] = player.get("full_name")
-    return {"player": player, "found": True, "as_of_week": week_to}
+    return {"player": _strip_id_fields(player), "found": True, "as_of_week": week_to}
 
 
 def get_team_dossier(
@@ -393,9 +537,9 @@ def get_team_dossier(
     )
 
     return {
-        "team": team,
-        "standings": standings,
-        "recent_games": recent_games,
+        "team": _strip_id_fields(team),
+        "standings": _strip_id_fields(standings),
+        "recent_games": _strip_id_fields_list(recent_games),
         "as_of_week": week,
         "found": True,
     }
@@ -445,11 +589,11 @@ def get_league_snapshot(conn, week: int | None = None) -> dict[str, Any]:
     )
 
     return {
-        "league": league,
+        "league": _strip_id_fields(league),
         "as_of_week": effective_week,
-        "standings": standings,
-        "games": games,
-        "transactions": transactions,
+        "standings": _strip_id_fields_list(standings),
+        "games": _strip_id_fields_list(games),
+        "transactions": _strip_id_fields_list(transactions),
         "found": True,
     }
 
@@ -500,12 +644,34 @@ def get_roster_current(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
         {"league_id": league_id, "roster_id": roster_id},
     )
 
-    if not team and not players:
+    picks = _fetch_all(
+        conn,
+        """
+        SELECT
+            dp.season,
+            dp.round,
+            dp.original_roster_id,
+            dp.current_roster_id,
+            tpo.team_name AS original_team_name,
+            tpc.team_name AS current_team_name
+        FROM draft_picks dp
+        LEFT JOIN team_profiles tpo
+            ON tpo.league_id = dp.league_id AND tpo.roster_id = dp.original_roster_id
+        LEFT JOIN team_profiles tpc
+            ON tpc.league_id = dp.league_id AND tpc.roster_id = dp.current_roster_id
+        WHERE dp.league_id = :league_id AND dp.current_roster_id = :roster_id
+        ORDER BY dp.season ASC, dp.round ASC
+        """,
+        {"league_id": league_id, "roster_id": roster_id},
+    )
+
+    if not team and not players and not picks:
         return {"roster_id": roster_id, "found": False, "as_of_week": None}
 
     return {
-        "team": team,
-        "players": players,
+        "team": _strip_id_fields(team),
+        "players": _strip_id_fields_list(players),
+        "picks": _strip_id_fields_list(picks),
         "as_of_week": None,
         "found": True,
     }
@@ -567,8 +733,8 @@ def get_roster_snapshot(conn, league_id: str, roster_key: Any, week: int) -> dic
     )
 
     return {
-        "team": team,
-        "players": players,
+        "team": _strip_id_fields(team),
+        "players": _strip_id_fields_list(players),
         "as_of_week": week,
         "found": True,
     }

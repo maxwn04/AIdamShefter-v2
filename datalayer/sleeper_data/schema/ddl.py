@@ -138,6 +138,28 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             IndexSpec("idx_team_profiles_manager_name", ("manager_name",)),
         ),
     ),
+    "draft_picks": TableSpec(
+        name="draft_picks",
+        columns=(
+            ColumnSpec("league_id", "TEXT", nullable=False),
+            ColumnSpec("season", "TEXT", nullable=False),
+            ColumnSpec("round", "INTEGER", nullable=False),
+            ColumnSpec("original_roster_id", "INTEGER", nullable=False),
+            ColumnSpec("current_roster_id", "INTEGER", nullable=False),
+            ColumnSpec("pick_id", "TEXT"),
+            ColumnSpec("source", "TEXT"),
+        ),
+        primary_key=("league_id", "season", "round", "original_roster_id"),
+        foreign_keys=(
+            ForeignKeySpec(("league_id", "original_roster_id"), "rosters", ("league_id", "roster_id")),
+            ForeignKeySpec(("league_id", "current_roster_id"), "rosters", ("league_id", "roster_id")),
+        ),
+        indexes=(
+            IndexSpec("idx_draft_picks_current", ("league_id", "current_roster_id")),
+            IndexSpec("idx_draft_picks_original", ("league_id", "original_roster_id")),
+            IndexSpec("idx_draft_picks_season_round", ("league_id", "season", "round")),
+        ),
+    ),
     "matchups": TableSpec(
         name="matchups",
         columns=(
@@ -149,6 +171,7 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             ColumnSpec("points", "REAL", nullable=False),
             ColumnSpec("starters_json", "TEXT"),
             ColumnSpec("players_json", "TEXT"),
+            ColumnSpec("players_points_json", "TEXT"),
         ),
         primary_key=("league_id", "week", "matchup_id", "roster_id"),
         foreign_keys=(
@@ -297,6 +320,7 @@ def create_all_tables(conn, table_names: Sequence[str] | None = None) -> None:
         "users",
         "rosters",
         "team_profiles",
+        "draft_picks",
         "players",
         "roster_players",
         "season_context",

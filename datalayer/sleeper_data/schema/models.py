@@ -83,6 +83,19 @@ class TeamProfile(RowMixin):
 
 
 @dataclass
+class DraftPick(RowMixin):
+    table_name: ClassVar[str] = "draft_picks"
+
+    league_id: str
+    season: str
+    round: int
+    original_roster_id: int
+    current_roster_id: int
+    pick_id: Optional[str] = None
+    source: Optional[str] = None
+
+
+@dataclass
 class MatchupRow(RowMixin):
     table_name: ClassVar[str] = "matchups"
 
@@ -94,6 +107,7 @@ class MatchupRow(RowMixin):
     points: float
     starters_json: Optional[str] = None
     players_json: Optional[str] = None
+    players_points_json: Optional[str] = None
 
 
 @dataclass
