@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sleeper-datalayer"
+version = "0.1.0"
+description = "Sleeper fantasy league data layer"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests", "python-dotenv"]
+
+[project.scripts]
+sleeperdl = "datalayer.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["datalayer*"]
