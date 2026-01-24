@@ -36,6 +36,8 @@ def normalize_players(raw_players: Mapping[str, Any]) -> list[Player]:
                 nfl_team=raw_player.get("team"),
                 status=raw_player.get("status"),
                 injury_status=raw_player.get("injury_status"),
+                age=raw_player.get("age"),
+                years_exp=raw_player.get("years_exp"),
                 metadata_json=_json_dumps(raw_player),
                 updated_at=raw_player.get("updated_at"),
             )

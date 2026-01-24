@@ -209,9 +209,15 @@ def get_transactions(
     roster_filter = ""
     if roster_id is not None:
         params["roster_id"] = roster_id
-        roster_filter = "AND tm.roster_id = :roster_id"
+        roster_filter = """
+        AND t.transaction_id IN (
+            SELECT transaction_id
+            FROM transaction_moves
+            WHERE roster_id = :roster_id
+        )
+        """
 
-    return _fetch_all(
+    rows = _fetch_all(
         conn,
         f"""
         SELECT
@@ -220,13 +226,22 @@ def get_transactions(
             t.type,
             t.status,
             t.created_ts,
+            tm.asset_type,
             tm.direction,
-            tm.player_id,
             tm.roster_id,
-            tm.bid_amount,
+            tm.player_id,
             p.full_name AS player_name,
-            tp.team_name,
-            tp.manager_name
+            p.position,
+            p.age,
+            p.years_exp,
+            tm.bid_amount,
+            tm.pick_season,
+            tm.pick_round,
+            tm.pick_original_roster_id,
+            tm.pick_id,
+            tm.from_roster_id,
+            tm.to_roster_id,
+            tp.team_name
         FROM transactions t
         LEFT JOIN transaction_moves tm
             ON tm.transaction_id = t.transaction_id
@@ -240,6 +255,60 @@ def get_transactions(
         """,
         params,
     )
+
+    grouped: dict[str, dict[str, Any]] = {}
+    ordered: list[dict[str, Any]] = []
+    details_by_team: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for row in rows:
+        transaction_id = row["transaction_id"]
+        if transaction_id not in grouped:
+            grouped[transaction_id] = {
+                "week": row["week"],
+                "type": row["type"],
+                "status": row["status"],
+                "created_ts": row["created_ts"],
+            }
+            details_by_team[transaction_id] = {}
+            ordered.append(grouped[transaction_id])
+
+        asset_type = row.get("asset_type")
+        direction = row.get("direction")
+        if asset_type is None and direction is None:
+            continue
+
+        asset = {
+            "asset_type": asset_type,
+            "player_name": row.get("player_name"),
+            "position": row.get("position"),
+            "age": row.get("age"),
+            "years_exp": row.get("years_exp"),
+            "pick_season": row.get("pick_season"),
+            "pick_round": row.get("pick_round"),
+        }
+        asset = {key: value for key, value in asset.items() if value is not None}
+
+        if direction in {"add", "pick_in"}:
+            bucket = "assets_received"
+        elif direction in {"drop", "pick_out"}:
+            bucket = "assets_sent"
+        else:
+            bucket = "assets_received"
+
+        if row.get("bid_amount") is not None and row.get("type") != "trade":
+            grouped[transaction_id]["bid_amount"] = row.get("bid_amount")
+
+        team_name = row.get("team_name") or "Unknown"
+        details = details_by_team[transaction_id].setdefault(
+            team_name,
+            {"team_name": team_name, "assets_sent": [], "assets_received": []},
+        )
+        details[bucket].append(asset)
+
+    for transaction_id, grouped_row in grouped.items():
+        grouped_row["details"] = list(details_by_team[transaction_id].values())
+
+    return ordered
 
 
 def get_player_summary(conn, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
