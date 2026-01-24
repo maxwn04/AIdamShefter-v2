@@ -159,7 +159,9 @@ class SleeperLeagueData:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_team_dossier(self.conn, self.league_id, roster_key, week)
 
-    def get_week_games(self, week: int | None = None) -> list[dict[str, Any]]:
+    def get_week_games(
+        self, week: int | None = None, roster_key: Any | None = None
+    ) -> list[dict[str, Any]]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         if week is None:
@@ -170,12 +172,16 @@ class SleeperLeagueData:
                 week = context[0]
         if week is None:
             return []
-        return get_week_games(self.conn, int(week))
+        return get_week_games(self.conn, self.league_id, int(week), roster_key=roster_key)
 
-    def get_transactions(self, week_from: int, week_to: int) -> list[dict[str, Any]]:
+    def get_transactions(
+        self, week_from: int, week_to: int, roster_key: Any | None = None
+    ) -> list[dict[str, Any]]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return query_get_transactions(self.conn, week_from, week_to)
+        return query_get_transactions(
+            self.conn, self.league_id, week_from, week_to, roster_key=roster_key
+        )
 
     def get_player_summary(self, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
         if not self.conn:

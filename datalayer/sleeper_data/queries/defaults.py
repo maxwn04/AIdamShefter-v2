@@ -146,10 +146,25 @@ def _load_player_details(conn, player_ids: Iterable[str]) -> dict[str, dict[str,
     return {row["player_id"]: row for row in rows}
 
 
-def get_week_games(conn, week: int) -> list[dict[str, Any]]:
+def get_week_games(
+    conn, league_id: str, week: int, roster_key: Any | None = None
+) -> list[dict[str, Any]]:
+    roster_id = None
+    if roster_key is not None:
+        resolved = resolve_roster_id(conn, league_id, roster_key)
+        if not resolved.get("found"):
+            return []
+        roster_id = resolved["roster_id"]
+
+    params: dict[str, Any] = {"week": week}
+    roster_filter = ""
+    if roster_id is not None:
+        params["roster_id"] = roster_id
+        roster_filter = "AND (g.roster_id_a = :roster_id OR g.roster_id_b = :roster_id)"
+
     rows = _fetch_all(
         conn,
-        """
+        f"""
         SELECT
             g.week,
             g.matchup_id,
@@ -168,17 +183,37 @@ def get_week_games(conn, week: int) -> list[dict[str, Any]]:
         LEFT JOIN team_profiles tpb
             ON tpb.league_id = g.league_id AND tpb.roster_id = g.roster_id_b
         WHERE g.week = :week
+        {roster_filter}
         ORDER BY g.matchup_id;
         """,
-        {"week": week},
+        params,
     )
     return rows
 
 
-def get_transactions(conn, week_from: int, week_to: int) -> list[dict[str, Any]]:
+def get_transactions(
+    conn,
+    league_id: str,
+    week_from: int,
+    week_to: int,
+    roster_key: Any | None = None,
+) -> list[dict[str, Any]]:
+    roster_id = None
+    if roster_key is not None:
+        resolved = resolve_roster_id(conn, league_id, roster_key)
+        if not resolved.get("found"):
+            return []
+        roster_id = resolved["roster_id"]
+
+    params: dict[str, Any] = {"week_from": week_from, "week_to": week_to}
+    roster_filter = ""
+    if roster_id is not None:
+        params["roster_id"] = roster_id
+        roster_filter = "AND tm.roster_id = :roster_id"
+
     return _fetch_all(
         conn,
-        """
+        f"""
         SELECT
             t.week,
             t.transaction_id,
@@ -200,9 +235,10 @@ def get_transactions(conn, week_from: int, week_to: int) -> list[dict[str, Any]]
         LEFT JOIN team_profiles tp
             ON tp.league_id = t.league_id AND tp.roster_id = tm.roster_id
         WHERE t.week BETWEEN :week_from AND :week_to
+        {roster_filter}
         ORDER BY t.week DESC, t.created_ts DESC;
         """,
-        {"week_from": week_from, "week_to": week_to},
+        params,
     )
 
 
@@ -328,9 +364,13 @@ def get_league_snapshot(conn, week: int | None = None) -> dict[str, Any]:
             {"week": effective_week},
         )
 
-    games = get_week_games(conn, effective_week) if effective_week is not None else []
+    games = (
+        get_week_games(conn, league["league_id"], effective_week)
+        if effective_week is not None
+        else []
+    )
     transactions = (
-        get_transactions(conn, effective_week, effective_week)
+        get_transactions(conn, league["league_id"], effective_week, effective_week)
         if effective_week is not None
         else []
     )

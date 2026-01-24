@@ -53,11 +53,11 @@ def _app_help() -> None:
             [
                 "Commands:",
                 "  snapshot [week]",
-                "  games [week]",
-                "  team <roster_id_or_name> [week]",
-                "  roster <roster_id_or_name> [week]",
-                "  transactions <week_from> <week_to>",
-                "  player <player_id_or_name> [week_to]",
+                "  games [--week <week>] [--roster <roster_id or name>]",
+                "  team <roster_id or name> [week]",
+                "  roster <roster_id or name> [week]",
+                "  transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]",
+                "  player <player_id or name> [week_to]",
                 "  save [output_path]",
                 "  sql <select_query>",
                 "  help",
@@ -65,6 +65,17 @@ def _app_help() -> None:
             ]
         )
     )
+
+
+def _extract_flag_value(args: list[str], flag: str) -> tuple[str | None, str | None]:
+    if flag not in args:
+        return None, None
+    idx = args.index(flag)
+    if idx == len(args) - 1:
+        return None, f"Missing value for {flag}"
+    value = args[idx + 1]
+    del args[idx : idx + 2]
+    return value, None
 
 
 def _run_app(league_id: str | None) -> int:
@@ -94,25 +105,76 @@ def _run_app(league_id: str | None) -> int:
                 week = int(args[0]) if args else None
                 _print_json(data.get_league_snapshot(week))
             elif command == "games":
-                week = int(args[0]) if args else None
-                _print_json(data.get_week_games(week))
+                args = list(args)
+                week_value, error = _extract_flag_value(args, "--week")
+                if error:
+                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    continue
+                roster_key, error = _extract_flag_value(args, "--roster")
+                if error:
+                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    continue
+                if args:
+                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    continue
+                try:
+                    week = int(week_value) if week_value is not None else None
+                except ValueError:
+                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    continue
+                _print_json(data.get_week_games(week, roster_key=roster_key))
             elif command == "team":
                 if not args:
-                    print("Usage: team <roster_id_or_name> [week]")
+                    print("Usage: team <roster_id or name> [week]")
                     continue
                 roster_key = args[0]
                 week = int(args[1]) if len(args) > 1 else None
                 _print_json(data.get_team_dossier(roster_key, week))
             elif command == "transactions":
-                if len(args) < 2:
-                    print("Usage: transactions <week_from> <week_to>")
+                args = list(args)
+                week_from_value, error = _extract_flag_value(args, "--from")
+                if error:
+                    print(
+                        "Usage: transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]"
+                    )
                     continue
-                week_from = int(args[0])
-                week_to = int(args[1])
-                _print_json(data.get_transactions(week_from, week_to))
+                week_to_value, error = _extract_flag_value(args, "--to")
+                if error:
+                    print(
+                        "Usage: transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]"
+                    )
+                    continue
+                roster_key, error = _extract_flag_value(args, "--roster")
+                if error:
+                    print(
+                        "Usage: transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]"
+                    )
+                    continue
+                if args:
+                    print(
+                        "Usage: transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]"
+                    )
+                    continue
+                context = data.conn.execute(
+                    "SELECT effective_week FROM season_context LIMIT 1"
+                ).fetchone()
+                effective_week = int(context[0]) if context else 0
+                try:
+                    week_from = int(week_from_value) if week_from_value is not None else 1
+                    week_to = (
+                        int(week_to_value) if week_to_value is not None else effective_week
+                    )
+                except ValueError:
+                    print(
+                        "Usage: transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]"
+                    )
+                    continue
+                _print_json(
+                    data.get_transactions(week_from, week_to, roster_key=roster_key)
+                )
             elif command == "roster":
                 if not args:
-                    print("Usage: roster <roster_id_or_name> [week]")
+                    print("Usage: roster <roster_id or name> [week]")
                     continue
                 roster_key = args[0]
                 if len(args) > 1:
@@ -122,7 +184,7 @@ def _run_app(league_id: str | None) -> int:
                     _print_json(data.get_roster_current(roster_key))
             elif command == "player":
                 if not args:
-                    print("Usage: player <player_id_or_name> [week_to]")
+                    print("Usage: player <player_id or name> [week_to]")
                     continue
                 player_key = args[0]
                 week_to = int(args[1]) if len(args) > 1 else None
