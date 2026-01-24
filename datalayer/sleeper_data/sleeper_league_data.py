@@ -32,6 +32,14 @@ from .sleeper_api import (
     get_transactions,
 )
 from .store.sqlite_store import bulk_insert, create_tables
+from .queries.defaults import (
+    get_league_snapshot,
+    get_player_summary,
+    get_team_dossier,
+    get_transactions,
+    get_week_games,
+)
+from .queries.sql_tool import run_sql
 
 
 class SleeperLeagueData:
@@ -132,3 +140,47 @@ class SleeperLeagueData:
             file_conn.close()
 
         return output_path
+
+    def get_league_snapshot(self, week: int | None = None) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_league_snapshot(self.conn, week)
+
+    def get_team_dossier(self, roster_id: int, week: int | None = None) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_team_dossier(self.conn, roster_id, week)
+
+    def get_week_games(self, week: int | None = None) -> list[dict[str, Any]]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        if week is None:
+            context = self.conn.execute(
+                "SELECT effective_week FROM season_context LIMIT 1"
+            ).fetchone()
+            if context:
+                week = context[0]
+        if week is None:
+            return []
+        return get_week_games(self.conn, int(week))
+
+    def get_transactions(self, week_from: int, week_to: int) -> list[dict[str, Any]]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_transactions(self.conn, week_from, week_to)
+
+    def get_player_summary(self, player_id: str, week_to: int | None = None) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_player_summary(self.conn, player_id, week_to)
+
+    def run_sql(
+        self,
+        query: str,
+        params: Mapping[str, Any] | None = None,
+        *,
+        limit: int = 200,
+    ) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return run_sql(self.conn, query, params, limit=limit)
