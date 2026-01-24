@@ -23,13 +23,17 @@ def normalize_matchups(
 ) -> list[MatchupRow]:
     rows: list[MatchupRow] = []
     for raw_row in raw_matchups:
+        matchup_id = raw_row.get("matchup_id")
+        roster_id = raw_row.get("roster_id")
+        if matchup_id is None or roster_id is None:
+            continue
         rows.append(
             MatchupRow(
                 league_id=str(league_id),
                 season=str(season),
                 week=int(week),
-                matchup_id=int(raw_row["matchup_id"]),
-                roster_id=int(raw_row["roster_id"]),
+                matchup_id=int(matchup_id),
+                roster_id=int(roster_id),
                 points=float(raw_row.get("points", 0.0)),
                 starters_json=_json_dumps(raw_row.get("starters")),
                 players_json=_json_dumps(raw_row.get("players")),
