@@ -54,9 +54,10 @@ def _app_help() -> None:
                 "Commands:",
                 "  snapshot [week]",
                 "  games [week]",
-                "  team <roster_id> [week]",
+                "  team <roster_id_or_name> [week]",
+                "  roster <roster_id> [week]",
                 "  transactions <week_from> <week_to>",
-                "  player <player_id> [week_to]",
+                "  player <player_id_or_name> [week_to]",
                 "  sql <select_query>",
                 "  help",
                 "  exit | quit",
@@ -96,11 +97,11 @@ def _run_app(league_id: str | None) -> int:
                 _print_json(data.get_week_games(week))
             elif command == "team":
                 if not args:
-                    print("Usage: team <roster_id> [week]")
+                    print("Usage: team <roster_id_or_name> [week]")
                     continue
-                roster_id = int(args[0])
+                roster_key = args[0]
                 week = int(args[1]) if len(args) > 1 else None
-                _print_json(data.get_team_dossier(roster_id, week))
+                _print_json(data.get_team_dossier(roster_key, week))
             elif command == "transactions":
                 if len(args) < 2:
                     print("Usage: transactions <week_from> <week_to>")
@@ -108,13 +109,23 @@ def _run_app(league_id: str | None) -> int:
                 week_from = int(args[0])
                 week_to = int(args[1])
                 _print_json(data.get_transactions(week_from, week_to))
+            elif command == "roster":
+                if not args:
+                    print("Usage: roster <roster_id> [week]")
+                    continue
+                roster_id = int(args[0])
+                if len(args) > 1:
+                    week = int(args[1])
+                    _print_json(data.get_roster_snapshot(roster_id, week))
+                else:
+                    _print_json(data.get_roster_current(roster_id))
             elif command == "player":
                 if not args:
-                    print("Usage: player <player_id> [week_to]")
+                    print("Usage: player <player_id_or_name> [week_to]")
                     continue
-                player_id = args[0]
+                player_key = args[0]
                 week_to = int(args[1]) if len(args) > 1 else None
-                _print_json(data.get_player_summary(player_id, week_to))
+                _print_json(data.get_player_summary(player_key, week_to))
             elif command == "sql":
                 if not args:
                     print("Usage: sql <select_query>")

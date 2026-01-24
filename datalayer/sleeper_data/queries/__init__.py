@@ -3,6 +3,8 @@
 from .defaults import (
     get_league_snapshot,
     get_player_summary,
+    get_roster_current,
+    get_roster_snapshot,
     get_team_dossier,
     get_transactions,
     get_week_games,
@@ -15,5 +17,7 @@ __all__ = [
     "get_week_games",
     "get_transactions",
     "get_player_summary",
+    "get_roster_current",
+    "get_roster_snapshot",
     "run_sql",
 ]

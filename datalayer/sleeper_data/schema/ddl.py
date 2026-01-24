@@ -133,6 +133,10 @@ DDL_REGISTRY: dict[str, TableSpec] = {
         foreign_keys=(
             ForeignKeySpec(("league_id", "roster_id"), "rosters", ("league_id", "roster_id")),
         ),
+        indexes=(
+            IndexSpec("idx_team_profiles_team_name", ("team_name",)),
+            IndexSpec("idx_team_profiles_manager_name", ("manager_name",)),
+        ),
     ),
     "matchups": TableSpec(
         name="matchups",
@@ -194,6 +198,27 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             ColumnSpec("updated_at", "TEXT"),
         ),
         primary_key=("player_id",),
+        indexes=(
+            IndexSpec("idx_players_full_name", ("full_name",)),
+        ),
+    ),
+    "roster_players": TableSpec(
+        name="roster_players",
+        columns=(
+            ColumnSpec("league_id", "TEXT", nullable=False),
+            ColumnSpec("roster_id", "INTEGER", nullable=False),
+            ColumnSpec("player_id", "TEXT", nullable=False),
+            ColumnSpec("role", "TEXT", nullable=False),
+        ),
+        primary_key=("league_id", "roster_id", "player_id"),
+        foreign_keys=(
+            ForeignKeySpec(("league_id", "roster_id"), "rosters", ("league_id", "roster_id")),
+            ForeignKeySpec(("player_id",), "players", ("player_id",)),
+        ),
+        indexes=(
+            IndexSpec("idx_roster_players_league_roster", ("league_id", "roster_id")),
+            IndexSpec("idx_roster_players_player", ("player_id",)),
+        ),
     ),
     "transactions": TableSpec(
         name="transactions",
@@ -265,6 +290,7 @@ def create_all_tables(conn, table_names: Sequence[str] | None = None) -> None:
         "rosters",
         "team_profiles",
         "players",
+        "roster_players",
         "season_context",
         "matchups",
         "games",
