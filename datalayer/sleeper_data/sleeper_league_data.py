@@ -142,6 +142,13 @@ class SleeperLeagueData:
                 },
             )
 
+        raw_players = get_players("nfl", client=self.client)
+        players = normalize_players(raw_players)
+        if players:
+            bulk_insert(self.conn, players[0].table_name, players)
+        if roster_players:
+            bulk_insert(self.conn, roster_players[0].table_name, roster_players)
+
         computed_week = int(raw_state.get("week") or 0)
         effective_week = int(self.week_override or computed_week or 0)
         season = str(raw_league.get("season") or raw_state.get("season") or "")
@@ -181,13 +188,6 @@ class SleeperLeagueData:
             )
             if standings:
                 bulk_insert(self.conn, standings[0].table_name, standings)
-
-        raw_players = get_players("nfl", client=self.client)
-        players = normalize_players(raw_players)
-        if players:
-            bulk_insert(self.conn, players[0].table_name, players)
-        if roster_players:
-            bulk_insert(self.conn, roster_players[0].table_name, roster_players)
 
         season_context = SeasonContext(
             league_id=self.league_id,

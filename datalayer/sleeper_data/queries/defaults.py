@@ -34,19 +34,26 @@ def resolve_player_id(conn, player_key: Any) -> dict[str, Any]:
     by_id = _fetch_one(
         conn,
         """
-        SELECT player_id, full_name
+        SELECT player_id, full_name, position, age, nfl_team
         FROM players
         WHERE player_id = :player_id
         """,
         {"player_id": key},
     )
     if by_id:
-        return {"found": True, "player_id": by_id["player_id"], "player_name": by_id["full_name"]}
+        return {
+            "found": True,
+            "player_id": by_id["player_id"],
+            "player_name": by_id["full_name"],
+            "position": by_id.get("position"),
+            "age": by_id.get("age"),
+            "nfl_team": by_id.get("nfl_team"),
+        }
 
     matches = _fetch_all(
         conn,
         """
-        SELECT player_id, full_name AS player_name
+        SELECT player_id, full_name AS player_name, position, age, nfl_team
         FROM players
         WHERE full_name IS NOT NULL AND lower(full_name) = lower(:full_name)
         ORDER BY full_name ASC
