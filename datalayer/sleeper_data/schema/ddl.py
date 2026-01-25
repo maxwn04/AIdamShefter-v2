@@ -169,9 +169,6 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             ColumnSpec("matchup_id", "INTEGER", nullable=False),
             ColumnSpec("roster_id", "INTEGER", nullable=False),
             ColumnSpec("points", "REAL", nullable=False),
-            ColumnSpec("starters_json", "TEXT"),
-            ColumnSpec("players_json", "TEXT"),
-            ColumnSpec("players_points_json", "TEXT"),
         ),
         primary_key=("league_id", "week", "matchup_id", "roster_id"),
         foreign_keys=(
@@ -181,6 +178,30 @@ DDL_REGISTRY: dict[str, TableSpec] = {
         indexes=(
             IndexSpec("idx_matchups_league_season_week", ("league_id", "season", "week")),
             IndexSpec("idx_matchups_week_matchup", ("week", "matchup_id")),
+        ),
+    ),
+    "player_performances": TableSpec(
+        name="player_performances",
+        columns=(
+            ColumnSpec("league_id", "TEXT", nullable=False),
+            ColumnSpec("season", "TEXT", nullable=False),
+            ColumnSpec("week", "INTEGER", nullable=False),
+            ColumnSpec("player_id", "TEXT", nullable=False),
+            ColumnSpec("roster_id", "INTEGER", nullable=False),
+            ColumnSpec("matchup_id", "INTEGER", nullable=False),
+            ColumnSpec("points", "REAL", nullable=False),
+            ColumnSpec("role", "TEXT"),
+        ),
+        primary_key=("league_id", "season", "week", "player_id", "roster_id"),
+        foreign_keys=(
+            ForeignKeySpec(("league_id",), "leagues", ("league_id",)),
+            ForeignKeySpec(("league_id", "roster_id"), "rosters", ("league_id", "roster_id")),
+            ForeignKeySpec(("player_id",), "players", ("player_id",)),
+        ),
+        indexes=(
+            IndexSpec("idx_player_perf_league_week", ("league_id", "week")),
+            IndexSpec("idx_player_perf_player_week", ("player_id", "season", "week")),
+            IndexSpec("idx_player_perf_roster_week", ("league_id", "roster_id", "week")),
         ),
     ),
     "games": TableSpec(
@@ -325,6 +346,7 @@ def create_all_tables(conn, table_names: Sequence[str] | None = None) -> None:
         "roster_players",
         "season_context",
         "matchups",
+        "player_performances",
         "games",
         "transactions",
         "transaction_moves",

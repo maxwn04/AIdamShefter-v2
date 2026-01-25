@@ -262,7 +262,7 @@ data.load()  # fetch → normalize → populate sqlite
 
 5. **Player dossier**
 
-   * `get_player_summary(player_key: str, week_to: int | None = None) -> dict`
+   * `get_player_summary(player_key: str) -> dict`
    * Accepts player ID or full name.
 
 6. **Roster views**
