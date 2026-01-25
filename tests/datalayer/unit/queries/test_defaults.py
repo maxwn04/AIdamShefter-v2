@@ -1,4 +1,3 @@
-import json
 import sqlite3
 
 from datalayer.sleeper_data.queries.defaults import get_week_games, resolve_player_id
@@ -7,6 +6,7 @@ from datalayer.sleeper_data.schema.models import (
     League,
     MatchupRow,
     Player,
+    PlayerPerformance,
     Roster,
     TeamProfile,
     User,
@@ -44,9 +44,6 @@ def _seed_minimal_game(conn):
         matchup_id=1,
         roster_id=1,
         points=100.0,
-        starters_json=json.dumps(["p1"]),
-        players_json=json.dumps(["p1", "p2"]),
-        players_points_json=json.dumps({"p1": 60.0, "p2": 40.0}),
     )
     matchup_b = MatchupRow(
         league_id="123",
@@ -55,10 +52,49 @@ def _seed_minimal_game(conn):
         matchup_id=1,
         roster_id=2,
         points=90.0,
-        starters_json=json.dumps(["p2"]),
-        players_json=json.dumps(["p1", "p2"]),
-        players_points_json=json.dumps({"p1": 50.0, "p2": 40.0}),
     )
+    player_performances = [
+        PlayerPerformance(
+            league_id="123",
+            season="2024",
+            week=1,
+            player_id="p1",
+            roster_id=1,
+            matchup_id=1,
+            points=60.0,
+            role="starter",
+        ),
+        PlayerPerformance(
+            league_id="123",
+            season="2024",
+            week=1,
+            player_id="p2",
+            roster_id=1,
+            matchup_id=1,
+            points=40.0,
+            role="bench",
+        ),
+        PlayerPerformance(
+            league_id="123",
+            season="2024",
+            week=1,
+            player_id="p1",
+            roster_id=2,
+            matchup_id=1,
+            points=50.0,
+            role="bench",
+        ),
+        PlayerPerformance(
+            league_id="123",
+            season="2024",
+            week=1,
+            player_id="p2",
+            roster_id=2,
+            matchup_id=1,
+            points=40.0,
+            role="starter",
+        ),
+    ]
     game = Game(
         league_id="123",
         season="2024",
@@ -78,6 +114,7 @@ def _seed_minimal_game(conn):
     bulk_insert(conn, profiles[0].table_name, profiles)
     bulk_insert(conn, players[0].table_name, players)
     bulk_insert(conn, matchup.table_name, [matchup, matchup_b])
+    bulk_insert(conn, player_performances[0].table_name, player_performances)
     bulk_insert(conn, game.table_name, [game])
 
 

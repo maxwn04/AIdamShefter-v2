@@ -105,9 +105,20 @@ class MatchupRow(RowMixin):
     matchup_id: int
     roster_id: int
     points: float
-    starters_json: Optional[str] = None
-    players_json: Optional[str] = None
-    players_points_json: Optional[str] = None
+
+
+@dataclass
+class PlayerPerformance(RowMixin):
+    table_name: ClassVar[str] = "player_performances"
+
+    league_id: str
+    season: str
+    week: int
+    player_id: str
+    roster_id: int
+    matchup_id: int
+    points: float
+    role: Optional[str] = None
 
 
 @dataclass

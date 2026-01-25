@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from typing import Any, Iterable, Mapping
 
-from ..schema.models import Game, MatchupRow
+from ..schema.models import Game, MatchupRow, PlayerPerformance
 
 
-def _json_dumps(value: Any) -> str | None:
-    if value is None:
-        return None
-    return json.dumps(value)
+def _normalize_player_ids(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(pid) for pid in value if pid]
+
+
+def _normalize_player_points(value: Any) -> dict[str, float]:
+    if not isinstance(value, dict):
+        return {}
+    points: dict[str, float] = {}
+    for player_id, raw_points in value.items():
+        if player_id is None:
+            continue
+        try:
+            points[str(player_id)] = float(raw_points)
+        except (TypeError, ValueError):
+            continue
+    return points
 
 
 def normalize_matchups(
@@ -20,27 +33,41 @@ def normalize_matchups(
     league_id: str,
     season: str,
     week: int,
-) -> list[MatchupRow]:
+) -> tuple[list[MatchupRow], list[PlayerPerformance]]:
     rows: list[MatchupRow] = []
+    performance_rows: list[PlayerPerformance] = []
     for raw_row in raw_matchups:
         matchup_id = raw_row.get("matchup_id")
         roster_id = raw_row.get("roster_id")
         if matchup_id is None or roster_id is None:
             continue
-        rows.append(
-            MatchupRow(
-                league_id=str(league_id),
-                season=str(season),
-                week=int(week),
-                matchup_id=int(matchup_id),
-                roster_id=int(roster_id),
-                points=float(raw_row.get("points", 0.0)),
-                starters_json=_json_dumps(raw_row.get("starters")),
-                players_json=_json_dumps(raw_row.get("players")),
-                players_points_json=_json_dumps(raw_row.get("players_points")),
-            )
+        matchup_row = MatchupRow(
+            league_id=str(league_id),
+            season=str(season),
+            week=int(week),
+            matchup_id=int(matchup_id),
+            roster_id=int(roster_id),
+            points=float(raw_row.get("points", 0.0)),
         )
-    return rows
+        rows.append(matchup_row)
+
+        players = _normalize_player_ids(raw_row.get("players"))
+        starters = set(_normalize_player_ids(raw_row.get("starters")))
+        points = _normalize_player_points(raw_row.get("players_points"))
+        for player_id in players:
+            performance_rows.append(
+                PlayerPerformance(
+                    league_id=matchup_row.league_id,
+                    season=matchup_row.season,
+                    week=matchup_row.week,
+                    player_id=str(player_id),
+                    roster_id=matchup_row.roster_id,
+                    matchup_id=matchup_row.matchup_id,
+                    points=points.get(str(player_id), 0.0),
+                    role="starter" if player_id in starters else "bench",
+                )
+            )
+    return rows, performance_rows
 
 
 def derive_games(

@@ -38,11 +38,13 @@ from .store.sqlite_store import bulk_insert, create_tables
 from .queries.defaults import (
     get_league_snapshot,
     get_player_summary,
+    get_player_weekly_log,
     get_roster_current,
     get_roster_snapshot,
     get_team_dossier,
     get_transactions as query_get_transactions,
     get_week_games,
+    get_week_player_leaderboard,
 )
 from .queries.sql_tool import run_sql
 
@@ -147,12 +149,18 @@ class SleeperLeagueData:
         if effective_week > 0:
             for week in range(1, effective_week + 1):
                 raw_matchups = get_matchups(self.league_id, week, client=self.client)
-                matchup_rows = normalize_matchups(
+                matchup_rows, player_performances = normalize_matchups(
                     raw_matchups, league_id=self.league_id, season=season, week=week
                 )
                 games = derive_games(matchup_rows, is_playoffs=False)
                 if matchup_rows:
                     bulk_insert(self.conn, matchup_rows[0].table_name, matchup_rows)
+                if player_performances:
+                    bulk_insert(
+                        self.conn,
+                        player_performances[0].table_name,
+                        player_performances,
+                    )
                 if games:
                     bulk_insert(self.conn, games[0].table_name, games)
 
@@ -242,6 +250,21 @@ class SleeperLeagueData:
             include_players=include_players,
         )
 
+    def get_week_player_leaderboard(
+        self, week: int | None = None, *, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        if week is None:
+            context = self.conn.execute(
+                "SELECT effective_week FROM season_context LIMIT 1"
+            ).fetchone()
+            if context:
+                week = context[0]
+        if week is None:
+            return []
+        return get_week_player_leaderboard(self.conn, self.league_id, int(week), limit=limit)
+
     def get_transactions(
         self, week_from: int, week_to: int, roster_key: Any | None = None
     ) -> list[dict[str, Any]]:
@@ -255,6 +278,23 @@ class SleeperLeagueData:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_player_summary(self.conn, player_key, week_to)
+
+    def get_player_weekly_log(
+        self,
+        player_key: Any,
+        *,
+        week_from: int | None = None,
+        week_to: int | None = None,
+    ) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_player_weekly_log(
+            self.conn,
+            self.league_id,
+            player_key,
+            week_from=week_from,
+            week_to=week_to,
+        )
 
     def get_roster_current(self, roster_key: Any) -> dict[str, Any]:
         if not self.conn:
