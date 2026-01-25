@@ -1,5 +1,6 @@
 .env
 __pycache__/
-.cache/*
+.cache/
+.pytest_cache/
 .venv/
 sleeper_datalayer.egg-info/
