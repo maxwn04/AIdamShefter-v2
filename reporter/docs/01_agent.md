@@ -7,7 +7,7 @@ You’re building an **AI reporter** for a Sleeper fantasy football league that 
 This document describes a **single-agent architecture using OpenAI’s Agents SDK**, with a strong emphasis on:
 
 * **high-quality, preprocessed JSON tools** via a Sleeper data layer
-* **structured intermediate artifacts** (brief → draft → verify)
+* **structured intermediate artifacts** (spec → brief → draft → verify)
 * **observability/tracing** for fast iteration
 * **extensibility to multi-agent** later with minimal refactor
 
@@ -18,9 +18,8 @@ This document describes a **single-agent architecture using OpenAI’s Agents SD
 #### Goals
 
 * Produce **factually grounded** articles derived from Sleeper data.
-* Support multiple **article types** and **style presets** (tone, pacing, snark, section structure).
+* Support both **preset** and **ad-hoc** custom report requests.
 * Allow optional **bias configuration** that affects *framing* but not *facts*.
-* Provide a clean developer workflow: run locally, inspect traces, iterate on prompts/tools quickly.
 * Keep design modular so you can **upgrade to multi-agent** (researcher/writer/editor) later.
 
 #### Non-Goals (for v1)
@@ -33,14 +32,15 @@ This document describes a **single-agent architecture using OpenAI’s Agents SD
 
 ### 3) Key Design Choices (and Why)
 
-#### 3.1 Single Agent with Explicit Phases (Brief → Draft → Verify)
+#### 3.1 Single Agent with Explicit Phases (Spec → Brief → Draft → Verify)
 
 Even with one agent, you’ll enforce distinct “roles” as **phases**:
 
-1. **Plan & Research** (tool-heavy)
-2. **Generate a structured ReportBrief** (JSON, evidence-backed)
-3. **Draft article** (style + bias applied; minimal/no tool calls)
-4. **Verify** (cross-check numeric claims and key statements against the brief/tool evidence)
+1. **Spec Synthesis** (interpret request → `ReportSpec`)
+2. **Plan & Research** (tool-heavy)
+3. **Generate a structured ReportBrief** (JSON, evidence-backed)
+4. **Draft article** (style + bias applied; minimal/no tool calls)
+5. **Verify** (cross-check numeric claims and key statements against the brief/tool evidence)
 
 **Why**
 
@@ -77,6 +77,16 @@ Bias influences adjectives, emphasis, jokes, narrative framing—but not factual
 * Prevents “biased facts” and preserves trust.
 * Enables user-configurable personalities without corrupting analytics.
 
+#### 3.5 Spec-First Reporting (ReportSpec → ReportBrief)
+
+Introduce a **ReportSpec** layer that captures format, voice, constraints, and evidence policy before any research or drafting.
+
+**Why**
+
+* Enables **true flexibility** without sacrificing reliability.
+* Presets become **default spec templates**, not hardcoded entry points.
+* The spec acts as **guardrails** for tone, structure, and factuality.
+
 ---
 
 ### 4) System Architecture
@@ -93,18 +103,24 @@ Bias influences adjectives, emphasis, jokes, narrative framing—but not factual
    * System prompt template + injectable style preset + bias profile
    * Article-type templates (weekly recap, power rankings, etc.)
 
-3. **Sleeper Data Layer**
+3. **Spec System**
+
+   * `ReportSpec` schema (filled for presets and custom requests)
+   * Optional “spec interview” step when key fields are missing
+   * Evidence policy + bias boundaries baked into the spec
+
+4. **Sleeper Data Layer**
 
    * Fetch + normalize Sleeper API data
    * Precompute derived stats and aggregates
    * Expose tool-friendly JSON return objects
 
-4. **Tool Adapters**
+5. **Tool Adapters**
 
    * Thin wrappers that adapt datalayer methods into SDK tool functions
    * Perform validation, caching, and error normalization
 
-5. **Orchestrator**
+6. **Orchestrator**
 
    * The “runner” that:
 
@@ -114,7 +130,7 @@ Bias influences adjectives, emphasis, jokes, narrative framing—but not factual
      * stores outputs and traces
      * optionally runs offline evals
 
-6. **Evaluation Harness**
+7. **Evaluation Harness**
 
    * Snapshot league state (per week) for deterministic tests
    * Regression tests for factuality + structure + style adherence
@@ -141,7 +157,26 @@ Bias influences adjectives, emphasis, jokes, narrative framing—but not factual
   * profanity policy
   * “do not mention injuries” etc. (optional user constraints)
 
-#### 5.2 Core Internal Artifact: `ReportBrief` (Structured JSON)
+#### 5.2 Spec Layer: `ReportSpec` (Structured JSON)
+
+This drives what gets researched, how it is presented, and what is allowed.
+
+**Suggested shape (high-level):**
+
+* `genre_voice`: e.g. “noir detective”, “sports radio rant”, “financial analyst note”
+* `tone_controls`: snark level, hype level, profanity policy, seriousness
+* `structure`: section list (or “freeform”), length, POV, narration constraints
+* `content_requirements`: must cover top matchups, standings implications, trades
+* `bias_profile`: targets + intensity + boundaries
+* `evidence_policy`: “every number must be cited from tools”, “no unverifiable injury claims”
+* `audience`: league members, newcomers, commissioner, etc.
+
+**Preset mapping**
+
+* Each preset becomes a **filled `ReportSpec` template**
+* Custom prompts synthesize a `ReportSpec` that can override a preset or stand alone
+
+#### 5.3 Core Internal Artifact: `ReportBrief` (Structured JSON)
 
 This is the backbone of reliability and future multi-agent handoffs.
 
@@ -168,7 +203,7 @@ This is the backbone of reliability and future multi-agent handoffs.
 * Lets you fact-check deterministically.
 * Becomes the handoff artifact for multi-agent later.
 
-#### 5.3 Tool Use Policy
+#### 5.4 Tool Use Policy
 
 The agent is encouraged to:
 
@@ -190,6 +225,18 @@ You can enforce this via:
 * optional: separate runs (first run produces brief only; second run drafts only)
 
 That last pattern is extremely robust: it simulates multi-agent separation while still using one agent.
+
+---
+
+#### 5.5 Spec Completion + Clarifying Questions (Optional)
+
+If the request is vague, add a lightweight **spec interview** step:
+
+* Generate a draft `ReportSpec` with defaults
+* Detect missing fields that materially affect structure or tone
+* Ask 1–3 targeted questions (format, time range, tone) and proceed
+
+This keeps flexibility high without getting stuck in long back-and-forth.
 
 ---
 
@@ -249,12 +296,14 @@ fantasy_reporter/
 
       agent/
         reporter_agent.py      # Agents SDK agent definition
-        workflows.py           # “Brief->Draft->Verify” orchestration helpers
+        workflows.py           # “Spec->Brief->Draft->Verify” orchestration helpers
         schemas.py             # Pydantic models: ReportBrief, ArticleRequest, ArticleOutput
         policies.py            # tool use rules, bias rules, safety constraints
+        specs.py               # Pydantic ReportSpec + defaults
 
       prompts/
         system_base.md         # core reporter instruction set
+        spec_synthesis.md      # convert arbitrary request -> ReportSpec
         formats/
           weekly_recap.md
           power_rankings.md
@@ -266,6 +315,7 @@ fantasy_reporter/
           hype_man.md
         bias/
           bias_rules.md        # bias constraints + examples
+        style_atoms/           # optional reusable voice fragments (future)
 
       tools/
         __init__.py
@@ -304,19 +354,25 @@ fantasy_reporter/
 2. Runner loads:
 
    * system base prompt
-   * article format prompt
+   * article format prompt (preset → spec template)
    * style preset prompt
    * bias rules prompt (optional)
-3. Runner initializes data layer and tool registry
-4. Agent executes:
+3. **Spec synthesis**:
 
+   * interpret request → `ReportSpec`
+   * optional spec interview if missing key fields
+4. Runner initializes data layer and tool registry
+5. Agent executes:
+
+   * (optional) refine `ReportSpec`
    * tool calls → build `ReportBrief`
    * draft article from brief
    * verify pass
-5. Output saved:
+6. Output saved:
 
    * article markdown
    * `ReportBrief` JSON
+   * `ReportSpec` JSON
    * trace ID / trace export
    * evaluation report (optional)
 
@@ -328,7 +384,11 @@ You’ll transition by reusing the same artifacts and tools, changing only orche
 
 #### Proposed future agents
 
-* **Planner/Researcher Agent**
+* **Spec Planner Agent**
+
+  * produces `ReportSpec` only
+  * asks clarifying questions when needed
+* **Researcher Agent**
 
   * allowed tools
   * outputs `ReportBrief` only
@@ -344,14 +404,15 @@ You’ll transition by reusing the same artifacts and tools, changing only orche
 
 #### How to implement later with minimal refactor
 
-* Keep `ReportBrief` as the stable handoff contract in `agent/schemas.py`.
+* Keep `ReportSpec` and `ReportBrief` as stable handoff contracts in `agent/`.
 * Move today’s “phase separation” into explicit Agents SDK handoffs:
 
+  * `handoff(spec_planner) -> ReportSpec`
   * `handoff(researcher) -> ReportBrief`
   * `handoff(writer) -> Draft`
   * `handoff(editor) -> Final`
 
-Because v1 already uses “brief-first” logic, this upgrade is mostly wiring—**not a redesign**.
+Because v1 already uses “spec-first” and “brief-first” logic, this upgrade is mostly wiring—**not a redesign**.
 
 ---
 
@@ -362,7 +423,7 @@ Because v1 already uses “brief-first” logic, this upgrade is mostly wiring�
 * Record:
 
   * tool calls + inputs/outputs
-  * intermediate `ReportBrief`
+  * intermediate `ReportSpec` + `ReportBrief`
   * final article
   * verification results
 * Tag traces with:
@@ -373,10 +434,11 @@ Because v1 already uses “brief-first” logic, this upgrade is mostly wiring�
 
 * When output is weak:
 
-  1. Inspect `ReportBrief` → missing facts? wrong storyline selection?
-  2. Inspect tool calls → did it call the right packs?
-  3. Adjust prompts/policies → improve storyline ranking, section requirements
-  4. Add/adjust a context-pack tool → reduce cognitive load
+  1. Inspect `ReportSpec` → structure/tone/evidence constraints correct?
+  2. Inspect `ReportBrief` → missing facts? wrong storyline selection?
+  3. Inspect tool calls → did it call the right packs?
+  4. Adjust prompts/policies → improve storyline ranking, section requirements
+  5. Add/adjust a context-pack tool → reduce cognitive load
 
 This is why the SDK tracing is valuable: you can see exactly where behavior drift happened.
 
@@ -399,6 +461,10 @@ To keep quality improving over time:
 
   * Tone constraints (e.g., profanity policy)
   * Bias boundaries respected (“facts neutral; framing biased”)
+* **Spec tests**:
+
+  * Required spec fields resolved before drafting
+  * Evidence policy enforced during verify
 
 ---
 
@@ -408,7 +474,7 @@ To keep quality improving over time:
 
 * Data layer loads league snapshot
 * 1–2 context pack tools
-* Agent generates `ReportBrief` then recap
+* Agent generates `ReportSpec` → `ReportBrief` → recap
 * Save outputs + trace
 
 #### Milestone 2: Add 2–3 more article types
@@ -424,7 +490,7 @@ To keep quality improving over time:
 
 #### Milestone 4: Optional multi-agent upgrade
 
-* introduce researcher/writer separation via handoffs
+* introduce spec planner/researcher/writer separation via handoffs
 
 ---
 
@@ -432,7 +498,7 @@ To keep quality improving over time:
 
 * A clean, modular repo layout
 * A single-agent workflow that behaves like multiple roles
-* A stable intermediate artifact (`ReportBrief`) that enables:
+* Stable intermediate artifacts (`ReportSpec`, `ReportBrief`) that enable:
 
   * debugging
   * verification
