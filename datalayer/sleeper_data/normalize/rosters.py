@@ -20,13 +20,7 @@ def normalize_rosters(
     rosters: list[Roster] = []
     for raw_roster in raw_rosters:
         metadata = raw_roster.get("metadata") or {}
-        record_value = metadata.get("record")
-        record_string = None
-        if isinstance(record_value, str):
-            record_string = record_value.strip() or None
-        elif isinstance(record_value, list):
-            flattened = "".join(str(item) for item in record_value if item)
-            record_string = flattened.strip() or None
+        record_string = metadata.get("record")
         rosters.append(
             Roster(
                 league_id=str(league_id),
