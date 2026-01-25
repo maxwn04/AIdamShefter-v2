@@ -86,7 +86,7 @@ Add indices for faster resolution:
 4) **Update docs / README** to describe new parameters and return shapes  
 
 ## Implementation Notes (Defaults Queries)
-- `get_player_summary(conn, player_key, week_to=None)` accepts player ID or `full_name`
+- `get_player_summary(conn, player_key)` accepts player ID or `full_name`
   - Returns `{found: False, player_key: ..., matches: [...]}` for ambiguity
 - `get_team_dossier(conn, league_id, roster_key, week=None)` accepts roster ID or team/manager name
   - Returns `{found: False, roster_key: ..., matches: [...]}` for ambiguity

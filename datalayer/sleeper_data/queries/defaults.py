@@ -477,10 +477,10 @@ def get_transactions(
     return _strip_id_fields_list(ordered)
 
 
-def get_player_summary(conn, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
+def get_player_summary(conn, player_key: Any) -> dict[str, Any]:
     resolved = resolve_player_id(conn, player_key)
     if not resolved.get("found"):
-        return {**resolved, "as_of_week": week_to}
+        return {**resolved, "as_of_week": None}
 
     player = _fetch_one(
         conn,
@@ -492,10 +492,10 @@ def get_player_summary(conn, player_key: Any, week_to: int | None = None) -> dic
         {"player_id": resolved["player_id"]},
     )
     if not player:
-        return {"player_id": resolved["player_id"], "found": False, "as_of_week": week_to}
+        return {"player_id": resolved["player_id"], "found": False, "as_of_week": None}
 
     player["player_name"] = player.get("full_name")
-    return {"player": _strip_id_fields(player), "found": True, "as_of_week": week_to}
+    return {"player": _strip_id_fields(player), "found": True, "as_of_week": None}
 
 
 def get_team_dossier(

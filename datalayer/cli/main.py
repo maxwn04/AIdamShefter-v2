@@ -57,7 +57,7 @@ def _app_help() -> None:
                 "  team <roster_id or name> [week]",
                 "  roster <roster_id or name> [week]",
                 "  transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]",
-                "  player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]",
+                "  player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]",
                 "  save [output_path]",
                 "  sql <select_query>",
                 "  help",
@@ -207,51 +207,40 @@ def _run_app(league_id: str | None) -> int:
             elif command == "player":
                 if not args:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
                 args = list(args)
                 week_from_value, error = _extract_flag_value(args, "--from")
                 if error:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
                 week_to_value, error = _extract_flag_value(args, "--to")
                 if error:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
                 include_log = _extract_flag(args, "--log")
                 if not args:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
-                positional_week_to = None
-                name_tokens = args
-                if len(args) > 1 and week_to_value is None:
-                    try:
-                        positional_week_to = int(args[-1])
-                        name_tokens = args[:-1]
-                    except ValueError:
-                        positional_week_to = None
-                        name_tokens = args
-                player_key = " ".join(name_tokens).strip()
+                player_key = " ".join(args).strip()
                 if not player_key:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
                 try:
                     week_from = int(week_from_value) if week_from_value is not None else None
                     week_to = int(week_to_value) if week_to_value is not None else None
-                    if week_to is None and positional_week_to is not None:
-                        week_to = int(positional_week_to)
                 except ValueError:
                     print(
-                        "Usage: player <player_id or name> [week_to] [--log] [--from <week_from>] [--to <week_to>]"
+                        "Usage: player <player_id or name> [--log] [--from <week_from>] [--to <week_to>]"
                     )
                     continue
                 if include_log:
@@ -263,7 +252,7 @@ def _run_app(league_id: str | None) -> int:
                         )
                     )
                 else:
-                    _print_json(data.get_player_summary(player_key, week_to))
+                    _print_json(data.get_player_summary(player_key))
             elif command == "sql":
                 if not args:
                     print("Usage: sql <select_query>")

@@ -274,10 +274,10 @@ class SleeperLeagueData:
             self.conn, self.league_id, week_from, week_to, roster_key=roster_key
         )
 
-    def get_player_summary(self, player_key: Any, week_to: int | None = None) -> dict[str, Any]:
+    def get_player_summary(self, player_key: Any) -> dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_player_summary(self.conn, player_key, week_to)
+        return get_player_summary(self.conn, player_key)
 
     def get_player_weekly_log(
         self,
