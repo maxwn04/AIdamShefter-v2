@@ -218,8 +218,12 @@ class SleeperLeagueData:
         return get_team_dossier(self.conn, self.league_id, roster_key, week)
 
     def get_week_games(
-        self, week: int | None = None, roster_key: Any | None = None
-    ) -> list[dict[str, Any]]:
+        self,
+        week: int | None = None,
+        roster_key: Any | None = None,
+        *,
+        include_players: bool = False,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         if week is None:
@@ -230,7 +234,13 @@ class SleeperLeagueData:
                 week = context[0]
         if week is None:
             return []
-        return get_week_games(self.conn, self.league_id, int(week), roster_key=roster_key)
+        return get_week_games(
+            self.conn,
+            self.league_id,
+            int(week),
+            roster_key=roster_key,
+            include_players=include_players,
+        )
 
     def get_transactions(
         self, week_from: int, week_to: int, roster_key: Any | None = None
