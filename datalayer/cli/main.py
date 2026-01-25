@@ -54,6 +54,7 @@ def _app_help() -> None:
                 "Commands:",
                 "  snapshot [week]",
                 "  games [--week <week>] [--roster <roster_id or name>] [--include-players]",
+                "  schedule <roster_id or name>",
                 "  team <roster_id or name> [week]",
                 "  roster <roster_id or name> [week]",
                 "  transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]",
@@ -145,6 +146,15 @@ def _run_app(league_id: str | None) -> int:
                         include_players=include_players,
                     )
                 )
+            elif command == "schedule":
+                if not args:
+                    print("Usage: schedule <roster_id or name>")
+                    continue
+                roster_key = " ".join(args).strip()
+                if not roster_key:
+                    print("Usage: schedule <roster_id or name>")
+                    continue
+                _print_json(data.get_team_schedule(roster_key))
             elif command == "team":
                 if not args:
                     print("Usage: team <roster_id or name> [week]")

@@ -21,8 +21,7 @@ from .normalize import (
     normalize_transactions,
     normalize_users,
 )
-from .schema.models import SeasonContext
-from .schema.models import DraftPick
+from .schema.models import DraftPick, SeasonContext, StandingsWeek
 from .sleeper_api import (
     SleeperClient,
     get_league,
@@ -42,6 +41,7 @@ from .queries.defaults import (
     get_roster_current,
     get_roster_snapshot,
     get_team_dossier,
+    get_team_schedule,
     get_transactions as query_get_transactions,
     get_week_games,
     get_week_player_leaderboard,
@@ -152,6 +152,42 @@ class SleeperLeagueData:
         computed_week = int(raw_state.get("week") or 0)
         effective_week = int(self.week_override or computed_week or 0)
         season = str(raw_league.get("season") or raw_state.get("season") or "")
+        league_average_match = (
+            int((raw_league.get("settings") or {}).get("league_average_match") or 0)
+            if raw_league.get("settings") is not None
+            else 0
+        )
+        chars_per_week = 2 if league_average_match == 1 else 1
+
+        playoff_week_start = (
+            int(league.playoff_week_start)
+            if league.playoff_week_start is not None
+            else None
+        )
+
+        def _record_string_to_weeks(record_string: str | None) -> list[tuple[int, int, int, int]]:
+            if not record_string:
+                return []
+            trimmed = "".join(ch for ch in record_string.strip().upper() if ch.strip())
+            if not trimmed:
+                return []
+            week_count = len(trimmed) // chars_per_week
+            results: list[tuple[int, int, int, int]] = []
+            wins = 0
+            losses = 0
+            ties = 0
+            for week in range(1, week_count + 1):
+                end_idx = week * chars_per_week
+                slice_value = trimmed[end_idx - chars_per_week : end_idx]
+                for outcome in slice_value:
+                    if outcome == "W":
+                        wins += 1
+                    elif outcome == "L":
+                        losses += 1
+                    elif outcome == "T":
+                        ties += 1
+                results.append((week, wins, losses, ties))
+            return results
 
         if effective_week > 0:
             for week in range(1, effective_week + 1):
@@ -159,7 +195,10 @@ class SleeperLeagueData:
                 matchup_rows, player_performances = normalize_matchups(
                     raw_matchups, league_id=self.league_id, season=season, week=week
                 )
-                games = derive_games(matchup_rows, is_playoffs=False)
+                is_playoffs = (
+                    playoff_week_start is not None and week >= int(playoff_week_start)
+                )
+                games = derive_games(matchup_rows, is_playoffs=is_playoffs)
                 if matchup_rows:
                     bulk_insert(self.conn, matchup_rows[0].table_name, matchup_rows)
                 if player_performances:
@@ -183,11 +222,59 @@ class SleeperLeagueData:
                 if moves:
                     bulk_insert(self.conn, moves[0].table_name, moves)
 
-            standings = normalize_standings(
-                raw_rosters, league_id=self.league_id, season=season, week=effective_week
-            )
-            if standings:
-                bulk_insert(self.conn, standings[0].table_name, standings)
+            record_standings: list[StandingsWeek] = []
+            record_weeks: set[int] = set()
+
+            for raw_roster in raw_rosters:
+                roster_id = int(raw_roster["roster_id"])
+                record_string = (raw_roster.get("metadata") or {}).get("record")
+                if isinstance(record_string, list):
+                    record_string = "".join(str(item) for item in record_string if item)
+                if isinstance(record_string, str):
+                    for week, wins, losses, ties in _record_string_to_weeks(record_string):
+                        if playoff_week_start is not None and week >= playoff_week_start:
+                            continue
+                        record_standings.append(
+                            StandingsWeek(
+                                league_id=self.league_id,
+                                season=season,
+                                week=int(week),
+                                roster_id=roster_id,
+                                wins=wins,
+                                losses=losses,
+                                ties=ties,
+                                points_for=0.0,
+                                points_against=0.0,
+                                rank=None,
+                                streak_type=None,
+                                streak_len=None,
+                            )
+                        )
+                        record_weeks.add(int(week))
+
+            if record_standings:
+                bulk_insert(
+                    self.conn,
+                    record_standings[0].table_name,
+                    record_standings,
+                )
+
+            should_insert_current = False
+            if not record_weeks:
+                should_insert_current = True
+            elif effective_week > max(record_weeks):
+                if playoff_week_start is None or effective_week < playoff_week_start:
+                    should_insert_current = True
+
+            if should_insert_current:
+                standings = normalize_standings(
+                    raw_rosters,
+                    league_id=self.league_id,
+                    season=season,
+                    week=effective_week,
+                )
+                if standings:
+                    bulk_insert(self.conn, standings[0].table_name, standings)
 
         season_context = SeasonContext(
             league_id=self.league_id,
@@ -224,6 +311,11 @@ class SleeperLeagueData:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_team_dossier(self.conn, self.league_id, roster_key, week)
+
+    def get_team_schedule(self, roster_key: Any) -> dict[str, Any]:
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_team_schedule(self.conn, self.league_id, roster_key)
 
     def get_week_games(
         self,

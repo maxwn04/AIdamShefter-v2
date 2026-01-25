@@ -75,6 +75,7 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             ColumnSpec("roster_positions_json", "TEXT"),
             ColumnSpec("playoff_week_start", "INTEGER"),
             ColumnSpec("playoff_teams", "INTEGER"),
+            ColumnSpec("league_average_match", "INTEGER"),
         ),
         primary_key=("league_id",),
     ),
@@ -110,6 +111,7 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             ColumnSpec("owner_user_id", "TEXT"),
             ColumnSpec("settings_json", "TEXT"),
             ColumnSpec("metadata_json", "TEXT"),
+            ColumnSpec("record_string", "TEXT"),
         ),
         primary_key=("league_id", "roster_id"),
         foreign_keys=(
