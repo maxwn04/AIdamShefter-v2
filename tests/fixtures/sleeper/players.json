@@ -1,0 +1,46 @@
+{
+  "p1": {
+    "player_id": "p1",
+    "full_name": "Player One",
+    "position": "QB",
+    "team": "AAA",
+    "status": "Active",
+    "injury_status": null,
+    "age": 25,
+    "years_exp": 3,
+    "updated_at": "2024-09-01"
+  },
+  "p2": {
+    "player_id": "p2",
+    "full_name": "Player Two",
+    "position": "RB",
+    "team": "BBB",
+    "status": "Active",
+    "injury_status": null,
+    "age": 24,
+    "years_exp": 2,
+    "updated_at": "2024-09-01"
+  },
+  "p3": {
+    "player_id": "p3",
+    "full_name": "Player Three",
+    "position": "WR",
+    "team": "CCC",
+    "status": "Active",
+    "injury_status": null,
+    "age": 27,
+    "years_exp": 5,
+    "updated_at": "2024-09-01"
+  },
+  "p4": {
+    "player_id": "p4",
+    "full_name": "Player Four",
+    "position": "TE",
+    "team": "DDD",
+    "status": "Active",
+    "injury_status": null,
+    "age": 26,
+    "years_exp": 4,
+    "updated_at": "2024-09-01"
+  }
+}

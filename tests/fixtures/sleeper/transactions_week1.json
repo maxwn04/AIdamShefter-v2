@@ -1,0 +1,21 @@
+[
+  {
+    "transaction_id": "tx1",
+    "type": "waiver",
+    "status": "complete",
+    "created": 1700000000,
+    "settings": {
+      "waiver_bid": 5
+    },
+    "metadata": {
+      "notes": "waiver add"
+    },
+    "adds": {
+      "p2": 1
+    },
+    "drops": {
+      "p3": 2
+    },
+    "draft_picks": []
+  }
+]

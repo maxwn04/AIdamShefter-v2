@@ -15,3 +15,7 @@ sleeperdl = "datalayer.cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["datalayer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

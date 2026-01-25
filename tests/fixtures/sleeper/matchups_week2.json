@@ -1,0 +1,34 @@
+[
+  {
+    "matchup_id": 1,
+    "roster_id": 1,
+    "points": 110.0,
+    "starters": [
+      "p1"
+    ],
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "players_points": {
+      "p1": 70.0,
+      "p2": 40.0
+    }
+  },
+  {
+    "matchup_id": 1,
+    "roster_id": 2,
+    "points": 105.0,
+    "starters": [
+      "p3"
+    ],
+    "players": [
+      "p3",
+      "p4"
+    ],
+    "players_points": {
+      "p3": 60.0,
+      "p4": 45.0
+    }
+  }
+]

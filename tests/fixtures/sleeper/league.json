@@ -1,0 +1,21 @@
+{
+  "league_id": "123",
+  "season": "2024",
+  "name": "Test League",
+  "sport": "nfl",
+  "scoring_settings": {
+    "pass_td": 4
+  },
+  "roster_positions": [
+    "QB",
+    "RB",
+    "WR",
+    "TE",
+    "FLEX"
+  ],
+  "playoff_week_start": 15,
+  "playoff_teams": 4,
+  "settings": {
+    "draft_rounds": 2
+  }
+}
