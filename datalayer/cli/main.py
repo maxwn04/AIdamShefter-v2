@@ -53,7 +53,7 @@ def _app_help() -> None:
             [
                 "Commands:",
                 "  snapshot [week]",
-                "  games [--week <week>] [--roster <roster_id or name>]",
+                "  games [--week <week>] [--roster <roster_id or name>] [--include-players]",
                 "  team <roster_id or name> [week]",
                 "  roster <roster_id or name> [week]",
                 "  transactions [--from <week_from>] [--to <week_to>] [--roster <roster_id or name>]",
@@ -76,6 +76,13 @@ def _extract_flag_value(args: list[str], flag: str) -> tuple[str | None, str | N
     value = args[idx + 1]
     del args[idx : idx + 2]
     return value, None
+
+
+def _extract_flag(args: list[str], flag: str) -> bool:
+    if flag not in args:
+        return False
+    args.remove(flag)
+    return True
 
 
 def _run_app(league_id: str | None) -> int:
@@ -108,21 +115,36 @@ def _run_app(league_id: str | None) -> int:
                 args = list(args)
                 week_value, error = _extract_flag_value(args, "--week")
                 if error:
-                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    print(
+                        "Usage: games [--week <week>] [--roster <roster_id or name>] [--include-players]"
+                    )
                     continue
                 roster_key, error = _extract_flag_value(args, "--roster")
                 if error:
-                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    print(
+                        "Usage: games [--week <week>] [--roster <roster_id or name>] [--include-players]"
+                    )
                     continue
+                include_players = _extract_flag(args, "--include-players")
                 if args:
-                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    print(
+                        "Usage: games [--week <week>] [--roster <roster_id or name>] [--include-players]"
+                    )
                     continue
                 try:
                     week = int(week_value) if week_value is not None else None
                 except ValueError:
-                    print("Usage: games [--week <week>] [--roster <roster_id or name>]")
+                    print(
+                        "Usage: games [--week <week>] [--roster <roster_id or name>] [--include-players]"
+                    )
                     continue
-                _print_json(data.get_week_games(week, roster_key=roster_key))
+                _print_json(
+                    data.get_week_games(
+                        week,
+                        roster_key=roster_key,
+                        include_players=include_players,
+                    )
+                )
             elif command == "team":
                 if not args:
                     print("Usage: team <roster_id or name> [week]")
