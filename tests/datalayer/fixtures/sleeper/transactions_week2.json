@@ -1,0 +1,24 @@
+[
+  {
+    "transaction_id": "tx2",
+    "type": "trade",
+    "status": "complete",
+    "created": 1700003600,
+    "settings": {},
+    "metadata": {
+      "notes": "trade with pick"
+    },
+    "adds": {},
+    "drops": {},
+    "draft_picks": [
+      {
+        "season": "2025",
+        "round": 1,
+        "roster_id": 1,
+        "owner_id": 2,
+        "previous_owner_id": 1,
+        "draft_pick_id": "pick1"
+      }
+    ]
+  }
+]

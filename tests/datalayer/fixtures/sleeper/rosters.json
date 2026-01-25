@@ -1,0 +1,54 @@
+[
+  {
+    "roster_id": 1,
+    "owner_id": "u1",
+    "settings": {
+      "wins": 1,
+      "losses": 0,
+      "ties": 0,
+      "fpts": 200,
+      "fpts_decimal": 10,
+      "fpts_against": 180,
+      "fpts_against_decimal": 5,
+      "rank": 1,
+      "streak_type": "W",
+      "streak_length": 1
+    },
+    "metadata": {
+      "team_name": "Alpha"
+    },
+    "players": [
+      "p1",
+      "p2"
+    ],
+    "starters": [
+      "p1"
+    ]
+  },
+  {
+    "roster_id": 2,
+    "owner_id": "u2",
+    "settings": {
+      "wins": 0,
+      "losses": 1,
+      "ties": 0,
+      "fpts": 180,
+      "fpts_decimal": 5,
+      "fpts_against": 200,
+      "fpts_against_decimal": 10,
+      "rank": 2,
+      "streak_type": "L",
+      "streak_length": 1
+    },
+    "metadata": {
+      "team_name": "Beta"
+    },
+    "players": [
+      "p3",
+      "p4"
+    ],
+    "starters": [
+      "p3"
+    ]
+  }
+]
