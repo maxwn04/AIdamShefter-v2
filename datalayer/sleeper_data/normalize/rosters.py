@@ -19,6 +19,14 @@ def normalize_rosters(
 ) -> list[Roster]:
     rosters: list[Roster] = []
     for raw_roster in raw_rosters:
+        metadata = raw_roster.get("metadata") or {}
+        record_value = metadata.get("record")
+        record_string = None
+        if isinstance(record_value, str):
+            record_string = record_value.strip() or None
+        elif isinstance(record_value, list):
+            flattened = "".join(str(item) for item in record_value if item)
+            record_string = flattened.strip() or None
         rosters.append(
             Roster(
                 league_id=str(league_id),
@@ -26,6 +34,7 @@ def normalize_rosters(
                 owner_user_id=raw_roster.get("owner_id"),
                 settings_json=_json_dumps(raw_roster.get("settings")),
                 metadata_json=_json_dumps(raw_roster.get("metadata")),
+                record_string=record_string,
             )
         )
     return rosters

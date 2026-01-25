@@ -27,6 +27,7 @@ class League(RowMixin):
     roster_positions_json: Optional[str] = None
     playoff_week_start: Optional[int] = None
     playoff_teams: Optional[int] = None
+    league_average_match: Optional[int] = None
 
 
 @dataclass
@@ -59,6 +60,7 @@ class Roster(RowMixin):
     owner_user_id: Optional[str] = None
     settings_json: Optional[str] = None
     metadata_json: Optional[str] = None
+    record_string: Optional[str] = None
 
 
 @dataclass

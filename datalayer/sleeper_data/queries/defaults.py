@@ -143,6 +143,15 @@ def _strip_id_fields_list(items: Iterable[dict[str, Any]]) -> list[dict[str, Any
     return [_strip_id_fields_recursive(item) for item in items]
 
 
+def _format_record(wins: int | None, losses: int | None, ties: int | None) -> str | None:
+    if wins is None or losses is None:
+        return None
+    ties = ties or 0
+    if ties:
+        return f"{wins}-{losses}-{ties}"
+    return f"{wins}-{losses}"
+
+
 def _build_matchup_player_lookup(
     conn, league_id: str, week: int, matchup_ids: list[int]
 ) -> dict[tuple[int, int], list[dict[str, Any]]]:
@@ -186,6 +195,144 @@ def _build_matchup_player_lookup(
             }
         )
     return lookup
+
+
+def get_team_schedule(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {**resolved, "as_of_week": None}
+    roster_id = resolved["roster_id"]
+
+    roster_row = _fetch_one(
+        conn,
+        """
+        SELECT record_string
+        FROM rosters
+        WHERE league_id = :league_id AND roster_id = :roster_id
+        """,
+        {"league_id": league_id, "roster_id": roster_id},
+    )
+    record_string = roster_row.get("record_string") if roster_row else None
+
+    league_row = _fetch_one(
+        conn,
+        """
+        SELECT league_average_match, playoff_week_start
+        FROM leagues
+        WHERE league_id = :league_id
+        """,
+        {"league_id": league_id},
+    )
+    league_average_match = league_row.get("league_average_match") if league_row else None
+    playoff_week_start = league_row.get("playoff_week_start") if league_row else None
+    chars_per_week = 2 if league_average_match == 1 else 1
+
+    rows = _fetch_all(
+        conn,
+        """
+        SELECT
+            g.week,
+            g.matchup_id,
+            g.roster_id_a,
+            g.roster_id_b,
+            g.points_a,
+            g.points_b,
+            g.winner_roster_id,
+            tpa.team_name AS team_a,
+            tpb.team_name AS team_b
+        FROM games g
+        LEFT JOIN team_profiles tpa
+            ON tpa.league_id = g.league_id AND tpa.roster_id = g.roster_id_a
+        LEFT JOIN team_profiles tpb
+            ON tpb.league_id = g.league_id AND tpb.roster_id = g.roster_id_b
+        WHERE g.league_id = :league_id
+          AND (g.roster_id_a = :roster_id OR g.roster_id_b = :roster_id)
+        ORDER BY g.week ASC, g.matchup_id ASC
+        """,
+        {"league_id": league_id, "roster_id": roster_id},
+    )
+
+    context = _fetch_one(conn, "SELECT effective_week FROM season_context LIMIT 1")
+    current_week = context.get("effective_week") if context else None
+
+    def _record_for_week(week: int | None) -> str | None:
+        if not record_string or week is None:
+            return None
+        if current_week is not None and week > int(current_week):
+            return None
+        record_value = "".join(ch for ch in str(record_string).upper() if ch.strip())
+        if not record_value:
+            return None
+        cutoff = int(week) * chars_per_week
+        if len(record_value) < cutoff:
+            return None
+        wins = 0
+        losses = 0
+        ties = 0
+        for outcome in record_value[:cutoff]:
+            if outcome == "W":
+                wins += 1
+            elif outcome == "L":
+                losses += 1
+            elif outcome == "T":
+                ties += 1
+        return _format_record(wins, losses, ties)
+
+    schedule_regular: list[dict[str, Any]] = []
+    schedule_playoffs: list[dict[str, Any]] = []
+
+    for row in rows:
+        week = row.get("week")
+        is_team_a = row.get("roster_id_a") == roster_id
+        team_points = row.get("points_a") if is_team_a else row.get("points_b")
+        opponent_points = row.get("points_b") if is_team_a else row.get("points_a")
+        opponent_name = row.get("team_b") if is_team_a else row.get("team_a")
+
+        result = None
+        winner_id = row.get("winner_roster_id")
+        if winner_id is not None:
+            result = "W" if int(winner_id) == int(roster_id) else "L"
+        elif team_points is not None and opponent_points is not None:
+            if team_points > opponent_points:
+                result = "W"
+            elif team_points < opponent_points:
+                result = "L"
+            else:
+                result = "T"
+
+        entry = {
+            "week": week,
+            "team_name": row.get("team_a") if is_team_a else row.get("team_b"),
+            "opponent_name": opponent_name,
+            "team_points": team_points,
+            "opponent_points": opponent_points,
+            "result": result,
+        }
+        if chars_per_week == 2 and record_string and week is not None:
+            record_value = "".join(ch for ch in str(record_string).upper() if ch.strip())
+            cutoff = int(week) * chars_per_week
+            if len(record_value) >= cutoff:
+                entry["result"] = record_value[cutoff - chars_per_week : cutoff]
+        record = _record_for_week(int(week)) if week is not None else None
+        if record is not None:
+            entry["record_after_week"] = record
+        if playoff_week_start is not None and week is not None and int(week) >= int(
+            playoff_week_start
+        ):
+            schedule_playoffs.append(entry)
+        else:
+            schedule_regular.append(entry)
+
+    as_of_week = current_week
+
+    return {
+        "team_name": resolved.get("team_name"),
+        "roster_id": roster_id,
+        "regular_season_games": schedule_regular,
+        "playoff_games": schedule_playoffs,
+        "as_of_week": as_of_week,
+        "found": True,
+    }
 
 
 def _build_team_players(
@@ -519,7 +666,12 @@ def get_team_dossier(
         return {"roster_id": roster_id, "found": False, "as_of_week": week}
 
     standings = None
-    if week is not None:
+    effective_week = week
+    if effective_week is None:
+        context = _fetch_one(conn, "SELECT effective_week FROM season_context LIMIT 1")
+        effective_week = context.get("effective_week") if context else None
+
+    if effective_week is not None:
         standings = _fetch_one(
             conn,
             """
@@ -527,8 +679,14 @@ def get_team_dossier(
             FROM standings
             WHERE league_id = :league_id AND roster_id = :roster_id AND week = :week
             """,
-            {"league_id": league_id, "roster_id": roster_id, "week": week},
+            {"league_id": league_id, "roster_id": roster_id, "week": effective_week},
         )
+        if standings:
+            standings["record"] = _format_record(
+                standings.get("wins"),
+                standings.get("losses"),
+                standings.get("ties"),
+            )
 
     recent_games = _fetch_all(
         conn,
@@ -562,7 +720,7 @@ def get_team_dossier(
         "team": _strip_id_fields(team),
         "standings": _strip_id_fields(standings),
         "recent_games": _strip_id_fields_list(recent_games),
-        "as_of_week": week,
+        "as_of_week": effective_week,
         "found": True,
     }
 
