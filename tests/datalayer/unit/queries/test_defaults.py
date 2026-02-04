@@ -1,6 +1,7 @@
 import sqlite3
 
-from datalayer.sleeper_data.queries.defaults import get_week_games, resolve_player_id
+from datalayer.sleeper_data.queries import get_week_games
+from datalayer.sleeper_data.queries._resolvers import resolve_player_id
 from datalayer.sleeper_data.schema.models import (
     Game,
     League,
