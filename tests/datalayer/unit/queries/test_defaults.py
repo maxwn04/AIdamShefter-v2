@@ -1,6 +1,7 @@
 import sqlite3
 
-from datalayer.sleeper_data.queries.defaults import get_week_games, resolve_player_id
+from datalayer.sleeper_data.queries import get_team_game_with_players
+from datalayer.sleeper_data.queries._resolvers import resolve_player_id
 from datalayer.sleeper_data.schema.models import (
     Game,
     League,
@@ -118,18 +119,17 @@ def _seed_minimal_game(conn):
     bulk_insert(conn, game.table_name, [game])
 
 
-def test_get_week_games_includes_players():
+def test_get_team_game_with_players():
     conn = sqlite3.connect(":memory:")
     create_tables(conn)
     _seed_minimal_game(conn)
 
-    result = get_week_games(conn, "123", 1, roster_key="Alpha", include_players=True)
+    result = get_team_game_with_players(conn, "123", 1, roster_key="Alpha")
 
     assert result["found"] is True
     assert result["as_of_week"] == 1
-    assert len(result["games"]) == 1
-    assert result["games"][0]["team_a"] == "Alpha"
-    assert result["games"][0]["team_a_players"]
+    assert result["game"]["team_a"] == "Alpha"
+    assert result["game"]["team_a_players"]
 
 
 def test_resolve_player_id_by_name():
