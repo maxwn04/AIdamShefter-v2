@@ -20,4 +20,6 @@ def test_load_pipeline_and_queries(monkeypatch_sleeper_api, sleeper_config):
 
     roster = data.get_roster_current("Alpha")
     assert roster["found"] is True
-    assert roster["players"]
+    assert "roster" in roster
+    assert "starters" in roster["roster"]
+    assert "bench" in roster["roster"]

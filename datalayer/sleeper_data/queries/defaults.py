@@ -4,6 +4,50 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
+# Position order for sorting (standard fantasy football order)
+POSITION_ORDER = {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "DEF": 5}
+POSITIONS = ["qb", "rb", "wr", "te", "k", "def"]
+
+
+def _organize_players_by_role_and_position(
+    players: list[dict[str, Any]],
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Organize players into a structured dict by role and position.
+
+    Returns:
+        {
+            "starters": {"qb": [...], "rb": [...], ...},
+            "bench": {"qb": [...], "rb": [...], ...}
+        }
+    """
+    result: dict[str, dict[str, list[dict[str, Any]]]] = {
+        "starters": {pos: [] for pos in POSITIONS},
+        "bench": {pos: [] for pos in POSITIONS},
+    }
+
+    for player in players:
+        role = player.get("role", "bench")
+        position = (player.get("position") or "").upper()
+        pos_key = position.lower() if position in POSITION_ORDER else "def"
+
+        if role == "starter":
+            bucket = "starters"
+        else:
+            bucket = "bench"
+
+        result[bucket][pos_key].append(player)
+
+    # Sort each position group by points descending (if available), then by name
+    def sort_key(p: dict[str, Any]) -> tuple[float, str]:
+        points = p.get("points")
+        return (-(points if points is not None else 0), p.get("player_name") or "")
+
+    for role_bucket in result.values():
+        for pos_list in role_bucket.values():
+            pos_list.sort(key=sort_key)
+
+    return result
+
 
 def _fetch_all(conn, sql: str, params: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     cur = conn.execute(sql, params or {})
@@ -154,7 +198,7 @@ def _format_record(wins: int | None, losses: int | None, ties: int | None) -> st
 
 def _build_matchup_player_lookup(
     conn, league_id: str, week: int, matchup_ids: list[int]
-) -> dict[tuple[int, int], list[dict[str, Any]]]:
+) -> dict[tuple[int, int], dict[str, dict[str, list[dict[str, Any]]]]]:
     if not matchup_ids:
         return {}
     placeholders = ", ".join([f":m{i}" for i in range(len(matchup_ids))])
@@ -177,15 +221,15 @@ def _build_matchup_player_lookup(
             ON p.player_id = pp.player_id
         WHERE pp.league_id = :league_id
           AND pp.week = :week
-          AND pp.matchup_id IN ({placeholders})
-        ORDER BY pp.matchup_id ASC, pp.roster_id ASC, pp.points DESC;
+          AND pp.matchup_id IN ({placeholders});
         """,
         params,
     )
-    lookup: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    # Group rows by (matchup_id, roster_id)
+    grouped: dict[tuple[int, int], list[dict[str, Any]]] = {}
     for row in rows:
         key = (int(row["matchup_id"]), int(row["roster_id"]))
-        lookup.setdefault(key, []).append(
+        grouped.setdefault(key, []).append(
             {
                 "player_name": row.get("full_name"),
                 "position": row.get("position"),
@@ -194,7 +238,8 @@ def _build_matchup_player_lookup(
                 "role": row.get("role"),
             }
         )
-    return lookup
+    # Organize each group by role and position
+    return {key: _organize_players_by_role_and_position(players) for key, players in grouped.items()}
 
 
 def get_team_schedule(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
@@ -336,13 +381,17 @@ def get_team_schedule(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
 
 
 def _build_team_players(
-    matchup_lookup: dict[tuple[int, int], list[dict[str, Any]]],
+    matchup_lookup: dict[tuple[int, int], dict[str, dict[str, list[dict[str, Any]]]]],
     matchup_id: Any,
     roster_id: Any,
-) -> list[dict[str, Any]]:
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    empty_result: dict[str, dict[str, list[dict[str, Any]]]] = {
+        "starters": {pos: [] for pos in POSITIONS},
+        "bench": {pos: [] for pos in POSITIONS},
+    }
     if matchup_id is None or roster_id is None:
-        return []
-    return matchup_lookup.get((int(matchup_id), int(roster_id)), [])
+        return empty_result
+    return matchup_lookup.get((int(matchup_id), int(roster_id)), empty_result)
 
 
 def get_week_games(
@@ -810,16 +859,6 @@ def get_roster_current(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
         LEFT JOIN players p
             ON p.player_id = rp.player_id
         WHERE rp.league_id = :league_id AND rp.roster_id = :roster_id
-        ORDER BY
-            CASE rp.role
-                WHEN 'starter' THEN 0
-                WHEN 'bench' THEN 1
-                WHEN 'taxi' THEN 2
-                WHEN 'reserve' THEN 3
-                WHEN 'ir' THEN 4
-                ELSE 5
-            END,
-            p.full_name ASC
         """,
         {"league_id": league_id, "roster_id": roster_id},
     )
@@ -848,9 +887,11 @@ def get_roster_current(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
     if not team and not players and not picks:
         return {"roster_id": roster_id, "found": False, "as_of_week": None}
 
+    roster = _organize_players_by_role_and_position(_strip_id_fields_list(players))
+
     return {
         "team": _strip_id_fields(team),
-        "players": _strip_id_fields_list(players),
+        "roster": roster,
         "picks": _strip_id_fields_list(picks),
         "as_of_week": None,
         "found": True,
@@ -882,16 +923,6 @@ def get_roster_snapshot(conn, league_id: str, roster_key: Any, week: int) -> dic
         WHERE pp.league_id = :league_id
           AND pp.roster_id = :roster_id
           AND pp.week = :week
-        ORDER BY
-            CASE pp.role
-                WHEN 'starter' THEN 0
-                WHEN 'bench' THEN 1
-                WHEN 'taxi' THEN 2
-                WHEN 'reserve' THEN 3
-                WHEN 'ir' THEN 4
-                ELSE 5
-            END,
-            p.full_name ASC
         """,
         {"league_id": league_id, "roster_id": roster_id, "week": week},
     )
@@ -908,9 +939,11 @@ def get_roster_snapshot(conn, league_id: str, roster_key: Any, week: int) -> dic
         {"league_id": league_id, "roster_id": roster_id},
     )
 
+    roster = _organize_players_by_role_and_position(_strip_id_fields_list(players))
+
     return {
         "team": _strip_id_fields(team),
-        "players": _strip_id_fields_list(players),
+        "roster": roster,
         "as_of_week": week,
         "found": True,
     }
