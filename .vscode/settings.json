@@ -4,13 +4,15 @@
     "**/__pycache__": true,
     "**/.pytest_cache": true,
     "**/.venv": true,
-    "**/sleeper_datalayer.egg-info": true
+    "sleeper_fantasy_reporter.egg-info": true,
+    "sleeper_datalayer.egg-info": true
   },
   "search.exclude": {
     "**/.cache": true,
     "**/__pycache__": true,
     "**/.pytest_cache": true,
     "**/.venv": true,
-    "**/sleeper_datalayer.egg-info": true
+    "sleeper_fantasy_reporter.egg-info": true,
+    "sleeper_datalayer.egg-info": true
   }
 }

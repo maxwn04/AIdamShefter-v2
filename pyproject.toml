@@ -3,19 +3,32 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "sleeper-datalayer"
+name = "sleeper-fantasy-reporter"
 version = "0.1.0"
-description = "Sleeper fantasy league data layer"
+description = "AI-powered fantasy football reporter with Sleeper data layer"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["requests", "python-dotenv"]
+dependencies = [
+    "requests",
+    "python-dotenv",
+    "pydantic>=2.0",
+    "openai-agents>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
 
 [project.scripts]
 sleeperdl = "datalayer.cli.main:main"
 
 [tool.setuptools.packages.find]
+where = ["."]
 include = ["datalayer*"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "reporter/tests"]
 addopts = "-ra"
+pythonpath = [".", "reporter/src"]
