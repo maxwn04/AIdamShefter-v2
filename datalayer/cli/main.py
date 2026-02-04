@@ -1,15 +1,20 @@
-"""Barebones CLI for the Sleeper data layer."""
+"""CLI for the Sleeper data layer.
+
+Commands mirror the tool definitions in datalayer.tools for consistency
+between the interactive CLI and the agent API.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import sys
+import shlex
 
 from dotenv import load_dotenv
 
 from datalayer.sleeper_data import SleeperLeagueData
+from datalayer.tools import SLEEPER_TOOLS, create_tool_handlers
 
 
 def _default_output_path(league_id: str) -> str:
@@ -47,176 +52,191 @@ def _print_json(payload: object) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))
 
 
-def _app_help() -> None:
-    print(
-        "\n".join(
-            [
-                "Commands:",
-                "  snapshot [week]              - League standings, games, transactions",
-                "  games [week]                 - All matchups for a week",
-                "  games-detail [week]          - All matchups with player breakdowns",
-                "  game <roster> [week]         - Single team's game",
-                "  game-detail <roster> [week]  - Single team's game with player breakdowns",
-                "  schedule <roster>            - Team's full season schedule",
-                "  team <roster> [week]         - Team dossier (standings, recent games)",
-                "  roster <roster> [week]       - Team roster (current or historical)",
-                "  transactions <from> <to>     - All transactions in week range",
-                "  team-transactions <roster> <from> <to>  - Team's transactions",
-                "  player <name>                - Player summary",
-                "  player-log <name>            - Player's full season log",
-                "  player-log-range <name> <from> <to>  - Player log for week range",
-                "  save [output_path]           - Export SQLite file",
-                "  sql <select_query>           - Run custom SELECT query",
-                "  help",
-                "  exit | quit",
-            ]
-        )
-    )
+def _build_tool_help() -> str:
+    """Build help text from tool definitions."""
+    lines = ["", "Available tools (commands):"]
+    for tool in SLEEPER_TOOLS:
+        func = tool["function"]
+        name = func["name"]
+        desc = func["description"].split(".")[0]  # First sentence only
+        params = func["parameters"]["properties"]
+        required = func["parameters"].get("required", [])
+
+        # Build parameter hint
+        param_parts = []
+        for pname, pdef in params.items():
+            ptype = pdef.get("type", "string")
+            if pname in required:
+                param_parts.append(f"<{pname}:{ptype}>")
+            else:
+                param_parts.append(f"[{pname}:{ptype}]")
+
+        param_str = " ".join(param_parts) if param_parts else ""
+        lines.append(f"  {name} {param_str}")
+        lines.append(f"      {desc}")
+
+    lines.extend([
+        "",
+        "Other commands:",
+        "  save [output_path]  - Export SQLite file",
+        "  tools               - Show this help",
+        "  help                - Show this help",
+        "  exit | quit         - Exit the app",
+        "",
+        "Parameters can be passed positionally or as key=value pairs:",
+        "  get_team_dossier Schefter",
+        "  get_team_dossier roster_key=Schefter week=5",
+        '  get_player_summary player_key="Patrick Mahomes"',
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _parse_tool_args(
+    args: list[str], tool_name: str
+) -> tuple[dict[str, any], str | None]:
+    """Parse command arguments into tool parameters.
+
+    Supports both positional and key=value syntax.
+
+    Returns:
+        (params_dict, error_message)
+    """
+    # Find the tool definition
+    tool_def = None
+    for tool in SLEEPER_TOOLS:
+        if tool["function"]["name"] == tool_name:
+            tool_def = tool["function"]
+            break
+
+    if not tool_def:
+        return {}, f"Unknown tool: {tool_name}"
+
+    properties = tool_def["parameters"]["properties"]
+    required = tool_def["parameters"].get("required", [])
+    param_names = list(properties.keys())
+
+    result: dict[str, any] = {}
+    positional_idx = 0
+
+    for arg in args:
+        if "=" in arg:
+            # Key=value syntax
+            key, value = arg.split("=", 1)
+            if key not in properties:
+                return {}, f"Unknown parameter: {key}"
+            result[key] = value
+        else:
+            # Positional argument
+            if positional_idx >= len(param_names):
+                return {}, f"Too many arguments"
+            key = param_names[positional_idx]
+            result[key] = arg
+            positional_idx += 1
+
+    # Convert types based on schema
+    for key, value in result.items():
+        if key in properties:
+            ptype = properties[key].get("type")
+            if ptype == "integer":
+                try:
+                    result[key] = int(value)
+                except ValueError:
+                    return {}, f"Parameter '{key}' must be an integer"
+
+    # Check required parameters
+    for req in required:
+        if req not in result:
+            return {}, f"Missing required parameter: {req}"
+
+    return result, None
 
 
 def _run_app(league_id: str | None) -> int:
     data = SleeperLeagueData(league_id=league_id)
+    print("Loading data...")
     data.load()
-    _app_help()
+    print(f"Loaded league: {data.league_id}")
+
+    handlers = create_tool_handlers(data)
+    help_text = _build_tool_help()
+    print(help_text)
+
     while True:
         try:
             raw = input("sleeperdl> ").strip()
         except (EOFError, KeyboardInterrupt):
             print("")
             return 0
+
         if not raw:
             continue
         if raw in {"exit", "quit"}:
             return 0
-        if raw == "help":
-            _app_help()
+        if raw in {"help", "tools"}:
+            print(help_text)
             continue
 
-        parts = raw.split()
+        # Parse command - use shlex to handle quoted strings
+        try:
+            parts = shlex.split(raw)
+        except ValueError as e:
+            print(f"Parse error: {e}")
+            continue
+
         command = parts[0]
         args = parts[1:]
 
-        try:
-            if command == "snapshot":
-                week = int(args[0]) if args else None
-                _print_json(data.get_league_snapshot(week))
-            elif command == "games":
-                week = int(args[0]) if args else None
-                _print_json(data.get_week_games(week))
-            elif command == "games-detail":
-                week = int(args[0]) if args else None
-                _print_json(data.get_week_games_with_players(week))
-            elif command == "game":
-                if not args:
-                    print("Usage: game <roster> [week]")
+        # Handle save command specially
+        if command == "save":
+            output_path = args[0] if args else _default_output_path(data.league_id)
+            if os.path.exists(output_path):
+                confirm = (
+                    input(f"{output_path} exists. Overwrite? [y/N] ").strip().lower()
+                )
+                if confirm not in {"y", "yes"}:
+                    print("Save cancelled.")
                     continue
-                roster_key = args[0]
-                week = int(args[1]) if len(args) > 1 else None
-                _print_json(data.get_team_game(roster_key, week))
-            elif command == "game-detail":
-                if not args:
-                    print("Usage: game-detail <roster> [week]")
-                    continue
-                roster_key = args[0]
-                week = int(args[1]) if len(args) > 1 else None
-                _print_json(data.get_team_game_with_players(roster_key, week))
-            elif command == "schedule":
-                if not args:
-                    print("Usage: schedule <roster_id or name>")
-                    continue
-                roster_key = " ".join(args).strip()
-                if not roster_key:
-                    print("Usage: schedule <roster_id or name>")
-                    continue
-                _print_json(data.get_team_schedule(roster_key))
-            elif command == "team":
-                if not args:
-                    print("Usage: team <roster_id or name> [week]")
-                    continue
-                roster_key = args[0]
-                week = int(args[1]) if len(args) > 1 else None
-                _print_json(data.get_team_dossier(roster_key, week))
-            elif command == "transactions":
-                if len(args) < 2:
-                    print("Usage: transactions <from> <to>")
-                    continue
-                try:
-                    week_from = int(args[0])
-                    week_to = int(args[1])
-                except ValueError:
-                    print("Usage: transactions <from> <to>")
-                    continue
-                _print_json(data.get_transactions(week_from, week_to))
-            elif command == "team-transactions":
-                if len(args) < 3:
-                    print("Usage: team-transactions <roster> <from> <to>")
-                    continue
-                roster_key = args[0]
-                try:
-                    week_from = int(args[1])
-                    week_to = int(args[2])
-                except ValueError:
-                    print("Usage: team-transactions <roster> <from> <to>")
-                    continue
-                _print_json(data.get_team_transactions(roster_key, week_from, week_to))
-            elif command == "roster":
-                if not args:
-                    print("Usage: roster <roster_id or name> [week]")
-                    continue
-                roster_key = args[0]
-                if len(args) > 1:
-                    week = int(args[1])
-                    _print_json(data.get_roster_snapshot(roster_key, week))
-                else:
-                    _print_json(data.get_roster_current(roster_key))
-            elif command == "player":
-                if not args:
-                    print("Usage: player <name>")
-                    continue
-                player_key = " ".join(args).strip()
-                _print_json(data.get_player_summary(player_key))
-            elif command == "player-log":
-                if not args:
-                    print("Usage: player-log <name>")
-                    continue
-                player_key = " ".join(args).strip()
-                _print_json(data.get_player_weekly_log(player_key))
-            elif command == "player-log-range":
-                if len(args) < 3:
-                    print("Usage: player-log-range <name> <from> <to>")
-                    continue
-                try:
-                    week_to = int(args[-1])
-                    week_from = int(args[-2])
-                    player_key = " ".join(args[:-2]).strip()
-                except ValueError:
-                    print("Usage: player-log-range <name> <from> <to>")
-                    continue
-                if not player_key:
-                    print("Usage: player-log-range <name> <from> <to>")
-                    continue
-                _print_json(data.get_player_weekly_log_range(player_key, week_from, week_to))
-            elif command == "sql":
-                if not args:
-                    print("Usage: sql <select_query>")
-                    continue
-                query = raw[len("sql ") :]
-                _print_json(data.run_sql(query))
-            elif command == "save":
-                output_path = args[0] if args else _default_output_path(data.league_id)
-                if os.path.exists(output_path):
-                    confirm = input(
-                        f"{output_path} exists. Overwrite? [y/N] "
-                    ).strip().lower()
-                    if confirm not in {"y", "yes"}:
-                        print("Save cancelled.")
-                        continue
+            try:
                 saved_path = data.save_to_file(output_path)
                 print(f"Saved SQLite snapshot to {saved_path}.")
-            else:
-                print("Unknown command. Type 'help' for options.")
-        except Exception as exc:  # pragma: no cover - interactive convenience
+            except Exception as exc:
+                print(f"Error: {exc}")
+            continue
+
+        # Check if it's a valid tool
+        if command not in handlers:
+            print(f"Unknown command: {command}")
+            print("Type 'tools' to see available commands.")
+            continue
+
+        # Parse arguments for the tool
+        params, error = _parse_tool_args(args, command)
+        if error:
+            print(f"Error: {error}")
+            # Show usage for this tool
+            for tool in SLEEPER_TOOLS:
+                if tool["function"]["name"] == command:
+                    props = tool["function"]["parameters"]["properties"]
+                    req = tool["function"]["parameters"].get("required", [])
+                    usage_parts = [command]
+                    for pname in props:
+                        if pname in req:
+                            usage_parts.append(f"<{pname}>")
+                        else:
+                            usage_parts.append(f"[{pname}]")
+                    print(f"Usage: {' '.join(usage_parts)}")
+                    break
+            continue
+
+        # Execute the tool
+        try:
+            result = handlers[command](**params)
+            _print_json(result)
+        except Exception as exc:
             print(f"Error: {exc}")
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

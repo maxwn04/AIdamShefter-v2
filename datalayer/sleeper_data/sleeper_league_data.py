@@ -9,6 +9,7 @@ from typing import Any, Mapping, Optional
 
 from .config import SleeperConfig, load_config
 from .normalize import (
+    apply_traded_picks,
     derive_games,
     derive_team_profiles,
     normalize_league,
@@ -20,8 +21,9 @@ from .normalize import (
     normalize_transaction_moves,
     normalize_transactions,
     normalize_users,
+    seed_draft_picks,
 )
-from .schema.models import DraftPick, SeasonContext, StandingsWeek
+from .schema.models import SeasonContext, StandingsWeek
 from .sleeper_api import (
     SleeperClient,
     get_league,
@@ -92,60 +94,12 @@ class SleeperLeagueData:
             bulk_insert(self.conn, team_profiles[0].table_name, team_profiles)
 
         draft_rounds = int((raw_league.get("settings") or {}).get("draft_rounds") or 0)
-        base_season = league.season
-        try:
-            base_year = int(base_season)
-        except (TypeError, ValueError):
-            base_year = None
-
-        draft_picks: list[DraftPick] = []
-        if base_year and draft_rounds > 0 and rosters:
-            for season_offset in range(1, 4):
-                season_value = str(base_year + season_offset)
-                for roster in rosters:
-                    for round_value in range(1, draft_rounds + 1):
-                        draft_picks.append(
-                            DraftPick(
-                                league_id=self.league_id,
-                                season=season_value,
-                                round=round_value,
-                                original_roster_id=roster.roster_id,
-                                current_roster_id=roster.roster_id,
-                                pick_id=None,
-                                source="seed",
-                            )
-                        )
-
+        draft_picks = seed_draft_picks(rosters, self.league_id, league.season, draft_rounds)
         if draft_picks:
             bulk_insert(self.conn, draft_picks[0].table_name, draft_picks)
 
-        traded_picks = get_traded_picks(self.league_id, client=self.client)
-        for pick in traded_picks or []:
-            season_value = pick.get("season")
-            round_value = pick.get("round")
-            original_roster_id = pick.get("roster_id")
-            owner_id = pick.get("owner_id")
-            if season_value is None or round_value is None or original_roster_id is None:
-                continue
-            if owner_id is None:
-                continue
-            self.conn.execute(
-                """
-                UPDATE draft_picks
-                SET current_roster_id = :current_roster_id
-                WHERE league_id = :league_id
-                  AND season = :season
-                  AND round = :round
-                  AND original_roster_id = :original_roster_id
-                """,
-                {
-                    "current_roster_id": int(owner_id),
-                    "league_id": self.league_id,
-                    "season": str(season_value),
-                    "round": int(round_value),
-                    "original_roster_id": int(original_roster_id),
-                },
-            )
+        raw_traded_picks = get_traded_picks(self.league_id, client=self.client)
+        apply_traded_picks(self.conn, raw_traded_picks, self.league_id)
 
         raw_players = get_players("nfl", client=self.client)
         players = normalize_players(raw_players)
