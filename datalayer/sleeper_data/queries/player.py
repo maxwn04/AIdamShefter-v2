@@ -54,25 +54,71 @@ def get_player_summary(conn, player_key: Any) -> dict[str, Any]:
     return {"found": True, "player": strip_id_fields(player)}
 
 
-def get_player_weekly_log(
+def _fetch_player_performances(
     conn,
     league_id: str,
-    player_key: Any,
-    *,
+    player_id: str,
     week_from: int | None = None,
     week_to: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch player performance rows from the database."""
+    params: dict[str, Any] = {"league_id": league_id, "player_id": player_id}
+    filters = ["pp.league_id = :league_id", "pp.player_id = :player_id"]
+    if week_from is not None:
+        params["week_from"] = week_from
+        filters.append("pp.week >= :week_from")
+    if week_to is not None:
+        params["week_to"] = week_to
+        filters.append("pp.week <= :week_to")
+
+    return fetch_all(
+        conn,
+        f"""
+        SELECT
+            pp.week,
+            pp.points,
+            pp.role,
+            pp.roster_id,
+            tp.team_name
+        FROM player_performances pp
+        LEFT JOIN team_profiles tp
+            ON tp.league_id = pp.league_id AND tp.roster_id = pp.roster_id
+        WHERE {" AND ".join(filters)}
+        ORDER BY pp.week ASC
+        """,
+        params,
+    )
+
+
+def _build_player_log_response(
+    player_name: str, rows: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """Get a player's week-by-week fantasy performance log.
+    """Build the standard player log response structure."""
+    performances = strip_id_fields_list(rows)
+    weeks_played = len(performances)
+    total_points = sum(p.get("points") or 0 for p in performances)
+    avg_points = round(total_points / weeks_played, 2) if weeks_played > 0 else 0.0
+
+    return {
+        "found": True,
+        "player_name": player_name,
+        "weeks_played": weeks_played,
+        "total_points": round(total_points, 2),
+        "avg_points": avg_points,
+        "performances": performances,
+    }
+
+
+def get_player_weekly_log(conn, league_id: str, player_key: Any) -> dict[str, Any]:
+    """Get a player's full season fantasy performance log.
 
     Returns each week's points, the fantasy team they were on, and whether
-    they were started or benched. Includes summary stats for the period.
+    they were started or benched. Includes summary stats for the full season.
 
     Args:
         conn: SQLite database connection.
         league_id: The league identifier.
         player_key: Player name or player_id.
-        week_from: Starting week filter (inclusive). Defaults to week 1.
-        week_to: Ending week filter (inclusive). Defaults to current week.
 
     Returns:
         {
@@ -98,43 +144,55 @@ def get_player_weekly_log(
     if not resolved.get("found"):
         return {**resolved}
 
-    params: dict[str, Any] = {"league_id": league_id, "player_id": resolved["player_id"]}
-    filters = ["pp.league_id = :league_id", "pp.player_id = :player_id"]
-    if week_from is not None:
-        params["week_from"] = week_from
-        filters.append("pp.week >= :week_from")
-    if week_to is not None:
-        params["week_to"] = week_to
-        filters.append("pp.week <= :week_to")
+    rows = _fetch_player_performances(conn, league_id, resolved["player_id"])
+    return _build_player_log_response(resolved.get("player_name", ""), rows)
 
-    rows = fetch_all(
-        conn,
-        f"""
-        SELECT
-            pp.week,
-            pp.points,
-            pp.role,
-            pp.roster_id,
-            tp.team_name
-        FROM player_performances pp
-        LEFT JOIN team_profiles tp
-            ON tp.league_id = pp.league_id AND tp.roster_id = pp.roster_id
-        WHERE {" AND ".join(filters)}
-        ORDER BY pp.week ASC
-        """,
-        params,
+
+def get_player_weekly_log_range(
+    conn, league_id: str, player_key: Any, week_from: int, week_to: int
+) -> dict[str, Any]:
+    """Get a player's fantasy performance log for a specific week range.
+
+    Returns each week's points, the fantasy team they were on, and whether
+    they were started or benched. Includes summary stats for the period.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        player_key: Player name or player_id.
+        week_from: Starting week (inclusive).
+        week_to: Ending week (inclusive).
+
+    Returns:
+        {
+            "found": True,
+            "player_name": str,
+            "week_from": int,
+            "week_to": int,
+            "weeks_played": int,
+            "total_points": float,
+            "avg_points": float,
+            "performances": [
+                {
+                    "week": int,
+                    "points": float,
+                    "role": str,  # "starter" or "bench"
+                    "team_name": str  # Fantasy team that rostered them
+                },
+                ...
+            ]
+        }
+
+        Returns {"found": False, "player_key": ...} if player not found.
+    """
+    resolved = resolve_player_id(conn, player_key)
+    if not resolved.get("found"):
+        return {**resolved}
+
+    rows = _fetch_player_performances(
+        conn, league_id, resolved["player_id"], week_from=week_from, week_to=week_to
     )
-
-    performances = strip_id_fields_list(rows)
-    weeks_played = len(performances)
-    total_points = sum(p.get("points") or 0 for p in performances)
-    avg_points = round(total_points / weeks_played, 2) if weeks_played > 0 else 0.0
-
-    return {
-        "found": True,
-        "player_name": resolved.get("player_name"),
-        "weeks_played": weeks_played,
-        "total_points": round(total_points, 2),
-        "avg_points": avg_points,
-        "performances": performances,
-    }
+    result = _build_player_log_response(resolved.get("player_name", ""), rows)
+    result["week_from"] = week_from
+    result["week_to"] = week_to
+    return result

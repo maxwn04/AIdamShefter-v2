@@ -171,73 +171,20 @@ def get_league_snapshot(conn, week: int | None = None) -> dict[str, Any]:
     }
 
 
-def get_week_games(
+def _fetch_games_rows(
     conn,
     league_id: str,
     week: int,
-    roster_key: Any | None = None,
-    *,
-    include_players: bool = False,
-) -> list[dict[str, Any]] | dict[str, Any]:
-    """Get all matchup games for a specific week.
-
-    Returns head-to-head matchups with scores and winner. Optionally includes
-    full player-by-player breakdowns for detailed game analysis.
-
-    Args:
-        conn: SQLite database connection.
-        league_id: The league identifier.
-        week: The week number to query.
-        roster_key: Optional team filter. If provided, returns only that team's game.
-        include_players: If True, includes player performances organized by
-            position for each team in the matchup.
-
-    Returns:
-        When roster_key is None, returns a list:
-        [
-            {
-                "week": int,
-                "team_a": str,
-                "team_b": str,
-                "points_a": float,
-                "points_b": float,
-                "winner": str | None,
-                "team_a_players": {...},  # Only if include_players=True
-                "team_b_players": {...}   # Only if include_players=True
-            },
-            ...
-        ]
-
-        When roster_key is provided, returns:
-        {
-            "found": True,
-            "as_of_week": int,
-            "games": [...]  # Same structure as above
-        }
-
-        Player structure (when include_players=True):
-        {
-            "starters": {
-                "qb": [{"player_name": str, "position": str, "points": float, ...}],
-                "rb": [...], "wr": [...], "te": [...], "k": [...], "def": [...]
-            },
-            "bench": {...}  # Same structure
-        }
-    """
-    roster_id = None
-    if roster_key is not None:
-        resolved = resolve_roster_id(conn, league_id, roster_key)
-        if not resolved.get("found"):
-            return {"found": False, "roster_key": roster_key, "as_of_week": week}
-        roster_id = resolved["roster_id"]
-
+    roster_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch raw game rows from the database."""
     params: dict[str, Any] = {"week": week, "league_id": league_id}
     roster_filter = ""
     if roster_id is not None:
         params["roster_id"] = roster_id
         roster_filter = "AND (g.roster_id_a = :roster_id OR g.roster_id_b = :roster_id)"
 
-    rows = fetch_all(
+    return fetch_all(
         conn,
         f"""
         SELECT
@@ -265,32 +212,171 @@ def get_week_games(
         """,
         params,
     )
-    if not rows:
-        if roster_key is None:
-            return []
-        return {"found": False, "roster_id": roster_id, "as_of_week": week, "games": []}
 
-    if include_players:
-        matchup_ids = [
-            row["matchup_id"] for row in rows if row.get("matchup_id") is not None
+
+def _attach_players_to_games(
+    conn, league_id: str, week: int, rows: list[dict[str, Any]]
+) -> None:
+    """Attach player breakdowns to game rows in-place."""
+    matchup_ids = [
+        row["matchup_id"] for row in rows if row.get("matchup_id") is not None
+    ]
+    matchup_lookup = _build_matchup_player_lookup(conn, league_id, week, matchup_ids)
+    for row in rows:
+        row["team_a_players"] = _build_team_players(
+            matchup_lookup,
+            row.get("matchup_id"),
+            row.get("roster_id_a"),
+        )
+        row["team_b_players"] = _build_team_players(
+            matchup_lookup,
+            row.get("matchup_id"),
+            row.get("roster_id_b"),
+        )
+
+
+def get_week_games(conn, league_id: str, week: int) -> list[dict[str, Any]]:
+    """Get all matchup games for a specific week.
+
+    Returns head-to-head matchups with scores and winner.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week: The week number to query.
+
+    Returns:
+        [
+            {
+                "week": int,
+                "team_a": str,
+                "team_b": str,
+                "points_a": float,
+                "points_b": float,
+                "winner": str | None
+            },
+            ...
         ]
-        matchup_lookup = _build_matchup_player_lookup(conn, league_id, week, matchup_ids)
-        for row in rows:
-            row["team_a_players"] = _build_team_players(
-                matchup_lookup,
-                row.get("matchup_id"),
-                row.get("roster_id_a"),
-            )
-            row["team_b_players"] = _build_team_players(
-                matchup_lookup,
-                row.get("matchup_id"),
-                row.get("roster_id_b"),
-            )
+    """
+    rows = _fetch_games_rows(conn, league_id, week)
+    return strip_id_fields_list(rows)
+
+
+def get_week_games_with_players(conn, league_id: str, week: int) -> list[dict[str, Any]]:
+    """Get all matchup games for a specific week with player breakdowns.
+
+    Returns head-to-head matchups with scores, winner, and full player-by-player
+    breakdowns for detailed game analysis.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week: The week number to query.
+
+    Returns:
+        [
+            {
+                "week": int,
+                "team_a": str,
+                "team_b": str,
+                "points_a": float,
+                "points_b": float,
+                "winner": str | None,
+                "team_a_players": {
+                    "starters": {"qb": [...], "rb": [...], ...},
+                    "bench": {"qb": [...], ...}
+                },
+                "team_b_players": {...}
+            },
+            ...
+        ]
+    """
+    rows = _fetch_games_rows(conn, league_id, week)
+    if rows:
+        _attach_players_to_games(conn, league_id, week, rows)
+    return strip_id_fields_list(rows)
+
+
+def get_team_game(conn, league_id: str, week: int, roster_key: Any) -> dict[str, Any]:
+    """Get a specific team's game for a week.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week: The week number to query.
+        roster_key: Team name, manager name, or roster_id.
+
+    Returns:
+        {
+            "found": True,
+            "as_of_week": int,
+            "game": {
+                "week": int,
+                "team_a": str,
+                "team_b": str,
+                "points_a": float,
+                "points_b": float,
+                "winner": str | None
+            }
+        }
+
+        Returns {"found": False, "roster_key": ...} if team not found.
+    """
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {"found": False, "roster_key": roster_key, "as_of_week": week}
+
+    rows = _fetch_games_rows(conn, league_id, week, roster_id=resolved["roster_id"])
+    if not rows:
+        return {"found": False, "roster_key": roster_key, "as_of_week": week}
 
     games = strip_id_fields_list(rows)
-    if roster_key is None:
-        return games
-    return {"found": True, "roster_id": roster_id, "as_of_week": week, "games": games}
+    return {"found": True, "as_of_week": week, "game": games[0]}
+
+
+def get_team_game_with_players(
+    conn, league_id: str, week: int, roster_key: Any
+) -> dict[str, Any]:
+    """Get a specific team's game for a week with player breakdowns.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week: The week number to query.
+        roster_key: Team name, manager name, or roster_id.
+
+    Returns:
+        {
+            "found": True,
+            "as_of_week": int,
+            "game": {
+                "week": int,
+                "team_a": str,
+                "team_b": str,
+                "points_a": float,
+                "points_b": float,
+                "winner": str | None,
+                "team_a_players": {
+                    "starters": {"qb": [...], "rb": [...], ...},
+                    "bench": {"qb": [...], ...}
+                },
+                "team_b_players": {...}
+            }
+        }
+
+        Returns {"found": False, "roster_key": ...} if team not found.
+    """
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {"found": False, "roster_key": roster_key, "as_of_week": week}
+
+    rows = _fetch_games_rows(conn, league_id, week, roster_id=resolved["roster_id"])
+    if not rows:
+        return {"found": False, "roster_key": roster_key, "as_of_week": week}
+
+    _attach_players_to_games(conn, league_id, week, rows)
+    games = strip_id_fields_list(rows)
+    return {"found": True, "as_of_week": week, "game": games[0]}
 
 
 def get_week_player_leaderboard(

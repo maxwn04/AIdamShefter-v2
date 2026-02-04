@@ -12,16 +12,26 @@ Modules:
     sql_tool: Custom SQL execution
 """
 
-from .league import get_league_snapshot, get_week_games, get_week_player_leaderboard
-from .player import get_player_summary, get_player_weekly_log
+from .league import (
+    get_league_snapshot,
+    get_team_game,
+    get_team_game_with_players,
+    get_week_games,
+    get_week_games_with_players,
+    get_week_player_leaderboard,
+)
+from .player import get_player_summary, get_player_weekly_log, get_player_weekly_log_range
 from .sql_tool import run_sql
 from .team import get_roster_current, get_roster_snapshot, get_team_dossier, get_team_schedule
-from .transactions import get_transactions
+from .transactions import get_team_transactions, get_transactions
 
 __all__ = [
     # League queries
     "get_league_snapshot",
     "get_week_games",
+    "get_week_games_with_players",
+    "get_team_game",
+    "get_team_game_with_players",
     "get_week_player_leaderboard",
     # Team queries
     "get_team_dossier",
@@ -31,8 +41,10 @@ __all__ = [
     # Player queries
     "get_player_summary",
     "get_player_weekly_log",
+    "get_player_weekly_log_range",
     # Transaction queries
     "get_transactions",
+    "get_team_transactions",
     # SQL tool
     "run_sql",
 ]

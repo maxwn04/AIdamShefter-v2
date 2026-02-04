@@ -8,62 +8,10 @@ from ._helpers import fetch_all, strip_id_fields_list
 from ._resolvers import resolve_roster_id
 
 
-def get_transactions(
-    conn,
-    league_id: str,
-    week_from: int,
-    week_to: int,
-    roster_key: Any | None = None,
+def _fetch_transaction_rows(
+    conn, week_from: int, week_to: int, roster_id: int | None = None
 ) -> list[dict[str, Any]]:
-    """Get all transactions (trades, waivers, free agent pickups) in a week range.
-
-    Returns grouped transactions showing what each team sent and received.
-    Useful for tracking roster moves and analyzing trade activity.
-
-    Args:
-        conn: SQLite database connection.
-        league_id: The league identifier.
-        week_from: Starting week (inclusive).
-        week_to: Ending week (inclusive).
-        roster_key: Optional team filter to show only that team's transactions.
-
-    Returns:
-        [
-            {
-                "week": int,
-                "type": str,  # "trade", "waiver", "free_agent"
-                "status": str,  # "complete", "failed", etc.
-                "created_ts": int,  # Unix timestamp
-                "bid_amount": int | None,  # For waiver claims
-                "details": [
-                    {
-                        "team_name": str,
-                        "assets_received": [
-                            {
-                                "asset_type": str,  # "player" or "pick"
-                                "player_name": str | None,
-                                "position": str | None,
-                                "pick_season": str | None,
-                                "pick_round": int | None,
-                                "pick_original_team_name": str | None
-                            },
-                            ...
-                        ],
-                        "assets_sent": [...]  # Same structure
-                    },
-                    ...  # One entry per team involved
-                ]
-            },
-            ...
-        ]
-    """
-    roster_id = None
-    if roster_key is not None:
-        resolved = resolve_roster_id(conn, league_id, roster_key)
-        if not resolved.get("found"):
-            return []
-        roster_id = resolved["roster_id"]
-
+    """Fetch raw transaction rows from the database."""
     params: dict[str, Any] = {"week_from": week_from, "week_to": week_to}
     roster_filter = ""
     if roster_id is not None:
@@ -76,7 +24,7 @@ def get_transactions(
         )
         """
 
-    rows = fetch_all(
+    return fetch_all(
         conn,
         f"""
         SELECT
@@ -118,6 +66,9 @@ def get_transactions(
         params,
     )
 
+
+def _group_transaction_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group raw transaction rows into structured transactions."""
     grouped: dict[str, dict[str, Any]] = {}
     ordered: list[dict[str, Any]] = []
     details_by_team: dict[str, dict[str, dict[str, Any]]] = {}
@@ -172,3 +123,92 @@ def get_transactions(
         grouped_row["details"] = list(details_by_team[transaction_id].values())
 
     return strip_id_fields_list(ordered)
+
+
+def get_transactions(
+    conn, league_id: str, week_from: int, week_to: int
+) -> list[dict[str, Any]]:
+    """Get all transactions (trades, waivers, free agent pickups) in a week range.
+
+    Returns grouped transactions showing what each team sent and received.
+    Useful for tracking roster moves and analyzing trade activity.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier (unused, kept for API consistency).
+        week_from: Starting week (inclusive).
+        week_to: Ending week (inclusive).
+
+    Returns:
+        [
+            {
+                "week": int,
+                "type": str,  # "trade", "waiver", "free_agent"
+                "status": str,  # "complete", "failed", etc.
+                "created_ts": int,  # Unix timestamp
+                "bid_amount": int | None,  # For waiver claims
+                "details": [
+                    {
+                        "team_name": str,
+                        "assets_received": [
+                            {
+                                "asset_type": str,  # "player" or "pick"
+                                "player_name": str | None,
+                                "position": str | None,
+                                "pick_season": str | None,
+                                "pick_round": int | None,
+                                "pick_original_team_name": str | None
+                            },
+                            ...
+                        ],
+                        "assets_sent": [...]  # Same structure
+                    },
+                    ...  # One entry per team involved
+                ]
+            },
+            ...
+        ]
+    """
+    rows = _fetch_transaction_rows(conn, week_from, week_to)
+    return _group_transaction_rows(rows)
+
+
+def get_team_transactions(
+    conn, league_id: str, week_from: int, week_to: int, roster_key: Any
+) -> dict[str, Any]:
+    """Get a specific team's transactions in a week range.
+
+    Returns grouped transactions showing what the team sent and received.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week_from: Starting week (inclusive).
+        week_to: Ending week (inclusive).
+        roster_key: Team name, manager name, or roster_id.
+
+    Returns:
+        {
+            "found": True,
+            "team_name": str,
+            "week_from": int,
+            "week_to": int,
+            "transactions": [...]  # Same structure as get_transactions
+        }
+
+        Returns {"found": False, "roster_key": ...} if team not found.
+    """
+    resolved = resolve_roster_id(conn, league_id, roster_key)
+    if not resolved.get("found"):
+        return {"found": False, "roster_key": roster_key}
+
+    rows = _fetch_transaction_rows(conn, week_from, week_to, roster_id=resolved["roster_id"])
+    transactions = _group_transaction_rows(rows)
+
+    return {
+        "found": True,
+        "team_name": resolved.get("team_name"),
+        "week_from": week_from,
+        "week_to": week_to,
+        "transactions": transactions,
+    }
