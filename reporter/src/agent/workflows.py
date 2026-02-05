@@ -17,7 +17,7 @@ async def generate_report_async(
     *,
     week: Optional[int] = None,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     voice: str = "sports columnist",
     snark_level: int = 1,
     hype_level: int = 1,
@@ -87,7 +87,7 @@ def generate_report(
     *,
     week: Optional[int] = None,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     voice: str = "sports columnist",
     snark_level: int = 1,
     hype_level: int = 1,
@@ -126,7 +126,7 @@ async def generate_with_config_async(
     config: ReportConfig,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
 ) -> ArticleOutput:
     """Generate a report using a pre-built ReportConfig.
 
@@ -152,15 +152,13 @@ def generate_with_config(
     config: ReportConfig,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
 ) -> ArticleOutput:
     """Generate a report using a pre-built ReportConfig synchronously.
 
     See generate_with_config_async for full documentation.
     """
-    return asyncio.run(
-        generate_with_config_async(config, data=data, model=model)
-    )
+    return asyncio.run(generate_with_config_async(config, data=data, model=model))
 
 
 # Convenience functions for common use cases
@@ -170,7 +168,7 @@ async def weekly_recap_async(
     week: int,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     snark_level: int = 1,
     hype_level: int = 2,
 ) -> ArticleOutput:
@@ -204,7 +202,7 @@ def weekly_recap(
     week: int,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     snark_level: int = 1,
     hype_level: int = 2,
 ) -> ArticleOutput:
@@ -220,7 +218,7 @@ async def snarky_recap_async(
     week: int,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     disfavored_teams: Optional[list[str]] = None,
 ) -> ArticleOutput:
     """Generate a snarky weekly recap with roasting.
@@ -258,10 +256,12 @@ def snarky_recap(
     week: int,
     *,
     data: Optional[SleeperLeagueData] = None,
-    model: str = "gpt-4o",
+    model: str = "gpt-5-mini",
     disfavored_teams: Optional[list[str]] = None,
 ) -> ArticleOutput:
     """Generate a snarky weekly recap synchronously."""
     return asyncio.run(
-        snarky_recap_async(week, data=data, model=model, disfavored_teams=disfavored_teams)
+        snarky_recap_async(
+            week, data=data, model=model, disfavored_teams=disfavored_teams
+        )
     )

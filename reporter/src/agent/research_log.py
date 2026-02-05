@@ -106,12 +106,9 @@ class ResearchLog(BaseModel):
         elif entry.entry_type == "tool_end":
             self._stream_file.write(f"[{ts}] ✓ RESULT ({entry.duration_ms}ms)\n")
             if entry.tool_result:
-                # Truncate long results
-                result = entry.tool_result
-                if len(result) > 500:
-                    result = result[:500] + "... (truncated)"
-                for line in result.split("\n")[:10]:  # Max 10 lines
-                    self._stream_file.write(f"  {line}\n")
+                # Show a brief summary instead of raw JSON
+                summary = self._summarize_result(entry.tool_result)
+                self._stream_file.write(f"  {summary}\n")
 
         elif entry.entry_type == "output":
             self._stream_file.write(f"\n[{ts}] 📝 FINAL OUTPUT\n")
@@ -119,6 +116,71 @@ class ResearchLog(BaseModel):
                 self._stream_file.write(f"  {entry.output_preview}\n")
 
         self._stream_file.flush()
+
+    def _summarize_result(self, result_str: str) -> str:
+        """Create a brief human-readable summary of a tool result."""
+        import json
+        try:
+            data = json.loads(result_str)
+        except (json.JSONDecodeError, TypeError):
+            # Not JSON, just truncate
+            if len(result_str) > 100:
+                return result_str[:100] + "..."
+            return result_str
+
+        # Summarize based on structure
+        if isinstance(data, dict):
+            if data.get("found") is False:
+                return "Not found"
+
+            parts = []
+
+            # League snapshot
+            if "standings" in data:
+                parts.append(f"{len(data['standings'])} teams in standings")
+            if "games" in data:
+                parts.append(f"{len(data['games'])} games")
+            if "transactions" in data:
+                parts.append(f"{len(data['transactions'])} transactions")
+
+            # Team data
+            if "team_name" in data:
+                parts.append(f"Team: {data['team_name']}")
+            if "record" in data:
+                r = data["record"]
+                parts.append(f"Record: {r.get('wins', 0)}-{r.get('losses', 0)}")
+
+            # Player data
+            if "player_name" in data:
+                parts.append(f"Player: {data['player_name']}")
+            if "performances" in data:
+                parts.append(f"{len(data['performances'])} weeks of data")
+
+            # Players in game
+            if "team_a" in data and "players" in data.get("team_a", {}):
+                parts.append(f"Game with {len(data['team_a']['players'])} players each side")
+
+            if parts:
+                return " | ".join(parts)
+            return f"dict with {len(data)} keys"
+
+        elif isinstance(data, list):
+            if len(data) == 0:
+                return "Empty list"
+            first = data[0]
+            if isinstance(first, dict):
+                # Try to identify what kind of list
+                if "player_name" in first:
+                    names = [p.get("player_name", "?") for p in data[:5]]
+                    return f"{len(data)} players: {', '.join(names)}..."
+                if "team_name" in first:
+                    names = [t.get("team_name", "?") for t in data[:5]]
+                    return f"{len(data)} teams: {', '.join(names)}..."
+                if "type" in first:  # transactions
+                    return f"{len(data)} transactions"
+            return f"{len(data)} items"
+
+        return str(data)[:100]
 
     def add_entry(self, entry: ResearchLogEntry) -> None:
         """Add an entry to the log, update counts, and stream if enabled."""

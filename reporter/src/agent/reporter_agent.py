@@ -56,29 +56,31 @@ class ResearchLoggingHooks(RunHooks):
         This captures the model's reasoning that preceded tool calls.
         """
         try:
-            # Try to access the conversation messages
-            # The structure depends on the OpenAI Agents SDK version
-            if hasattr(context, 'messages'):
+            # Try various ways to access messages
+            messages = None
+            if hasattr(context, "messages"):
                 messages = context.messages
-            elif hasattr(context, 'context') and hasattr(context.context, 'messages'):
-                messages = context.context.messages
-            else:
+            elif hasattr(context, "context"):
+                inner = context.context
+                if hasattr(inner, "messages"):
+                    messages = inner.messages
+
+            if not messages:
                 return None
 
             # Find the last assistant message with text content
             for msg in reversed(messages):
-                if getattr(msg, 'role', None) == 'assistant':
-                    # Extract text content
-                    content = getattr(msg, 'content', None)
+                if getattr(msg, "role", None) == "assistant":
+                    content = getattr(msg, "content", None)
                     if isinstance(content, str) and content.strip():
                         return content.strip()
                     elif isinstance(content, list):
-                        # Handle content blocks
                         for block in content:
-                            if hasattr(block, 'text') and block.text:
+                            if hasattr(block, "text") and block.text:
                                 return block.text.strip()
-                            elif isinstance(block, dict) and block.get('text'):
-                                return block['text'].strip()
+                            elif isinstance(block, dict) and block.get("text"):
+                                return block["text"].strip()
+                    break
         except Exception:
             pass
         return None
@@ -143,7 +145,7 @@ class ResearchAgent:
         data: SleeperLeagueData,
         config: ReportConfig,
         *,
-        model: str = "gpt-4o",
+        model: str = "gpt-5-mini",
         log_path: Optional[Path] = None,
     ):
         self.data = data
@@ -269,7 +271,7 @@ class DraftAgent:
     research brief, applying the configured voice and style.
     """
 
-    def __init__(self, config: ReportConfig, *, model: str = "gpt-4o"):
+    def __init__(self, config: ReportConfig, *, model: str = "gpt-5-mini"):
         self.config = config
         self.model = model
 
@@ -352,7 +354,7 @@ class ReporterAgent:
         self,
         data: SleeperLeagueData,
         *,
-        model: str = "gpt-4o",
+        model: str = "gpt-5-mini",
     ):
         self.data = data
         self.model = model

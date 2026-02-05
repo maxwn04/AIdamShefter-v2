@@ -24,7 +24,7 @@ class ClarificationAgent:
         data: SleeperLeagueData,
         *,
         default_week: Optional[int] = None,
-        model: str = "gpt-4o",
+        model: str = "gpt-5-mini",
     ):
         self.data = data
         self.default_week = default_week or data.effective_week
@@ -231,7 +231,11 @@ class ClarificationAgent:
 
     def _build_system_prompt(self) -> str:
         """Build the system prompt for the clarification agent."""
-        team_list = ", ".join(self._team_names[:10]) if self._team_names else "(teams not loaded)"
+        team_list = (
+            ", ".join(self._team_names[:10])
+            if self._team_names
+            else "(teams not loaded)"
+        )
 
         return f"""You are a helpful assistant that gathers requirements for a fantasy football article.
 

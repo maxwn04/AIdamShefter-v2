@@ -444,6 +444,43 @@ class SleeperLeagueData:
             self.conn, self.league_id, week_from, week_to, roster_key
         )
 
+    def get_week_transactions(self, week: int | None = None) -> list[dict[str, Any]]:
+        """Get all trades, waivers, and FA pickups for a single week.
+
+        Args:
+            week: Week number (defaults to current week).
+
+        See queries.transactions.get_transactions for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        effective_week = self._get_effective_week(week)
+        if effective_week is None:
+            return []
+        return query_get_transactions(
+            self.conn, self.league_id, effective_week, effective_week
+        )
+
+    def get_team_week_transactions(
+        self, roster_key: Any, week: int | None = None
+    ) -> dict[str, Any]:
+        """Get a specific team's transactions for a single week.
+
+        Args:
+            roster_key: Team name, manager name, or roster_id.
+            week: Week number (defaults to current week).
+
+        See queries.transactions.get_team_transactions for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        effective_week = self._get_effective_week(week)
+        if effective_week is None:
+            return {"found": False, "error": "No effective week"}
+        return get_team_transactions(
+            self.conn, self.league_id, effective_week, effective_week, roster_key
+        )
+
     def get_player_summary(self, player_key: Any) -> dict[str, Any]:
         """Get basic metadata about an NFL player.
 

@@ -118,12 +118,14 @@ The reporter is accessed through an interactive CLI:
 ### 1. Remove Article Type Presets
 
 **Delete:**
+
 - `ArticleType` enum
 - `WEEKLY_RECAP_PRESET`, `POWER_RANKINGS_PRESET`, etc.
 - `get_preset()` function
 - `StructureSpec` and `SectionSpec` (agent decides structure)
 
 **Keep:**
+
 - Time range configuration
 - Tone controls (snark_level, hype_level)
 - Bias profile
@@ -131,6 +133,7 @@ The reporter is accessed through an interactive CLI:
 - Evidence policy
 
 **New:**
+
 - `focus_hints: list[str]` - Optional topics to emphasize (e.g., "upsets", "trades", "playoff race")
 - `avoid_topics: list[str]` - Topics to skip
 - `custom_instructions: str` - Freeform user guidance
@@ -185,7 +188,7 @@ class ResearchAgent:
         agent = Agent(
             name="researcher",
             instructions=system_prompt,
-            model="gpt-4o",
+            model="gpt-5-mini",
             tools=self.tools,
             output_type=ReportBrief,  # Structured output
         )
@@ -213,6 +216,7 @@ You MUST document your reasoning throughout the research process. Before EVERY
 data retrieval tool call, use `log_reasoning` to explain WHY you're making that call.
 
 Pattern:
+
 1. `log_reasoning(intent="...", category="...")` - Explain your intent
 2. `get_*()` or `run_sql()` - Make the data call
 3. `record_finding(...)` - Document what you learned (if significant)
@@ -250,6 +254,7 @@ This creates an audit trail that helps us understand your editorial thinking.
 ## Output Format
 
 You must produce a ReportBrief with:
+
 - meta: Basic article metadata
 - facts: Verified claims with data references
 - storylines: Narratives ranked by editorial priority
@@ -263,6 +268,7 @@ You must produce a ReportBrief with:
 The key difference: **the agent builds the brief through reasoning**, not code extracting data mechanically.
 
 **Before (mechanical):**
+
 ```python
 # Code loops over games and applies thresholds
 for game in games:
@@ -272,6 +278,7 @@ for game in games:
 ```
 
 **After (agent reasoning):**
+
 ```
 Agent thinks: "Team A beat Team B by 47 points. That's the biggest margin
 this week and Team B was previously 7-1. This is a major upset AND a
@@ -295,24 +302,24 @@ The research phase uses an expanded toolkit that includes both data retrieval an
 
 These tools fetch data from the Sleeper datalayer:
 
-| Tool | Purpose | When to Use |
-|------|---------|-------------|
-| `get_league_snapshot` | Broad context: standings, games, transactions | First call—get the lay of the land |
-| `get_week_games` | All matchups with scores | Identify interesting games |
-| `get_week_games_with_players` | Games with player breakdowns | Investigate specific matchups |
-| `get_week_player_leaderboard` | Top scorers | Find standout performers |
-| `get_transactions` | Trades, waivers, FA pickups | Transaction storylines |
-| `get_team_dossier` | Team profile, record, streak | Deep dive on a team |
-| `get_team_game` | Single team's matchup | Focus on one side of a game |
-| `get_team_game_with_players` | Team matchup with roster detail | Player-level analysis |
-| `get_team_schedule` | Full season results | Season arc, trends |
-| `get_roster_current` | Current roster by position | Roster composition analysis |
-| `get_roster_snapshot` | Historical roster | What roster looked like in past |
-| `get_team_transactions` | Team-specific moves | Track a team's roster activity |
-| `get_player_summary` | Player metadata | Basic player info |
-| `get_player_weekly_log` | Season performance log | Player consistency/trends |
-| `get_player_weekly_log_range` | Performance in week range | Focused player analysis |
-| `run_sql` | Custom SELECT queries | Complex/ad-hoc queries |
+| Tool                          | Purpose                                       | When to Use                        |
+| ----------------------------- | --------------------------------------------- | ---------------------------------- |
+| `get_league_snapshot`         | Broad context: standings, games, transactions | First call—get the lay of the land |
+| `get_week_games`              | All matchups with scores                      | Identify interesting games         |
+| `get_week_games_with_players` | Games with player breakdowns                  | Investigate specific matchups      |
+| `get_week_player_leaderboard` | Top scorers                                   | Find standout performers           |
+| `get_transactions`            | Trades, waivers, FA pickups                   | Transaction storylines             |
+| `get_team_dossier`            | Team profile, record, streak                  | Deep dive on a team                |
+| `get_team_game`               | Single team's matchup                         | Focus on one side of a game        |
+| `get_team_game_with_players`  | Team matchup with roster detail               | Player-level analysis              |
+| `get_team_schedule`           | Full season results                           | Season arc, trends                 |
+| `get_roster_current`          | Current roster by position                    | Roster composition analysis        |
+| `get_roster_snapshot`         | Historical roster                             | What roster looked like in past    |
+| `get_team_transactions`       | Team-specific moves                           | Track a team's roster activity     |
+| `get_player_summary`          | Player metadata                               | Basic player info                  |
+| `get_player_weekly_log`       | Season performance log                        | Player consistency/trends          |
+| `get_player_weekly_log_range` | Performance in week range                     | Focused player analysis            |
+| `run_sql`                     | Custom SELECT queries                         | Complex/ad-hoc queries             |
 
 #### 5.2 Research Reasoning Tools (new)
 
@@ -652,9 +659,11 @@ After a research session, the log might look like:
 
 ```markdown
 # Research Log: a3f8b2c1
+
 Started: 2024-01-15T10:30:00Z
 
 ## Summary
+
 - Tool calls: 6
 - Reasoning entries: 6
 - Findings: 4
@@ -663,34 +672,43 @@ Started: 2024-01-15T10:30:00Z
 ## Timeline
 
 ### 💭 Reasoning [exploration]
+
 > Getting broad overview of week 8 to identify interesting storylines
 
 ### 🔧 Tool: `get_league_snapshot`
+
 **Params:** `{'week': 8}`
 **Result:** 12 teams, 6 games, 3 transactions
 
 ### 📌 Finding
+
 **Fact:** Team Underdog (3-4) beat Team Favorite (6-1) by 32 points
 **Significance:** Major upset—potential lead story
 
 ### 💭 Reasoning [investigation]
+
 > Investigating the upset—want to see which players drove the win
 
 ### 🔧 Tool: `get_team_game_with_players`
+
 **Params:** `{'roster_key': 'Team Underdog', 'week': 8}`
 **Result:** 9 players, 142.3 total points
 
 ### 📌 Finding
+
 **Fact:** Josh Allen scored 38.7 points for Team Underdog, season high
 **Significance:** Key contributor to the upset—individual performance storyline
 
 ### 📰 Storyline Idea (Priority 1)
+
 **David Beats Goliath: Team Underdog Stuns the League**
 
 ### 💭 Reasoning [investigation]
+
 > User mentioned the CMC trade—finding that transaction
 
 ### 🔧 Tool: `get_transactions`
+
 **Params:** `{'week_from': 1, 'week_to': 8}`
 **Result:** 47 transactions
 
@@ -715,6 +733,7 @@ class ArticleOutput:
 ```
 
 This allows:
+
 - **Debugging**: See exactly why the agent made each tool call
 - **Quality analysis**: Identify if agent is under-researching or over-researching
 - **Intent tracking**: Understand the agent's editorial reasoning
@@ -736,7 +755,7 @@ class DraftAgent:
         agent = Agent(
             name="writer",
             instructions=system_prompt,
-            model="gpt-4o",
+            model="gpt-5-mini",
             tools=[],  # No tools in draft phase
         )
 
@@ -795,9 +814,11 @@ class ReporterAgent:
 ## File Changes Summary
 
 ### Delete
+
 - `specs.py`: ArticleType enum, preset templates, StructureSpec
 
 ### Modify
+
 - `reporter_agent.py`:
   - Remove `gather_data()` method entirely
   - Remove `build_brief()` method entirely
@@ -825,6 +846,7 @@ class ReporterAgent:
   - Keep all existing data retrieval tools
 
 ### Add
+
 - `prompts/research_agent.md`: System prompt for research phase
 - `prompts/draft_agent.md`: System prompt for draft phase
 - `agent/research_log.py`: ResearchLog and ResearchLogEntry classes
@@ -837,12 +859,14 @@ class ReporterAgent:
 ## Example Interaction
 
 **User request:**
+
 ```
 "Write a snarky recap of week 8. Focus on any upsets and that
 hilarious trade where Team Taco gave up CMC for pennies."
 ```
 
 **Parsed config:**
+
 ```python
 ReportConfig(
     time_range=TimeRange(week_start=8, week_end=8),
@@ -855,6 +879,7 @@ ReportConfig(
 ```
 
 **Research agent flow:**
+
 1. `get_league_snapshot(week=8)` → sees standings, all games
 2. Notices Team Underdog beat Team Favorite → investigates
 3. `get_team_game_with_players("Team Underdog", week=8)` → finds the stars
@@ -866,6 +891,7 @@ ReportConfig(
    - Priority 3: "Playoff Picture Tightens"
 
 **Draft agent:**
+
 - Receives brief with facts and storylines
 - Writes snarky article following the agent-determined structure
 - Roasts Team Taco appropriately
@@ -875,16 +901,19 @@ ReportConfig(
 ## Migration Path
 
 ### Phase 1: Core Refactor
+
 1. Create `ReportConfig` alongside existing `ReportSpec`
 2. Implement `ResearchAgent` with agentic research loop
 3. Test with simple requests
 
 ### Phase 2: Remove Presets
+
 1. Delete preset constants and enum
 2. Update any code depending on article_type
 3. Simplify schemas
 
 ### Phase 3: Polish
+
 1. Tune research agent prompts
 2. Add research_note tool for observability
 3. Update CLI/runner for new interface
@@ -904,13 +933,13 @@ ReportConfig(
 
 ## Risks and Mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| Agent might not call enough tools | Prompt engineering: "thoroughly research before building brief" |
-| Agent might fabricate instead of researching | Structured output forces proper brief format with data_refs |
-| Research might be unfocused | Config focus_hints guide the agent |
-| Higher latency (more LLM calls) | Acceptable tradeoff for quality; cache tool results |
-| Cost increase | Use efficient prompting; consider smaller model for research |
+| Risk                                         | Mitigation                                                      |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| Agent might not call enough tools            | Prompt engineering: "thoroughly research before building brief" |
+| Agent might fabricate instead of researching | Structured output forces proper brief format with data_refs     |
+| Research might be unfocused                  | Config focus_hints guide the agent                              |
+| Higher latency (more LLM calls)              | Acceptable tradeoff for quality; cache tool results             |
+| Cost increase                                | Use efficient prompting; consider smaller model for research    |
 
 ---
 

@@ -114,7 +114,7 @@ Examples:
     parser.add_argument(
         "--model",
         default=None,
-        help="Model to use (default: from config or gpt-4o)",
+        help="Model to use (default: from config or gpt-5-mini)",
     )
     parser.add_argument(
         "--no-save",

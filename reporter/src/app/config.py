@@ -20,7 +20,7 @@ class ReporterConfig(BaseModel):
     )
 
     # Model configuration
-    model: str = Field(default="gpt-4o", description="LLM model to use")
+    model: str = Field(default="gpt-5-mini", description="LLM model to use")
     openai_api_key: Optional[str] = Field(
         default=None, description="OpenAI API key (can also use OPENAI_API_KEY env)"
     )
@@ -51,7 +51,7 @@ def load_config() -> ReporterConfig:
     return ReporterConfig(
         sleeper_league_id=league_id,
         sleeper_week_override=week_override,
-        model=os.getenv("REPORTER_MODEL", "gpt-4o"),
+        model=os.getenv("REPORTER_MODEL", "gpt-5-mini"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         output_dir=output_dir,
         tracing_enabled=os.getenv("REPORTER_TRACING", "true").lower() == "true",

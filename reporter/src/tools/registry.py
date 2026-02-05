@@ -67,22 +67,23 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
 
         Args:
             week: Week number (defaults to current week).
-            limit: Maximum players to return (default 10).
+            limit: Maximum players to return (default 10, max 25).
         """
-        return adapter.call("get_week_player_leaderboard", week=week, limit=limit)
+        # Cap limit to prevent huge outputs
+        capped_limit = min(limit, 25)
+        return adapter.call("get_week_player_leaderboard", week=week, limit=capped_limit)
 
     @function_tool
-    def get_transactions(week_from: int, week_to: int) -> list[dict[str, Any]]:
-        """Get all trades, waivers, and FA pickups in a week range.
+    def get_week_transactions(week: int | None = None) -> list[dict[str, Any]]:
+        """Get all trades, waivers, and FA pickups for a single week.
 
         Use to find transaction storylines—big trades, waiver wire finds,
         questionable moves.
 
         Args:
-            week_from: Starting week (inclusive).
-            week_to: Ending week (inclusive).
+            week: Week number (defaults to current week).
         """
-        return adapter.call("get_transactions", week_from=week_from, week_to=week_to)
+        return adapter.call("get_week_transactions", week=week)
 
     @function_tool
     def get_team_dossier(
@@ -164,24 +165,22 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         return adapter.call("get_roster_snapshot", roster_key=roster_key, week=week)
 
     @function_tool
-    def get_team_transactions(
-        roster_key: str, week_from: int, week_to: int
+    def get_team_week_transactions(
+        roster_key: str, week: int | None = None
     ) -> dict[str, Any]:
-        """Get a specific team's transactions in a week range.
+        """Get a specific team's transactions for a single week.
 
-        Use for team-focused transaction analysis—how active has this
-        team been on the waiver wire?
+        Use for team-focused transaction analysis—what moves did this
+        team make this week?
 
         Args:
             roster_key: Team name, manager name, or roster_id.
-            week_from: Starting week (inclusive).
-            week_to: Ending week (inclusive).
+            week: Week number (defaults to current week).
         """
         return adapter.call(
-            "get_team_transactions",
+            "get_team_week_transactions",
             roster_key=roster_key,
-            week_from=week_from,
-            week_to=week_to,
+            week=week,
         )
 
     @function_tool
@@ -246,14 +245,14 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         get_week_games,
         get_week_games_with_players,
         get_week_player_leaderboard,
-        get_transactions,
+        get_week_transactions,
         get_team_dossier,
         get_team_game,
         get_team_game_with_players,
         get_team_schedule,
         get_roster_current,
         get_roster_snapshot,
-        get_team_transactions,
+        get_team_week_transactions,
         get_player_summary,
         get_player_weekly_log,
         get_player_weekly_log_range,
