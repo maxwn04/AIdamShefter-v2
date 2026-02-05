@@ -1,21 +1,30 @@
-"""Adapters for Sleeper datalayer tools."""
+"""Adapters for Sleeper datalayer tools with automatic research logging."""
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.schemas import ToolCall
+from agent.research_log import ResearchLog
 
 
-class SleeperToolAdapter:
-    """Adapts datalayer methods for the reporter agent with call logging."""
+class ResearchToolAdapter:
+    """Adapts datalayer methods for the reporter agent with automatic logging.
 
-    def __init__(self, data: SleeperLeagueData):
+    Tool calls are logged automatically via middleware hooks. This adapter
+    focuses on executing data retrieval and logging the tool start with params.
+    """
+
+    def __init__(
+        self,
+        data: SleeperLeagueData,
+        *,
+        research_log: Optional[ResearchLog] = None,
+    ):
         self.data = data
-        self.call_log: list[ToolCall] = []
+        # Use provided log or create a new one
+        self.log = research_log or ResearchLog()
         self._handlers = self._build_handlers()
 
     def _build_handlers(self) -> dict[str, Callable[..., Any]]:
@@ -45,7 +54,11 @@ class SleeperToolAdapter:
         return list(self._handlers.keys())
 
     def call(self, tool_name: str, **kwargs: Any) -> dict[str, Any]:
-        """Execute a tool with logging for brief construction."""
+        """Execute a data retrieval tool.
+
+        Logs the tool start with parameters. The tool end (with result and timing)
+        is logged by the ResearchLoggingHooks middleware.
+        """
         if tool_name not in self._handlers:
             return {
                 "found": False,
@@ -53,57 +66,31 @@ class SleeperToolAdapter:
                 "available_tools": self.available_tools,
             }
 
+        # Log tool start with params
+        self.log.add_tool_start(tool_name=tool_name, tool_params=kwargs)
+
+        # Execute the tool
         handler = self._handlers[tool_name]
-        result = handler(**kwargs)
+        return handler(**kwargs)
 
-        # Log the call
-        self.call_log.append(
-            ToolCall(
-                tool=tool_name,
-                params=kwargs,
-                timestamp=datetime.utcnow().isoformat(),
-                result_summary=self._summarize_result(result),
-            )
-        )
+    def get_research_log(self) -> ResearchLog:
+        """Return the complete research log."""
+        return self.log
 
-        return result
 
-    def _summarize_result(self, result: Any) -> str:
-        """Create a brief summary of a tool result."""
-        if isinstance(result, dict):
-            if "found" in result and not result["found"]:
-                return "not found"
-            if "data" in result:
-                data = result["data"]
-                if isinstance(data, list):
-                    return f"{len(data)} items"
-                return "1 item"
-            return "dict result"
-        if isinstance(result, list):
-            return f"{len(result)} items"
-        return str(type(result).__name__)
-
-    def get_data_refs(self) -> list[str]:
-        """Return formatted refs for ReportBrief.facts.data_refs."""
-        refs = []
-        for call in self.call_log:
-            params_str = ",".join(f"{k}={v}" for k, v in call.params.items())
-            refs.append(f"{call.tool}:{params_str}" if params_str else call.tool)
-        return refs
-
-    def clear_log(self) -> None:
-        """Clear the call log for a fresh research phase."""
-        self.call_log = []
+# Keep the old name as an alias for backwards compatibility
+SleeperToolAdapter = ResearchToolAdapter
 
 
 # Tool documentation for agent prompts
 TOOL_DOCS = """
-## Available Tools
+## Available Data Tools
 
 ### League-Wide Context
 
 - **get_league_snapshot(week?)**: Standings, games, and transactions for a week.
   Returns comprehensive league state including standings, all matchups, and transaction activity.
+  This is your best starting point to understand the week.
 
 - **get_week_games(week?)**: All matchups with scores and winners.
   Returns list of games with team names, scores, and win/loss indicators.

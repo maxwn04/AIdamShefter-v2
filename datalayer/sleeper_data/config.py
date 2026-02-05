@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
@@ -13,6 +14,7 @@ class SleeperConfig:
 
 
 def load_config() -> SleeperConfig:
+    load_dotenv()
     league_id = os.getenv("SLEEPER_LEAGUE_ID")
     if not league_id:
         raise ValueError("SLEEPER_LEAGUE_ID must be set.")

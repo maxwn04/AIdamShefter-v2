@@ -6,29 +6,38 @@ from typing import Any, Callable
 
 from agents import function_tool
 
-from tools.sleeper_tools import SleeperToolAdapter
+from tools.sleeper_tools import ResearchToolAdapter
 
 
-def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
-    """Create OpenAI Agents SDK tools from the SleeperToolAdapter.
+def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
+    """Create OpenAI Agents SDK tools from the ResearchToolAdapter.
 
-    Uses the @function_tool decorator pattern for proper schema generation.
+    All tool calls are automatically logged via middleware.
     """
+
+    # ==========================================================================
+    # DATA RETRIEVAL TOOLS
+    # ==========================================================================
 
     @function_tool
     def get_league_snapshot(week: int | None = None) -> dict[str, Any]:
         """Get league standings, games, and transactions for a week.
 
+        This is typically your FIRST call—gives you broad context to identify
+        what's interesting. Returns comprehensive league state including
+        standings, all matchups, and transaction activity.
+
         Args:
             week: Week number (defaults to current week).
-
-        Returns comprehensive league state for the specified week.
         """
         return adapter.call("get_league_snapshot", week=week)
 
     @function_tool
     def get_week_games(week: int | None = None) -> list[dict[str, Any]]:
         """Get all matchup games for a week with scores and winners.
+
+        Use this to see all game results at a glance. Good for identifying
+        upsets, blowouts, and close games.
 
         Args:
             week: Week number (defaults to current week).
@@ -38,6 +47,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     @function_tool
     def get_week_games_with_players(week: int | None = None) -> list[dict[str, Any]]:
         """Get all matchup games with player-by-player breakdowns.
+
+        Detailed view showing which players scored what for each team.
+        Use when you need to identify standout performers across all games.
 
         Args:
             week: Week number (defaults to current week).
@@ -50,6 +62,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     ) -> list[dict[str, Any]]:
         """Get top-scoring players for a week, ranked by points.
 
+        Great for finding the week's best performers for a "top performers"
+        section or identifying breakout games.
+
         Args:
             week: Week number (defaults to current week).
             limit: Maximum players to return (default 10).
@@ -59,6 +74,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     @function_tool
     def get_transactions(week_from: int, week_to: int) -> list[dict[str, Any]]:
         """Get all trades, waivers, and FA pickups in a week range.
+
+        Use to find transaction storylines—big trades, waiver wire finds,
+        questionable moves.
 
         Args:
             week_from: Starting week (inclusive).
@@ -72,6 +90,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     ) -> dict[str, Any]:
         """Get team profile, standings, and recent games.
 
+        Comprehensive team overview—use when you want to understand a team's
+        situation in depth. Includes record, streak, and recent matchups.
+
         Args:
             roster_key: Team name, manager name, or roster_id.
             week: Week for standings context (defaults to current).
@@ -81,6 +102,8 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     @function_tool
     def get_team_game(roster_key: str, week: int | None = None) -> dict[str, Any]:
         """Get a specific team's game result for a week.
+
+        Use when you want to focus on one side of a matchup.
 
         Args:
             roster_key: Team name, manager name, or roster_id.
@@ -94,6 +117,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     ) -> dict[str, Any]:
         """Get a team's game with player-by-player breakdown.
 
+        Use when investigating WHY a team won or lost—see which players
+        carried or tanked.
+
         Args:
             roster_key: Team name, manager name, or roster_id.
             week: Week number (defaults to current week).
@@ -106,6 +132,8 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     def get_team_schedule(roster_key: str) -> dict[str, Any]:
         """Get a team's full season schedule with game-by-game results.
 
+        Use for analyzing season arcs, streaks, and trends over time.
+
         Args:
             roster_key: Team name, manager name, or roster_id.
         """
@@ -115,6 +143,8 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     def get_roster_current(roster_key: str) -> dict[str, Any]:
         """Get a team's current roster organized by position.
 
+        Use for roster composition analysis—who's starting, who's on bench.
+
         Args:
             roster_key: Team name, manager name, or roster_id.
         """
@@ -123,6 +153,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     @function_tool
     def get_roster_snapshot(roster_key: str, week: int) -> dict[str, Any]:
         """Get a team's roster as it was during a specific week.
+
+        Use for historical roster analysis—what did the roster look like
+        when they won/lost that key game?
 
         Args:
             roster_key: Team name, manager name, or roster_id.
@@ -135,6 +168,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
         roster_key: str, week_from: int, week_to: int
     ) -> dict[str, Any]:
         """Get a specific team's transactions in a week range.
+
+        Use for team-focused transaction analysis—how active has this
+        team been on the waiver wire?
 
         Args:
             roster_key: Team name, manager name, or roster_id.
@@ -152,6 +188,8 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     def get_player_summary(player_key: str) -> dict[str, Any]:
         """Get basic metadata about an NFL player.
 
+        Use for quick player info—position, NFL team, injury status.
+
         Args:
             player_key: Player name or player_id.
         """
@@ -160,6 +198,9 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     @function_tool
     def get_player_weekly_log(player_key: str) -> dict[str, Any]:
         """Get a player's full season fantasy performance log.
+
+        Use for analyzing player consistency, trends, or finding their
+        best/worst weeks.
 
         Args:
             player_key: Player name or player_id.
@@ -171,6 +212,8 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
         player_key: str, week_from: int, week_to: int
     ) -> dict[str, Any]:
         """Get a player's fantasy performance for a specific week range.
+
+        Use for focused player analysis over a particular stretch.
 
         Args:
             player_key: Player name or player_id.
@@ -188,15 +231,16 @@ def create_tool_registry(adapter: SleeperToolAdapter) -> list[Callable]:
     def run_sql(query: str, limit: int = 200) -> dict[str, Any]:
         """Execute a custom SELECT query for advanced analysis.
 
-        Args:
-            query: A SELECT SQL query (write operations are blocked).
-            limit: Maximum rows to return (default 200).
+        Use this escape hatch for complex queries not covered by other tools.
+        Write operations (INSERT, UPDATE, DELETE) are blocked.
 
-        Use this for complex queries not covered by other tools.
+        Args:
+            query: A SELECT SQL query.
+            limit: Maximum rows to return (default 200).
         """
         return adapter.call("run_sql", query=query, limit=limit)
 
-    # Return the decorated tools
+    # Return all data retrieval tools
     return [
         get_league_snapshot,
         get_week_games,

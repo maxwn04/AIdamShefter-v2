@@ -1,16 +1,18 @@
-"""Reporter agent definition using the OpenAI Agents SDK."""
+"""Reporter agent with iterative research-driven article generation."""
 
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
-from agents import Agent, Runner
+from agents import Agent, Runner, AgentOutputSchema, RunHooks, RunContextWrapper, Tool
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.specs import ReportSpec, ArticleRequest, get_preset, WEEKLY_RECAP_PRESET
+from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from agent.research_log import ResearchLog
 from agent.schemas import (
     ReportBrief,
     ArticleOutput,
@@ -21,7 +23,7 @@ from agent.schemas import (
     ResolvedStyle,
     ResolvedBias,
 )
-from tools.sleeper_tools import SleeperToolAdapter, TOOL_DOCS
+from tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
 from tools.registry import create_tool_registry
 
 
@@ -34,45 +36,316 @@ def load_prompt(name: str) -> str:
     return ""
 
 
-def build_system_prompt(spec: ReportSpec) -> str:
-    """Build the complete system prompt for the agent."""
-    parts = [load_prompt("system_base.md")]
+class ResearchLoggingHooks(RunHooks):
+    """Hooks that capture model reasoning and tool calls, streaming to a log file.
 
-    # Add format-specific prompt
-    format_map = {
-        "weekly_recap": "formats/weekly_recap.md",
-        "power_rankings": "formats/power_rankings.md",
-        "team_deep_dive": "formats/team_deep_dive.md",
-        "playoff_reaction": "formats/playoff_reaction.md",
-    }
-    format_prompt = format_map.get(spec.article_type.value)
-    if format_prompt:
-        parts.append(load_prompt(format_prompt))
+    This middleware automatically logs:
+    - Tool calls with parameters (captured from adapter)
+    - Tool results with timing
+    - Model reasoning (extracted from conversation context)
+    """
 
-    # Add style prompt based on tone
-    if spec.tone_controls.snark_level >= 2:
-        parts.append(load_prompt("styles/snarky_columnist.md"))
-    elif spec.tone_controls.hype_level >= 2:
-        parts.append(load_prompt("styles/hype_man.md"))
-    else:
-        parts.append(load_prompt("styles/straight_news.md"))
+    def __init__(self, research_log: ResearchLog):
+        self.log = research_log
+        self._tool_start_times: dict[str, float] = {}
+        self._last_reasoning: Optional[str] = None
 
-    # Add bias rules if bias is configured
-    if spec.bias_profile and (
-        spec.bias_profile.favored_teams or spec.bias_profile.disfavored_teams
+    def _extract_last_reasoning(self, context: RunContextWrapper) -> Optional[str]:
+        """Extract the most recent assistant text from conversation context.
+
+        This captures the model's reasoning that preceded tool calls.
+        """
+        try:
+            # Try to access the conversation messages
+            # The structure depends on the OpenAI Agents SDK version
+            if hasattr(context, 'messages'):
+                messages = context.messages
+            elif hasattr(context, 'context') and hasattr(context.context, 'messages'):
+                messages = context.context.messages
+            else:
+                return None
+
+            # Find the last assistant message with text content
+            for msg in reversed(messages):
+                if getattr(msg, 'role', None) == 'assistant':
+                    # Extract text content
+                    content = getattr(msg, 'content', None)
+                    if isinstance(content, str) and content.strip():
+                        return content.strip()
+                    elif isinstance(content, list):
+                        # Handle content blocks
+                        for block in content:
+                            if hasattr(block, 'text') and block.text:
+                                return block.text.strip()
+                            elif isinstance(block, dict) and block.get('text'):
+                                return block['text'].strip()
+        except Exception:
+            pass
+        return None
+
+    async def on_tool_start(
+        self, context: RunContextWrapper, agent: Agent, tool: Tool
+    ) -> None:
+        """Called when a tool is about to be invoked."""
+        # Record start time for duration calculation
+        self._tool_start_times[tool.name] = time.time()
+
+        # Try to capture preceding reasoning
+        reasoning = self._extract_last_reasoning(context)
+        if reasoning and reasoning != self._last_reasoning:
+            self.log.add_reasoning(reasoning)
+            self._last_reasoning = reasoning
+
+        # Print progress to console
+        print(f"  -> {tool.name}...", end="", flush=True)
+
+    async def on_tool_end(
+        self, context: RunContextWrapper, agent: Agent, tool: Tool, result: Any
+    ) -> None:
+        """Called after a tool completes."""
+        # Calculate duration
+        start_time = self._tool_start_times.pop(tool.name, time.time())
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Convert result to string for logging
+        if isinstance(result, str):
+            result_str = result
+        else:
+            try:
+                result_str = json.dumps(result, default=str)
+            except Exception:
+                result_str = str(result)
+
+        # Truncate long results
+        if len(result_str) > 1000:
+            result_str = result_str[:1000] + "..."
+
+        # Log tool end with result
+        self.log.add_tool_end(
+            tool_name=tool.name,
+            tool_result=result_str,
+            duration_ms=duration_ms,
+        )
+
+        print(f" done ({duration_ms}ms)")
+
+
+class ResearchAgent:
+    """Agent that iteratively researches and builds a brief.
+
+    This agent has full access to data retrieval tools. It explores the
+    league data, identifies storylines, and produces a ReportBrief for
+    the draft phase. All tool calls and reasoning are automatically logged.
+    """
+
+    def __init__(
+        self,
+        data: SleeperLeagueData,
+        config: ReportConfig,
+        *,
+        model: str = "gpt-4o",
+        log_path: Optional[Path] = None,
     ):
-        parts.append(load_prompt("bias/bias_rules.md"))
+        self.data = data
+        self.config = config
+        self.model = model
+        self.log_path = log_path
 
-    return "\n\n---\n\n".join(parts)
+        # Create research log and set up streaming if path provided
+        self.research_log = ResearchLog()
+        if log_path:
+            self.research_log.start_streaming(log_path)
+
+        # Create adapter with the shared log
+        self.adapter = ResearchToolAdapter(data, research_log=self.research_log)
+        self.tools = create_tool_registry(self.adapter)
+
+    def _build_system_prompt(self) -> str:
+        """Build the system prompt for the research agent."""
+        base_prompt = load_prompt("research_agent.md")
+
+        # Add tool documentation
+        prompt = f"{base_prompt}\n\n---\n\n{TOOL_DOCS}"
+
+        return prompt
+
+    def _build_user_prompt(self) -> str:
+        """Build the user prompt with config details."""
+        week_desc = (
+            f"Week {self.config.time_range.week_start}"
+            if self.config.time_range.week_start == self.config.time_range.week_end
+            else f"Weeks {self.config.time_range.week_start}-{self.config.time_range.week_end}"
+        )
+
+        lines = [
+            f"Research and build a brief for a fantasy football article covering {week_desc}.",
+            "",
+        ]
+
+        if self.config.focus_hints:
+            lines.append(f"**Focus areas:** {', '.join(self.config.focus_hints)}")
+
+        if self.config.focus_teams:
+            lines.append(f"**Focus teams:** {', '.join(self.config.focus_teams)}")
+
+        if self.config.avoid_topics:
+            lines.append(f"**Avoid topics:** {', '.join(self.config.avoid_topics)}")
+
+        if self.config.custom_instructions:
+            lines.append(
+                f"\n**Special instructions:** {self.config.custom_instructions}"
+            )
+
+        lines.extend(
+            [
+                "",
+                f"**Target voice:** {self.config.voice}",
+                f"**Tone:** snark={self.config.tone.snark_level}, hype={self.config.tone.hype_level}",
+                f"**Target length:** ~{self.config.length_target} words",
+            ]
+        )
+
+        if self.config.bias_profile:
+            bp = self.config.bias_profile
+            if bp.favored_teams:
+                lines.append(
+                    f"**Favor teams:** {', '.join(bp.favored_teams)} (intensity {bp.intensity})"
+                )
+            if bp.disfavored_teams:
+                lines.append(
+                    f"**Roast teams:** {', '.join(bp.disfavored_teams)} (intensity {bp.intensity})"
+                )
+
+        lines.extend(
+            [
+                "",
+                "Begin by getting the league snapshot with get_league_snapshot().",
+                "Continue researching until you have enough material for a compelling article.",
+                "Then output the complete ReportBrief JSON.",
+            ]
+        )
+
+        return "\n".join(lines)
+
+    async def research(self) -> tuple[ReportBrief, ResearchLog]:
+        """Run the research agent to produce a brief and log.
+
+        Returns:
+            Tuple of (ReportBrief, ResearchLog)
+        """
+        system_prompt = self._build_system_prompt()
+        user_prompt = self._build_user_prompt()
+
+        agent = Agent(
+            name="researcher",
+            instructions=system_prompt,
+            model=self.model,
+            tools=self.tools,
+            output_type=AgentOutputSchema(ReportBrief, strict_json_schema=False),
+        )
+
+        # Create hooks for logging
+        hooks = ResearchLoggingHooks(self.research_log)
+
+        try:
+            # Allow more turns for iterative research (default is 10)
+            result = await Runner.run(agent, user_prompt, max_turns=30, hooks=hooks)
+
+            # Log the final output
+            if result.final_output:
+                preview = str(result.final_output)[:200]
+                self.research_log.add_output(f"ReportBrief generated: {preview}...")
+
+            return result.final_output, self.research_log
+        finally:
+            # Always close the streaming file
+            self.research_log.stop_streaming()
+
+
+class DraftAgent:
+    """Agent that writes the article from a brief.
+
+    This agent has NO access to data tools. It writes purely from the
+    research brief, applying the configured voice and style.
+    """
+
+    def __init__(self, config: ReportConfig, *, model: str = "gpt-4o"):
+        self.config = config
+        self.model = model
+
+    def _build_system_prompt(self) -> str:
+        """Build the system prompt for the draft agent."""
+        return load_prompt("draft_agent.md")
+
+    def _build_user_prompt(self, brief: ReportBrief) -> str:
+        """Build the user prompt with brief and config."""
+        lines = [
+            "Write a fantasy football article based on this research brief.",
+            "",
+            "## Research Brief",
+            "",
+            brief.model_dump_json(indent=2),
+            "",
+            "## Configuration",
+            "",
+            f"**Voice:** {self.config.voice}",
+            f"**Target length:** ~{self.config.length_target} words",
+            f"**Tone:** snark={self.config.tone.snark_level}, hype={self.config.tone.hype_level}",
+        ]
+
+        if self.config.profanity_policy != "none":
+            lines.append(f"**Profanity:** {self.config.profanity_policy}")
+
+        bias_instructions = self.config.get_bias_instructions()
+        if bias_instructions:
+            lines.extend(["", bias_instructions])
+
+        if self.config.custom_instructions:
+            lines.extend(
+                [
+                    "",
+                    "## Additional Instructions",
+                    self.config.custom_instructions,
+                ]
+            )
+
+        lines.extend(
+            [
+                "",
+                "Write the article now. Use Markdown formatting.",
+            ]
+        )
+
+        return "\n".join(lines)
+
+    async def draft(self, brief: ReportBrief) -> str:
+        """Write the article from the brief.
+
+        Args:
+            brief: The research brief to write from.
+
+        Returns:
+            The article as a Markdown string.
+        """
+        system_prompt = self._build_system_prompt()
+        user_prompt = self._build_user_prompt(brief)
+
+        agent = Agent(
+            name="writer",
+            instructions=system_prompt,
+            model=self.model,
+            tools=[],  # No tools in draft phase
+        )
+
+        result = await Runner.run(agent, user_prompt)
+        return result.final_output
 
 
 class ReporterAgent:
-    """The fantasy football reporter agent.
+    """Main agent orchestrating research and drafting.
 
-    Implements a simplified workflow:
-    1. Gather data using tools directly
-    2. Build a brief from the data
-    3. Draft article from the brief
+    This is the primary entry point for generating articles. It coordinates
+    the research and draft phases, producing a complete ArticleOutput.
     """
 
     def __init__(
@@ -83,348 +356,129 @@ class ReporterAgent:
     ):
         self.data = data
         self.model = model
-        self.adapter = SleeperToolAdapter(data)
-        self.tools = create_tool_registry(self.adapter)
 
-    def synthesize_spec(self, request: ArticleRequest) -> ReportSpec:
-        """Convert a user request into a ReportSpec."""
-        if request.preset:
-            base_spec = get_preset(request.preset)
-            if base_spec:
-                spec_dict = base_spec.model_dump()
-            else:
-                spec_dict = WEEKLY_RECAP_PRESET.model_dump()
+    async def run(
+        self,
+        request: str,
+        *,
+        week: Optional[int] = None,
+        week_start: Optional[int] = None,
+        week_end: Optional[int] = None,
+        voice: str = "sports columnist",
+        snark_level: int = 1,
+        hype_level: int = 1,
+        focus_hints: Optional[list[str]] = None,
+        focus_teams: Optional[list[str]] = None,
+        avoid_topics: Optional[list[str]] = None,
+        favored_teams: Optional[list[str]] = None,
+        disfavored_teams: Optional[list[str]] = None,
+        bias_intensity: int = 2,
+        length_target: int = 1000,
+        profanity_policy: str = "none",
+    ) -> ArticleOutput:
+        """Generate an article from a natural language request.
+
+        Args:
+            request: The user's request (used as custom_instructions).
+            week: Single week to cover (use this OR week_start/week_end).
+            week_start: Start of week range (use with week_end).
+            week_end: End of week range (use with week_start).
+            voice: Writing voice/persona.
+            snark_level: 0-3, how snarky the article should be.
+            hype_level: 0-3, how hyped/energetic.
+            focus_hints: Topics to emphasize.
+            focus_teams: Teams to emphasize.
+            avoid_topics: Topics to skip.
+            favored_teams: Teams to frame positively.
+            disfavored_teams: Teams to frame negatively.
+            bias_intensity: 0-3, how strong the bias.
+            length_target: Target word count.
+            profanity_policy: "none", "mild", or "unrestricted".
+
+        Returns:
+            ArticleOutput with article, config, brief, and research log.
+        """
+        # Build time range
+        if week is not None:
+            time_range = TimeRange.single_week(week)
+        elif week_start is not None and week_end is not None:
+            time_range = TimeRange.range(week_start, week_end)
         else:
-            spec_dict = WEEKLY_RECAP_PRESET.model_dump()
+            # Default to current week from data
+            current_week = self.data.effective_week
+            time_range = TimeRange.single_week(current_week)
 
-        if request.week:
-            spec_dict["time_range"] = {
-                "week_start": request.week,
-                "week_end": request.week,
-            }
-
-        for key, value in request.overrides.items():
-            if key in spec_dict:
-                spec_dict[key] = value
-
-        return ReportSpec.model_validate(spec_dict)
-
-    def gather_data(self, spec: ReportSpec) -> dict[str, Any]:
-        """Gather all necessary data for the article type."""
-        week = spec.time_range.week_end
-        data = {}
-
-        if spec.article_type.value == "weekly_recap":
-            # Get comprehensive week data
-            data["snapshot"] = self.adapter.call("get_league_snapshot", week=week)
-            data["games"] = self.adapter.call("get_week_games", week=week)
-            data["leaderboard"] = self.adapter.call(
-                "get_week_player_leaderboard", week=week, limit=10
-            )
-            data["transactions"] = self.adapter.call(
-                "get_transactions", week_from=week, week_to=week
+        # Build bias profile
+        bias_profile = None
+        if favored_teams or disfavored_teams:
+            bias_profile = BiasProfile(
+                favored_teams=favored_teams or [],
+                disfavored_teams=disfavored_teams or [],
+                intensity=bias_intensity,
             )
 
-        elif spec.article_type.value == "power_rankings":
-            data["snapshot"] = self.adapter.call("get_league_snapshot", week=week)
-            # Get dossiers for all teams
-            if data["snapshot"].get("standings"):
-                data["team_dossiers"] = []
-                for team in data["snapshot"]["standings"][:12]:  # Limit to 12 teams
-                    roster_id = team.get("roster_id")
-                    if roster_id:
-                        dossier = self.adapter.call(
-                            "get_team_dossier", roster_key=str(roster_id), week=week
-                        )
-                        data["team_dossiers"].append(dossier)
-
-        elif spec.article_type.value == "team_deep_dive":
-            if spec.focus_teams:
-                team = spec.focus_teams[0]
-                data["dossier"] = self.adapter.call(
-                    "get_team_dossier", roster_key=team, week=week
-                )
-                data["schedule"] = self.adapter.call(
-                    "get_team_schedule", roster_key=team
-                )
-                data["roster"] = self.adapter.call(
-                    "get_roster_current", roster_key=team
-                )
-                data["transactions"] = self.adapter.call(
-                    "get_team_transactions",
-                    roster_key=team,
-                    week_from=1,
-                    week_to=week,
-                )
-
-        elif spec.article_type.value == "playoff_reaction":
-            data["games"] = self.adapter.call("get_week_games", week=week)
-            data["games_with_players"] = self.adapter.call(
-                "get_week_games_with_players", week=week
-            )
-
-        return data
-
-    def build_brief(self, spec: ReportSpec, data: dict[str, Any]) -> ReportBrief:
-        """Build a ReportBrief from gathered data."""
-        week = spec.time_range.week_end
-        facts = []
-        storylines = []
-        fact_id = 0
-
-        # Extract facts from snapshot
-        snapshot = data.get("snapshot", {})
-        if snapshot.get("standings"):
-            for team in snapshot["standings"]:
-                fact_id += 1
-                facts.append(Fact(
-                    id=f"fact_{fact_id:03d}",
-                    claim_text=f"{team.get('team_name', 'Team')} is {team.get('wins', 0)}-{team.get('losses', 0)}",
-                    data_refs=["get_league_snapshot"],
-                    numbers={
-                        "wins": float(team.get("wins", 0)),
-                        "losses": float(team.get("losses", 0)),
-                        "points_for": float(team.get("points_for", 0)),
-                    },
-                    category="standing",
-                ))
-
-        # Extract facts from games
-        games = data.get("games", [])
-        for game in games:
-            fact_id += 1
-            team_a = game.get("team_a", "Team A")
-            team_b = game.get("team_b", "Team B")
-            score_a = game.get("points_a", 0)
-            score_b = game.get("points_b", 0)
-            winner = game.get("winner", team_a if score_a > score_b else team_b)
-
-            facts.append(Fact(
-                id=f"fact_{fact_id:03d}",
-                claim_text=f"{team_a} vs {team_b}: {score_a:.1f}-{score_b:.1f}, {winner} wins",
-                data_refs=["get_week_games"],
-                numbers={
-                    "team_a_points": float(score_a),
-                    "team_b_points": float(score_b),
-                    "margin": abs(float(score_a) - float(score_b)),
-                },
-                category="score",
-            ))
-
-            # Create storylines for notable games
-            margin = abs(score_a - score_b)
-            if margin > 40:
-                storylines.append(Storyline(
-                    id=f"story_{len(storylines)+1:03d}",
-                    headline=f"{winner} Dominates",
-                    summary=f"{winner} won by {margin:.1f} points in a blowout victory.",
-                    supporting_fact_ids=[f"fact_{fact_id:03d}"],
-                    priority=1,
-                    tags=["blowout"],
-                ))
-            elif margin < 5:
-                storylines.append(Storyline(
-                    id=f"story_{len(storylines)+1:03d}",
-                    headline="Nail-Biter Alert",
-                    summary=f"{winner} edges out opponent by just {margin:.1f} points.",
-                    supporting_fact_ids=[f"fact_{fact_id:03d}"],
-                    priority=1,
-                    tags=["close_game"],
-                ))
-
-        # Extract facts from leaderboard
-        leaderboard = data.get("leaderboard", [])
-        for i, player in enumerate(leaderboard[:5]):
-            fact_id += 1
-            facts.append(Fact(
-                id=f"fact_{fact_id:03d}",
-                claim_text=f"{player.get('player_name', 'Player')} scored {player.get('points', 0):.1f} points",
-                data_refs=["get_week_player_leaderboard"],
-                numbers={"points": float(player.get("points", 0))},
-                category="player",
-            ))
-
-        # Build outline based on article type
-        outline = []
-        if spec.article_type.value == "weekly_recap":
-            outline = [
-                Section(
-                    title="Introduction",
-                    bullet_points=["Week summary hook", "Key storylines"],
-                    required_fact_ids=[],
-                    storyline_ids=[s.id for s in storylines[:2]],
-                ),
-                Section(
-                    title="Matchup Highlights",
-                    bullet_points=["Cover all games", "Highlight close games and blowouts"],
-                    required_fact_ids=[f.id for f in facts if f.category == "score"],
-                    storyline_ids=[],
-                ),
-                Section(
-                    title="Standings",
-                    bullet_points=["Current standings", "Playoff implications"],
-                    required_fact_ids=[f.id for f in facts if f.category == "standing"][:5],
-                    storyline_ids=[],
-                ),
-                Section(
-                    title="Top Performers",
-                    bullet_points=["Week's best players"],
-                    required_fact_ids=[f.id for f in facts if f.category == "player"],
-                    storyline_ids=[],
-                ),
-            ]
-
-        # Get league name from snapshot
-        league_name = "Fantasy League"
-        if snapshot.get("league"):
-            league_name = snapshot["league"].get("name", league_name)
-
-        return ReportBrief(
-            meta=BriefMeta(
-                league_name=league_name,
-                league_id=self.data.league_id,
-                week_start=spec.time_range.week_start,
-                week_end=spec.time_range.week_end,
-                article_type=spec.article_type.value,
-            ),
-            facts=facts,
-            storylines=storylines,
-            outline=outline,
-            style=ResolvedStyle(
-                voice=spec.genre_voice,
-                pacing="moderate",
-                humor_level=spec.tone_controls.snark_level,
-                formality="casual" if spec.tone_controls.snark_level > 1 else "moderate",
-            ),
-            bias=ResolvedBias(
-                favored_teams=spec.bias_profile.favored_teams if spec.bias_profile else [],
-                disfavored_teams=spec.bias_profile.disfavored_teams if spec.bias_profile else [],
-                intensity=spec.bias_profile.intensity if spec.bias_profile else 0,
-            ),
+        # Build config
+        config = ReportConfig(
+            time_range=time_range,
+            focus_hints=focus_hints or [],
+            avoid_topics=avoid_topics or [],
+            focus_teams=focus_teams or [],
+            voice=voice,
+            tone=ToneControls(snark_level=snark_level, hype_level=hype_level),
+            profanity_policy=profanity_policy,
+            bias_profile=bias_profile,
+            length_target=length_target,
+            custom_instructions=request,
         )
 
-    async def draft(self, spec: ReportSpec, brief: ReportBrief) -> str:
-        """Execute the draft phase to write the article."""
-        system_prompt = build_system_prompt(spec)
+        # Phase 1: Research
+        research_agent = ResearchAgent(self.data, config, model=self.model)
+        brief, research_log = await research_agent.research()
 
-        # Build a detailed draft prompt with all the data
-        draft_prompt = f"""
-Write a {spec.article_type.value.replace('_', ' ')} article for Week {spec.time_range.week_end}.
-
-## League: {brief.meta.league_name}
-
-## Style Guidelines
-- Voice: {brief.style.voice}
-- Humor level: {brief.style.humor_level}/3
-- Target length: {spec.length_target} words
-
-## Facts (USE THESE EXACTLY - do not invent statistics)
-{self._format_facts(brief.facts)}
-
-## Storylines to Weave In
-{self._format_storylines(brief.storylines)}
-
-## Article Outline
-{self._format_outline(brief.outline)}
-
-{self._format_bias_instructions(spec)}
-
-Write the article in Markdown format. Use the exact numbers from the facts above.
-Do NOT make up any statistics - only use what's provided.
-"""
-
-        # Create draft agent WITHOUT tools
-        draft_agent = Agent(
-            name="writer",
-            instructions=system_prompt,
-            model=self.model,
-            tools=[],
-        )
-
-        result = await Runner.run(draft_agent, draft_prompt)
-        return result.final_output
-
-    def _format_facts(self, facts: list[Fact]) -> str:
-        """Format facts for the prompt."""
-        if not facts:
-            return "No facts available."
-        lines = []
-        for f in facts:
-            lines.append(f"- [{f.category}] {f.claim_text}")
-        return "\n".join(lines)
-
-    def _format_storylines(self, storylines: list[Storyline]) -> str:
-        """Format storylines for the prompt."""
-        if not storylines:
-            return "No specific storylines identified."
-        lines = []
-        for s in storylines:
-            lines.append(f"- **{s.headline}** (priority {s.priority}): {s.summary}")
-        return "\n".join(lines)
-
-    def _format_outline(self, outline: list[Section]) -> str:
-        """Format outline for the prompt."""
-        if not outline:
-            return "Use standard article structure."
-        lines = []
-        for section in outline:
-            lines.append(f"### {section.title}")
-            for bullet in section.bullet_points:
-                lines.append(f"  - {bullet}")
-        return "\n".join(lines)
-
-    def _format_bias_instructions(self, spec: ReportSpec) -> str:
-        """Format bias instructions if configured."""
-        if not spec.bias_profile:
-            return ""
-        if not spec.bias_profile.favored_teams and not spec.bias_profile.disfavored_teams:
-            return ""
-
-        lines = ["## Bias Instructions"]
-        intensity = spec.bias_profile.intensity
-
-        if spec.bias_profile.favored_teams:
-            teams = ", ".join(spec.bias_profile.favored_teams)
-            if intensity == 1:
-                lines.append(f"- Use positive language when describing {teams}")
-            elif intensity == 2:
-                lines.append(f"- Frame {teams}'s performance enthusiastically")
-                lines.append(f"- Lead with {teams}'s positive results")
-            elif intensity >= 3:
-                lines.append(f"- Celebrate {teams}'s successes with high energy")
-                lines.append(f"- Position {teams} as championship contenders")
-
-        if spec.bias_profile.disfavored_teams:
-            teams = ", ".join(spec.bias_profile.disfavored_teams)
-            if intensity == 1:
-                lines.append(f"- Use neutral/brief language for {teams}")
-            elif intensity == 2:
-                lines.append(f"- Frame {teams}'s losses as expected")
-            elif intensity >= 3:
-                lines.append(f"- Apply playful roasting to {teams}'s struggles")
-
-        lines.append("- NEVER change actual scores or statistics!")
-        return "\n".join(lines)
-
-    async def run(self, request: ArticleRequest) -> ArticleOutput:
-        """Execute the full article generation pipeline."""
-        # Phase 1: Synthesize spec
-        spec = self.synthesize_spec(request)
-
-        # Phase 2: Gather data directly
-        self.adapter.clear_log()
-        data = self.gather_data(spec)
-
-        # Phase 3: Build brief from data
-        brief = self.build_brief(spec, data)
-
-        # Phase 4: Draft article
-        article = await self.draft(spec, brief)
+        # Phase 2: Draft
+        draft_agent = DraftAgent(config, model=self.model)
+        article = await draft_agent.draft(brief)
 
         return ArticleOutput(
             article=article,
-            spec=spec,
+            config=config,
             brief=brief,
+            research_log=research_log,
+            verification=None,
+            trace_id=None,
+        )
+
+    async def run_with_config(
+        self,
+        config: ReportConfig,
+        *,
+        log_path: Optional[Path] = None,
+    ) -> ArticleOutput:
+        """Generate an article from a pre-built config.
+
+        Args:
+            config: The ReportConfig to use.
+            log_path: Optional path for streaming research log. If provided,
+                the log will be written in real-time to this file.
+
+        Returns:
+            ArticleOutput with article, config, brief, and research log.
+        """
+        # Phase 1: Research
+        research_agent = ResearchAgent(
+            self.data, config, model=self.model, log_path=log_path
+        )
+        brief, research_log = await research_agent.research()
+
+        # Phase 2: Draft
+        draft_agent = DraftAgent(config, model=self.model)
+        article = await draft_agent.draft(brief)
+
+        return ArticleOutput(
+            article=article,
+            config=config,
+            brief=brief,
+            research_log=research_log,
             verification=None,
             trace_id=None,
         )

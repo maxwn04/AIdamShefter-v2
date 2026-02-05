@@ -1,4 +1,4 @@
-"""High-level workflow orchestration for article generation."""
+"""High-level workflow functions for article generation."""
 
 from __future__ import annotations
 
@@ -7,161 +7,261 @@ from typing import Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.specs import ArticleRequest, ReportSpec
+from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
 from agent.schemas import ArticleOutput
 from agent.reporter_agent import ReporterAgent
 
 
-async def run_article_request_async(
-    request: ArticleRequest,
-    data: Optional[SleeperLeagueData] = None,
+async def generate_report_async(
+    request: str,
     *,
+    week: Optional[int] = None,
+    data: Optional[SleeperLeagueData] = None,
     model: str = "gpt-4o",
+    voice: str = "sports columnist",
+    snark_level: int = 1,
+    hype_level: int = 1,
+    focus_hints: Optional[list[str]] = None,
+    focus_teams: Optional[list[str]] = None,
+    favored_teams: Optional[list[str]] = None,
+    disfavored_teams: Optional[list[str]] = None,
+    bias_intensity: int = 2,
+    length_target: int = 1000,
 ) -> ArticleOutput:
-    """Run the full article generation workflow asynchronously.
+    """Generate a fantasy football report asynchronously.
+
+    This is the main entry point for generating articles. The agent will
+    research the specified week(s) and write an article based on what it finds.
 
     Args:
-        request: The article request to process.
+        request: Natural language description of what you want.
+            Examples:
+            - "Write a weekly recap focusing on upsets"
+            - "Snarky recap of this week, roast Team Taco"
+            - "Power rankings with analysis"
+        week: Week number to cover (defaults to current week).
         data: Optional pre-loaded SleeperLeagueData. If not provided,
               a new instance will be created and loaded.
         model: The model to use for generation.
+        voice: Writing voice/persona.
+        snark_level: 0-3, how snarky the article should be.
+        hype_level: 0-3, how hyped/energetic.
+        focus_hints: Topics to emphasize (e.g., ["upsets", "trades"]).
+        focus_teams: Teams to give extra attention.
+        favored_teams: Teams to frame positively.
+        disfavored_teams: Teams to frame negatively/mockingly.
+        bias_intensity: 0-3, how strong the bias.
+        length_target: Target word count.
 
     Returns:
-        ArticleOutput containing the article, spec, brief, and metadata.
+        ArticleOutput containing the article, config, brief, and research log.
     """
     # Load data if not provided
     if data is None:
         data = SleeperLeagueData()
         data.load()
 
+    # Use current week if not specified
+    if week is None:
+        week = data.effective_week
+
     # Create and run the agent
     agent = ReporterAgent(data, model=model)
-    return await agent.run(request)
+    return await agent.run(
+        request,
+        week=week,
+        voice=voice,
+        snark_level=snark_level,
+        hype_level=hype_level,
+        focus_hints=focus_hints,
+        focus_teams=focus_teams,
+        favored_teams=favored_teams,
+        disfavored_teams=disfavored_teams,
+        bias_intensity=bias_intensity,
+        length_target=length_target,
+    )
 
 
-def run_article_request(
-    request: ArticleRequest,
-    data: Optional[SleeperLeagueData] = None,
+def generate_report(
+    request: str,
     *,
+    week: Optional[int] = None,
+    data: Optional[SleeperLeagueData] = None,
+    model: str = "gpt-4o",
+    voice: str = "sports columnist",
+    snark_level: int = 1,
+    hype_level: int = 1,
+    focus_hints: Optional[list[str]] = None,
+    focus_teams: Optional[list[str]] = None,
+    favored_teams: Optional[list[str]] = None,
+    disfavored_teams: Optional[list[str]] = None,
+    bias_intensity: int = 2,
+    length_target: int = 1000,
+) -> ArticleOutput:
+    """Generate a fantasy football report synchronously.
+
+    This is a convenience wrapper around generate_report_async.
+    See generate_report_async for full documentation.
+    """
+    return asyncio.run(
+        generate_report_async(
+            request,
+            week=week,
+            data=data,
+            model=model,
+            voice=voice,
+            snark_level=snark_level,
+            hype_level=hype_level,
+            focus_hints=focus_hints,
+            focus_teams=focus_teams,
+            favored_teams=favored_teams,
+            disfavored_teams=disfavored_teams,
+            bias_intensity=bias_intensity,
+            length_target=length_target,
+        )
+    )
+
+
+async def generate_with_config_async(
+    config: ReportConfig,
+    *,
+    data: Optional[SleeperLeagueData] = None,
     model: str = "gpt-4o",
 ) -> ArticleOutput:
-    """Run the full article generation workflow synchronously.
+    """Generate a report using a pre-built ReportConfig.
 
-    This is a convenience wrapper around run_article_request_async.
+    Use this when you want full control over the configuration.
 
     Args:
-        request: The article request to process.
-        data: Optional pre-loaded SleeperLeagueData. If not provided,
-              a new instance will be created and loaded.
+        config: The ReportConfig to use.
+        data: Optional pre-loaded SleeperLeagueData.
         model: The model to use for generation.
 
     Returns:
-        ArticleOutput containing the article, spec, brief, and metadata.
+        ArticleOutput containing the article, config, brief, and research log.
     """
-    return asyncio.run(run_article_request_async(request, data, model=model))
+    if data is None:
+        data = SleeperLeagueData()
+        data.load()
+
+    agent = ReporterAgent(data, model=model)
+    return await agent.run_with_config(config)
 
 
-async def generate_weekly_recap(
-    week: int,
-    data: Optional[SleeperLeagueData] = None,
+def generate_with_config(
+    config: ReportConfig,
     *,
+    data: Optional[SleeperLeagueData] = None,
+    model: str = "gpt-4o",
+) -> ArticleOutput:
+    """Generate a report using a pre-built ReportConfig synchronously.
+
+    See generate_with_config_async for full documentation.
+    """
+    return asyncio.run(
+        generate_with_config_async(config, data=data, model=model)
+    )
+
+
+# Convenience functions for common use cases
+
+
+async def weekly_recap_async(
+    week: int,
+    *,
+    data: Optional[SleeperLeagueData] = None,
     model: str = "gpt-4o",
     snark_level: int = 1,
-    hype_level: int = 1,
-    favored_teams: Optional[list[str]] = None,
-    disfavored_teams: Optional[list[str]] = None,
-    bias_intensity: int = 0,
+    hype_level: int = 2,
 ) -> ArticleOutput:
     """Generate a weekly recap article.
-
-    Convenience function for the most common use case.
 
     Args:
         week: The week number to recap.
         data: Optional pre-loaded SleeperLeagueData.
-        model: The model to use for generation.
-        snark_level: Snarkiness level (0-3).
-        hype_level: Hype level (0-3).
-        favored_teams: Teams to frame positively.
-        disfavored_teams: Teams to frame negatively.
-        bias_intensity: How strong the bias should be (0-3).
+        model: The model to use.
+        snark_level: 0-3, how snarky.
+        hype_level: 0-3, how hyped.
 
     Returns:
-        ArticleOutput containing the article and metadata.
+        ArticleOutput with the weekly recap.
     """
-    overrides = {
-        "tone_controls": {
-            "snark_level": snark_level,
-            "hype_level": hype_level,
-            "seriousness": 1,
-        }
-    }
-
-    if favored_teams or disfavored_teams:
-        overrides["bias_profile"] = {
-            "favored_teams": favored_teams or [],
-            "disfavored_teams": disfavored_teams or [],
-            "intensity": bias_intensity,
-        }
-
-    request = ArticleRequest(
-        raw_request=f"Weekly recap for week {week}",
-        preset="weekly_recap",
+    return await generate_report_async(
+        f"Write a comprehensive weekly recap for week {week}. "
+        "Cover the major storylines, notable games, top performers, "
+        "and any important transactions.",
         week=week,
-        overrides=overrides,
+        data=data,
+        model=model,
+        snark_level=snark_level,
+        hype_level=hype_level,
+        focus_hints=["matchups", "standings", "top performers"],
+        length_target=1200,
     )
 
-    return await run_article_request_async(request, data, model=model)
 
-
-async def generate_power_rankings(
+def weekly_recap(
     week: int,
-    data: Optional[SleeperLeagueData] = None,
     *,
+    data: Optional[SleeperLeagueData] = None,
     model: str = "gpt-4o",
+    snark_level: int = 1,
+    hype_level: int = 2,
 ) -> ArticleOutput:
-    """Generate power rankings article.
+    """Generate a weekly recap article synchronously."""
+    return asyncio.run(
+        weekly_recap_async(
+            week, data=data, model=model, snark_level=snark_level, hype_level=hype_level
+        )
+    )
+
+
+async def snarky_recap_async(
+    week: int,
+    *,
+    data: Optional[SleeperLeagueData] = None,
+    model: str = "gpt-4o",
+    disfavored_teams: Optional[list[str]] = None,
+) -> ArticleOutput:
+    """Generate a snarky weekly recap with roasting.
 
     Args:
-        week: The week to generate rankings for.
+        week: The week number to recap.
         data: Optional pre-loaded SleeperLeagueData.
-        model: The model to use for generation.
+        model: The model to use.
+        disfavored_teams: Teams to roast particularly hard.
 
     Returns:
-        ArticleOutput containing the article and metadata.
+        ArticleOutput with the snarky recap.
     """
-    request = ArticleRequest(
-        raw_request=f"Power rankings after week {week}",
-        preset="power_rankings",
+    request = f"Write a snarky, entertaining recap of week {week}. "
+    "Be witty and don't hold back on teams that underperformed."
+
+    if disfavored_teams:
+        request += f" Give extra roasting attention to: {', '.join(disfavored_teams)}."
+
+    return await generate_report_async(
+        request,
         week=week,
+        data=data,
+        model=model,
+        voice="snarky columnist",
+        snark_level=3,
+        hype_level=1,
+        disfavored_teams=disfavored_teams,
+        bias_intensity=3,
+        length_target=1000,
     )
 
-    return await run_article_request_async(request, data, model=model)
 
-
-async def generate_team_deep_dive(
-    team_name: str,
+def snarky_recap(
     week: int,
-    data: Optional[SleeperLeagueData] = None,
     *,
+    data: Optional[SleeperLeagueData] = None,
     model: str = "gpt-4o",
+    disfavored_teams: Optional[list[str]] = None,
 ) -> ArticleOutput:
-    """Generate a team deep dive article.
-
-    Args:
-        team_name: The team to focus on.
-        week: The current week for context.
-        data: Optional pre-loaded SleeperLeagueData.
-        model: The model to use for generation.
-
-    Returns:
-        ArticleOutput containing the article and metadata.
-    """
-    request = ArticleRequest(
-        raw_request=f"Deep dive on {team_name}",
-        preset="team_deep_dive",
-        week=week,
-        overrides={"focus_teams": [team_name]},
+    """Generate a snarky weekly recap synchronously."""
+    return asyncio.run(
+        snarky_recap_async(week, data=data, model=model, disfavored_teams=disfavored_teams)
     )
-
-    return await run_article_request_async(request, data, model=model)

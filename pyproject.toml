@@ -23,10 +23,11 @@ dev = [
 
 [project.scripts]
 sleeperdl = "datalayer.cli.main:main"
+reporter = "cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["datalayer*"]
+where = [".", "reporter/src"]
+include = ["datalayer*", "agent*", "tools*", "cli*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "reporter/tests"]

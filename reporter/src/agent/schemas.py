@@ -3,23 +3,24 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
-from typing import TYPE_CHECKING
-
 if TYPE_CHECKING:
-    from agent.specs import ReportSpec
+    from agent.config import ReportConfig
+    from agent.research_log import ResearchLog
 
 
 class BriefMeta(BaseModel):
     """Metadata for a report brief."""
 
-    league_name: str
-    league_id: str
-    week_start: int
-    week_end: int
-    article_type: str
+    league_name: str = Field(default="", description="Name of the fantasy league")
+    league_id: str = Field(default="", description="League identifier")
+    week_start: int = Field(description="Starting week covered")
+    week_end: int = Field(description="Ending week covered")
+    article_type: str = Field(
+        default="custom", description="Type of article (always 'custom' in new system)"
+    )
     generated_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
 
@@ -57,7 +58,8 @@ class Storyline(BaseModel):
     headline: str = Field(description="Catchy headline, e.g. 'Cinderella Run Ends'")
     summary: str = Field(description="2-3 sentence narrative summary")
     supporting_fact_ids: list[str] = Field(
-        description="References to Fact.id that support this storyline"
+        default_factory=list,
+        description="References to Fact.id that support this storyline",
     )
     priority: int = Field(
         default=2, ge=1, le=5, description="1=lead story, 5=minor mention"
@@ -86,7 +88,7 @@ class Section(BaseModel):
 class ResolvedStyle(BaseModel):
     """Resolved style configuration for writing."""
 
-    voice: str = Field(description="Writing voice/persona")
+    voice: str = Field(default="sports columnist", description="Writing voice/persona")
     pacing: str = Field(
         default="moderate", description="fast, moderate, deliberate"
     )
@@ -115,7 +117,9 @@ class ReportBrief(BaseModel):
     """
 
     # Meta
-    meta: BriefMeta = Field(description="Article and league metadata")
+    meta: BriefMeta = Field(
+        default_factory=BriefMeta, description="Article and league metadata"
+    )
 
     # Facts (the evidence base)
     facts: list[Fact] = Field(
@@ -133,9 +137,7 @@ class ReportBrief(BaseModel):
     )
 
     # Resolved style/bias
-    style: ResolvedStyle = Field(
-        default_factory=lambda: ResolvedStyle(voice="sports columnist")
-    )
+    style: ResolvedStyle = Field(default_factory=ResolvedStyle)
     bias: ResolvedBias = Field(default_factory=ResolvedBias)
 
     def get_fact(self, fact_id: str) -> Optional[Fact]:
@@ -158,9 +160,13 @@ class ClaimMismatch(BaseModel):
     """A discrepancy between article and brief."""
 
     claim_text: str = Field(description="The claim from the article")
-    expected_value: Optional[str] = Field(description="What the brief says")
-    actual_value: Optional[str] = Field(description="What the article says")
-    fact_id: Optional[str] = Field(description="Related fact ID if found")
+    expected_value: Optional[str] = Field(
+        default=None, description="What the brief says"
+    )
+    actual_value: Optional[str] = Field(
+        default=None, description="What the article says"
+    )
+    fact_id: Optional[str] = Field(default=None, description="Related fact ID if found")
     severity: str = Field(default="error", description="error, warning, info")
 
 
@@ -178,8 +184,11 @@ class ArticleOutput(BaseModel):
     """Complete output from an article generation run."""
 
     article: str = Field(description="The final article in Markdown")
-    spec: "ReportSpec" = Field(description="The resolved ReportSpec used")
+    config: "ReportConfig" = Field(description="The ReportConfig used")
     brief: ReportBrief = Field(description="The research brief")
+    research_log: Optional["ResearchLog"] = Field(
+        default=None, description="Full research log with reasoning"
+    )
     verification: Optional[VerificationResult] = Field(
         default=None, description="Verification results if run"
     )
@@ -190,23 +199,22 @@ class ArticleOutput(BaseModel):
         default_factory=lambda: datetime.utcnow().isoformat()
     )
 
+    def get_research_log_markdown(self) -> str:
+        """Export the research log as readable markdown."""
+        if self.research_log is None:
+            return "No research log available."
+        return self.research_log.to_markdown()
 
-class ToolCall(BaseModel):
-    """Record of a tool call during research."""
-
-    tool: str = Field(description="Tool name")
-    params: dict = Field(default_factory=dict, description="Parameters passed")
-    timestamp: str = Field(
-        default_factory=lambda: datetime.utcnow().isoformat()
-    )
-    result_summary: Optional[str] = Field(
-        default=None, description="Brief summary of result"
-    )
+    class Config:
+        arbitrary_types_allowed = True
 
 
 # Rebuild models to resolve forward references after all classes are defined
 def _rebuild_models():
-    from agent.specs import ReportSpec
+    from agent.config import ReportConfig
+    from agent.research_log import ResearchLog
+
     ArticleOutput.model_rebuild()
+
 
 _rebuild_models()
