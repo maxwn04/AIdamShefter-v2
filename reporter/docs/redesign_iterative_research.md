@@ -1,6 +1,6 @@
 # Reporter Redesign: Iterative Research Mode
 
-> Status: Proposed (v2 direction — agent-driven research, not yet implemented)
+> Status: Current (implemented — agent-driven iterative research)
 
 ## Overview
 
@@ -88,18 +88,16 @@ The current implementation suffers from:
 
 ## CLI Interface
 
-The reporter is accessed through an interactive CLI:
+The reporter is accessed through the `reporter` command (installed via `pip install -e .`):
 
 ```bash
-# Interactive mode - prompts for input
-./reporter/scripts/reporter
-
 # Direct mode with prompt
-./reporter/scripts/reporter "weekly recap"
-./reporter/scripts/reporter "snarky recap, roast Team Taco" --week 8
+reporter "weekly recap"
+reporter "snarky recap, roast Team Taco" --week 8
+reporter "power rankings" -w 12
 
-# With specific week
-./reporter/scripts/reporter "power rankings" -w 12
+# Interactive mode - prompts for input
+reporter
 ```
 
 ### CLI Flow
@@ -813,48 +811,33 @@ class ReporterAgent:
 
 ---
 
-## File Changes Summary
+## File Changes Summary (completed)
 
-### Delete
+### Deleted
 
 - `specs.py`: ArticleType enum, preset templates, StructureSpec
+- `prompts/formats/`: All format templates (weekly_recap, power_rankings, team_deep_dive, playoff_reaction)
+- `prompts/styles/`: All style templates (straight_news, snarky_columnist, hype_man)
+- `prompts/spec_synthesis.md`: Spec synthesis prompt
+- `cli.py`: Old standalone CLI (merged into `app/runner.py`)
 
-### Modify
+### Modified
 
-- `reporter_agent.py`:
-  - Remove `gather_data()` method entirely
-  - Remove `build_brief()` method entirely
-  - Add ResearchAgent with agentic loop
-  - Simplify `run()` to just orchestrate phases
+- `reporter_agent.py`: ResearchAgent with agentic loop, DraftAgent, ReporterAgent orchestrator
+- `schemas.py`: ReportBrief, ArticleOutput (uses ReportConfig, not ReportSpec)
+- `workflows.py`: `generate_report()` / `generate_report_async()` convenience functions
+- `tools/sleeper_tools.py`: ResearchToolAdapter with ResearchLog tracking
+- `tools/registry.py`: Tool registry with reasoning tools
+- `policies.py`: Uses ReportConfig and string-based evidence policy
+- `app/runner.py`: Unified CLI using ClarificationAgent → ReporterAgent flow
+- `app/config.py`: ReporterConfig and load_config() (removed STYLE_PRESETS)
 
-- `schemas.py`:
-  - Rename ReportSpec → ReportConfig
-  - Remove structure-related fields
-  - Add focus_hints, avoid_topics, custom_instructions
-  - Add ResearchLogEntry, ResearchLog schemas
-
-- `workflows.py`:
-  - Update convenience functions
-  - Remove preset-based functions (generate_power_rankings, etc.)
-  - Add simple `generate_report(request: str, week: int, **kwargs)`
-
-- `tools/sleeper_tools.py`:
-  - Replace SleeperToolAdapter → ResearchToolAdapter
-  - Add ResearchLog tracking with reasoning linkage
-  - Add log export methods (to_markdown, get_tool_calls_with_reasoning)
-
-- `tools/registry.py`:
-  - Add reasoning tools: log_reasoning, record_finding, note_storyline_idea, mark_research_complete
-  - Keep all existing data retrieval tools
-
-### Add
+### Added
 
 - `prompts/research_agent.md`: System prompt for research phase
 - `prompts/draft_agent.md`: System prompt for draft phase
 - `agent/research_log.py`: ResearchLog and ResearchLogEntry classes
 - `agent/clarify.py`: ClarificationAgent for interactive requirements gathering
-- `cli.py`: Interactive CLI application
-- `scripts/reporter`: Shell wrapper for CLI
 
 ---
 

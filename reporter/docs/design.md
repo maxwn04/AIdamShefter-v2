@@ -1,6 +1,6 @@
 # AI Fantasy Football Reporter — Master Design Document
 
-> Status: Current (v1 architecture — preset-driven)
+> Status: Superseded by iterative research architecture (see redesign_iterative_research.md)
 
 ## 1. Overview
 

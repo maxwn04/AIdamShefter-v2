@@ -19,15 +19,15 @@ OPENAI_API_KEY=<key>
 
 ```bash
 # Datalayer CLI
-sleeperdl app                           # Interactive query shell
+sleeperdl app                                          # Interactive query shell
 sleeperdl load-export --output out.sqlite
 
 # Reporter CLI
-reporter recap 8                        # Weekly recap for week 8
-reporter recap 8 --style snarky         # With style
-reporter rankings 8                     # Power rankings
-reporter team "Team Taco" 8             # Team deep dive
-reporter custom "noir detective recap"  # Freeform request
+reporter "weekly recap"                                # Natural language request
+reporter "snarky recap, roast Team Taco" --week 8      # With week and style hints
+reporter "power rankings with analysis"                # Any article type
+reporter "deep dive on Team Taco's season"             # Team-focused
+reporter                                               # Interactive prompt
 ```
 
 ## Tests
@@ -50,11 +50,11 @@ datalayer/          # Sleeper API data layer
   cli/              # sleeperdl CLI
 
 reporter/           # AI reporter agent
-  agent/            # ReporterAgent, ResearchAgent, DraftAgent
+  agent/            # ReporterAgent, ResearchAgent, DraftAgent, ClarificationAgent
+  app/              # CLI runner and config
   tools/            # Tool adapters for OpenAI Agents SDK
-  prompts/          # Prompt templates (system, research, draft, styles, bias)
+  prompts/          # Prompt templates (system, research, draft, bias)
   tests/            # Reporter tests
-  cli.py            # Interactive reporter CLI
 ```
 
 See `CLAUDE.md` for detailed architecture documentation.

@@ -39,11 +39,10 @@ sleeperdl app                                   # Interactive query shell
 sleeperdl load-export --output out.sqlite       # Export to SQLite file
 
 # Reporter CLI
-reporter recap 8                                # Weekly recap for week 8
-reporter recap 8 --style snarky                 # With style
-reporter rankings 8                             # Power rankings
-reporter team "Team Taco" 8                     # Team deep dive
-reporter custom "noir detective recap"          # Freeform request
+reporter "weekly recap"                         # Natural language request
+reporter "snarky recap, roast Team Taco" -w 8   # With week and style hints
+reporter "power rankings with analysis"         # Any article type
+reporter                                        # Interactive prompt
 ```
 
 ## Project Structure
@@ -71,18 +70,21 @@ datalayer/
 
 reporter/
 ├── __init__.py
-├── cli.py                        # Interactive CLI entry point
 ├── agent/
 │   ├── reporter_agent.py         # ReporterAgent, ResearchAgent, DraftAgent
+│   ├── clarify.py                # ClarificationAgent (interactive config gathering)
 │   ├── config.py                 # ReportConfig, ToneControls, BiasProfile
 │   ├── schemas.py                # ReportBrief, Fact, Storyline, ArticleOutput
+│   ├── policies.py               # Tool use rules, bias constraints, evidence checking
 │   ├── research_log.py           # ResearchLog (audit trail)
 │   └── workflows.py              # generate_report() / generate_report_async()
+├── app/
+│   ├── runner.py                 # CLI entry point (reporter command)
+│   └── config.py                 # ReporterConfig, load_config()
 ├── tools/
 │   ├── registry.py               # Creates OpenAI Agents SDK Tool objects
 │   └── sleeper_tools.py          # ResearchToolAdapter, TOOL_DOCS
-├── app/                          # Legacy CLI runner (preset-based)
-├── prompts/                      # All prompt templates (system, research, draft, styles, bias)
+├── prompts/                      # Prompt templates (system, research, draft, bias)
 ├── docs/                         # Reporter design docs
 └── tests/                        # Reporter tests
 ```
@@ -274,8 +276,8 @@ The reporter's `ResearchToolAdapter` (`reporter/tools/sleeper_tools.py`) wraps t
 
 All prompt templates live in `reporter/prompts/`:
 - `research_agent.md`, `draft_agent.md` — Phase-specific system prompts
-- `formats/` — weekly_recap, power_rankings, team_deep_dive, playoff_reaction
-- `styles/` — straight_news, hype_man, snarky_columnist
+- `system_base.md` — Core reporter identity and rules
+- `brief_building.md`, `drafting.md`, `verification.md` — Phase guidelines
 - `bias/bias_rules.md` — Bias framing rules
 
 ### Programmatic Usage
@@ -312,5 +314,5 @@ Detailed design rationale lives in:
 - `datalayer/docs/03_picks.md` — Draft pick ownership tracking
 - `datalayer/docs/04_transactions.md` — Transaction + pick metadata design
 - `datalayer/docs/05_player_performances.md` — Player-level scoring extraction
-- `reporter/docs/design.md` — Reporter agent 4-phase architecture
-- `reporter/docs/redesign_iterative_research.md` — Iterative research approach
+- `reporter/docs/design.md` — Original reporter design (historical reference)
+- `reporter/docs/redesign_iterative_research.md` — Iterative research architecture (current)

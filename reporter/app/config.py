@@ -56,12 +56,3 @@ def load_config() -> ReporterConfig:
         output_dir=output_dir,
         tracing_enabled=os.getenv("REPORTER_TRACING", "true").lower() == "true",
     )
-
-
-# Default style presets for CLI
-STYLE_PRESETS = {
-    "straight": {"snark_level": 0, "hype_level": 1, "seriousness": 2},
-    "hype": {"snark_level": 0, "hype_level": 3, "seriousness": 0},
-    "snarky": {"snark_level": 2, "hype_level": 1, "seriousness": 1},
-    "savage": {"snark_level": 3, "hype_level": 1, "seriousness": 0},
-}

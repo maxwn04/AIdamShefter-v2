@@ -7,12 +7,10 @@ from reporter.agent.policies import (
     validate_tool_call_phase,
     extract_numbers_from_text,
 )
-from reporter.agent.specs import (
-    ReportSpec,
-    ArticleType,
+from reporter.agent.config import (
+    ReportConfig,
     TimeRange,
     BiasProfile,
-    EvidencePolicy,
 )
 from reporter.agent.schemas import ReportBrief, Fact, BriefMeta, ResolvedStyle, ResolvedBias
 
@@ -47,7 +45,7 @@ class TestCheckFactGrounding:
             claim="Team scored 142.3 points",
             numbers={"points": 142.3},
             brief=sample_brief,
-            policy=EvidencePolicy.STRICT,
+            policy="strict",
         )
         assert is_grounded
         assert error is None
@@ -57,7 +55,7 @@ class TestCheckFactGrounding:
             claim="Team scored 150 points",
             numbers={"points": 150.0},
             brief=sample_brief,
-            policy=EvidencePolicy.STRICT,
+            policy="strict",
         )
         assert not is_grounded
         assert "150" in error
@@ -68,58 +66,54 @@ class TestCheckFactGrounding:
             claim="Some minor stat",
             numbers={"minor_stat": 999.0},
             brief=sample_brief,
-            policy=EvidencePolicy.RELAXED,
+            policy="relaxed",
         )
         assert is_grounded
 
 
 class TestGetBiasFramingRules:
     def test_no_bias(self):
-        spec = ReportSpec(
-            article_type=ArticleType.WEEKLY_RECAP,
+        config = ReportConfig(
             time_range=TimeRange.single_week(8),
             bias_profile=None,
         )
-        rules = get_bias_framing_rules(spec)
+        rules = get_bias_framing_rules(config)
         assert rules == []
 
     def test_zero_intensity(self):
-        spec = ReportSpec(
-            article_type=ArticleType.WEEKLY_RECAP,
+        config = ReportConfig(
             time_range=TimeRange.single_week(8),
             bias_profile=BiasProfile(
                 favored_teams=["Team Taco"],
                 intensity=0,
             ),
         )
-        rules = get_bias_framing_rules(spec)
+        rules = get_bias_framing_rules(config)
         assert rules == []
 
     def test_favored_team_rules(self):
-        spec = ReportSpec(
-            article_type=ArticleType.WEEKLY_RECAP,
+        config = ReportConfig(
             time_range=TimeRange.single_week(8),
             bias_profile=BiasProfile(
                 favored_teams=["Team Taco"],
                 intensity=2,
             ),
         )
-        rules = get_bias_framing_rules(spec)
+        rules = get_bias_framing_rules(config)
         assert len(rules) > 0
         assert any("Team Taco" in rule for rule in rules)
         # Should always include the boundary rule
         assert any("NEVER change" in rule for rule in rules)
 
     def test_disfavored_team_rules(self):
-        spec = ReportSpec(
-            article_type=ArticleType.WEEKLY_RECAP,
+        config = ReportConfig(
             time_range=TimeRange.single_week(8),
             bias_profile=BiasProfile(
                 disfavored_teams=["The Waiver Wire"],
                 intensity=3,
             ),
         )
-        rules = get_bias_framing_rules(spec)
+        rules = get_bias_framing_rules(config)
         assert any("The Waiver Wire" in rule for rule in rules)
 
 

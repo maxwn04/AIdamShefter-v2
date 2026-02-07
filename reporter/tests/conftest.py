@@ -4,36 +4,6 @@ import pytest
 
 
 @pytest.fixture
-def sample_spec_dict():
-    """Sample ReportSpec as a dictionary."""
-    return {
-        "article_type": "weekly_recap",
-        "time_range": {"week_start": 8, "week_end": 8},
-        "genre_voice": "sports columnist",
-        "tone_controls": {
-            "snark_level": 1,
-            "hype_level": 2,
-            "seriousness": 1,
-        },
-        "profanity_policy": "none",
-        "structure": {
-            "sections": [
-                {"title": "Introduction", "description": "Week summary"},
-                {"title": "Matchups", "description": "Game results"},
-            ],
-            "freeform": False,
-        },
-        "length_target": 1000,
-        "pov": "third_person",
-        "content_requirements": ["matchup results", "standings"],
-        "focus_teams": [],
-        "bias_profile": None,
-        "evidence_policy": "standard",
-        "audience": "league members",
-    }
-
-
-@pytest.fixture
 def sample_brief_dict():
     """Sample ReportBrief as a dictionary."""
     return {

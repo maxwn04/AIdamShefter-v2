@@ -13,7 +13,7 @@ from reporter.agent.schemas import (
     VerificationResult,
     ClaimMismatch,
 )
-from reporter.agent.specs import ReportSpec, ArticleType, TimeRange
+from reporter.agent.config import ReportConfig, TimeRange
 
 # Rebuild models to resolve forward references
 ArticleOutput.model_rebuild()
@@ -114,13 +114,13 @@ class TestVerificationResult:
 
 
 class TestArticleOutput:
-    def test_basic_output(self, sample_brief_dict, sample_spec_dict):
+    def test_basic_output(self, sample_brief_dict):
         brief = ReportBrief.model_validate(sample_brief_dict)
-        spec = ReportSpec.model_validate(sample_spec_dict)
+        config = ReportConfig(time_range=TimeRange.single_week(8))
 
         output = ArticleOutput(
             article="# Week 8 Recap\n\nContent here...",
-            spec=spec,
+            config=config,
             brief=brief,
         )
         assert output.article.startswith("# Week 8")

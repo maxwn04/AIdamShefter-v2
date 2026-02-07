@@ -4,17 +4,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from reporter.agent.specs import ArticleRequest
-from reporter.agent.workflows import run_article_request_async
-from reporter.app.config import load_config, STYLE_PRESETS
+from reporter.agent.clarify import ClarificationAgent
+from reporter.agent.reporter_agent import ReporterAgent
+from reporter.app.config import load_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,310 +22,155 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate weekly recap for week 8
-  reporter recap 8
-
-  # Generate with snarky style
-  reporter recap 8 --style snarky
-
-  # Generate with bias
-  reporter recap 8 --favor "Team Taco" --roast "The Waiver Wire"
-
-  # Generate power rankings
-  reporter rankings 8
-
-  # Custom request
-  reporter custom "Write a noir detective style recap of week 8"
+  reporter "weekly recap"
+  reporter "snarky recap, roast Team Taco" --week 8
+  reporter "power rankings with analysis"
+  reporter "deep dive on Team Taco's season"
         """,
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Command to run")
-
-    # Recap command
-    recap = subparsers.add_parser("recap", help="Generate weekly recap")
-    recap.add_argument("week", type=int, help="Week number")
-    recap.add_argument(
-        "--style",
-        choices=list(STYLE_PRESETS.keys()),
-        default="straight",
-        help="Writing style preset",
+    parser.add_argument(
+        "prompt",
+        nargs="?",
+        help="What kind of article do you want? (will prompt if not provided)",
     )
-    recap.add_argument(
-        "--favor",
-        action="append",
-        dest="favored_teams",
-        help="Teams to favor (can specify multiple)",
-    )
-    recap.add_argument(
-        "--roast",
-        action="append",
-        dest="disfavored_teams",
-        help="Teams to roast (can specify multiple)",
-    )
-    recap.add_argument(
-        "--bias-intensity",
+    parser.add_argument(
+        "--week",
+        "-w",
         type=int,
-        choices=[0, 1, 2, 3],
-        default=2,
-        help="Bias intensity (0=none, 3=heavy)",
+        help="Week number (defaults to current week)",
     )
-    recap.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="Output file path (default: .output/recap_weekN.md)",
-    )
-
-    # Rankings command
-    rankings = subparsers.add_parser("rankings", help="Generate power rankings")
-    rankings.add_argument("week", type=int, help="Week number")
-    rankings.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="Output file path",
-    )
-
-    # Team deep dive command
-    team = subparsers.add_parser("team", help="Generate team deep dive")
-    team.add_argument("team_name", help="Team name to focus on")
-    team.add_argument("week", type=int, help="Current week for context")
-    team.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="Output file path",
-    )
-
-    # Custom command
-    custom = subparsers.add_parser("custom", help="Custom article request")
-    custom.add_argument("request", help="Natural language request")
-    custom.add_argument("--week", type=int, help="Target week")
-    custom.add_argument(
-        "--output",
-        "-o",
-        type=Path,
-        help="Output file path",
-    )
-
-    # Global options
     parser.add_argument(
         "--model",
         default=None,
         help="Model to use (default: from config or gpt-5-mini)",
     )
-    parser.add_argument(
-        "--no-save",
-        action="store_true",
-        help="Don't save output files",
-    )
-    parser.add_argument(
-        "--json",
-        action="store_true",
-        help="Output full ArticleOutput as JSON",
-    )
 
     return parser.parse_args()
 
 
-def save_output(
-    article: str,
-    brief_json: str,
-    spec_json: str,
-    output_path: Path,
-) -> None:
-    """Save article and metadata to files."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Save article
-    output_path.write_text(article)
-    print(f"Article saved to: {output_path}")
-
-    # Save brief
-    brief_path = output_path.with_suffix(".brief.json")
-    brief_path.write_text(brief_json)
-    print(f"Brief saved to: {brief_path}")
-
-    # Save spec
-    spec_path = output_path.with_suffix(".spec.json")
-    spec_path.write_text(spec_json)
-    print(f"Spec saved to: {spec_path}")
-
-
-async def run_recap(args: argparse.Namespace, config) -> None:
-    """Run the weekly recap command."""
-    print(f"Generating weekly recap for week {args.week}...")
-
-    # Build overrides from style preset
-    style = STYLE_PRESETS[args.style]
-    overrides = {"tone_controls": style}
-
-    # Add bias if specified
-    if args.favored_teams or args.disfavored_teams:
-        overrides["bias_profile"] = {
-            "favored_teams": args.favored_teams or [],
-            "disfavored_teams": args.disfavored_teams or [],
-            "intensity": args.bias_intensity,
-        }
-
-    request = ArticleRequest(
-        raw_request=f"Weekly recap for week {args.week}",
-        preset="weekly_recap",
-        week=args.week,
-        overrides=overrides,
-    )
+async def run(prompt: str, week: Optional[int] = None, config=None) -> None:
+    """Run the reporter agent flow."""
+    print()
+    print("=" * 60)
+    print("  Fantasy Football Reporter Agent")
+    print("=" * 60)
+    print()
 
     # Load data
     print("Loading league data...")
     data = SleeperLeagueData()
     data.load()
 
-    # Run the workflow
-    model = args.model or config.model
-    output = await run_article_request_async(request, data, model=model)
+    # Get current week if not specified
+    if week is None:
+        week = data.effective_week
 
-    # Output results
-    if args.json:
-        print(output.model_dump_json(indent=2))
+    print(f"League: {data.league_id}")
+    print(f"Current week: {week}")
+
+    # Phase 1: Clarification
+    print()
+    print("--- Clarification ---")
+    print()
+    print(f"Your request: {prompt}")
+    print()
+
+    model = config.model if config else "gpt-5-mini"
+    clarify_agent = ClarificationAgent(data, default_week=week, model=model)
+    report_config = await clarify_agent.clarify(prompt)
+
+    # Show the resolved config
+    print()
+    print("--- Resolved Configuration ---")
+    print()
+    print(f"  Week(s): {report_config.time_range.week_start}", end="")
+    if report_config.time_range.week_start != report_config.time_range.week_end:
+        print(f"-{report_config.time_range.week_end}")
     else:
-        print("\n" + "=" * 60)
-        print(output.article)
-        print("=" * 60 + "\n")
+        print()
+    print(f"  Voice: {report_config.voice}")
+    print(f"  Tone: snark={report_config.tone.snark_level}, hype={report_config.tone.hype_level}")
+    print(f"  Length: ~{report_config.length_target} words")
+    if report_config.focus_hints:
+        print(f"  Focus: {', '.join(report_config.focus_hints)}")
+    if report_config.focus_teams:
+        print(f"  Teams: {', '.join(report_config.focus_teams)}")
+    if report_config.bias_profile:
+        if report_config.bias_profile.favored_teams:
+            print(f"  Favor: {', '.join(report_config.bias_profile.favored_teams)}")
+        if report_config.bias_profile.disfavored_teams:
+            print(f"  Roast: {', '.join(report_config.bias_profile.disfavored_teams)}")
 
-    # Save if requested
-    if not args.no_save:
-        output_path = args.output or config.output_dir / f"recap_week{args.week}.md"
-        save_output(
-            output.article,
-            output.brief.model_dump_json(indent=2),
-            output.spec.model_dump_json(indent=2),
-            output_path,
-        )
+    # Confirm before proceeding
+    print()
+    confirm = input("Proceed with research? [Y/n] ").strip().lower()
+    if confirm and confirm not in ("y", "yes"):
+        print("Aborted.")
+        return
 
+    # Phase 2: Research + Draft
+    print()
+    print("--- Research Phase ---")
+    print()
 
-async def run_rankings(args: argparse.Namespace, config) -> None:
-    """Run the power rankings command."""
-    print(f"Generating power rankings after week {args.week}...")
+    # Set up streaming log file
+    output_dir = config.output_dir if config else Path(".output")
+    output_dir.mkdir(exist_ok=True)
 
-    request = ArticleRequest(
-        raw_request=f"Power rankings after week {args.week}",
-        preset="power_rankings",
-        week=args.week,
-    )
+    week_str = f"week{report_config.time_range.week_start}"
+    if report_config.time_range.week_start != report_config.time_range.week_end:
+        week_str = f"weeks{report_config.time_range.week_start}-{report_config.time_range.week_end}"
 
-    # Load data
-    print("Loading league data...")
-    data = SleeperLeagueData()
-    data.load()
+    log_path = output_dir / f"research_{week_str}.stream.log"
 
-    # Run the workflow
-    model = args.model or config.model
-    output = await run_article_request_async(request, data, model=model)
+    print("The agent is now researching your league data...")
+    print()
+    print(f"Streaming research log to: {log_path}")
+    print(f"  Run in another terminal: tail -f {log_path}")
+    print()
 
-    # Output results
-    if args.json:
-        print(output.model_dump_json(indent=2))
-    else:
-        print("\n" + "=" * 60)
-        print(output.article)
-        print("=" * 60 + "\n")
+    reporter = ReporterAgent(data, model=model)
+    output = await reporter.run_with_config(report_config, log_path=log_path)
 
-    # Save if requested
-    if not args.no_save:
-        output_path = args.output or config.output_dir / f"rankings_week{args.week}.md"
-        save_output(
-            output.article,
-            output.brief.model_dump_json(indent=2),
-            output.spec.model_dump_json(indent=2),
-            output_path,
-        )
+    # Show research summary
+    if output.research_log:
+        print(f"Research complete:")
+        print(f"  - Tool calls: {output.research_log.tool_calls}")
+        print(f"  - Reasoning entries: {output.research_log.reasoning_entries}")
 
+    # Phase 3: Show article
+    print()
+    print("--- Generated Article ---")
+    print()
+    print(output.article)
 
-async def run_team_dive(args: argparse.Namespace, config) -> None:
-    """Run the team deep dive command."""
-    print(f"Generating deep dive for {args.team_name}...")
+    # Save outputs
+    print()
+    print("--- Saving Outputs ---")
+    print()
 
-    request = ArticleRequest(
-        raw_request=f"Deep dive on {args.team_name}",
-        preset="team_deep_dive",
-        week=args.week,
-        overrides={"focus_teams": [args.team_name]},
-    )
+    article_path = output_dir / f"article_{week_str}.md"
+    article_path.write_text(output.article)
+    print(f"  Article: {article_path}")
 
-    # Load data
-    print("Loading league data...")
-    data = SleeperLeagueData()
-    data.load()
+    brief_path = output_dir / f"article_{week_str}.brief.json"
+    brief_path.write_text(output.brief.model_dump_json(indent=2))
+    print(f"  Brief: {brief_path}")
 
-    # Run the workflow
-    model = args.model or config.model
-    output = await run_article_request_async(request, data, model=model)
+    if output.research_log:
+        final_log_path = output_dir / f"article_{week_str}.research_log.md"
+        final_log_path.write_text(output.research_log.to_markdown())
+        print(f"  Research log: {final_log_path}")
+        print(f"  Stream log: {log_path}")
 
-    # Output results
-    if args.json:
-        print(output.model_dump_json(indent=2))
-    else:
-        print("\n" + "=" * 60)
-        print(output.article)
-        print("=" * 60 + "\n")
-
-    # Save if requested
-    if not args.no_save:
-        safe_name = args.team_name.lower().replace(" ", "_")
-        output_path = args.output or config.output_dir / f"team_{safe_name}.md"
-        save_output(
-            output.article,
-            output.brief.model_dump_json(indent=2),
-            output.spec.model_dump_json(indent=2),
-            output_path,
-        )
-
-
-async def run_custom(args: argparse.Namespace, config) -> None:
-    """Run a custom article request."""
-    print(f"Processing custom request...")
-
-    request = ArticleRequest(
-        raw_request=args.request,
-        week=args.week,
-    )
-
-    # Load data
-    print("Loading league data...")
-    data = SleeperLeagueData()
-    data.load()
-
-    # Run the workflow
-    model = args.model or config.model
-    output = await run_article_request_async(request, data, model=model)
-
-    # Output results
-    if args.json:
-        print(output.model_dump_json(indent=2))
-    else:
-        print("\n" + "=" * 60)
-        print(output.article)
-        print("=" * 60 + "\n")
-
-    # Save if requested
-    if not args.no_save:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = args.output or config.output_dir / f"custom_{timestamp}.md"
-        save_output(
-            output.article,
-            output.brief.model_dump_json(indent=2),
-            output.spec.model_dump_json(indent=2),
-            output_path,
-        )
+    print()
+    print("Done!")
 
 
 def main() -> None:
     """Main entry point."""
     args = parse_args()
-
-    if not args.command:
-        print("Error: No command specified. Use --help for usage.")
-        sys.exit(1)
 
     try:
         config = load_config()
@@ -335,18 +178,28 @@ def main() -> None:
         print(f"Configuration error: {e}")
         sys.exit(1)
 
-    # Route to appropriate handler
-    if args.command == "recap":
-        asyncio.run(run_recap(args, config))
-    elif args.command == "rankings":
-        asyncio.run(run_rankings(args, config))
-    elif args.command == "team":
-        asyncio.run(run_team_dive(args, config))
-    elif args.command == "custom":
-        asyncio.run(run_custom(args, config))
-    else:
-        print(f"Unknown command: {args.command}")
-        sys.exit(1)
+    # Get prompt interactively if not provided
+    prompt = args.prompt
+    if not prompt:
+        print()
+        print("=" * 60)
+        print("  Fantasy Football Reporter Agent")
+        print("=" * 60)
+        print()
+        print("What kind of article would you like?")
+        print()
+        print("Examples:")
+        print("  - weekly recap")
+        print("  - snarky recap of week 8")
+        print("  - power rankings with hot takes")
+        print("  - deep dive on Team Taco's season")
+        print()
+        prompt = input("> ").strip()
+        if not prompt:
+            print("No prompt provided. Exiting.")
+            sys.exit(1)
+
+    asyncio.run(run(prompt, args.week, config))
 
 
 if __name__ == "__main__":

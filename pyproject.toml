@@ -23,7 +23,7 @@ dev = [
 
 [project.scripts]
 sleeperdl = "datalayer.cli.main:main"
-reporter = "reporter.cli:main"
+reporter = "reporter.app.runner:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

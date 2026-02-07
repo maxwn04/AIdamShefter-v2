@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from reporter.agent.specs import EvidencePolicy, ReportSpec
+from reporter.agent.config import ReportConfig
 from reporter.agent.schemas import ReportBrief, Fact
 
 
@@ -12,7 +12,7 @@ def check_fact_grounding(
     claim: str,
     numbers: dict[str, float],
     brief: ReportBrief,
-    policy: EvidencePolicy,
+    policy: str,
 ) -> tuple[bool, str | None]:
     """Check if a claim is properly grounded in the brief.
 
@@ -20,12 +20,12 @@ def check_fact_grounding(
         claim: The claim text from the article.
         numbers: Extracted numbers from the claim.
         brief: The ReportBrief to check against.
-        policy: The evidence policy to apply.
+        policy: The evidence policy to apply ("strict", "standard", or "relaxed").
 
     Returns:
         Tuple of (is_grounded, error_message or None).
     """
-    if policy == EvidencePolicy.RELAXED:
+    if policy == "relaxed":
         # Only check major numbers
         major_keys = {"score", "points", "wins", "losses", "record"}
         numbers_to_check = {k: v for k, v in numbers.items() if k in major_keys}
@@ -38,32 +38,32 @@ def check_fact_grounding(
             if key in fact.numbers and abs(fact.numbers[key] - value) < 0.01:
                 found = True
                 break
-        if not found and policy == EvidencePolicy.STRICT:
+        if not found and policy == "strict":
             return False, f"Number {key}={value} not found in brief facts"
 
     return True, None
 
 
-def get_bias_framing_rules(spec: ReportSpec) -> list[str]:
+def get_bias_framing_rules(config: ReportConfig) -> list[str]:
     """Generate framing rules based on bias configuration.
 
     Args:
-        spec: The ReportSpec with bias settings.
+        config: The ReportConfig with bias settings.
 
     Returns:
         List of framing rules to include in prompts.
     """
     rules = []
 
-    if not spec.bias_profile:
+    if not config.bias_profile:
         return rules
 
-    intensity = spec.bias_profile.intensity
+    intensity = config.bias_profile.intensity
     if intensity == 0:
         return rules
 
     # Favored teams
-    for team in spec.bias_profile.favored_teams:
+    for team in config.bias_profile.favored_teams:
         if intensity == 1:
             rules.append(f"Use positive word choices when describing {team}'s performance")
         elif intensity == 2:
@@ -77,7 +77,7 @@ def get_bias_framing_rules(spec: ReportSpec) -> list[str]:
             rules.append(f"Position {team} as a championship contender")
 
     # Disfavored teams
-    for team in spec.bias_profile.disfavored_teams:
+    for team in config.bias_profile.disfavored_teams:
         if intensity == 1:
             rules.append(f"Use neutral language for {team}'s performance")
         elif intensity == 2:
