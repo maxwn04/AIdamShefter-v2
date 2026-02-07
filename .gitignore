@@ -1,5 +1,8 @@
 .env
 __pycache__/
-.cache/*
+.cache/
+.pytest_cache/
 .venv/
+sleeper_fantasy_reporter.egg-info/
 sleeper_datalayer.egg-info/
+.output/
