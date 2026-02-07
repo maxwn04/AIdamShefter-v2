@@ -10,9 +10,9 @@ from typing import Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
-from agent.clarify import ClarificationAgent
-from agent.reporter_agent import ReporterAgent
+from reporter.agent.config import ReportConfig
+from reporter.agent.clarify import ClarificationAgent
+from reporter.agent.reporter_agent import ReporterAgent
 
 
 def print_header():

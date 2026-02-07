@@ -11,9 +11,9 @@ from agents import Agent, Runner, AgentOutputSchema, RunHooks, RunContextWrapper
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
-from agent.research_log import ResearchLog
-from agent.schemas import (
+from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from reporter.agent.research_log import ResearchLog
+from reporter.agent.schemas import (
     ReportBrief,
     ArticleOutput,
     BriefMeta,
@@ -23,8 +23,8 @@ from agent.schemas import (
     ResolvedStyle,
     ResolvedBias,
 )
-from tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
-from tools.registry import create_tool_registry
+from reporter.tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
+from reporter.tools.registry import create_tool_registry
 
 
 def load_prompt(name: str) -> str:

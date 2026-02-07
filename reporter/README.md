@@ -18,21 +18,17 @@ An AI-powered reporter agent that generates engaging, factually grounded article
 
 ### Bias System
 
-Optionally favor or roast specific teams. Bias affects framing only—facts always remain accurate.
+Optionally favor or roast specific teams. Bias affects framing only -- facts always remain accurate.
 
 ## Installation
 
 ```bash
-# From the reporter directory
 pip install -e .
-
-# Or install with dev dependencies
-pip install -e ".[dev]"
 ```
 
 ## Configuration
 
-Copy `.env.example` to `.env` and fill in:
+Create a `.env` file in the project root:
 
 ```bash
 SLEEPER_LEAGUE_ID=your_league_id
@@ -66,60 +62,46 @@ reporter custom "Write a noir detective style recap of week 8"
 ### Programmatic Usage
 
 ```python
-from reporter import run_article_request, ArticleRequest
+from reporter.agent.workflows import generate_report
 
-# Simple request
-request = ArticleRequest(
-    raw_request="Weekly recap for week 8",
-    preset="weekly_recap",
+output = generate_report(
+    "Write a weekly recap",
     week=8,
-)
-output = run_article_request(request)
-print(output.article)
-
-# With customization
-from reporter.agent.workflows import generate_weekly_recap
-
-output = await generate_weekly_recap(
-    week=8,
+    voice="snarky columnist",
     snark_level=2,
     favored_teams=["Team Taco"],
-    bias_intensity=2,
 )
+print(output.article)
 ```
 
 ## Architecture
 
-The reporter uses a multi-phase workflow:
+The reporter uses a two-phase pipeline:
 
-1. **Spec Synthesis**: Convert user request → `ReportSpec`
-2. **Research**: Use datalayer tools → `ReportBrief`
-3. **Draft**: Write from brief → Article
-4. **Verify** (optional): Cross-check claims
+1. **Research** (`ResearchAgent`): Has full tool access. Iteratively queries the datalayer, builds a `ReportBrief` containing verified `Fact` objects and `Storyline` narratives.
+2. **Draft** (`DraftAgent`): No tool access. Writes the article purely from the `ReportBrief`, applying configured voice and style.
 
-### Key Concepts
+### Key Types
 
-- **ReportSpec**: Configuration contract (article type, style, bias)
-- **ReportBrief**: Research artifact (facts, storylines, outline)
-- **ArticleOutput**: Final output (article + metadata)
+- **ReportConfig** (`reporter/agent/config.py`): What to write (time range, voice, tone, bias)
+- **ReportBrief** (`reporter/agent/schemas.py`): Research artifact (facts, storylines, outline)
+- **ArticleOutput** (`reporter/agent/schemas.py`): Final output (article + metadata)
 
 ## Output Files
 
 Generated articles are saved to `.output/` by default:
-- `recap_week8.md` - The article
-- `recap_week8.brief.json` - The research brief
-- `recap_week8.spec.json` - The resolved spec
+- `article_week8.md` - The article
+- `article_week8.brief.json` - The research brief
+- `article_week8.research_log.md` - Research log
 
-## Development
+## Tests
 
 ```bash
-# Run tests
-pytest
-
-# Run a specific test
-pytest tests/test_specs.py -v
+pytest reporter/tests/              # All reporter tests
+pytest reporter/tests/ -v           # Verbose
 ```
 
-## Design Document
+## Design Documents
 
-See `docs/design.md` for the full design document.
+- `docs/design.md` - Reporter agent architecture
+- `docs/redesign_iterative_research.md` - Iterative research design

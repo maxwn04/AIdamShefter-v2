@@ -6,18 +6,18 @@ Main entry points:
 - generate_report: Convenience function for generating articles
 """
 
-from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
-from agent.schemas import (
+from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from reporter.agent.schemas import (
     ArticleOutput,
     ReportBrief,
     Fact,
     Storyline,
     Section,
 )
-from agent.research_log import ResearchLog, ResearchLogEntry
-from agent.reporter_agent import ReporterAgent, ResearchAgent, DraftAgent
-from agent.clarify import ClarificationAgent
-from agent.workflows import (
+from reporter.agent.research_log import ResearchLog, ResearchLogEntry
+from reporter.agent.reporter_agent import ReporterAgent, ResearchAgent, DraftAgent
+from reporter.agent.clarify import ClarificationAgent
+from reporter.agent.workflows import (
     generate_report,
     generate_report_async,
     generate_with_config,

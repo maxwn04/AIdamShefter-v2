@@ -1,20 +1,20 @@
 """Tests for policies module."""
 
 import pytest
-from agent.policies import (
+from reporter.agent.policies import (
     check_fact_grounding,
     get_bias_framing_rules,
     validate_tool_call_phase,
     extract_numbers_from_text,
 )
-from agent.specs import (
+from reporter.agent.specs import (
     ReportSpec,
     ArticleType,
     TimeRange,
     BiasProfile,
     EvidencePolicy,
 )
-from agent.schemas import ReportBrief, Fact, BriefMeta, ResolvedStyle, ResolvedBias
+from reporter.agent.schemas import ReportBrief, Fact, BriefMeta, ResolvedStyle, ResolvedBias
 
 
 @pytest.fixture

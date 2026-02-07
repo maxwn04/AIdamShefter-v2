@@ -1,7 +1,7 @@
 """Tests for ReportBrief and related schemas."""
 
 import pytest
-from agent.schemas import (
+from reporter.agent.schemas import (
     ReportBrief,
     Fact,
     Storyline,
@@ -13,7 +13,7 @@ from agent.schemas import (
     VerificationResult,
     ClaimMismatch,
 )
-from agent.specs import ReportSpec, ArticleType, TimeRange
+from reporter.agent.specs import ReportSpec, ArticleType, TimeRange
 
 # Rebuild models to resolve forward references
 ArticleOutput.model_rebuild()

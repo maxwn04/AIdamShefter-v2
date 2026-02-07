@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.specs import EvidencePolicy, ReportSpec
-from agent.schemas import ReportBrief, Fact
+from reporter.agent.specs import EvidencePolicy, ReportSpec
+from reporter.agent.schemas import ReportBrief, Fact
 
 
 def check_fact_grounding(

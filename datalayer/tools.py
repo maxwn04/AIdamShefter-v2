@@ -241,6 +241,23 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_week_transactions",
+            "description": "Get all transactions (trades, waivers, free agent pickups) for a single week. Convenience wrapper around get_transactions for single-week queries.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "week": {
+                        "type": "integer",
+                        "description": "Week number (1-18). Omit for current week."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_team_transactions",
             "description": "Get a specific team's transactions in a week range. Returns trades, waivers, and FA pickups for that team only.",
             "parameters": {
@@ -260,6 +277,27 @@ SLEEPER_TOOLS = [
                     }
                 },
                 "required": ["roster_key", "week_from", "week_to"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_team_week_transactions",
+            "description": "Get a specific team's transactions for a single week. Convenience wrapper around get_team_transactions for single-week queries.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "roster_key": {
+                        "type": "string",
+                        "description": "Team identifier: team name (e.g., 'Schefter'), manager name, or roster_id as string."
+                    },
+                    "week": {
+                        "type": "integer",
+                        "description": "Week number (1-18). Omit for current week."
+                    }
+                },
+                "required": ["roster_key"]
             }
         }
     },
@@ -375,7 +413,9 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         "get_roster_current": lambda roster_key: data.get_roster_current(roster_key),
         "get_roster_snapshot": lambda roster_key, week: data.get_roster_snapshot(roster_key, week),
         "get_transactions": lambda week_from, week_to: data.get_transactions(week_from, week_to),
+        "get_week_transactions": lambda week=None: data.get_week_transactions(week),
         "get_team_transactions": lambda roster_key, week_from, week_to: data.get_team_transactions(roster_key, week_from, week_to),
+        "get_team_week_transactions": lambda roster_key, week=None: data.get_team_week_transactions(roster_key, week),
         "get_player_summary": lambda player_key: data.get_player_summary(player_key),
         "get_player_weekly_log": lambda player_key: data.get_player_weekly_log(player_key),
         "get_player_weekly_log_range": lambda player_key, week_from, week_to: data.get_player_weekly_log_range(player_key, week_from, week_to),

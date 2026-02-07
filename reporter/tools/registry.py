@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from agents import function_tool
 
-from tools.sleeper_tools import ResearchToolAdapter
+from reporter.tools.sleeper_tools import ResearchToolAdapter
 
 
 def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:

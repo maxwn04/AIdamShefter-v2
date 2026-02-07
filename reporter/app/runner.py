@@ -12,9 +12,9 @@ from typing import Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.specs import ArticleRequest
-from agent.workflows import run_article_request_async
-from app.config import load_config, STYLE_PRESETS
+from reporter.agent.specs import ArticleRequest
+from reporter.agent.workflows import run_article_request_async
+from reporter.app.config import load_config, STYLE_PRESETS
 
 
 def parse_args() -> argparse.Namespace:

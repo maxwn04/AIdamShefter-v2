@@ -1,7 +1,7 @@
 """Tests for ReportSpec and related models."""
 
 import pytest
-from agent.specs import (
+from reporter.agent.specs import (
     ReportSpec,
     ArticleRequest,
     ArticleType,

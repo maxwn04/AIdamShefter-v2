@@ -9,7 +9,7 @@ from agents import Agent, Runner, function_tool
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
 
 
 class ClarificationAgent:

@@ -1,5 +1,7 @@
 # AI Fantasy Football Reporter — Master Design Document
 
+> Status: Current (v1 architecture — preset-driven)
+
 ## 1. Overview
 
 The **Reporter Agent** is an AI-powered system for generating engaging, data-grounded articles about a Sleeper fantasy football league. It produces weekly recaps, team deep dives, power rankings, playoff reactions, and custom reports with configurable tone, style, and optional bias toward or against specific teams.

@@ -7,9 +7,9 @@ from typing import Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
-from agent.schemas import ArticleOutput
-from agent.reporter_agent import ReporterAgent
+from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from reporter.agent.schemas import ArticleOutput
+from reporter.agent.reporter_agent import ReporterAgent
 
 
 async def generate_report_async(

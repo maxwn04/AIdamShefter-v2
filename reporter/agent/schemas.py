@@ -7,8 +7,8 @@ from typing import Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from agent.config import ReportConfig
-    from agent.research_log import ResearchLog
+    from reporter.agent.config import ReportConfig
+    from reporter.agent.research_log import ResearchLog
 
 
 class BriefMeta(BaseModel):
@@ -211,8 +211,8 @@ class ArticleOutput(BaseModel):
 
 # Rebuild models to resolve forward references after all classes are defined
 def _rebuild_models():
-    from agent.config import ReportConfig
-    from agent.research_log import ResearchLog
+    from reporter.agent.config import ReportConfig
+    from reporter.agent.research_log import ResearchLog
 
     ArticleOutput.model_rebuild()
 

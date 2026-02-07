@@ -13,7 +13,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 # Re-export from config for backwards compatibility
-from agent.config import (
+from reporter.agent.config import (
     TimeRange,
     ToneControls,
     BiasProfile,

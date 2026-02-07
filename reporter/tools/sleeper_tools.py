@@ -6,7 +6,7 @@ from typing import Any, Callable, Optional
 
 from datalayer.sleeper_data import SleeperLeagueData
 
-from agent.research_log import ResearchLog
+from reporter.agent.research_log import ResearchLog
 
 
 class ResearchToolAdapter:

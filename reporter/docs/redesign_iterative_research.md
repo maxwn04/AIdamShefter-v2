@@ -1,5 +1,7 @@
 # Reporter Redesign: Iterative Research Mode
 
+> Status: Proposed (v2 direction — agent-driven research, not yet implemented)
+
 ## Overview
 
 This document describes a redesign of the Reporter Agent to replace the preset-driven, hardcoded research approach with an **iterative, agent-driven research process**. The agent will plan, explore, and build reports dynamically based on user requests—no preset templates.
