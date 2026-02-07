@@ -16,12 +16,6 @@ from reporter.agent.research_log import ResearchLog
 from reporter.agent.schemas import (
     ReportBrief,
     ArticleOutput,
-    BriefMeta,
-    Fact,
-    Storyline,
-    Section,
-    ResolvedStyle,
-    ResolvedBias,
 )
 from reporter.tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
 from reporter.tools.registry import create_tool_registry
@@ -223,8 +217,16 @@ class ResearchAgent:
                     # Tool result — log with timing
                     raw = event.item.raw_item
                     call_id = getattr(raw, "call_id", None)
-                    tool_name = tool_call_names.pop(call_id, "unknown") if call_id else "unknown"
-                    start = tool_start_times.pop(call_id, time.time()) if call_id else time.time()
+                    tool_name = (
+                        tool_call_names.pop(call_id, "unknown")
+                        if call_id
+                        else "unknown"
+                    )
+                    start = (
+                        tool_start_times.pop(call_id, time.time())
+                        if call_id
+                        else time.time()
+                    )
                     duration_ms = int((time.time() - start) * 1000)
 
                     result_str = getattr(raw, "output", "")
