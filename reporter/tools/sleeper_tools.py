@@ -58,8 +58,8 @@ class ResearchToolAdapter:
     def call(self, tool_name: str, **kwargs: Any) -> dict[str, Any]:
         """Execute a data retrieval tool.
 
-        Logs the tool start with parameters. The tool end (with result and timing)
-        is logged by the ResearchLoggingHooks middleware.
+        Tool start/end logging is handled by the stream event loop in
+        ResearchAgent.research(), not here.
         """
         if tool_name not in self._handlers:
             return {
@@ -68,10 +68,6 @@ class ResearchToolAdapter:
                 "available_tools": self.available_tools,
             }
 
-        # Log tool start with params
-        self.log.add_tool_start(tool_name=tool_name, tool_params=kwargs)
-
-        # Execute the tool
         handler = self._handlers[tool_name]
         return handler(**kwargs)
 

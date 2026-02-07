@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from agents import Agent, Runner, AgentOutputSchema, RunHooks, RunContextWrapper, Tool
+from agents import Agent, Runner, AgentOutputSchema
 
 from datalayer.sleeper_data import SleeperLeagueData
 
@@ -36,100 +36,18 @@ def load_prompt(name: str) -> str:
     return ""
 
 
-class ResearchLoggingHooks(RunHooks):
-    """Hooks that capture model reasoning and tool calls, streaming to a log file.
-
-    This middleware automatically logs:
-    - Tool calls with parameters (captured from adapter)
-    - Tool results with timing
-    - Model reasoning (extracted from conversation context)
-    """
-
-    def __init__(self, research_log: ResearchLog):
-        self.log = research_log
-        self._tool_start_times: dict[str, float] = {}
-        self._last_reasoning: Optional[str] = None
-
-    def _extract_last_reasoning(self, context: RunContextWrapper) -> Optional[str]:
-        """Extract the most recent assistant text from conversation context.
-
-        This captures the model's reasoning that preceded tool calls.
-        """
-        try:
-            # Try various ways to access messages
-            messages = None
-            if hasattr(context, "messages"):
-                messages = context.messages
-            elif hasattr(context, "context"):
-                inner = context.context
-                if hasattr(inner, "messages"):
-                    messages = inner.messages
-
-            if not messages:
-                return None
-
-            # Find the last assistant message with text content
-            for msg in reversed(messages):
-                if getattr(msg, "role", None) == "assistant":
-                    content = getattr(msg, "content", None)
-                    if isinstance(content, str) and content.strip():
-                        return content.strip()
-                    elif isinstance(content, list):
-                        for block in content:
-                            if hasattr(block, "text") and block.text:
-                                return block.text.strip()
-                            elif isinstance(block, dict) and block.get("text"):
-                                return block["text"].strip()
-                    break
-        except Exception:
-            pass
-        return None
-
-    async def on_tool_start(
-        self, context: RunContextWrapper, agent: Agent, tool: Tool
-    ) -> None:
-        """Called when a tool is about to be invoked."""
-        # Record start time for duration calculation
-        self._tool_start_times[tool.name] = time.time()
-
-        # Try to capture preceding reasoning
-        reasoning = self._extract_last_reasoning(context)
-        if reasoning and reasoning != self._last_reasoning:
-            self.log.add_reasoning(reasoning)
-            self._last_reasoning = reasoning
-
-        # Print progress to console
-        print(f"  -> {tool.name}...", end="", flush=True)
-
-    async def on_tool_end(
-        self, context: RunContextWrapper, agent: Agent, tool: Tool, result: Any
-    ) -> None:
-        """Called after a tool completes."""
-        # Calculate duration
-        start_time = self._tool_start_times.pop(tool.name, time.time())
-        duration_ms = int((time.time() - start_time) * 1000)
-
-        # Convert result to string for logging
-        if isinstance(result, str):
-            result_str = result
-        else:
-            try:
-                result_str = json.dumps(result, default=str)
-            except Exception:
-                result_str = str(result)
-
-        # Truncate long results
-        if len(result_str) > 1000:
-            result_str = result_str[:1000] + "..."
-
-        # Log tool end with result
-        self.log.add_tool_end(
-            tool_name=tool.name,
-            tool_result=result_str,
-            duration_ms=duration_ms,
-        )
-
-        print(f" done ({duration_ms}ms)")
+def _format_args(args: dict) -> str:
+    """Format tool arguments for compact console display."""
+    if not args:
+        return ""
+    parts = []
+    for k, v in args.items():
+        if v is None:
+            continue
+        if isinstance(v, str) and len(v) > 30:
+            v = v[:27] + "..."
+        parts.append(f"{k}={v}")
+    return ", ".join(parts)
 
 
 class ResearchAgent:
@@ -232,6 +150,9 @@ class ResearchAgent:
     async def research(self) -> tuple[ReportBrief, ResearchLog]:
         """Run the research agent to produce a brief and log.
 
+        Uses Runner.run_streamed() to capture tool calls and model reasoning
+        in real-time as they happen.
+
         Returns:
             Tuple of (ReportBrief, ResearchLog)
         """
@@ -246,19 +167,84 @@ class ResearchAgent:
             output_type=AgentOutputSchema(ReportBrief, strict_json_schema=False),
         )
 
-        # Create hooks for logging
-        hooks = ResearchLoggingHooks(self.research_log)
+        # Track tool call timing by call_id for duration calculation
+        tool_start_times: dict[str, float] = {}
+        tool_call_names: dict[str, str] = {}
 
         try:
-            # Allow more turns for iterative research (default is 10)
-            result = await Runner.run(agent, user_prompt, max_turns=30, hooks=hooks)
+            stream = Runner.run_streamed(agent, user_prompt, max_turns=30)
+
+            async for event in stream.stream_events():
+                if event.type != "run_item_stream_event":
+                    continue
+
+                if event.name == "message_output_created":
+                    # Model's text output — reasoning before tool calls
+                    msg = event.item.raw_item
+                    for block in getattr(msg, "content", []):
+                        text = getattr(block, "text", None)
+                        if not text:
+                            continue
+                        text = text.strip()
+                        # Skip large JSON blobs (likely the final structured output)
+                        if not text or (text[0] in "{[" and len(text) > 500):
+                            continue
+                        self.research_log.add_reasoning(text)
+                        preview = text[:120].replace("\n", " ")
+                        print(
+                            f"  \U0001f4ad {preview}{'...' if len(text) > 120 else ''}"
+                        )
+
+                elif event.name == "reasoning_item_created":
+                    # Reasoning blocks from reasoning models (o1/o3)
+                    reasoning = event.item.raw_item
+                    for summary in getattr(reasoning, "summary", []):
+                        text = getattr(summary, "text", "").strip()
+                        if text:
+                            self.research_log.add_reasoning(text)
+                            preview = text[:120].replace("\n", " ")
+                            print(
+                                f"  \U0001f4ad {preview}"
+                                f"{'...' if len(text) > 120 else ''}"
+                            )
+
+                elif event.name == "tool_called":
+                    # Tool invocation — log with params and record start time
+                    raw = event.item.raw_item
+                    call_id = raw.call_id
+                    tool_start_times[call_id] = time.time()
+                    tool_call_names[call_id] = raw.name
+                    args = json.loads(raw.arguments) if raw.arguments else {}
+                    self.research_log.add_tool_start(raw.name, args)
+                    args_str = _format_args(args)
+                    print(f"  -> {raw.name}({args_str})", flush=True)
+
+                elif event.name == "tool_output":
+                    # Tool result — log with timing
+                    raw = event.item.raw_item
+                    call_id = getattr(raw, "call_id", None)
+                    tool_name = tool_call_names.pop(call_id, "unknown") if call_id else "unknown"
+                    start = tool_start_times.pop(call_id, time.time()) if call_id else time.time()
+                    duration_ms = int((time.time() - start) * 1000)
+
+                    result_str = getattr(raw, "output", "")
+                    if not isinstance(result_str, str):
+                        try:
+                            result_str = json.dumps(result_str, default=str)
+                        except Exception:
+                            result_str = str(result_str)
+                    if len(result_str) > 1000:
+                        result_str = result_str[:1000] + "..."
+
+                    self.research_log.add_tool_end(tool_name, result_str, duration_ms)
+                    print(f"  <- {tool_name} ({duration_ms}ms)")
 
             # Log the final output
-            if result.final_output:
-                preview = str(result.final_output)[:200]
+            if stream.final_output:
+                preview = str(stream.final_output)[:200]
                 self.research_log.add_output(f"ReportBrief generated: {preview}...")
 
-            return result.final_output, self.research_log
+            return stream.final_output, self.research_log
         finally:
             # Always close the streaming file
             self.research_log.stop_streaming()

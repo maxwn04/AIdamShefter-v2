@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Any, Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class Fact(BaseModel):
         default_factory=list,
         description="Tool calls that sourced this fact, e.g. 'get_week_games:week=5'",
     )
-    numbers: dict[str, float] = Field(
+    numbers: dict[str, Any] = Field(
         default_factory=dict,
         description="Extracted numeric values, e.g. {'points': 142.3, 'week': 5}",
     )

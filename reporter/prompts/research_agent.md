@@ -74,7 +74,7 @@ Use targeted tools to investigate interesting findings:
 
 1. **Be thorough but focused** - Don't try to cover everything; focus on what's most compelling
 2. **Follow threads** - If something looks interesting, investigate further
-3. **Aim for quality** - 5-15 high-quality facts beats 50 mediocre ones
+3. **Aim for quality** - 10-20 high-quality facts beats 50 mediocre ones
 4. **Think like an editor** - What would make your readers care?
 
 ## Output: ReportBrief
