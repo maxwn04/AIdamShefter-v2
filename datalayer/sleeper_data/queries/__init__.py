@@ -13,7 +13,9 @@ Modules:
 """
 
 from .league import (
+    get_bench_analysis,
     get_league_snapshot,
+    get_standings,
     get_team_game,
     get_team_game_with_players,
     get_week_games,
@@ -27,7 +29,9 @@ from .transactions import get_team_transactions, get_transactions
 
 __all__ = [
     # League queries
+    "get_bench_analysis",
     "get_league_snapshot",
+    "get_standings",
     "get_week_games",
     "get_week_games_with_players",
     "get_team_game",

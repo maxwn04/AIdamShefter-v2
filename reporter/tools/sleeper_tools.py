@@ -44,6 +44,8 @@ class ResearchToolAdapter:
             "get_roster_snapshot": self.data.get_roster_snapshot,
             "get_team_transactions": self.data.get_team_transactions,
             "get_team_week_transactions": self.data.get_team_week_transactions,
+            "get_bench_analysis": self.data.get_bench_analysis,
+            "get_standings": self.data.get_standings,
             "get_player_summary": self.data.get_player_summary,
             "get_player_weekly_log": self.data.get_player_weekly_log,
             "get_player_weekly_log_range": self.data.get_player_weekly_log_range,
@@ -99,6 +101,14 @@ TOOL_DOCS = """
 - **get_week_player_leaderboard(week?, limit?)**: Top scorers ranked by points.
   Get the highest-scoring players across all teams.
 
+- **get_standings(week?)**: League standings with records, points, ranks, streaks.
+  Includes league_average_match flag. More focused than get_league_snapshot when
+  you only need standings.
+
+- **get_bench_analysis(roster_key?, week?)**: Starter vs bench scoring breakdown.
+  League-wide mode shows every team's starter/bench totals. Team-specific mode
+  adds individual bench player details.
+
 - **get_week_transactions(week?)**: Trades, waivers, and FA pickups for a week.
   All roster moves for the specified week.
 
@@ -122,8 +132,8 @@ TOOL_DOCS = """
 - **get_roster_snapshot(roster_key, week)**: Historical roster for specific week.
   What the roster looked like during a past week.
 
-- **get_team_week_transactions(roster_key, week?)**: Team's transactions for a week.
-  What moves did this team make this week?
+- **get_team_week_transactions(roster_key, week_from?, week_to?)**: Team's transactions.
+  What moves did this team make? Defaults to current week, or specify a range.
 
 ### Player-Specific
 
