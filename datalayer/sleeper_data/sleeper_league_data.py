@@ -44,7 +44,7 @@ from .queries import (
     get_league_snapshot,
     get_player_summary,
     get_player_weekly_log,
-    get_player_weekly_log_range,
+    get_season_leaders,
     get_playoff_bracket as query_get_playoff_bracket,
     get_roster_current,
     get_roster_snapshot,
@@ -468,6 +468,44 @@ class SleeperLeagueData:
             self.conn, self.league_id, int(effective_week), limit=limit
         )
 
+    def get_season_leaders(
+        self,
+        *,
+        week_from: int | None = None,
+        week_to: int | None = None,
+        position: str | None = None,
+        roster_key: Any = None,
+        role: str | None = None,
+        sort_by: str = "total",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Get top players for the season ranked by total or average points.
+
+        Args:
+            week_from: Starting week (inclusive). Omit for full season.
+            week_to: Ending week (inclusive). Omit for full season.
+            position: Filter to a single position (e.g., "QB", "RB").
+            roster_key: Filter to one team's players.
+            role: Filter by role — "starter" to exclude bench performances.
+            sort_by: "total" (default) or "avg" for average per game.
+            limit: Maximum results (default 10, hard cap 30).
+
+        See queries.league.get_season_leaders for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_season_leaders(
+            self.conn,
+            self.league_id,
+            week_from=week_from,
+            week_to=week_to,
+            position=position,
+            roster_key=roster_key,
+            role=role,
+            sort_by=sort_by,
+            limit=limit,
+        )
+
     def get_transactions(self, week_from: int, week_to: int) -> list[dict[str, Any]]:
         """Get all trades, waivers, and FA pickups in a week range.
 
@@ -558,34 +596,26 @@ class SleeperLeagueData:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_player_summary(self.conn, player_key)
 
-    def get_player_weekly_log(self, player_key: Any) -> dict[str, Any]:
-        """Get a player's full season fantasy performance log.
+    def get_player_weekly_log(
+        self,
+        player_key: Any,
+        week_from: int | None = None,
+        week_to: int | None = None,
+    ) -> dict[str, Any]:
+        """Get a player's fantasy performance log, optionally filtered to a week range.
 
         Args:
             player_key: Player name or player_id.
+            week_from: Starting week (inclusive). Omit for full season.
+            week_to: Ending week (inclusive). Omit for full season.
 
         See queries.player.get_player_weekly_log for full return structure.
         """
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_player_weekly_log(self.conn, self.league_id, player_key)
-
-    def get_player_weekly_log_range(
-        self, player_key: Any, week_from: int, week_to: int
-    ) -> dict[str, Any]:
-        """Get a player's fantasy performance log for a specific week range.
-
-        Args:
-            player_key: Player name or player_id.
-            week_from: Starting week (inclusive).
-            week_to: Ending week (inclusive).
-
-        See queries.player.get_player_weekly_log_range for full return structure.
-        """
-        if not self.conn:
-            raise RuntimeError("Data not loaded. Call load() before querying.")
-        return get_player_weekly_log_range(
-            self.conn, self.league_id, player_key, week_from, week_to
+        return get_player_weekly_log(
+            self.conn, self.league_id, player_key,
+            week_from=week_from, week_to=week_to,
         )
 
     def get_roster_current(self, roster_key: Any) -> dict[str, Any]:

@@ -15,6 +15,7 @@ Modules:
 from .league import (
     get_bench_analysis,
     get_league_snapshot,
+    get_season_leaders,
     get_standings,
     get_team_game,
     get_team_game_with_players,
@@ -22,7 +23,7 @@ from .league import (
     get_week_games_with_players,
     get_week_player_leaderboard,
 )
-from .player import get_player_summary, get_player_weekly_log, get_player_weekly_log_range
+from .player import get_player_summary, get_player_weekly_log
 from .playoffs import get_playoff_bracket, get_team_playoff_path
 from .sql_tool import run_sql
 from .team import get_roster_current, get_roster_snapshot, get_team_dossier, get_team_schedule
@@ -32,6 +33,7 @@ __all__ = [
     # League queries
     "get_bench_analysis",
     "get_league_snapshot",
+    "get_season_leaders",
     "get_standings",
     "get_week_games",
     "get_week_games_with_players",
@@ -46,7 +48,6 @@ __all__ = [
     # Player queries
     "get_player_summary",
     "get_player_weekly_log",
-    "get_player_weekly_log_range",
     # Playoff queries
     "get_playoff_bracket",
     "get_team_playoff_path",

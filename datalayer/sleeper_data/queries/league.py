@@ -438,6 +438,118 @@ def get_week_player_leaderboard(
     return result
 
 
+def get_season_leaders(
+    conn,
+    league_id: str,
+    *,
+    week_from: int | None = None,
+    week_to: int | None = None,
+    position: str | None = None,
+    roster_key: Any = None,
+    role: str | None = None,
+    sort_by: str = "total",
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    """Get top players for the season ranked by total or average fantasy points.
+
+    Aggregates player_performances across weeks. All filter parameters are
+    optional — omit everything for an overall season leaderboard.
+
+    Args:
+        conn: SQLite database connection.
+        league_id: The league identifier.
+        week_from: Starting week (inclusive). Omit for full season.
+        week_to: Ending week (inclusive). Omit for full season.
+        position: Filter to a single position (e.g., "QB", "RB").
+        roster_key: Filter to one team's players (team name, manager, or roster_id).
+        role: Filter by role — "starter" to exclude bench performances.
+        sort_by: "total" (default) to rank by total points, "avg" for average.
+        limit: Maximum results (default 10, hard cap 30).
+
+    Returns:
+        [
+            {
+                "rank": int,
+                "player_name": str,
+                "position": str,
+                "nfl_team": str,
+                "team_name": str,  # Most recent fantasy team
+                "total_points": float,
+                "avg_points": float,
+                "weeks_played": int,
+                "best_week": float,
+                "worst_week": float
+            },
+            ...
+        ]
+    """
+    capped_limit = min(max(limit, 1), 30)
+
+    filters = ["pp.league_id = :league_id"]
+    params: dict[str, Any] = {"league_id": league_id, "limit": capped_limit}
+
+    if week_from is not None:
+        filters.append("pp.week >= :week_from")
+        params["week_from"] = week_from
+    if week_to is not None:
+        filters.append("pp.week <= :week_to")
+        params["week_to"] = week_to
+    if position is not None:
+        filters.append("UPPER(p.position) = UPPER(:position)")
+        params["position"] = position
+    if role is not None:
+        filters.append("pp.role = :role")
+        params["role"] = role
+
+    roster_filter = ""
+    if roster_key is not None:
+        resolved = resolve_roster_id(conn, league_id, roster_key)
+        if not resolved.get("found"):
+            return []
+        filters.append("pp.roster_id = :filter_roster_id")
+        params["filter_roster_id"] = resolved["roster_id"]
+
+    order_col = "avg_points" if sort_by == "avg" else "total_points"
+    where_clause = " AND ".join(filters)
+
+    rows = fetch_all(
+        conn,
+        f"""
+        SELECT
+            pp.player_id,
+            p.full_name AS player_name,
+            p.position,
+            p.nfl_team,
+            ROUND(SUM(pp.points), 2)  AS total_points,
+            ROUND(AVG(pp.points), 2)  AS avg_points,
+            COUNT(*)                   AS weeks_played,
+            ROUND(MAX(pp.points), 2)  AS best_week,
+            ROUND(MIN(pp.points), 2)  AS worst_week,
+            (
+                SELECT tp2.team_name
+                FROM player_performances pp2
+                LEFT JOIN team_profiles tp2
+                    ON tp2.league_id = pp2.league_id AND tp2.roster_id = pp2.roster_id
+                WHERE pp2.league_id = pp.league_id AND pp2.player_id = pp.player_id
+                ORDER BY pp2.week DESC
+                LIMIT 1
+            ) AS team_name
+        FROM player_performances pp
+        LEFT JOIN players p ON p.player_id = pp.player_id
+        WHERE {where_clause}
+        GROUP BY pp.player_id
+        ORDER BY {order_col} DESC, player_name ASC
+        LIMIT :limit
+        """,
+        params,
+    )
+
+    result = strip_id_fields_list(rows)
+    for i, row in enumerate(result, start=1):
+        row["rank"] = i
+    return result
+
+
 def get_bench_analysis(
     conn, league_id: str, week: int, roster_key: Any = None
 ) -> dict[str, Any] | list[dict[str, Any]]:

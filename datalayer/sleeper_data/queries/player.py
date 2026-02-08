@@ -109,49 +109,14 @@ def _build_player_log_response(
     }
 
 
-def get_player_weekly_log(conn, league_id: str, player_key: Any) -> dict[str, Any]:
-    """Get a player's full season fantasy performance log.
-
-    Returns each week's points, the fantasy team they were on, and whether
-    they were started or benched. Includes summary stats for the full season.
-
-    Args:
-        conn: SQLite database connection.
-        league_id: The league identifier.
-        player_key: Player name or player_id.
-
-    Returns:
-        {
-            "found": True,
-            "player_name": str,
-            "weeks_played": int,
-            "total_points": float,
-            "avg_points": float,
-            "performances": [
-                {
-                    "week": int,
-                    "points": float,
-                    "role": str,  # "starter" or "bench"
-                    "team_name": str  # Fantasy team that rostered them
-                },
-                ...
-            ]
-        }
-
-        Returns {"found": False, "player_key": ...} if player not found.
-    """
-    resolved = resolve_player_id(conn, player_key)
-    if not resolved.get("found"):
-        return {**resolved}
-
-    rows = _fetch_player_performances(conn, league_id, resolved["player_id"])
-    return _build_player_log_response(resolved.get("player_name", ""), rows)
-
-
-def get_player_weekly_log_range(
-    conn, league_id: str, player_key: Any, week_from: int, week_to: int
+def get_player_weekly_log(
+    conn,
+    league_id: str,
+    player_key: Any,
+    week_from: int | None = None,
+    week_to: int | None = None,
 ) -> dict[str, Any]:
-    """Get a player's fantasy performance log for a specific week range.
+    """Get a player's fantasy performance log, optionally filtered to a week range.
 
     Returns each week's points, the fantasy team they were on, and whether
     they were started or benched. Includes summary stats for the period.
@@ -160,15 +125,13 @@ def get_player_weekly_log_range(
         conn: SQLite database connection.
         league_id: The league identifier.
         player_key: Player name or player_id.
-        week_from: Starting week (inclusive).
-        week_to: Ending week (inclusive).
+        week_from: Starting week (inclusive). Omit for full season.
+        week_to: Ending week (inclusive). Omit for full season.
 
     Returns:
         {
             "found": True,
             "player_name": str,
-            "week_from": int,
-            "week_to": int,
             "weeks_played": int,
             "total_points": float,
             "avg_points": float,
@@ -182,6 +145,9 @@ def get_player_weekly_log_range(
                 ...
             ]
         }
+
+        When week_from or week_to is provided, the response also includes
+        "week_from" and/or "week_to" keys reflecting the requested range.
 
         Returns {"found": False, "player_key": ...} if player not found.
     """
@@ -193,6 +159,8 @@ def get_player_weekly_log_range(
         conn, league_id, resolved["player_id"], week_from=week_from, week_to=week_to
     )
     result = _build_player_log_response(resolved.get("player_name", ""), rows)
-    result["week_from"] = week_from
-    result["week_to"] = week_to
+    if week_from is not None:
+        result["week_from"] = week_from
+    if week_to is not None:
+        result["week_to"] = week_to
     return result

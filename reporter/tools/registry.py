@@ -219,6 +219,42 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         return adapter.call("get_standings", week=week)
 
     @function_tool
+    def get_season_leaders(
+        week_from: int | None = None,
+        week_to: int | None = None,
+        position: str | None = None,
+        roster_key: str | None = None,
+        role: str | None = None,
+        sort_by: str = "total",
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """Get top players for the season ranked by total or average points.
+
+        Use for season-long MVP candidates, position rankings, or team-specific
+        leaderboards. Filter by week range, position, team, or starter role.
+
+        Args:
+            week_from: Starting week (inclusive). Omit for full season.
+            week_to: Ending week (inclusive). Omit for full season.
+            position: Filter to one position (e.g., "QB", "RB").
+            roster_key: Filter to one team's players.
+            role: "starter" to exclude bench performances.
+            sort_by: "total" (default) or "avg" points per game.
+            limit: Maximum results (default 10, max 30).
+        """
+        capped_limit = min(max(limit, 1), 30)
+        return adapter.call(
+            "get_season_leaders",
+            week_from=week_from,
+            week_to=week_to,
+            position=position,
+            roster_key=roster_key,
+            role=role,
+            sort_by=sort_by,
+            limit=capped_limit,
+        )
+
+    @function_tool
     def get_player_summary(player_key: str) -> dict[str, Any]:
         """Get basic metadata about an NFL player.
 
@@ -230,32 +266,24 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         return adapter.call("get_player_summary", player_key=player_key)
 
     @function_tool
-    def get_player_weekly_log(player_key: str) -> dict[str, Any]:
-        """Get a player's full season fantasy performance log.
+    def get_player_weekly_log(
+        player_key: str,
+        week_from: int | None = None,
+        week_to: int | None = None,
+    ) -> dict[str, Any]:
+        """Get a player's fantasy performance log, optionally for a week range.
 
         Use for analyzing player consistency, trends, or finding their
-        best/worst weeks.
+        best/worst weeks. Pass week_from/week_to to focus on a specific
+        stretch (e.g., performance after a trade, during playoffs).
 
         Args:
             player_key: Player name or player_id.
-        """
-        return adapter.call("get_player_weekly_log", player_key=player_key)
-
-    @function_tool
-    def get_player_weekly_log_range(
-        player_key: str, week_from: int, week_to: int
-    ) -> dict[str, Any]:
-        """Get a player's fantasy performance for a specific week range.
-
-        Use for focused player analysis over a particular stretch.
-
-        Args:
-            player_key: Player name or player_id.
-            week_from: Starting week (inclusive).
-            week_to: Ending week (inclusive).
+            week_from: Starting week (inclusive). Omit for full season.
+            week_to: Ending week (inclusive). Omit for full season.
         """
         return adapter.call(
-            "get_player_weekly_log_range",
+            "get_player_weekly_log",
             player_key=player_key,
             week_from=week_from,
             week_to=week_to,
@@ -307,6 +335,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         get_week_games,
         get_week_games_with_players,
         get_week_player_leaderboard,
+        get_season_leaders,
         get_bench_analysis,
         get_week_transactions,
         get_team_dossier,
@@ -320,6 +349,5 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         get_team_playoff_path,
         get_player_summary,
         get_player_weekly_log,
-        get_player_weekly_log_range,
         run_sql,
     ]

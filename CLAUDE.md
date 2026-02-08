@@ -106,6 +106,7 @@ data.get_league_snapshot(week=None)
 data.get_week_games(week=None)
 data.get_week_games_with_players(week=None)
 data.get_week_player_leaderboard(week=None, limit=10)
+data.get_season_leaders(week_from=None, week_to=None, position=None, roster_key=None, role=None, sort_by="total", limit=10)
 data.get_team_dossier(roster_key, week=None)
 data.get_team_schedule(roster_key)
 data.get_team_game(roster_key, week=None)
@@ -117,8 +118,7 @@ data.get_team_transactions(roster_key, week_from, week_to)
 data.get_week_transactions(week=None)
 data.get_team_week_transactions(roster_key, week=None)
 data.get_player_summary(player_key)
-data.get_player_weekly_log(player_key)
-data.get_player_weekly_log_range(player_key, week_from, week_to)
+data.get_player_weekly_log(player_key, week_from=None, week_to=None)
 data.run_sql(query, params=None, limit=200)  # SELECT-only, auto-limited
 ```
 
@@ -160,7 +160,7 @@ Most queries return dicts with a `found` key. List-returning queries return `lis
 ]
 ```
 
-**`get_player_weekly_log("Patrick Mahomes")`** — Player season log:
+**`get_player_weekly_log("Patrick Mahomes")`** — Player season log (pass `week_from`/`week_to` to filter):
 ```json
 {
   "found": true,
@@ -172,6 +172,24 @@ Most queries return dicts with a `found` key. List-returning queries return `lis
     {"week": 1, "points": 28.5, "role": "starter", "team_name": "Team Taco"}
   ]
 }
+```
+
+**`get_season_leaders(position="QB", limit=5)`** — Season-long rankings, returns `list[dict]`:
+```json
+[
+  {
+    "rank": 1,
+    "player_name": "Patrick Mahomes",
+    "position": "QB",
+    "nfl_team": "KC",
+    "team_name": "Team Taco",
+    "total_points": 285.4,
+    "avg_points": 23.8,
+    "weeks_played": 12,
+    "best_week": 42.3,
+    "worst_week": 8.1
+  }
+]
 ```
 
 **`get_transactions(week_from=7, week_to=8)`** — Returns `list[dict]`:

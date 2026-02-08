@@ -34,6 +34,7 @@ class ResearchToolAdapter:
             "get_week_games": self.data.get_week_games,
             "get_week_games_with_players": self.data.get_week_games_with_players,
             "get_week_player_leaderboard": self.data.get_week_player_leaderboard,
+            "get_season_leaders": self.data.get_season_leaders,
             "get_transactions": self.data.get_transactions,
             "get_week_transactions": self.data.get_week_transactions,
             "get_team_dossier": self.data.get_team_dossier,
@@ -48,7 +49,6 @@ class ResearchToolAdapter:
             "get_standings": self.data.get_standings,
             "get_player_summary": self.data.get_player_summary,
             "get_player_weekly_log": self.data.get_player_weekly_log,
-            "get_player_weekly_log_range": self.data.get_player_weekly_log_range,
             "get_playoff_bracket": self.data.get_playoff_bracket,
             "get_team_playoff_path": self.data.get_team_playoff_path,
             "run_sql": self.data.run_sql,
@@ -103,6 +103,10 @@ TOOL_DOCS = """
 - **get_week_player_leaderboard(week?, limit?)**: Top scorers ranked by points.
   Get the highest-scoring players across all teams.
 
+- **get_season_leaders(week_from?, week_to?, position?, roster_key?, role?, sort_by?, limit?)**:
+  Season-long player rankings by total or average points. Filter by position, team,
+  week range, or starter role. Use for MVP candidates and season stat leaders.
+
 - **get_standings(week?)**: League standings with records, points, ranks, streaks.
   Includes league_average_match flag. More focused than get_league_snapshot when
   you only need standings.
@@ -142,11 +146,9 @@ TOOL_DOCS = """
 - **get_player_summary(player_key)**: Metadata (position, team, status, injury).
   Basic player information.
 
-- **get_player_weekly_log(player_key)**: Full season performance log.
-  Week-by-week fantasy points for the entire season.
-
-- **get_player_weekly_log_range(player_key, week_from, week_to)**: Performance for week range.
-  Player stats for a specific week range.
+- **get_player_weekly_log(player_key, week_from?, week_to?)**: Fantasy performance log.
+  Week-by-week fantasy points. Omit week params for full season, or pass a range
+  to focus on a stretch (e.g., after a trade, during playoffs).
 
 ### Playoff Bracket
 

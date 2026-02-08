@@ -364,24 +364,7 @@ SLEEPER_TOOLS = [
         "type": "function",
         "function": {
             "name": "get_player_weekly_log",
-            "description": "Get a player's full season fantasy performance log. Returns week-by-week points, role (starter/bench), and which fantasy team rostered them. Includes season totals and averages.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "player_key": {
-                        "type": "string",
-                        "description": "Player name (e.g., 'Patrick Mahomes') or player_id."
-                    }
-                },
-                "required": ["player_key"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_player_weekly_log_range",
-            "description": "Get a player's fantasy performance log for a specific week range. Use this to analyze performance over a subset of the season.",
+            "description": "Get a player's fantasy performance log. Returns week-by-week points, role (starter/bench), and which fantasy team rostered them. Includes totals and averages. Optionally filter to a week range (e.g., performance after a trade, during playoffs).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -391,14 +374,57 @@ SLEEPER_TOOLS = [
                     },
                     "week_from": {
                         "type": "integer",
-                        "description": "Starting week (inclusive)."
+                        "description": "Starting week (inclusive). Omit for full season."
                     },
                     "week_to": {
                         "type": "integer",
-                        "description": "Ending week (inclusive)."
+                        "description": "Ending week (inclusive). Omit for full season."
                     }
                 },
-                "required": ["player_key", "week_from", "week_to"]
+                "required": ["player_key"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_season_leaders",
+            "description": "Get top players for the season ranked by total or average fantasy points. Aggregates across all weeks by default, or filter to a week range, position, team, or role. Use this for season-long stat rankings, MVP candidates, or position-specific leaderboards.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "week_from": {
+                        "type": "integer",
+                        "description": "Starting week (inclusive). Omit for full season."
+                    },
+                    "week_to": {
+                        "type": "integer",
+                        "description": "Ending week (inclusive). Omit for full season."
+                    },
+                    "position": {
+                        "type": "string",
+                        "description": "Filter to a single position (e.g., 'QB', 'RB', 'WR', 'TE', 'K', 'DEF')."
+                    },
+                    "roster_key": {
+                        "type": "string",
+                        "description": "Filter to one team's players. Team name, manager name, or roster_id."
+                    },
+                    "role": {
+                        "type": "string",
+                        "description": "Filter by role — 'starter' to exclude bench performances.",
+                        "enum": ["starter", "bench"]
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "description": "Rank by 'total' points (default) or 'avg' points per game.",
+                        "enum": ["total", "avg"]
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum results (default 10, max 30)."
+                    }
+                },
+                "required": []
             }
         }
     },
@@ -496,8 +522,8 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         "get_bench_analysis": lambda roster_key=None, week=None: data.get_bench_analysis(roster_key, week),
         "get_standings": lambda week=None: data.get_standings(week),
         "get_player_summary": lambda player_key: data.get_player_summary(player_key),
-        "get_player_weekly_log": lambda player_key: data.get_player_weekly_log(player_key),
-        "get_player_weekly_log_range": lambda player_key, week_from, week_to: data.get_player_weekly_log_range(player_key, week_from, week_to),
+        "get_player_weekly_log": lambda player_key, week_from=None, week_to=None: data.get_player_weekly_log(player_key, week_from=week_from, week_to=week_to),
+        "get_season_leaders": lambda week_from=None, week_to=None, position=None, roster_key=None, role=None, sort_by="total", limit=10: data.get_season_leaders(week_from=week_from, week_to=week_to, position=position, roster_key=roster_key, role=role, sort_by=sort_by, limit=limit),
         "get_playoff_bracket": lambda bracket_type=None: data.get_playoff_bracket(bracket_type),
         "get_team_playoff_path": lambda roster_key: data.get_team_playoff_path(roster_key),
         "run_sql": lambda query, limit=200: data.run_sql(query, limit=limit),
