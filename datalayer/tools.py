@@ -284,7 +284,7 @@ SLEEPER_TOOLS = [
         "type": "function",
         "function": {
             "name": "get_team_week_transactions",
-            "description": "Get a specific team's transactions for a single week. Convenience wrapper around get_team_transactions for single-week queries.",
+            "description": "Get a specific team's transactions for a week or week range. Defaults to current week if no range specified.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -292,12 +292,54 @@ SLEEPER_TOOLS = [
                         "type": "string",
                         "description": "Team identifier: team name (e.g., 'Schefter'), manager name, or roster_id as string."
                     },
+                    "week_from": {
+                        "type": "integer",
+                        "description": "Starting week (inclusive). Defaults to current week."
+                    },
+                    "week_to": {
+                        "type": "integer",
+                        "description": "Ending week (inclusive). Defaults to week_from."
+                    }
+                },
+                "required": ["roster_key"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_bench_analysis",
+            "description": "Get starter vs bench scoring breakdown for a week. League-wide mode shows every team's starter/bench totals sorted by bench points. Team-specific mode adds individual bench player details.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "roster_key": {
+                        "type": "string",
+                        "description": "Optional team identifier. If provided, returns team-specific breakdown with bench player details."
+                    },
                     "week": {
                         "type": "integer",
                         "description": "Week number (1-18). Omit for current week."
                     }
                 },
-                "required": ["roster_key"]
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_standings",
+            "description": "Get league standings for a specific week. Includes wins, losses, ties, record, points_for, rank, streak info, and whether league_average_match is enabled.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "week": {
+                        "type": "integer",
+                        "description": "Week number (1-18). Omit for current week."
+                    }
+                },
+                "required": []
             }
         }
     },
@@ -415,7 +457,9 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         "get_transactions": lambda week_from, week_to: data.get_transactions(week_from, week_to),
         "get_week_transactions": lambda week=None: data.get_week_transactions(week),
         "get_team_transactions": lambda roster_key, week_from, week_to: data.get_team_transactions(roster_key, week_from, week_to),
-        "get_team_week_transactions": lambda roster_key, week=None: data.get_team_week_transactions(roster_key, week),
+        "get_team_week_transactions": lambda roster_key, week_from=None, week_to=None: data.get_team_week_transactions(roster_key, week_from=week_from, week_to=week_to),
+        "get_bench_analysis": lambda roster_key=None, week=None: data.get_bench_analysis(roster_key, week),
+        "get_standings": lambda week=None: data.get_standings(week),
         "get_player_summary": lambda player_key: data.get_player_summary(player_key),
         "get_player_weekly_log": lambda player_key: data.get_player_weekly_log(player_key),
         "get_player_weekly_log_range": lambda player_key, week_from, week_to: data.get_player_weekly_log_range(player_key, week_from, week_to),

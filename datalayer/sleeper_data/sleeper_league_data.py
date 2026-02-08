@@ -37,12 +37,14 @@ from .sleeper_api import (
 )
 from .store.sqlite_store import bulk_insert, create_tables
 from .queries import (
+    get_bench_analysis,
     get_league_snapshot,
     get_player_summary,
     get_player_weekly_log,
     get_player_weekly_log_range,
     get_roster_current,
     get_roster_snapshot,
+    get_standings,
     get_team_dossier,
     get_team_game,
     get_team_game_with_players,
@@ -285,6 +287,41 @@ class SleeperLeagueData:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return get_league_snapshot(self.conn, week)
 
+    def get_bench_analysis(
+        self, roster_key: Any = None, week: int | None = None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """Get starter vs bench scoring breakdown for a week.
+
+        Args:
+            roster_key: Optional team name, manager name, or roster_id.
+                If provided, returns team-specific breakdown with bench player details.
+            week: Week number (defaults to current week).
+
+        See queries.league.get_bench_analysis for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        effective_week = self._get_effective_week(week)
+        if effective_week is None:
+            if roster_key is not None:
+                return {"found": False, "roster_key": roster_key}
+            return []
+        return get_bench_analysis(
+            self.conn, self.league_id, int(effective_week), roster_key
+        )
+
+    def get_standings(self, week: int | None = None) -> dict[str, Any]:
+        """Get league standings for a specific week.
+
+        Args:
+            week: Week number (defaults to current week).
+
+        See queries.league.get_standings for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return get_standings(self.conn, self.league_id, week)
+
     def get_team_dossier(
         self, roster_key: Any, week: int | None = None
     ) -> dict[str, Any]:
@@ -462,23 +499,33 @@ class SleeperLeagueData:
         )
 
     def get_team_week_transactions(
-        self, roster_key: Any, week: int | None = None
+        self,
+        roster_key: Any,
+        week_from: int | None = None,
+        week_to: int | None = None,
     ) -> dict[str, Any]:
-        """Get a specific team's transactions for a single week.
+        """Get a specific team's transactions for a week or week range.
 
         Args:
             roster_key: Team name, manager name, or roster_id.
-            week: Week number (defaults to current week).
+            week_from: Starting week (inclusive). Defaults to current week.
+            week_to: Ending week (inclusive). Defaults to week_from.
 
         See queries.transactions.get_team_transactions for full return structure.
         """
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
-        effective_week = self._get_effective_week(week)
-        if effective_week is None:
-            return {"found": False, "error": "No effective week"}
+        if week_from is not None:
+            resolved_from = week_from
+            resolved_to = week_to if week_to is not None else week_from
+        else:
+            effective_week = self._get_effective_week()
+            if effective_week is None:
+                return {"found": False, "error": "No effective week"}
+            resolved_from = effective_week
+            resolved_to = week_to if week_to is not None else effective_week
         return get_team_transactions(
-            self.conn, self.league_id, effective_week, effective_week, roster_key
+            self.conn, self.league_id, resolved_from, resolved_to, roster_key
         )
 
     def get_player_summary(self, player_key: Any) -> dict[str, Any]:
