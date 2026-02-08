@@ -262,6 +262,32 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         )
 
     @function_tool
+    def get_playoff_bracket(
+        bracket_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Get the playoff bracket structure with team names and results.
+
+        Shows winners and/or losers bracket organized by round. Includes
+        champion and placement information when available.
+
+        Args:
+            bracket_type: "winners" or "losers". Omit to get both brackets.
+        """
+        return adapter.call("get_playoff_bracket", bracket_type=bracket_type)
+
+    @function_tool
+    def get_team_playoff_path(roster_key: str) -> dict[str, Any]:
+        """Get a specific team's playoff bracket journey.
+
+        Shows each matchup with opponent, result (win/loss/pending), and
+        final placement. Indicates if the team is eliminated or is champion.
+
+        Args:
+            roster_key: Team name, manager name, or roster_id.
+        """
+        return adapter.call("get_team_playoff_path", roster_key=roster_key)
+
+    @function_tool
     def run_sql(query: str, limit: int = 200) -> dict[str, Any]:
         """Execute a custom SELECT query for advanced analysis.
 
@@ -290,6 +316,8 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         get_roster_current,
         get_roster_snapshot,
         get_team_week_transactions,
+        get_playoff_bracket,
+        get_team_playoff_path,
         get_player_summary,
         get_player_weekly_log,
         get_player_weekly_log_range,

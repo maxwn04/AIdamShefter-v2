@@ -51,5 +51,17 @@ def get_players(
     return _client_or_default(client).get_json(f"/players/{sport}")
 
 
+def get_winners_bracket(
+    league_id: str, client: Optional[SleeperClient] = None
+) -> list[dict[str, Any]]:
+    return _client_or_default(client).get_json(f"/league/{league_id}/winners_bracket")
+
+
+def get_losers_bracket(
+    league_id: str, client: Optional[SleeperClient] = None
+) -> list[dict[str, Any]]:
+    return _client_or_default(client).get_json(f"/league/{league_id}/losers_bracket")
+
+
 def get_state(sport: str = "nfl", client: Optional[SleeperClient] = None) -> dict[str, Any]:
     return _client_or_default(client).get_json(f"/state/{sport}")

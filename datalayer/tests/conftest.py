@@ -38,6 +38,8 @@ def sleeper_fixtures(load_fixture):
         "players": load_fixture("players.json"),
         "traded_picks": load_fixture("traded_picks.json"),
         "state": load_fixture("state.json"),
+        "winners_bracket": load_fixture("winners_bracket.json"),
+        "losers_bracket": load_fixture("losers_bracket.json"),
     }
 
 
@@ -89,6 +91,16 @@ def monkeypatch_sleeper_api(monkeypatch, sleeper_fixtures):
         sld,
         "get_traded_picks",
         lambda league_id, client=None: sleeper_fixtures["traded_picks"],
+    )
+    monkeypatch.setattr(
+        sld,
+        "get_winners_bracket",
+        lambda league_id, client=None: sleeper_fixtures["winners_bracket"],
+    )
+    monkeypatch.setattr(
+        sld,
+        "get_losers_bracket",
+        lambda league_id, client=None: sleeper_fixtures["losers_bracket"],
     )
 
     return sleeper_fixtures

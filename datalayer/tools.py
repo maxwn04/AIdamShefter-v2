@@ -405,6 +405,41 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_playoff_bracket",
+            "description": "Get the playoff bracket structure with team names, matchup results, and progression. Shows winners and/or losers bracket organized by round. Includes champion and placement information when available.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bracket_type": {
+                        "type": "string",
+                        "description": "Filter to 'winners' or 'losers' bracket. Omit to get both brackets.",
+                        "enum": ["winners", "losers"]
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_team_playoff_path",
+            "description": "Get a specific team's playoff journey showing each matchup, opponent, result (win/loss/pending), and final placement. Shows whether the team is eliminated or is the champion.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "roster_key": {
+                        "type": "string",
+                        "description": "Team identifier: team name (e.g., 'Schefter'), manager name, or roster_id as string."
+                    }
+                },
+                "required": ["roster_key"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "run_sql",
             "description": "Execute a custom SELECT query for advanced analysis. Use this when the other tools don't provide the specific data you need. Only SELECT queries are allowed; write operations are blocked.",
             "parameters": {
@@ -412,7 +447,7 @@ SLEEPER_TOOLS = [
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "A SELECT SQL query. Available tables: leagues, season_context, team_profiles, rosters, roster_players, players, matchups, player_performances, games, standings, transactions, transaction_moves, draft_picks."
+                        "description": "A SELECT SQL query. Available tables: leagues, season_context, team_profiles, rosters, roster_players, players, matchups, player_performances, games, standings, transactions, transaction_moves, draft_picks, playoff_matchups."
                     },
                     "limit": {
                         "type": "integer",
@@ -463,6 +498,8 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         "get_player_summary": lambda player_key: data.get_player_summary(player_key),
         "get_player_weekly_log": lambda player_key: data.get_player_weekly_log(player_key),
         "get_player_weekly_log_range": lambda player_key, week_from, week_to: data.get_player_weekly_log_range(player_key, week_from, week_to),
+        "get_playoff_bracket": lambda bracket_type=None: data.get_playoff_bracket(bracket_type),
+        "get_team_playoff_path": lambda roster_key: data.get_team_playoff_path(roster_key),
         "run_sql": lambda query, limit=200: data.run_sql(query, limit=limit),
     }
 

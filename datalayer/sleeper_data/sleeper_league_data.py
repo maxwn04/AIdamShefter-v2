@@ -12,6 +12,7 @@ from .normalize import (
     apply_traded_picks,
     derive_games,
     derive_team_profiles,
+    normalize_bracket,
     normalize_league,
     normalize_matchups,
     normalize_players,
@@ -29,11 +30,13 @@ from .sleeper_api import (
     get_league,
     get_league_rosters,
     get_league_users,
+    get_losers_bracket,
     get_matchups,
     get_players,
     get_state,
     get_traded_picks,
     get_transactions as api_get_transactions,
+    get_winners_bracket,
 )
 from .store.sqlite_store import bulk_insert, create_tables
 from .queries import (
@@ -42,12 +45,14 @@ from .queries import (
     get_player_summary,
     get_player_weekly_log,
     get_player_weekly_log_range,
+    get_playoff_bracket as query_get_playoff_bracket,
     get_roster_current,
     get_roster_snapshot,
     get_standings,
     get_team_dossier,
     get_team_game,
     get_team_game_with_players,
+    get_team_playoff_path as query_get_team_playoff_path,
     get_team_schedule,
     get_team_transactions,
     get_transactions as query_get_transactions,
@@ -251,6 +256,19 @@ class SleeperLeagueData:
                 )
                 if standings:
                     bulk_insert(self.conn, standings[0].table_name, standings)
+
+        raw_winners = get_winners_bracket(self.league_id, client=self.client)
+        raw_losers = get_losers_bracket(self.league_id, client=self.client)
+        winners = normalize_bracket(
+            raw_winners, league_id=self.league_id, season=season, bracket_type="winners"
+        )
+        losers = normalize_bracket(
+            raw_losers, league_id=self.league_id, season=season, bracket_type="losers"
+        )
+        if winners:
+            bulk_insert(self.conn, winners[0].table_name, winners)
+        if losers:
+            bulk_insert(self.conn, losers[0].table_name, losers)
 
         season_context = SeasonContext(
             league_id=self.league_id,
@@ -614,3 +632,27 @@ class SleeperLeagueData:
         if not self.conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
         return run_sql(self.conn, query, params, limit=limit)
+
+    def get_playoff_bracket(self, bracket_type: str | None = None) -> dict[str, Any]:
+        """Get the playoff bracket structure with team names and results.
+
+        Args:
+            bracket_type: "winners" or "losers". If None, returns both brackets.
+
+        See queries.playoffs.get_playoff_bracket for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return query_get_playoff_bracket(self.conn, self.league_id, bracket_type)
+
+    def get_team_playoff_path(self, roster_key: Any) -> dict[str, Any]:
+        """Get a specific team's playoff bracket journey.
+
+        Args:
+            roster_key: Team name, manager name, or roster_id.
+
+        See queries.playoffs.get_team_playoff_path for full return structure.
+        """
+        if not self.conn:
+            raise RuntimeError("Data not loaded. Call load() before querying.")
+        return query_get_team_playoff_path(self.conn, self.league_id, roster_key)
