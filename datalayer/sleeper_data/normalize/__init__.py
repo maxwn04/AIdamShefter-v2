@@ -1,5 +1,6 @@
 """Normalization exports."""
 
+from .bracket import normalize_bracket
 from .league import normalize_league
 from .matchups import derive_games, normalize_matchups
 from .picks import apply_traded_picks, seed_draft_picks
@@ -10,6 +11,7 @@ from .transactions import normalize_transaction_moves, normalize_transactions
 from .users import normalize_users
 
 __all__ = [
+    "normalize_bracket",
     "normalize_league",
     "normalize_users",
     "normalize_rosters",

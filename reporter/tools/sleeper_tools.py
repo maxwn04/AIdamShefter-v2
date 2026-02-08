@@ -49,6 +49,8 @@ class ResearchToolAdapter:
             "get_player_summary": self.data.get_player_summary,
             "get_player_weekly_log": self.data.get_player_weekly_log,
             "get_player_weekly_log_range": self.data.get_player_weekly_log_range,
+            "get_playoff_bracket": self.data.get_playoff_bracket,
+            "get_team_playoff_path": self.data.get_team_playoff_path,
             "run_sql": self.data.run_sql,
         }
 
@@ -145,6 +147,14 @@ TOOL_DOCS = """
 
 - **get_player_weekly_log_range(player_key, week_from, week_to)**: Performance for week range.
   Player stats for a specific week range.
+
+### Playoff Bracket
+
+- **get_playoff_bracket(bracket_type?)**: Full bracket structure with matchups and results.
+  Shows winners and/or losers bracket organized by round. Includes champion and placements.
+
+- **get_team_playoff_path(roster_key)**: A team's playoff journey.
+  Each matchup with opponent, result (win/loss/pending), and final placement.
 
 ### Escape Hatch
 

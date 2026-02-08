@@ -23,6 +23,7 @@ from .league import (
     get_week_player_leaderboard,
 )
 from .player import get_player_summary, get_player_weekly_log, get_player_weekly_log_range
+from .playoffs import get_playoff_bracket, get_team_playoff_path
 from .sql_tool import run_sql
 from .team import get_roster_current, get_roster_snapshot, get_team_dossier, get_team_schedule
 from .transactions import get_team_transactions, get_transactions
@@ -46,6 +47,9 @@ __all__ = [
     "get_player_summary",
     "get_player_weekly_log",
     "get_player_weekly_log_range",
+    # Playoff queries
+    "get_playoff_bracket",
+    "get_team_playoff_path",
     # Transaction queries
     "get_transactions",
     "get_team_transactions",

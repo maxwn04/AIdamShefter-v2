@@ -313,6 +313,39 @@ DDL_REGISTRY: dict[str, TableSpec] = {
             IndexSpec("idx_transaction_moves_roster", ("roster_id",)),
         ),
     ),
+    "playoff_matchups": TableSpec(
+        name="playoff_matchups",
+        columns=(
+            ColumnSpec("league_id", "TEXT", nullable=False),
+            ColumnSpec("season", "TEXT", nullable=False),
+            ColumnSpec("bracket_type", "TEXT", nullable=False),
+            ColumnSpec("round", "INTEGER", nullable=False),
+            ColumnSpec("matchup_id", "INTEGER", nullable=False),
+            ColumnSpec("t1_roster_id", "INTEGER"),
+            ColumnSpec("t2_roster_id", "INTEGER"),
+            ColumnSpec("t1_from_matchup_id", "INTEGER"),
+            ColumnSpec("t1_from_outcome", "TEXT"),
+            ColumnSpec("t2_from_matchup_id", "INTEGER"),
+            ColumnSpec("t2_from_outcome", "TEXT"),
+            ColumnSpec("winner_roster_id", "INTEGER"),
+            ColumnSpec("loser_roster_id", "INTEGER"),
+            ColumnSpec("placement", "INTEGER"),
+        ),
+        primary_key=("league_id", "season", "bracket_type", "matchup_id"),
+        foreign_keys=(
+            ForeignKeySpec(("league_id",), "leagues", ("league_id",)),
+        ),
+        indexes=(
+            IndexSpec(
+                "idx_playoff_matchups_bracket_round",
+                ("league_id", "season", "bracket_type", "round"),
+            ),
+            IndexSpec(
+                "idx_playoff_matchups_winner",
+                ("league_id", "winner_roster_id"),
+            ),
+        ),
+    ),
     "standings": TableSpec(
         name="standings",
         columns=(
@@ -353,6 +386,7 @@ def create_all_tables(conn, table_names: Sequence[str] | None = None) -> None:
         "transactions",
         "transaction_moves",
         "standings",
+        "playoff_matchups",
     )
     tables = table_names or ordered_tables
     for table in tables:

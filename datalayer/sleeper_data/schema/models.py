@@ -189,6 +189,26 @@ class TransactionMove(RowMixin):
 
 
 @dataclass
+class PlayoffMatchup(RowMixin):
+    table_name: ClassVar[str] = "playoff_matchups"
+
+    league_id: str
+    season: str
+    bracket_type: str
+    round: int
+    matchup_id: int
+    t1_roster_id: Optional[int] = None
+    t2_roster_id: Optional[int] = None
+    t1_from_matchup_id: Optional[int] = None
+    t1_from_outcome: Optional[str] = None
+    t2_from_matchup_id: Optional[int] = None
+    t2_from_outcome: Optional[str] = None
+    winner_roster_id: Optional[int] = None
+    loser_roster_id: Optional[int] = None
+    placement: Optional[int] = None
+
+
+@dataclass
 class StandingsWeek(RowMixin):
     table_name: ClassVar[str] = "standings"
 
