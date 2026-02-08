@@ -166,22 +166,57 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
 
     @function_tool
     def get_team_week_transactions(
-        roster_key: str, week: int | None = None
+        roster_key: str,
+        week_from: int | None = None,
+        week_to: int | None = None,
     ) -> dict[str, Any]:
-        """Get a specific team's transactions for a single week.
+        """Get a specific team's transactions for a week or week range.
 
         Use for team-focused transaction analysis—what moves did this
-        team make this week?
+        team make? Defaults to current week if no range specified.
 
         Args:
             roster_key: Team name, manager name, or roster_id.
-            week: Week number (defaults to current week).
+            week_from: Starting week (inclusive). Defaults to current week.
+            week_to: Ending week (inclusive). Defaults to week_from.
         """
         return adapter.call(
             "get_team_week_transactions",
             roster_key=roster_key,
-            week=week,
+            week_from=week_from,
+            week_to=week_to,
         )
+
+    @function_tool
+    def get_bench_analysis(
+        roster_key: str | None = None, week: int | None = None
+    ) -> dict[str, Any] | list[dict[str, Any]]:
+        """Get starter vs bench scoring breakdown for a week.
+
+        League-wide mode (no roster_key): every team's starter/bench totals
+        sorted by bench points. Team-specific mode: adds individual bench
+        player details.
+
+        Args:
+            roster_key: Optional team name, manager name, or roster_id.
+            week: Week number (defaults to current week).
+        """
+        return adapter.call(
+            "get_bench_analysis", roster_key=roster_key, week=week
+        )
+
+    @function_tool
+    def get_standings(week: int | None = None) -> dict[str, Any]:
+        """Get league standings for a specific week.
+
+        Returns standings with records, points, ranks, streaks, and whether
+        league_average_match is enabled. More focused than get_league_snapshot
+        when you only need standings.
+
+        Args:
+            week: Week number (defaults to current week).
+        """
+        return adapter.call("get_standings", week=week)
 
     @function_tool
     def get_player_summary(player_key: str) -> dict[str, Any]:
@@ -242,9 +277,11 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
     # Return all data retrieval tools
     return [
         get_league_snapshot,
+        get_standings,
         get_week_games,
         get_week_games_with_players,
         get_week_player_leaderboard,
+        get_bench_analysis,
         get_week_transactions,
         get_team_dossier,
         get_team_game,

@@ -265,17 +265,27 @@ def get_team_schedule(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
         opponent_points = row.get("points_b") if is_team_a else row.get("points_a")
         opponent_name = row.get("team_b") if is_team_a else row.get("team_a")
 
+        # Try record_string first for result
         result = None
-        winner_id = row.get("winner_roster_id")
-        if winner_id is not None:
-            result = "W" if int(winner_id) == int(roster_id) else "L"
-        elif team_points is not None and opponent_points is not None:
-            if team_points > opponent_points:
-                result = "W"
-            elif team_points < opponent_points:
-                result = "L"
-            else:
-                result = "T"
+        if record_string and week is not None:
+            record_value = "".join(ch for ch in str(record_string).upper() if ch.strip())
+            end_idx = int(week) * chars_per_week
+            start_idx = end_idx - chars_per_week
+            if len(record_value) >= end_idx:
+                result = record_value[start_idx:end_idx]
+
+        # Fall back to game data
+        if result is None:
+            winner_id = row.get("winner_roster_id")
+            if winner_id is not None:
+                result = "W" if int(winner_id) == int(roster_id) else "L"
+            elif team_points is not None and opponent_points is not None:
+                if team_points > opponent_points:
+                    result = "W"
+                elif team_points < opponent_points:
+                    result = "L"
+                else:
+                    result = "T"
 
         entry: dict[str, Any] = {
             "week": week,
@@ -284,11 +294,6 @@ def get_team_schedule(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
             "opponent_points": opponent_points,
             "result": result,
         }
-        if chars_per_week == 2 and record_string and week is not None:
-            record_value = "".join(ch for ch in str(record_string).upper() if ch.strip())
-            cutoff = int(week) * chars_per_week
-            if len(record_value) >= cutoff:
-                entry["result"] = record_value[cutoff - chars_per_week : cutoff]
         record = _record_for_week(int(week)) if week is not None else None
         if record is not None:
             entry["record_after_week"] = record
