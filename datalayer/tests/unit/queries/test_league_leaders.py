@@ -1,6 +1,7 @@
 """Tests for get_season_leaders query function."""
 
-import sqlite3
+import pytest
+from sqlalchemy import create_engine
 
 from datalayer.sleeper_data.queries.league import get_season_leaders
 from datalayer.sleeper_data.schema.models import (
@@ -16,8 +17,15 @@ from datalayer.sleeper_data.store.sqlite_store import bulk_insert, create_tables
 LEAGUE_ID = "test-league"
 
 
-def _make_db():
-    conn = sqlite3.connect(":memory:")
+@pytest.fixture
+def db_conn():
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        _seed_db(conn)
+        yield conn
+
+
+def _seed_db(conn):
     create_tables(conn)
 
     bulk_insert(conn, "leagues", [
@@ -75,12 +83,10 @@ def _make_db():
         ),
     ]
     bulk_insert(conn, "player_performances", perfs)
-    return conn
 
 
-def test_basic_ranking():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID)
+def test_basic_ranking(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID)
 
     assert len(result) == 3
     assert result[0]["rank"] == 1
@@ -90,26 +96,23 @@ def test_basic_ranking():
     assert result[2]["player_name"] == "Tyreek Hill"
 
 
-def test_position_filter():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, position="RB")
+def test_position_filter(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, position="RB")
 
     assert len(result) == 1
     assert result[0]["player_name"] == "Derrick Henry"
     assert result[0]["position"] == "RB"
 
 
-def test_roster_filter():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, roster_key="Beta")
+def test_roster_filter(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, roster_key="Beta")
 
     assert len(result) == 1
     assert result[0]["player_name"] == "Derrick Henry"
 
 
-def test_role_filter():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, role="starter")
+def test_role_filter(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, role="starter")
 
     # Hill has 1 starter week (12) and 1 bench week (8), only starter counts
     hill = [r for r in result if r["player_name"] == "Tyreek Hill"]
@@ -118,50 +121,44 @@ def test_role_filter():
     assert hill[0]["weeks_played"] == 1
 
 
-def test_week_range_filter():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, week_from=2, week_to=3)
+def test_week_range_filter(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, week_from=2, week_to=3)
 
     # Week 2-3: Mahomes 18+30=48, Henry 15, Hill 8
     assert result[0]["player_name"] == "Patrick Mahomes"
     assert result[0]["total_points"] == 48.0
 
 
-def test_sort_by_avg():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, sort_by="avg")
+def test_sort_by_avg(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, sort_by="avg")
 
     # Mahomes avg 73/3=24.33, Henry avg 35/2=17.5, Hill avg 20/2=10.0
     assert result[0]["player_name"] == "Patrick Mahomes"
     assert result[0]["avg_points"] == round(73.0 / 3, 2)
 
 
-def test_limit():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, limit=1)
+def test_limit(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, limit=1)
 
     assert len(result) == 1
     assert result[0]["rank"] == 1
 
 
-def test_limit_hard_cap():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, limit=100)
+def test_limit_hard_cap(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, limit=100)
 
     # Should return all 3 (< 30 cap), not error
     assert len(result) == 3
 
 
-def test_empty_results():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, position="TE")
+def test_empty_results(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, position="TE")
 
     assert result == []
 
 
-def test_stats_accuracy():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID)
+def test_stats_accuracy(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID)
 
     mahomes = result[0]
     assert mahomes["total_points"] == 73.0
@@ -171,24 +168,21 @@ def test_stats_accuracy():
     assert mahomes["worst_week"] == 18.0
 
 
-def test_team_name_shows_most_recent():
+def test_team_name_shows_most_recent(db_conn):
     """team_name should reflect the most recent fantasy team."""
-    conn = _make_db()
     # Mahomes is on Alpha all 3 weeks
-    result = get_season_leaders(conn, LEAGUE_ID, position="QB")
+    result = get_season_leaders(db_conn, LEAGUE_ID, position="QB")
     assert result[0]["team_name"] == "Alpha"
 
 
-def test_roster_key_not_found():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID, roster_key="Nonexistent Team")
+def test_roster_key_not_found(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID, roster_key="Nonexistent Team")
 
     assert result == []
 
 
-def test_nfl_team_present():
-    conn = _make_db()
-    result = get_season_leaders(conn, LEAGUE_ID)
+def test_nfl_team_present(db_conn):
+    result = get_season_leaders(db_conn, LEAGUE_ID)
 
     assert result[0]["nfl_team"] == "KC"
     assert result[1]["nfl_team"] == "BAL"

@@ -1,5 +1,3 @@
-import sqlite3
-
 from datalayer.sleeper_data.queries import get_team_game_with_players
 from datalayer.sleeper_data.queries._resolvers import resolve_player_id
 from datalayer.sleeper_data.schema.models import (
@@ -119,12 +117,11 @@ def _seed_minimal_game(conn):
     bulk_insert(conn, game.table_name, [game])
 
 
-def test_get_team_game_with_players():
-    conn = sqlite3.connect(":memory:")
-    create_tables(conn)
-    _seed_minimal_game(conn)
+def test_get_team_game_with_players(sa_conn):
+    create_tables(sa_conn)
+    _seed_minimal_game(sa_conn)
 
-    result = get_team_game_with_players(conn, "123", 1, roster_key="Alpha")
+    result = get_team_game_with_players(sa_conn, "123", 1, roster_key="Alpha")
 
     assert result["found"] is True
     assert result["as_of_week"] == 1
@@ -132,13 +129,12 @@ def test_get_team_game_with_players():
     assert result["game"]["team_a_players"]
 
 
-def test_resolve_player_id_by_name():
-    conn = sqlite3.connect(":memory:")
-    create_tables(conn)
+def test_resolve_player_id_by_name(sa_conn):
+    create_tables(sa_conn)
     player = Player(player_id="p1", full_name="Player One")
-    bulk_insert(conn, player.table_name, [player])
+    bulk_insert(sa_conn, player.table_name, [player])
 
-    resolved = resolve_player_id(conn, "Player One")
+    resolved = resolve_player_id(sa_conn, "Player One")
 
     assert resolved["found"] is True
     assert resolved["player_id"] == "p1"

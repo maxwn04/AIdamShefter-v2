@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from sqlalchemy import create_engine
 
 from datalayer.sleeper_data.config import SleeperConfig
 
@@ -104,3 +105,11 @@ def monkeypatch_sleeper_api(monkeypatch, sleeper_fixtures):
     )
 
     return sleeper_fixtures
+
+
+@pytest.fixture
+def sa_conn():
+    """Create an in-memory SQLAlchemy engine and yield a connection."""
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        yield conn

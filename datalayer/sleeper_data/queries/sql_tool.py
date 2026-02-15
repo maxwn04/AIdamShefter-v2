@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping
 
+from sqlalchemy import text
+
 
 _DISALLOWED = re.compile(
     r"\b(pragma|attach|detach|insert|update|delete|drop|alter|create|replace)\b",
@@ -87,7 +89,7 @@ def run_sql(
     """
     _ensure_select_only(query)
     sql = _ensure_limit(query, limit)
-    cur = conn.execute(sql, params or {})
-    columns = [col[0] for col in cur.description]
-    rows = cur.fetchall()
+    result = conn.execute(text(sql), params or {})
+    columns = list(result.keys())
+    rows = [tuple(row) for row in result.all()]
     return {"columns": columns, "rows": rows, "row_count": len(rows)}

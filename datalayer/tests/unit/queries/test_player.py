@@ -1,6 +1,7 @@
 """Tests for player query functions."""
 
-import sqlite3
+import pytest
+from sqlalchemy import create_engine
 
 from datalayer.sleeper_data.queries.player import get_player_weekly_log
 from datalayer.sleeper_data.schema.models import (
@@ -16,8 +17,15 @@ from datalayer.sleeper_data.store.sqlite_store import bulk_insert, create_tables
 LEAGUE_ID = "test-league"
 
 
-def _make_db():
-    conn = sqlite3.connect(":memory:")
+@pytest.fixture
+def db_conn():
+    engine = create_engine("sqlite://")
+    with engine.begin() as conn:
+        _seed_db(conn)
+        yield conn
+
+
+def _seed_db(conn):
     create_tables(conn)
 
     bulk_insert(conn, "leagues", [
@@ -54,12 +62,10 @@ def _make_db():
         ),
     ]
     bulk_insert(conn, "player_performances", perfs)
-    return conn
 
 
-def test_full_season():
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Patrick Mahomes")
+def test_full_season(db_conn):
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Patrick Mahomes")
 
     assert result["found"] is True
     assert result["player_name"] == "Patrick Mahomes"
@@ -71,9 +77,8 @@ def test_full_season():
     assert "week_to" not in result
 
 
-def test_with_week_range():
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Patrick Mahomes", week_from=2, week_to=3)
+def test_with_week_range(db_conn):
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Patrick Mahomes", week_from=2, week_to=3)
 
     assert result["found"] is True
     assert result["weeks_played"] == 2
@@ -82,9 +87,8 @@ def test_with_week_range():
     assert result["week_to"] == 3
 
 
-def test_with_only_week_from():
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Patrick Mahomes", week_from=2)
+def test_with_only_week_from(db_conn):
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Patrick Mahomes", week_from=2)
 
     assert result["found"] is True
     assert result["weeks_played"] == 2
@@ -93,9 +97,8 @@ def test_with_only_week_from():
     assert "week_to" not in result
 
 
-def test_with_only_week_to():
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Patrick Mahomes", week_to=1)
+def test_with_only_week_to(db_conn):
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Patrick Mahomes", week_to=1)
 
     assert result["found"] is True
     assert result["weeks_played"] == 1
@@ -104,17 +107,15 @@ def test_with_only_week_to():
     assert result["week_to"] == 1
 
 
-def test_player_not_found():
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Nobody Real")
+def test_player_not_found(db_conn):
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Nobody Real")
 
     assert result["found"] is False
 
 
-def test_team_name_present():
+def test_team_name_present(db_conn):
     """Verify the fantasy team name appears in each performance row."""
-    conn = _make_db()
-    result = get_player_weekly_log(conn, LEAGUE_ID, "Patrick Mahomes")
+    result = get_player_weekly_log(db_conn, LEAGUE_ID, "Patrick Mahomes")
 
     teams = [p["team_name"] for p in result["performances"]]
     assert teams == ["Alpha", "Alpha", "Beta"]

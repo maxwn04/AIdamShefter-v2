@@ -5,7 +5,7 @@ def test_load_pipeline_and_queries(monkeypatch_sleeper_api, sleeper_config):
     data = SleeperLeagueData(config=sleeper_config)
     data.load()
 
-    assert data.conn is not None
+    assert data.engine is not None
 
     snapshot = data.get_league_snapshot()
     assert snapshot["found"] is True
@@ -30,8 +30,8 @@ def test_load_populates_bracket_data(monkeypatch_sleeper_api, sleeper_config):
     data.load()
 
     # Verify bracket data is in the database
-    rows = data.conn.execute("SELECT COUNT(*) FROM playoff_matchups").fetchone()
-    assert rows[0] > 0
+    result = data.run_sql("SELECT COUNT(*) as cnt FROM playoff_matchups")
+    assert result["rows"][0][0] > 0
 
     # Verify bracket query works
     bracket = data.get_playoff_bracket()

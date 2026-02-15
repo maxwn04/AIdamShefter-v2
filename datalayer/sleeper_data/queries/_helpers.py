@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping
 
+from sqlalchemy import text
+
 # Position order for sorting (standard fantasy football order)
 POSITION_ORDER = {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "DEF": 5}
 POSITIONS = ["qb", "rb", "wr", "te", "k", "def"]
@@ -14,19 +16,15 @@ _TEAM_PROFILE_EXCLUDE = {"avatar_url"}
 
 def fetch_all(conn, sql: str, params: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Execute SQL and return all rows as list of dicts."""
-    cur = conn.execute(sql, params or {})
-    columns = [col[0] for col in cur.description]
-    return [dict(zip(columns, row)) for row in cur.fetchall()]
+    result = conn.execute(text(sql), params or {})
+    return [dict(row) for row in result.mappings().all()]
 
 
 def fetch_one(conn, sql: str, params: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
     """Execute SQL and return first row as dict, or None."""
-    cur = conn.execute(sql, params or {})
-    row = cur.fetchone()
-    if not row:
-        return None
-    columns = [col[0] for col in cur.description]
-    return dict(zip(columns, row))
+    result = conn.execute(text(sql), params or {})
+    row = result.mappings().first()
+    return dict(row) if row else None
 
 
 def normalize_lookup_key(value: Any) -> str:
