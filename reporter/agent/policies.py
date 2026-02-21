@@ -114,7 +114,7 @@ def validate_tool_call_phase(
 
     if phase == "verify":
         # Only allow limited verification tools
-        allowed = {"get_team_game", "get_week_games", "run_sql"}
+        allowed = {"team_game", "week_games", "run_sql"}
         if tool_name not in allowed:
             return False, f"Tool {tool_name} not allowed during verification"
 

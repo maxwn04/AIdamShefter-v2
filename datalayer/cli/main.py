@@ -84,9 +84,9 @@ def _build_tool_help() -> str:
         "  exit | quit         - Exit the app",
         "",
         "Parameters can be passed positionally or as key=value pairs:",
-        "  get_team_dossier Schefter",
-        "  get_team_dossier roster_key=Schefter week=5",
-        '  get_player_summary player_key="Patrick Mahomes"',
+        "  team_dossier Schefter",
+        "  team_dossier roster_key=Schefter week=5",
+        '  player_summary player_key="Patrick Mahomes"',
         "",
     ])
     return "\n".join(lines)

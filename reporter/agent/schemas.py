@@ -35,7 +35,7 @@ class Fact(BaseModel):
     claim_text: str = Field(description="Human-readable statement of the fact")
     data_refs: list[str] = Field(
         default_factory=list,
-        description="Tool calls that sourced this fact, e.g. 'get_week_games:week=5'",
+        description="Tool calls that sourced this fact, e.g. 'week_games:week=5'",
     )
     numbers: dict[str, Any] = Field(
         default_factory=dict,

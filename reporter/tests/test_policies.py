@@ -119,12 +119,12 @@ class TestGetBiasFramingRules:
 
 class TestValidateToolCallPhase:
     def test_research_phase_allows_all(self):
-        is_allowed, error = validate_tool_call_phase("get_league_snapshot", "research")
+        is_allowed, error = validate_tool_call_phase("league_snapshot", "research")
         assert is_allowed
         assert error is None
 
     def test_draft_phase_blocks_all(self):
-        is_allowed, error = validate_tool_call_phase("get_league_snapshot", "draft")
+        is_allowed, error = validate_tool_call_phase("league_snapshot", "draft")
         assert not is_allowed
         assert "drafting" in error.lower()
 
@@ -134,7 +134,7 @@ class TestValidateToolCallPhase:
         assert is_allowed
 
         # Not allowed
-        is_allowed, error = validate_tool_call_phase("get_team_dossier", "verify")
+        is_allowed, error = validate_tool_call_phase("team_dossier", "verify")
         assert not is_allowed
 
 

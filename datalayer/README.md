@@ -22,31 +22,27 @@
 The interactive app uses the same tool names as the agent API. Parameters can be passed positionally or as `key=value` pairs.
 
 **League-wide:**
-- `get_league_snapshot [week]`
-- `get_standings [week]`
-- `get_week_games [week]`
-- `get_week_games_with_players [week]`
-- `get_week_player_leaderboard [week] [limit]`
-- `get_season_leaders [week_from] [week_to] [position] [roster_key] [role] [sort_by] [limit]`
-- `get_bench_analysis [roster_key] [week]`
-- `get_transactions <week_from> <week_to>`
-- `get_week_transactions [week]`
-- `get_playoff_bracket [bracket_type]`
+- `league_snapshot [week]`
+- `standings [week]`
+- `week_games [week]`
+- `week_player_leaderboard [week] [limit]`
+- `season_leaders [week_from] [week_to] [position] [roster_key] [role] [sort_by] [limit]`
+- `bench_analysis [roster_key] [week]`
+- `transactions <week_from> <week_to>`
+- `playoff_bracket [bracket_type]`
 
 **Team-specific:**
-- `get_team_dossier <roster_key> [week]`
-- `get_team_schedule <roster_key>`
-- `get_team_game <roster_key> [week]`
-- `get_team_game_with_players <roster_key> [week]`
-- `get_roster_current <roster_key>`
-- `get_roster_snapshot <roster_key> <week>`
-- `get_team_transactions <roster_key> <week_from> <week_to>`
-- `get_team_week_transactions <roster_key> [week_from] [week_to]`
-- `get_team_playoff_path <roster_key>`
+- `team_dossier <roster_key> [week]`
+- `team_schedule <roster_key>`
+- `team_game <roster_key> [week]`
+- `roster_current <roster_key>`
+- `roster_snapshot <roster_key> <week>`
+- `team_transactions <roster_key> <week_from> <week_to>`
+- `team_playoff_path <roster_key>`
 
 **Player-specific:**
-- `get_player_summary <player_key>`
-- `get_player_weekly_log <player_key> [week_from] [week_to]`
+- `player_summary <player_key>`
+- `player_weekly_log <player_key> [week_from] [week_to]`
 
 **Other:**
 - `run_sql <query> [limit]` — SELECT-only, auto-limited
