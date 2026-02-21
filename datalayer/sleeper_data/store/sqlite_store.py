@@ -5,14 +5,15 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 from typing import Any, Iterable, Mapping
 
-from ..schema.ddl import create_all_tables
+from sqlalchemy import text
+
+from ..schema.tables import metadata
 
 
 def create_tables(conn) -> None:
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = MEMORY;")
-    conn.execute("PRAGMA temp_store = MEMORY;")
-    create_all_tables(conn)
+    conn.execute(text("PRAGMA journal_mode = MEMORY"))
+    conn.execute(text("PRAGMA temp_store = MEMORY"))
+    metadata.create_all(conn.engine)
 
 
 def _normalize_row(row: Any) -> Mapping[str, Any]:
@@ -26,22 +27,14 @@ def _normalize_row(row: Any) -> Mapping[str, Any]:
 
 
 def bulk_insert(conn, table: str, rows: Iterable[Any]) -> int:
-    normalized = []
-    for row in rows:
-        row_data = dict(_normalize_row(row))
-        for key, value in row_data.items():
-            if isinstance(value, bool):
-                row_data[key] = int(value)
-        normalized.append(row_data)
+    normalized = [dict(_normalize_row(row)) for row in rows]
 
     if not normalized:
         return 0
 
     columns = list(normalized[0].keys())
-    placeholders = ", ".join(["?"] * len(columns))
+    placeholders = ", ".join(f":{col}" for col in columns)
     col_list = ", ".join(columns)
-    sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders});"
-    values = [tuple(row[col] for col in columns) for row in normalized]
-    conn.executemany(sql, values)
-    conn.commit()
-    return len(values)
+    sql = text(f"INSERT INTO {table} ({col_list}) VALUES ({placeholders})")
+    conn.execute(sql, normalized)
+    return len(normalized)

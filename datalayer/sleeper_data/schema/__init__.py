@@ -1,4 +1,4 @@
-"""Schema models and DDL helpers."""
+"""Schema models and SQLAlchemy table definitions."""
 
 from .models import (
     Game,
@@ -14,7 +14,7 @@ from .models import (
     TransactionMove,
     User,
 )
-from .ddl import DDL_REGISTRY, create_all_tables
+from .tables import metadata
 
 __all__ = [
     "Game",
@@ -29,6 +29,5 @@ __all__ = [
     "Transaction",
     "TransactionMove",
     "User",
-    "DDL_REGISTRY",
-    "create_all_tables",
+    "metadata",
 ]

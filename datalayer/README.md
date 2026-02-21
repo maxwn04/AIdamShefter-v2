@@ -19,14 +19,46 @@
 
 ### App Commands
 
-- `snapshot [week]`
-- `games [week]`
-- `team <roster_key> [week]` — accepts team name, manager name, or roster_id
-- `roster <roster_key> [week]`
+The interactive app uses the same tool names as the agent API. Parameters can be passed positionally or as `key=value` pairs.
+
+**League-wide:**
+- `league_snapshot [week]`
+- `standings [week]`
+- `week_games [week]`
+- `week_player_leaderboard [week] [limit]`
+- `season_leaders [week_from] [week_to] [position] [roster_key] [role] [sort_by] [limit]`
+- `bench_analysis [roster_key] [week]`
 - `transactions <week_from> <week_to>`
-- `player <player_key> [week_to]` — accepts player name or player_id
-- `sql <select_query>`
-- `help`, `exit`, `quit`
+- `playoff_bracket [bracket_type]`
+
+**Team-specific:**
+- `team_dossier <roster_key> [week]`
+- `team_schedule <roster_key>`
+- `team_game <roster_key> [week]`
+- `roster_current <roster_key>`
+- `roster_snapshot <roster_key> <week>`
+- `team_transactions <roster_key> <week_from> <week_to>`
+- `team_playoff_path <roster_key>`
+
+**Player-specific:**
+- `player_summary <player_key>`
+- `player_weekly_log <player_key> [week_from] [week_to]`
+
+**Other:**
+- `run_sql <query> [limit]` — SELECT-only, auto-limited
+- `save [output_path]` — export SQLite file
+- `tools` / `help` — show available commands
+- `exit` / `quit`
+
+All `roster_key` parameters accept team name, manager name, or roster_id. All `player_key` parameters accept player name or player_id. Resolution is case-insensitive.
+
+### SQLite Storage
+
+The database uses **SQLAlchemy** with an **in-memory SQLite** backend (`create_engine("sqlite://")`). Data is fetched fresh from the Sleeper API on every `load()` call and is not persisted to disk unless you explicitly export it:
+
+- CLI: `sleeperdl load-export --output out.sqlite`
+- App: `save [output_path]` (defaults to `.cache/sleeper/<league_id>.sqlite`)
+- Code: `data.save_to_file("out.sqlite")`
 
 ### Programmatic Usage
 

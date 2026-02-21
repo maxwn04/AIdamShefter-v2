@@ -1,16 +1,15 @@
-import sqlite3
+from sqlalchemy import text
 
 from datalayer.sleeper_data.store.sqlite_store import create_tables
 
 
-def test_create_tables_and_indexes():
-    conn = sqlite3.connect(":memory:")
-    create_tables(conn)
+def test_create_tables_and_indexes(sa_conn):
+    create_tables(sa_conn)
 
     tables = {
         row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table';"
+        for row in sa_conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type = 'table'")
         ).fetchall()
     }
     assert "leagues" in tables
@@ -19,8 +18,8 @@ def test_create_tables_and_indexes():
 
     indexes = {
         row[0]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'index';"
+        for row in sa_conn.execute(
+            text("SELECT name FROM sqlite_master WHERE type = 'index'")
         ).fetchall()
     }
     assert "idx_rosters_league_roster" in indexes

@@ -133,7 +133,7 @@ class ResearchAgent:
         lines.extend(
             [
                 "",
-                "Begin by getting the league snapshot with get_league_snapshot().",
+                "Begin by getting the league snapshot with league_snapshot().",
                 "Continue researching until you have enough material for a compelling article.",
                 "Then output the complete ReportBrief JSON.",
             ]

@@ -30,27 +30,23 @@ class ResearchToolAdapter:
     def _build_handlers(self) -> dict[str, Callable[..., Any]]:
         """Map tool names to datalayer methods."""
         return {
-            "get_league_snapshot": self.data.get_league_snapshot,
-            "get_week_games": self.data.get_week_games,
-            "get_week_games_with_players": self.data.get_week_games_with_players,
-            "get_week_player_leaderboard": self.data.get_week_player_leaderboard,
-            "get_season_leaders": self.data.get_season_leaders,
-            "get_transactions": self.data.get_transactions,
-            "get_week_transactions": self.data.get_week_transactions,
-            "get_team_dossier": self.data.get_team_dossier,
-            "get_team_game": self.data.get_team_game,
-            "get_team_game_with_players": self.data.get_team_game_with_players,
-            "get_team_schedule": self.data.get_team_schedule,
-            "get_roster_current": self.data.get_roster_current,
-            "get_roster_snapshot": self.data.get_roster_snapshot,
-            "get_team_transactions": self.data.get_team_transactions,
-            "get_team_week_transactions": self.data.get_team_week_transactions,
-            "get_bench_analysis": self.data.get_bench_analysis,
-            "get_standings": self.data.get_standings,
-            "get_player_summary": self.data.get_player_summary,
-            "get_player_weekly_log": self.data.get_player_weekly_log,
-            "get_playoff_bracket": self.data.get_playoff_bracket,
-            "get_team_playoff_path": self.data.get_team_playoff_path,
+            "league_snapshot": self.data.get_league_snapshot,
+            "week_games": self.data.get_week_games_with_players,
+            "week_player_leaderboard": self.data.get_week_player_leaderboard,
+            "season_leaders": self.data.get_season_leaders,
+            "transactions": self.data.get_transactions,
+            "team_dossier": self.data.get_team_dossier,
+            "team_game": self.data.get_team_game_with_players,
+            "team_schedule": self.data.get_team_schedule,
+            "roster_current": self.data.get_roster_current,
+            "roster_snapshot": self.data.get_roster_snapshot,
+            "team_transactions": self.data.get_team_transactions,
+            "bench_analysis": self.data.get_bench_analysis,
+            "standings": self.data.get_standings,
+            "player_summary": self.data.get_player_summary,
+            "player_weekly_log": self.data.get_player_weekly_log,
+            "playoff_bracket": self.data.get_playoff_bracket,
+            "team_playoff_path": self.data.get_team_playoff_path,
             "run_sql": self.data.run_sql,
         }
 
@@ -90,72 +86,67 @@ TOOL_DOCS = """
 
 ### League-Wide Context
 
-- **get_league_snapshot(week?)**: Standings, games, and transactions for a week.
+- **league_snapshot(week?)**: Standings, games, and transactions for a week.
   Returns comprehensive league state including standings, all matchups, and transaction activity.
   This is your best starting point to understand the week.
 
-- **get_week_games(week?)**: All matchups with scores and winners.
-  Returns list of games with team names, scores, and win/loss indicators.
+- **week_games(week?)**: Matchups with player-by-player breakdown.
+  Detailed view showing game results and which players scored what for each team.
 
-- **get_week_games_with_players(week?)**: Matchups with player-by-player breakdown.
-  Detailed view showing which players scored what for each team.
-
-- **get_week_player_leaderboard(week?, limit?)**: Top scorers ranked by points.
+- **week_player_leaderboard(week?, limit?)**: Top scorers ranked by points.
   Get the highest-scoring players across all teams.
 
-- **get_season_leaders(week_from?, week_to?, position?, roster_key?, role?, sort_by?, limit?)**:
+- **season_leaders(week_from?, week_to?, position?, roster_key?, role?, sort_by?, limit?)**:
   Season-long player rankings by total or average points. Filter by position, team,
   week range, or starter role. Use for MVP candidates and season stat leaders.
 
-- **get_standings(week?)**: League standings with records, points, ranks, streaks.
-  Includes league_average_match flag. More focused than get_league_snapshot when
+- **standings(week?)**: League standings with records, points, ranks, streaks.
+  Includes league_average_match flag. More focused than league_snapshot when
   you only need standings.
 
-- **get_bench_analysis(roster_key?, week?)**: Starter vs bench scoring breakdown.
+- **bench_analysis(roster_key?, week?)**: Starter vs bench scoring breakdown.
   League-wide mode shows every team's starter/bench totals. Team-specific mode
   adds individual bench player details.
 
-- **get_week_transactions(week?)**: Trades, waivers, and FA pickups for a week.
-  All roster moves for the specified week.
+- **transactions(week_from, week_to)**: Trades, waivers, and FA pickups in a week range.
+  All roster moves for the specified weeks. For a single week, pass the same value
+  for both week_from and week_to.
 
 ### Team-Specific
 
-- **get_team_dossier(roster_key, week?)**: Profile, standings, and recent games.
+- **team_dossier(roster_key, week?)**: Profile, standings, and recent games.
   Comprehensive team overview including record, streak, and recent matchups.
 
-- **get_team_game(roster_key, week?)**: Specific team's matchup result.
-  Single game details for one team.
-
-- **get_team_game_with_players(roster_key, week?)**: Team matchup with player details.
+- **team_game(roster_key, week?)**: Team matchup with player-by-player details.
   Game result plus player-by-player scoring breakdown.
 
-- **get_team_schedule(roster_key)**: Full season schedule with W/L/T.
+- **team_schedule(roster_key)**: Full season schedule with W/L/T.
   Complete game-by-game results for the season.
 
-- **get_roster_current(roster_key)**: Current roster by position.
+- **roster_current(roster_key)**: Current roster by position.
   Active roster organized by starter/bench slots.
 
-- **get_roster_snapshot(roster_key, week)**: Historical roster for specific week.
+- **roster_snapshot(roster_key, week)**: Historical roster for specific week.
   What the roster looked like during a past week.
 
-- **get_team_week_transactions(roster_key, week_from?, week_to?)**: Team's transactions.
-  What moves did this team make? Defaults to current week, or specify a range.
+- **team_transactions(roster_key, week_from, week_to)**: Team's transactions in a week range.
+  What moves did this team make? Pass the same week for both params for a single week.
 
 ### Player-Specific
 
-- **get_player_summary(player_key)**: Metadata (position, team, status, injury).
+- **player_summary(player_key)**: Metadata (position, team, status, injury).
   Basic player information.
 
-- **get_player_weekly_log(player_key, week_from?, week_to?)**: Fantasy performance log.
+- **player_weekly_log(player_key, week_from?, week_to?)**: Fantasy performance log.
   Week-by-week fantasy points. Omit week params for full season, or pass a range
   to focus on a stretch (e.g., after a trade, during playoffs).
 
 ### Playoff Bracket
 
-- **get_playoff_bracket(bracket_type?)**: Full bracket structure with matchups and results.
+- **playoff_bracket(bracket_type?)**: Full bracket structure with matchups and results.
   Shows winners and/or losers bracket organized by round. Includes champion and placements.
 
-- **get_team_playoff_path(roster_key)**: A team's playoff journey.
+- **team_playoff_path(roster_key)**: A team's playoff journey.
   Each matchup with opponent, result (win/loss/pending), and final placement.
 
 ### Escape Hatch

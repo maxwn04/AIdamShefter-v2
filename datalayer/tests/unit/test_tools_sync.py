@@ -17,6 +17,20 @@ from datalayer.tools import SLEEPER_TOOLS, create_tool_handlers
 # Methods on SleeperLeagueData that are NOT tools (infrastructure, not queries)
 NON_TOOL_METHODS = {"load", "save_to_file"}
 
+# Methods that were consolidated into other tools and have no direct tool definition
+CONSOLIDATED_METHODS = {
+    "get_week_games",           # subsumed by week_games (maps to get_week_games_with_players)
+    "get_team_game",            # subsumed by team_game (maps to get_team_game_with_players)
+    "get_week_transactions",    # use transactions(week, week)
+    "get_team_week_transactions",  # use team_transactions(roster, week, week)
+}
+
+# Tool names that map to a differently-named method (tool_name -> method_name)
+TOOL_TO_METHOD = {
+    "week_games": "get_week_games_with_players",
+    "team_game": "get_team_game_with_players",
+}
+
 
 def _get_query_methods() -> dict[str, inspect.Signature]:
     """Return public query methods on SleeperLeagueData (name -> signature)."""
@@ -43,6 +57,13 @@ def _get_tool_by_name(name: str) -> dict | None:
     return None
 
 
+def _tool_to_method_name(tool_name: str) -> str:
+    """Map a tool name to its corresponding SleeperLeagueData method name."""
+    if tool_name in TOOL_TO_METHOD:
+        return TOOL_TO_METHOD[tool_name]
+    return f"get_{tool_name}" if tool_name != "run_sql" else "run_sql"
+
+
 class TestToolsCoverAllQueryMethods:
     """Every public query method on SleeperLeagueData should have a tool definition."""
 
@@ -50,7 +71,11 @@ class TestToolsCoverAllQueryMethods:
         query_methods = _get_query_methods()
         tool_names = _get_tool_names()
 
-        missing = set(query_methods.keys()) - tool_names
+        # Map tool names to the method names they cover
+        covered_methods = {_tool_to_method_name(t) for t in tool_names}
+
+        # Methods not covered by any tool and not in the consolidated set
+        missing = set(query_methods.keys()) - covered_methods - CONSOLIDATED_METHODS
         assert missing == set(), (
             f"Query methods missing from SLEEPER_TOOLS: {sorted(missing)}. "
             "Add tool definitions for these methods in datalayer/tools.py."
@@ -61,7 +86,12 @@ class TestToolsCoverAllQueryMethods:
         query_methods = _get_query_methods()
         tool_names = _get_tool_names()
 
-        orphans = tool_names - set(query_methods.keys())
+        orphans = set()
+        for tool_name in tool_names:
+            method_name = _tool_to_method_name(tool_name)
+            if method_name not in query_methods:
+                orphans.add(tool_name)
+
         assert orphans == set(), (
             f"SLEEPER_TOOLS references non-existent methods: {sorted(orphans)}. "
             "Remove these tool definitions or add the methods to SleeperLeagueData."
@@ -81,11 +111,12 @@ class TestToolParametersMatchSignatures:
         for tool in SLEEPER_TOOLS:
             func_def = tool["function"]
             tool_name = func_def["name"]
+            method_name = _tool_to_method_name(tool_name)
 
-            if tool_name not in query_methods:
+            if method_name not in query_methods:
                 continue  # Caught by orphan test
 
-            sig = query_methods[tool_name]
+            sig = query_methods[method_name]
             # Skip 'self' parameter
             method_params = {
                 name: param

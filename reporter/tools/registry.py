@@ -20,7 +20,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
     # ==========================================================================
 
     @function_tool
-    def get_league_snapshot(week: int | None = None) -> dict[str, Any]:
+    def league_snapshot(week: int | None = None) -> dict[str, Any]:
         """Get league standings, games, and transactions for a week.
 
         This is typically your FIRST call—gives you broad context to identify
@@ -30,34 +30,22 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             week: Week number (defaults to current week).
         """
-        return adapter.call("get_league_snapshot", week=week)
+        return adapter.call("league_snapshot", week=week)
 
     @function_tool
-    def get_week_games(week: int | None = None) -> list[dict[str, Any]]:
-        """Get all matchup games for a week with scores and winners.
-
-        Use this to see all game results at a glance. Good for identifying
-        upsets, blowouts, and close games.
-
-        Args:
-            week: Week number (defaults to current week).
-        """
-        return adapter.call("get_week_games", week=week)
-
-    @function_tool
-    def get_week_games_with_players(week: int | None = None) -> list[dict[str, Any]]:
+    def week_games(week: int | None = None) -> list[dict[str, Any]]:
         """Get all matchup games with player-by-player breakdowns.
 
-        Detailed view showing which players scored what for each team.
-        Use when you need to identify standout performers across all games.
+        Detailed view showing game results and which players scored what
+        for each team. Use to identify standout performers across all games.
 
         Args:
             week: Week number (defaults to current week).
         """
-        return adapter.call("get_week_games_with_players", week=week)
+        return adapter.call("week_games", week=week)
 
     @function_tool
-    def get_week_player_leaderboard(
+    def week_player_leaderboard(
         week: int | None = None, limit: int = 10
     ) -> list[dict[str, Any]]:
         """Get top-scoring players for a week, ranked by points.
@@ -71,22 +59,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         """
         # Cap limit to prevent huge outputs
         capped_limit = min(limit, 25)
-        return adapter.call("get_week_player_leaderboard", week=week, limit=capped_limit)
+        return adapter.call("week_player_leaderboard", week=week, limit=capped_limit)
 
     @function_tool
-    def get_week_transactions(week: int | None = None) -> list[dict[str, Any]]:
-        """Get all trades, waivers, and FA pickups for a single week.
-
-        Use to find transaction storylines—big trades, waiver wire finds,
-        questionable moves.
-
-        Args:
-            week: Week number (defaults to current week).
-        """
-        return adapter.call("get_week_transactions", week=week)
-
-    @function_tool
-    def get_team_dossier(
+    def team_dossier(
         roster_key: str, week: int | None = None
     ) -> dict[str, Any]:
         """Get team profile, standings, and recent games.
@@ -98,24 +74,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
             roster_key: Team name, manager name, or roster_id.
             week: Week for standings context (defaults to current).
         """
-        return adapter.call("get_team_dossier", roster_key=roster_key, week=week)
+        return adapter.call("team_dossier", roster_key=roster_key, week=week)
 
     @function_tool
-    def get_team_game(roster_key: str, week: int | None = None) -> dict[str, Any]:
-        """Get a specific team's game result for a week.
-
-        Use when you want to focus on one side of a matchup.
-
-        Args:
-            roster_key: Team name, manager name, or roster_id.
-            week: Week number (defaults to current week).
-        """
-        return adapter.call("get_team_game", roster_key=roster_key, week=week)
-
-    @function_tool
-    def get_team_game_with_players(
-        roster_key: str, week: int | None = None
-    ) -> dict[str, Any]:
+    def team_game(roster_key: str, week: int | None = None) -> dict[str, Any]:
         """Get a team's game with player-by-player breakdown.
 
         Use when investigating WHY a team won or lost—see which players
@@ -126,11 +88,11 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
             week: Week number (defaults to current week).
         """
         return adapter.call(
-            "get_team_game_with_players", roster_key=roster_key, week=week
+            "team_game", roster_key=roster_key, week=week
         )
 
     @function_tool
-    def get_team_schedule(roster_key: str) -> dict[str, Any]:
+    def team_schedule(roster_key: str) -> dict[str, Any]:
         """Get a team's full season schedule with game-by-game results.
 
         Use for analyzing season arcs, streaks, and trends over time.
@@ -138,10 +100,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             roster_key: Team name, manager name, or roster_id.
         """
-        return adapter.call("get_team_schedule", roster_key=roster_key)
+        return adapter.call("team_schedule", roster_key=roster_key)
 
     @function_tool
-    def get_roster_current(roster_key: str) -> dict[str, Any]:
+    def roster_current(roster_key: str) -> dict[str, Any]:
         """Get a team's current roster organized by position.
 
         Use for roster composition analysis—who's starting, who's on bench.
@@ -149,10 +111,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             roster_key: Team name, manager name, or roster_id.
         """
-        return adapter.call("get_roster_current", roster_key=roster_key)
+        return adapter.call("roster_current", roster_key=roster_key)
 
     @function_tool
-    def get_roster_snapshot(roster_key: str, week: int) -> dict[str, Any]:
+    def roster_snapshot(roster_key: str, week: int) -> dict[str, Any]:
         """Get a team's roster as it was during a specific week.
 
         Use for historical roster analysis—what did the roster look like
@@ -162,33 +124,54 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
             roster_key: Team name, manager name, or roster_id.
             week: The week number to query.
         """
-        return adapter.call("get_roster_snapshot", roster_key=roster_key, week=week)
+        return adapter.call("roster_snapshot", roster_key=roster_key, week=week)
 
     @function_tool
-    def get_team_week_transactions(
+    def transactions(
+        week_from: int,
+        week_to: int,
+    ) -> list[dict[str, Any]]:
+        """Get all trades, waivers, and FA pickups in a week range.
+
+        Use to find transaction storylines—big trades, waiver wire finds,
+        questionable moves. For a single week, pass the same value for
+        both week_from and week_to.
+
+        Args:
+            week_from: Starting week (inclusive).
+            week_to: Ending week (inclusive).
+        """
+        return adapter.call(
+            "transactions",
+            week_from=week_from,
+            week_to=week_to,
+        )
+
+    @function_tool
+    def team_transactions(
         roster_key: str,
-        week_from: int | None = None,
-        week_to: int | None = None,
+        week_from: int,
+        week_to: int,
     ) -> dict[str, Any]:
-        """Get a specific team's transactions for a week or week range.
+        """Get a specific team's transactions in a week range.
 
         Use for team-focused transaction analysis—what moves did this
-        team make? Defaults to current week if no range specified.
+        team make?
 
         Args:
             roster_key: Team name, manager name, or roster_id.
-            week_from: Starting week (inclusive). Defaults to current week.
-            week_to: Ending week (inclusive). Defaults to week_from.
+            week_from: Starting week (inclusive).
+            week_to: Ending week (inclusive).
         """
         return adapter.call(
-            "get_team_week_transactions",
+            "team_transactions",
             roster_key=roster_key,
             week_from=week_from,
             week_to=week_to,
         )
 
     @function_tool
-    def get_bench_analysis(
+    def bench_analysis(
         roster_key: str | None = None, week: int | None = None
     ) -> dict[str, Any] | list[dict[str, Any]]:
         """Get starter vs bench scoring breakdown for a week.
@@ -202,24 +185,24 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
             week: Week number (defaults to current week).
         """
         return adapter.call(
-            "get_bench_analysis", roster_key=roster_key, week=week
+            "bench_analysis", roster_key=roster_key, week=week
         )
 
     @function_tool
-    def get_standings(week: int | None = None) -> dict[str, Any]:
+    def standings(week: int | None = None) -> dict[str, Any]:
         """Get league standings for a specific week.
 
         Returns standings with records, points, ranks, streaks, and whether
-        league_average_match is enabled. More focused than get_league_snapshot
+        league_average_match is enabled. More focused than league_snapshot
         when you only need standings.
 
         Args:
             week: Week number (defaults to current week).
         """
-        return adapter.call("get_standings", week=week)
+        return adapter.call("standings", week=week)
 
     @function_tool
-    def get_season_leaders(
+    def season_leaders(
         week_from: int | None = None,
         week_to: int | None = None,
         position: str | None = None,
@@ -244,7 +227,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         """
         capped_limit = min(max(limit, 1), 30)
         return adapter.call(
-            "get_season_leaders",
+            "season_leaders",
             week_from=week_from,
             week_to=week_to,
             position=position,
@@ -255,7 +238,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         )
 
     @function_tool
-    def get_player_summary(player_key: str) -> dict[str, Any]:
+    def player_summary(player_key: str) -> dict[str, Any]:
         """Get basic metadata about an NFL player.
 
         Use for quick player info—position, NFL team, injury status.
@@ -263,10 +246,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             player_key: Player name or player_id.
         """
-        return adapter.call("get_player_summary", player_key=player_key)
+        return adapter.call("player_summary", player_key=player_key)
 
     @function_tool
-    def get_player_weekly_log(
+    def player_weekly_log(
         player_key: str,
         week_from: int | None = None,
         week_to: int | None = None,
@@ -283,14 +266,14 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
             week_to: Ending week (inclusive). Omit for full season.
         """
         return adapter.call(
-            "get_player_weekly_log",
+            "player_weekly_log",
             player_key=player_key,
             week_from=week_from,
             week_to=week_to,
         )
 
     @function_tool
-    def get_playoff_bracket(
+    def playoff_bracket(
         bracket_type: str | None = None,
     ) -> dict[str, Any]:
         """Get the playoff bracket structure with team names and results.
@@ -301,10 +284,10 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             bracket_type: "winners" or "losers". Omit to get both brackets.
         """
-        return adapter.call("get_playoff_bracket", bracket_type=bracket_type)
+        return adapter.call("playoff_bracket", bracket_type=bracket_type)
 
     @function_tool
-    def get_team_playoff_path(roster_key: str) -> dict[str, Any]:
+    def team_playoff_path(roster_key: str) -> dict[str, Any]:
         """Get a specific team's playoff bracket journey.
 
         Shows each matchup with opponent, result (win/loss/pending), and
@@ -313,7 +296,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         Args:
             roster_key: Team name, manager name, or roster_id.
         """
-        return adapter.call("get_team_playoff_path", roster_key=roster_key)
+        return adapter.call("team_playoff_path", roster_key=roster_key)
 
     @function_tool
     def run_sql(query: str, limit: int = 200) -> dict[str, Any]:
@@ -330,24 +313,22 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
 
     # Return all data retrieval tools
     return [
-        get_league_snapshot,
-        get_standings,
-        get_week_games,
-        get_week_games_with_players,
-        get_week_player_leaderboard,
-        get_season_leaders,
-        get_bench_analysis,
-        get_week_transactions,
-        get_team_dossier,
-        get_team_game,
-        get_team_game_with_players,
-        get_team_schedule,
-        get_roster_current,
-        get_roster_snapshot,
-        get_team_week_transactions,
-        get_playoff_bracket,
-        get_team_playoff_path,
-        get_player_summary,
-        get_player_weekly_log,
+        league_snapshot,
+        standings,
+        week_games,
+        week_player_leaderboard,
+        season_leaders,
+        bench_analysis,
+        transactions,
+        team_dossier,
+        team_game,
+        team_schedule,
+        roster_current,
+        roster_snapshot,
+        team_transactions,
+        playoff_bracket,
+        team_playoff_path,
+        player_summary,
+        player_weekly_log,
         run_sql,
     ]

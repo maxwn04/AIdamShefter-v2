@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import sqlite3
 from typing import Any
+
+from sqlalchemy import text
 
 from ..schema.models import DraftPick, Roster
 
@@ -58,7 +59,7 @@ def seed_draft_picks(
 
 
 def apply_traded_picks(
-    conn: sqlite3.Connection,
+    conn,
     raw_traded_picks: list[dict[str, Any]] | None,
     league_id: str,
 ) -> None:
@@ -87,14 +88,14 @@ def apply_traded_picks(
             continue
 
         conn.execute(
-            """
+            text("""
             UPDATE draft_picks
             SET current_roster_id = :current_roster_id
             WHERE league_id = :league_id
               AND season = :season
               AND round = :round
               AND original_roster_id = :original_roster_id
-            """,
+            """),
             {
                 "current_roster_id": int(owner_id),
                 "league_id": league_id,

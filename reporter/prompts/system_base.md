@@ -39,7 +39,7 @@ Use the available tools to gather data. Build a ReportBrief containing:
 - **Outline**: Section-by-section plan for the article
 
 During research:
-- Start with context pack tools (get_league_snapshot) for broad coverage
+- Start with context pack tools (league_snapshot) for broad coverage
 - Follow up with targeted tools for details
 - Record every relevant fact you discover
 - Identify 2-5 compelling storylines

@@ -7,7 +7,7 @@ def test_week_override_updates_season_context(monkeypatch_sleeper_api):
     data = SleeperLeagueData(config=config)
     data.load()
 
-    row = data.conn.execute(
+    result = data.run_sql(
         "SELECT computed_week, override_week, effective_week FROM season_context LIMIT 1"
-    ).fetchone()
-    assert row == (2, 1, 1)
+    )
+    assert result["rows"][0] == (2, 1, 1)

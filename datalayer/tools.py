@@ -30,7 +30,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_league_snapshot",
+            "name": "league_snapshot",
             "description": "Get a comprehensive snapshot of the league for a specific week. Returns standings, all matchup results, and transactions. Use this to get a high-level view of league state.",
             "parameters": {
                 "type": "object",
@@ -47,8 +47,8 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_week_games",
-            "description": "Get all matchup games for a specific week with scores and winners. Returns a list of head-to-head matchups.",
+            "name": "week_games",
+            "description": "Get all matchup games for a specific week with full player-by-player breakdowns. Use this to see game results and analyze individual player contributions to each game.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -64,45 +64,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_week_games_with_players",
-            "description": "Get all matchup games for a specific week with full player-by-player breakdowns. Use this when you need to analyze individual player contributions to each game.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "week": {
-                        "type": "integer",
-                        "description": "Week number (1-18). Omit for current week."
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_team_game",
-            "description": "Get a specific team's game for a week. Returns the matchup with opponent, scores, and winner.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "roster_key": {
-                        "type": "string",
-                        "description": "Team identifier: team name (e.g., 'Schefter'), manager name, or roster_id as string."
-                    },
-                    "week": {
-                        "type": "integer",
-                        "description": "Week number (1-18). Omit for current week."
-                    }
-                },
-                "required": ["roster_key"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_team_game_with_players",
+            "name": "team_game",
             "description": "Get a specific team's game for a week with full player-by-player breakdowns. Use this to analyze how each player contributed to the team's score.",
             "parameters": {
                 "type": "object",
@@ -123,7 +85,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_week_player_leaderboard",
+            "name": "week_player_leaderboard",
             "description": "Get the top-scoring players for a specific week, ranked by fantasy points. Use this to identify standout performances and weekly MVPs.",
             "parameters": {
                 "type": "object",
@@ -144,7 +106,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_team_dossier",
+            "name": "team_dossier",
             "description": "Get a comprehensive profile of a team including standings, record, streak, and last 5 games. Use this to understand a team's current situation and recent trajectory.",
             "parameters": {
                 "type": "object",
@@ -165,7 +127,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_team_schedule",
+            "name": "team_schedule",
             "description": "Get the full season schedule for a team with game-by-game results. Shows all games with opponent, scores, results (W/L/T), and cumulative record after each week.",
             "parameters": {
                 "type": "object",
@@ -182,7 +144,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_roster_current",
+            "name": "roster_current",
             "description": "Get a team's current roster composition. Returns all players organized by role (starter/bench) and position, plus draft picks owned.",
             "parameters": {
                 "type": "object",
@@ -199,7 +161,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_roster_snapshot",
+            "name": "roster_snapshot",
             "description": "Get a team's roster as it was during a specific week. Returns players with their points scored that week, organized by role and position. Use for historical lineup analysis.",
             "parameters": {
                 "type": "object",
@@ -220,7 +182,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_transactions",
+            "name": "transactions",
             "description": "Get all transactions (trades, waivers, free agent pickups) in a week range. Returns grouped transactions showing what each team sent and received.",
             "parameters": {
                 "type": "object",
@@ -241,24 +203,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_week_transactions",
-            "description": "Get all transactions (trades, waivers, free agent pickups) for a single week. Convenience wrapper around get_transactions for single-week queries.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "week": {
-                        "type": "integer",
-                        "description": "Week number (1-18). Omit for current week."
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_team_transactions",
+            "name": "team_transactions",
             "description": "Get a specific team's transactions in a week range. Returns trades, waivers, and FA pickups for that team only.",
             "parameters": {
                 "type": "object",
@@ -283,32 +228,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_team_week_transactions",
-            "description": "Get a specific team's transactions for a week or week range. Defaults to current week if no range specified.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "roster_key": {
-                        "type": "string",
-                        "description": "Team identifier: team name (e.g., 'Schefter'), manager name, or roster_id as string."
-                    },
-                    "week_from": {
-                        "type": "integer",
-                        "description": "Starting week (inclusive). Defaults to current week."
-                    },
-                    "week_to": {
-                        "type": "integer",
-                        "description": "Ending week (inclusive). Defaults to week_from."
-                    }
-                },
-                "required": ["roster_key"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_bench_analysis",
+            "name": "bench_analysis",
             "description": "Get starter vs bench scoring breakdown for a week. League-wide mode shows every team's starter/bench totals sorted by bench points. Team-specific mode adds individual bench player details.",
             "parameters": {
                 "type": "object",
@@ -329,7 +249,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_standings",
+            "name": "standings",
             "description": "Get league standings for a specific week. Includes wins, losses, ties, record, points_for, rank, streak info, and whether league_average_match is enabled.",
             "parameters": {
                 "type": "object",
@@ -346,7 +266,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_player_summary",
+            "name": "player_summary",
             "description": "Get basic metadata about an NFL player. Returns position, NFL team, status, and injury information.",
             "parameters": {
                 "type": "object",
@@ -363,7 +283,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_player_weekly_log",
+            "name": "player_weekly_log",
             "description": "Get a player's fantasy performance log. Returns week-by-week points, role (starter/bench), and which fantasy team rostered them. Includes totals and averages. Optionally filter to a week range (e.g., performance after a trade, during playoffs).",
             "parameters": {
                 "type": "object",
@@ -388,7 +308,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_season_leaders",
+            "name": "season_leaders",
             "description": "Get top players for the season ranked by total or average fantasy points. Aggregates across all weeks by default, or filter to a week range, position, team, or role. Use this for season-long stat rankings, MVP candidates, or position-specific leaderboards.",
             "parameters": {
                 "type": "object",
@@ -431,7 +351,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_playoff_bracket",
+            "name": "playoff_bracket",
             "description": "Get the playoff bracket structure with team names, matchup results, and progression. Shows winners and/or losers bracket organized by round. Includes champion and placement information when available.",
             "parameters": {
                 "type": "object",
@@ -449,7 +369,7 @@ SLEEPER_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_team_playoff_path",
+            "name": "team_playoff_path",
             "description": "Get a specific team's playoff journey showing each matchup, opponent, result (win/loss/pending), and final placement. Shows whether the team is eliminated or is the champion.",
             "parameters": {
                 "type": "object",
@@ -502,30 +422,26 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         handlers = create_tool_handlers(data)
 
         # When agent calls a tool:
-        result = handlers["get_team_dossier"](roster_key="Schefter")
+        result = handlers["team_dossier"](roster_key="Schefter")
     """
     return {
-        "get_league_snapshot": lambda week=None: data.get_league_snapshot(week),
-        "get_week_games": lambda week=None: data.get_week_games(week),
-        "get_week_games_with_players": lambda week=None: data.get_week_games_with_players(week),
-        "get_team_game": lambda roster_key, week=None: data.get_team_game(roster_key, week),
-        "get_team_game_with_players": lambda roster_key, week=None: data.get_team_game_with_players(roster_key, week),
-        "get_week_player_leaderboard": lambda week=None, limit=10: data.get_week_player_leaderboard(week, limit),
-        "get_team_dossier": lambda roster_key, week=None: data.get_team_dossier(roster_key, week),
-        "get_team_schedule": lambda roster_key: data.get_team_schedule(roster_key),
-        "get_roster_current": lambda roster_key: data.get_roster_current(roster_key),
-        "get_roster_snapshot": lambda roster_key, week: data.get_roster_snapshot(roster_key, week),
-        "get_transactions": lambda week_from, week_to: data.get_transactions(week_from, week_to),
-        "get_week_transactions": lambda week=None: data.get_week_transactions(week),
-        "get_team_transactions": lambda roster_key, week_from, week_to: data.get_team_transactions(roster_key, week_from, week_to),
-        "get_team_week_transactions": lambda roster_key, week_from=None, week_to=None: data.get_team_week_transactions(roster_key, week_from=week_from, week_to=week_to),
-        "get_bench_analysis": lambda roster_key=None, week=None: data.get_bench_analysis(roster_key, week),
-        "get_standings": lambda week=None: data.get_standings(week),
-        "get_player_summary": lambda player_key: data.get_player_summary(player_key),
-        "get_player_weekly_log": lambda player_key, week_from=None, week_to=None: data.get_player_weekly_log(player_key, week_from=week_from, week_to=week_to),
-        "get_season_leaders": lambda week_from=None, week_to=None, position=None, roster_key=None, role=None, sort_by="total", limit=10: data.get_season_leaders(week_from=week_from, week_to=week_to, position=position, roster_key=roster_key, role=role, sort_by=sort_by, limit=limit),
-        "get_playoff_bracket": lambda bracket_type=None: data.get_playoff_bracket(bracket_type),
-        "get_team_playoff_path": lambda roster_key: data.get_team_playoff_path(roster_key),
+        "league_snapshot": lambda week=None: data.get_league_snapshot(week),
+        "week_games": lambda week=None: data.get_week_games_with_players(week),
+        "team_game": lambda roster_key, week=None: data.get_team_game_with_players(roster_key, week),
+        "week_player_leaderboard": lambda week=None, limit=10: data.get_week_player_leaderboard(week, limit),
+        "team_dossier": lambda roster_key, week=None: data.get_team_dossier(roster_key, week),
+        "team_schedule": lambda roster_key: data.get_team_schedule(roster_key),
+        "roster_current": lambda roster_key: data.get_roster_current(roster_key),
+        "roster_snapshot": lambda roster_key, week: data.get_roster_snapshot(roster_key, week),
+        "transactions": lambda week_from, week_to: data.get_transactions(week_from, week_to),
+        "team_transactions": lambda roster_key, week_from, week_to: data.get_team_transactions(roster_key, week_from, week_to),
+        "bench_analysis": lambda roster_key=None, week=None: data.get_bench_analysis(roster_key, week),
+        "standings": lambda week=None: data.get_standings(week),
+        "player_summary": lambda player_key: data.get_player_summary(player_key),
+        "player_weekly_log": lambda player_key, week_from=None, week_to=None: data.get_player_weekly_log(player_key, week_from=week_from, week_to=week_to),
+        "season_leaders": lambda week_from=None, week_to=None, position=None, roster_key=None, role=None, sort_by="total", limit=10: data.get_season_leaders(week_from=week_from, week_to=week_to, position=position, roster_key=roster_key, role=role, sort_by=sort_by, limit=limit),
+        "playoff_bracket": lambda bracket_type=None: data.get_playoff_bracket(bracket_type),
+        "team_playoff_path": lambda roster_key: data.get_team_playoff_path(roster_key),
         "run_sql": lambda query, limit=200: data.run_sql(query, limit=limit),
     }
 

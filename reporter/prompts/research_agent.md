@@ -14,7 +14,7 @@ Your tool calls and reasoning are automatically logged for debugging - just focu
 
 ### Phase 1: Broad Context
 
-Start with `get_league_snapshot(week=N)` to get the lay of the land:
+Start with `league_snapshot(week=N)` to get the lay of the land:
 
 - Current standings
 - All game results
@@ -36,10 +36,10 @@ Look for:
 
 Use targeted tools to investigate interesting findings:
 
-- `get_team_game_with_players()` for player-level analysis
-- `get_team_dossier()` for team context
-- `get_player_weekly_log()` for player trends
-- `get_transactions()` for trade storylines
+- `team_game()` for player-level analysis
+- `team_dossier()` for team context
+- `player_weekly_log()` for player trends
+- `transactions()` for trade storylines
 
 ### Phase 4: Synthesize
 
@@ -135,13 +135,13 @@ After researching, produce a ReportBrief with:
 ## Example Research Flow
 
 ```
-1. get_league_snapshot(week=8)
+1. league_snapshot(week=8)
    → See that Team Underdog (3-4) beat Team Favorite (6-1) by 44 points
 
-2. get_team_game_with_players(roster_key="Team Underdog", week=8)
+2. team_game(roster_key="Team Underdog", week=8)
    → Josh Allen scored 38.7, season high
 
-3. get_team_dossier(roster_key="Team Underdog", week=8)
+3. team_dossier(roster_key="Team Underdog", week=8)
    → Team is now on a 3-game winning streak
 
 4. Continue investigating other games and storylines...
