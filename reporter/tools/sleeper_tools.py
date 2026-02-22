@@ -21,11 +21,14 @@ class ResearchToolAdapter:
         data: SleeperLeagueData,
         *,
         research_log: Optional[ResearchLog] = None,
+        extra_handlers: Optional[dict[str, Callable[..., Any]]] = None,
     ):
         self.data = data
         # Use provided log or create a new one
         self.log = research_log or ResearchLog()
         self._handlers = self._build_handlers()
+        if extra_handlers:
+            self._handlers.update(extra_handlers)
 
     def _build_handlers(self) -> dict[str, Callable[..., Any]]:
         """Map tool names to datalayer methods."""

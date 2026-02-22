@@ -9,7 +9,10 @@ from typing import Any, Optional
 
 from agents import Agent, Runner, AgentOutputSchema
 
+from datalayer.context_store import ContextStore
+from datalayer.context_tools import create_context_tool_handlers
 from datalayer.sleeper_data import SleeperLeagueData
+from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 
 from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
 from reporter.agent.research_log import ResearchLog
@@ -59,19 +62,34 @@ class ResearchAgent:
         *,
         model: str = "gpt-5-mini",
         log_path: Optional[Path] = None,
+        context_store: Optional[ContextStore] = None,
     ):
         self.data = data
         self.config = config
         self.model = model
         self.log_path = log_path
+        self.context_store = context_store
 
         # Create research log and set up streaming if path provided
         self.research_log = ResearchLog()
         if log_path:
             self.research_log.start_streaming(log_path)
 
+        # Build context tool handlers if store is available
+        extra_handlers: dict[str, Any] | None = None
+        if context_store and data._query_conn:
+            week = config.time_range.week_end
+            resolve_fn = lambda key: resolve_roster_id(
+                data._query_conn, data.league_id, key
+            )
+            extra_handlers = create_context_tool_handlers(
+                context_store, week=week, resolve_roster_fn=resolve_fn
+            )
+
         # Create adapter with the shared log
-        self.adapter = ResearchToolAdapter(data, research_log=self.research_log)
+        self.adapter = ResearchToolAdapter(
+            data, research_log=self.research_log, extra_handlers=extra_handlers
+        )
         self.tools = create_tool_registry(self.adapter)
 
     def _build_system_prompt(self) -> str:
@@ -343,9 +361,11 @@ class ReporterAgent:
         data: SleeperLeagueData,
         *,
         model: str = "gpt-5-mini",
+        context_store: Optional[ContextStore] = None,
     ):
         self.data = data
         self.model = model
+        self.context_store = context_store
 
     async def run(
         self,
@@ -422,7 +442,9 @@ class ReporterAgent:
         )
 
         # Phase 1: Research
-        research_agent = ResearchAgent(self.data, config, model=self.model)
+        research_agent = ResearchAgent(
+            self.data, config, model=self.model, context_store=self.context_store
+        )
         brief, research_log = await research_agent.research()
 
         # Phase 2: Draft
@@ -454,9 +476,20 @@ class ReporterAgent:
         Returns:
             ArticleOutput with article, config, brief, and research log.
         """
+        # Mark stale storylines before research
+        if self.context_store:
+            week = config.time_range.week_end
+            stale_count = self.context_store.mark_stale(week)
+            if stale_count:
+                print(f"  Marked {stale_count} storyline(s) as stale")
+
         # Phase 1: Research
         research_agent = ResearchAgent(
-            self.data, config, model=self.model, log_path=log_path
+            self.data,
+            config,
+            model=self.model,
+            log_path=log_path,
+            context_store=self.context_store,
         )
         brief, research_log = await research_agent.research()
 

@@ -30,6 +30,12 @@ class ReporterConfig(BaseModel):
         default=Path(".output"), description="Directory for generated articles"
     )
 
+    # Persistent data
+    data_dir: Path = Field(
+        default=Path(".data"),
+        description="Directory for persistent data (context.db)",
+    )
+
     # Tracing
     tracing_enabled: bool = Field(default=True, description="Enable tracing")
 

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from datalayer.context_store import ContextStore
 from datalayer.sleeper_data import SleeperLeagueData
 
 from reporter.agent.clarify import ClarificationAgent
@@ -41,6 +42,12 @@ Examples:
         help="Week number (defaults to current week)",
     )
     parser.add_argument(
+        "--league",
+        "-l",
+        default=None,
+        help="Sleeper league ID (defaults to SLEEPER_LEAGUE_ID env)",
+    )
+    parser.add_argument(
         "--model",
         default=None,
         help="Model to use (default: from config or gpt-5-mini)",
@@ -49,7 +56,12 @@ Examples:
     return parser.parse_args()
 
 
-async def run(prompt: str, week: Optional[int] = None, config=None) -> None:
+async def run(
+    prompt: str,
+    week: Optional[int] = None,
+    config=None,
+    league_id: Optional[str] = None,
+) -> None:
     """Run the reporter agent flow."""
     print()
     print("=" * 60)
@@ -59,15 +71,31 @@ async def run(prompt: str, week: Optional[int] = None, config=None) -> None:
 
     # Load data
     print("Loading league data...")
-    data = SleeperLeagueData()
+    data = SleeperLeagueData(league_id=league_id)
     data.load()
 
     # Get current week if not specified
     if week is None:
         week = data.effective_week
 
+    # Set up persistent context store
+    data_dir = config.data_dir if config else Path(".data")
+    season = ""
+    if data._query_conn:
+        from sqlalchemy import text
+        row = data._query_conn.execute(text("SELECT season FROM leagues LIMIT 1")).first()
+        if row:
+            season = row[0]
+    context_store = ContextStore(
+        db_path=data_dir / "context.db",
+        league_id=data.league_id,
+        season=season,
+    )
+
     print(f"League: {data.league_id}")
+    print(f"Season: {season}")
     print(f"Current week: {week}")
+    print(f"Context DB: {data_dir / 'context.db'}")
 
     # Phase 1: Clarification
     print()
@@ -130,7 +158,7 @@ async def run(prompt: str, week: Optional[int] = None, config=None) -> None:
     print(f"  Run in another terminal: tail -f {log_path}")
     print()
 
-    reporter = ReporterAgent(data, model=model)
+    reporter = ReporterAgent(data, model=model, context_store=context_store)
     output = await reporter.run_with_config(report_config, log_path=log_path)
 
     # Show research summary
@@ -199,7 +227,7 @@ def main() -> None:
             print("No prompt provided. Exiting.")
             sys.exit(1)
 
-    asyncio.run(run(prompt, args.week, config))
+    asyncio.run(run(prompt, args.week, config, league_id=args.league))
 
 
 if __name__ == "__main__":
