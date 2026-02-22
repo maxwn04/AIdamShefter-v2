@@ -16,12 +16,19 @@ class ResearchToolAdapter:
     focuses on executing data retrieval and logging the tool start with params.
     """
 
+    # Tool call budget defaults. The soft limit triggers a nudge in tool
+    # results telling the agent to wrap up; the hard limit is passed to
+    # Runner.run_streamed() as max_turns.
+    DEFAULT_SOFT_LIMIT = 40
+    DEFAULT_HARD_LIMIT = 50
+
     def __init__(
         self,
         data: SleeperLeagueData,
         *,
         research_log: Optional[ResearchLog] = None,
         extra_handlers: Optional[dict[str, Callable[..., Any]]] = None,
+        soft_limit: int = DEFAULT_SOFT_LIMIT,
     ):
         self.data = data
         # Use provided log or create a new one
@@ -29,6 +36,9 @@ class ResearchToolAdapter:
         self._handlers = self._build_handlers()
         if extra_handlers:
             self._handlers.update(extra_handlers)
+        self._tool_call_count = 0
+        self._soft_limit = soft_limit
+        self._nudged = False
 
     def _build_handlers(self) -> dict[str, Callable[..., Any]]:
         """Map tool names to datalayer methods."""
@@ -62,7 +72,9 @@ class ResearchToolAdapter:
         """Execute a data retrieval tool.
 
         Tool start/end logging is handled by the stream event loop in
-        ResearchAgent.research(), not here.
+        ResearchAgent.research(), not here. When the tool call count
+        exceeds the soft limit, a system note is appended to the result
+        asking the agent to wrap up research and output the brief.
         """
         if tool_name not in self._handlers:
             return {
@@ -71,8 +83,25 @@ class ResearchToolAdapter:
                 "available_tools": self.available_tools,
             }
 
+        self._tool_call_count += 1
         handler = self._handlers[tool_name]
-        return handler(**kwargs)
+        result = handler(**kwargs)
+
+        if self._tool_call_count >= self._soft_limit and not self._nudged:
+            self._nudged = True
+            remaining = ResearchToolAdapter.DEFAULT_HARD_LIMIT - self._tool_call_count
+            note = (
+                f"[SYSTEM NOTE: You have used {self._tool_call_count} tool calls. "
+                f"You have roughly {remaining} remaining before the hard limit. "
+                "Please save your context (storylines, team context) and "
+                "output the ReportBrief now. Do not start new research threads.]"
+            )
+            if isinstance(result, dict):
+                result["_system_note"] = note
+            elif isinstance(result, list):
+                result = {"data": result, "_system_note": note}
+
+        return result
 
     def get_research_log(self) -> ResearchLog:
         """Return the complete research log."""

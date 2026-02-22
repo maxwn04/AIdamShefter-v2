@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from agents import Agent, Runner, AgentOutputSchema
+from agents.exceptions import MaxTurnsExceeded
 
 from datalayer.context_store import ContextStore
 from datalayer.context_tools import create_context_tool_handlers
@@ -21,6 +22,12 @@ from reporter.agent.schemas import (
     ArticleOutput,
 )
 from reporter.tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
+
+_WRAP_UP_INSTRUCTION = (
+    "You have reached the maximum number of research turns. "
+    "Please output the ReportBrief now using whatever research you have "
+    "gathered so far. Do not make any more tool calls."
+)
 from reporter.tools.registry import create_tool_registry
 
 
@@ -183,8 +190,12 @@ class ResearchAgent:
         tool_start_times: dict[str, float] = {}
         tool_call_names: dict[str, str] = {}
 
+        hard_limit = ResearchToolAdapter.DEFAULT_HARD_LIMIT
+
         try:
-            stream = Runner.run_streamed(agent, user_prompt, max_turns=30)
+            stream = Runner.run_streamed(
+                agent, user_prompt, max_turns=hard_limit
+            )
 
             async for event in stream.stream_events():
                 if event.type != "run_item_stream_event":
@@ -265,6 +276,41 @@ class ResearchAgent:
                 self.research_log.add_output(f"ReportBrief generated: {preview}...")
 
             return stream.final_output, self.research_log
+
+        except MaxTurnsExceeded:
+            print()
+            print(f"  Research hit the {hard_limit}-turn limit.")
+            print("  Running a wrap-up pass to produce the brief...")
+            self.research_log.add_reasoning(
+                f"Hit {hard_limit}-turn limit. Running wrap-up pass."
+            )
+
+            # Run a second, short pass with no tools — just ask the agent
+            # to synthesize what it has into a ReportBrief.
+            wrap_agent = Agent(
+                name="researcher_wrapup",
+                instructions=system_prompt,
+                model=self.model,
+                tools=[],
+                output_type=AgentOutputSchema(
+                    ReportBrief, strict_json_schema=False
+                ),
+            )
+
+            # Build input from the original prompt + wrap-up instruction
+            wrap_input = (
+                f"{user_prompt}\n\n---\n\n{_WRAP_UP_INSTRUCTION}"
+            )
+            wrap_result = await Runner.run(wrap_agent, wrap_input)
+
+            if wrap_result.final_output:
+                preview = str(wrap_result.final_output)[:200]
+                self.research_log.add_output(
+                    f"ReportBrief (wrap-up): {preview}..."
+                )
+
+            return wrap_result.final_output, self.research_log
+
         finally:
             # Always close the streaming file
             self.research_log.stop_streaming()
