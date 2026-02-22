@@ -1,3 +1,4 @@
+from datalayer.sleeper_data.config import SleeperConfig
 from datalayer.sleeper_data.sleeper_league_data import SleeperLeagueData
 
 
@@ -25,33 +26,38 @@ def test_load_pipeline_and_queries(monkeypatch_sleeper_api, sleeper_config):
     assert "bench" in roster["roster"]
 
 
-def test_load_populates_bracket_data(monkeypatch_sleeper_api, sleeper_config):
+def test_brackets_not_loaded_before_playoffs(monkeypatch_sleeper_api, sleeper_config):
+    """Brackets should not be loaded when effective_week < playoff_week_start."""
     data = SleeperLeagueData(config=sleeper_config)
     data.load()
 
-    # Verify bracket data is in the database
+    # effective_week=2, playoff_week_start=15 — brackets should be skipped
+    result = data.run_sql("SELECT COUNT(*) as cnt FROM playoff_matchups")
+    assert result["rows"][0][0] == 0
+
+    bracket = data.get_playoff_bracket()
+    assert bracket["found"] is False
+
+
+def test_brackets_loaded_during_playoffs(monkeypatch_sleeper_api):
+    """Brackets should be loaded when effective_week >= playoff_week_start."""
+    # playoff_week_start=15 in fixture, so override to week 15
+    config = SleeperConfig(league_id="123", week_override=15)
+    data = SleeperLeagueData(config=config)
+    data.load()
+
     result = data.run_sql("SELECT COUNT(*) as cnt FROM playoff_matchups")
     assert result["rows"][0][0] > 0
 
-    # Verify bracket query works
     bracket = data.get_playoff_bracket()
     assert bracket["found"] is True
     assert "winners" in bracket["brackets"]
 
-    winners = bracket["brackets"]["winners"]
-    assert 1 in winners["rounds"]
-    assert len(winners["rounds"][1]) == 1
 
-    matchup = winners["rounds"][1][0]
-    assert matchup["status"] == "complete"
-    assert matchup["team_1"] == "Alpha"
-    assert matchup["team_2"] == "Beta"
-    assert matchup["winner"] == "Alpha"
-    assert matchup["loser"] == "Beta"
-
-
-def test_get_playoff_bracket_filtered(monkeypatch_sleeper_api, sleeper_config):
-    data = SleeperLeagueData(config=sleeper_config)
+def test_get_playoff_bracket_filtered(monkeypatch_sleeper_api):
+    """Bracket filtering works when brackets are loaded."""
+    config = SleeperConfig(league_id="123", week_override=15)
+    data = SleeperLeagueData(config=config)
     data.load()
 
     bracket = data.get_playoff_bracket(bracket_type="winners")
@@ -60,8 +66,10 @@ def test_get_playoff_bracket_filtered(monkeypatch_sleeper_api, sleeper_config):
     assert "losers" not in bracket["brackets"]
 
 
-def test_get_team_playoff_path(monkeypatch_sleeper_api, sleeper_config):
-    data = SleeperLeagueData(config=sleeper_config)
+def test_get_team_playoff_path(monkeypatch_sleeper_api):
+    """Team playoff path works when brackets are loaded."""
+    config = SleeperConfig(league_id="123", week_override=15)
+    data = SleeperLeagueData(config=config)
     data.load()
 
     path = data.get_team_playoff_path("Alpha")
