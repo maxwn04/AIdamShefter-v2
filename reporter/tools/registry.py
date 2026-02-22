@@ -9,6 +9,92 @@ from agents import function_tool
 from reporter.tools.sleeper_tools import ResearchToolAdapter
 
 
+def create_context_tools(adapter: ResearchToolAdapter) -> list[Callable]:
+    """Create OpenAI Agents SDK tools for persistent context operations."""
+
+    @function_tool
+    def get_league_memory() -> dict[str, Any]:
+        """Get persistent context: active storylines, team narratives, and league notes.
+
+        Call this FIRST before researching to understand ongoing narratives
+        from previous weeks. Returns storylines, team context, and league-wide
+        notes from previous runs.
+        """
+        return adapter.call("get_league_memory")
+
+    @function_tool
+    def save_storyline(
+        id: str,
+        headline: str,
+        summary: str,
+        status: str,
+        priority: int = 2,
+        tags: list[str] | None = None,
+        team_keys: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Save a persistent storyline that carries across weeks.
+
+        Use for multi-week narrative arcs (comeback seasons, rivalry matchups,
+        trade impacts). Set status to 'resolved' when the arc is complete.
+
+        Args:
+            id: Storyline ID. Use existing ID to update, or new ID to create.
+            headline: Catchy headline for the storyline.
+            summary: 2-3 sentence narrative summary.
+            status: 'active' or 'resolved'.
+            priority: 1=lead story, 5=minor mention.
+            tags: Tags like 'streak', 'trade', 'rivalry'.
+            team_keys: Team names or roster_ids involved.
+        """
+        return adapter.call(
+            "save_storyline",
+            id=id,
+            headline=headline,
+            summary=summary,
+            status=status,
+            priority=priority,
+            tags=tags,
+            team_keys=team_keys,
+        )
+
+    @function_tool
+    def save_team_context(
+        roster_key: str,
+        narrative: str,
+        outlook: str | None = None,
+    ) -> dict[str, Any]:
+        """Save running narrative context for a team.
+
+        This is your memory of the team's situation — strategy, trajectory,
+        key storylines. Replaces the previous note for this team.
+
+        Args:
+            roster_key: Team name, manager name, or roster_id.
+            narrative: Free-text summary of the team's current situation.
+            outlook: 'rebuilding', 'contending', 'middling', 'surging', or 'fading'.
+        """
+        return adapter.call(
+            "save_team_context",
+            roster_key=roster_key,
+            narrative=narrative,
+            outlook=outlook,
+        )
+
+    @function_tool
+    def save_league_note(key: str, value: str) -> dict[str, Any]:
+        """Save a league-wide contextual note.
+
+        Uses key-value pairs — same key overwrites previous value.
+
+        Args:
+            key: Note key: 'season_theme', 'trade_activity', 'rivalry_notes', or custom.
+            value: Free-text content for the note.
+        """
+        return adapter.call("save_league_note", key=key, value=value)
+
+    return [get_league_memory, save_storyline, save_team_context, save_league_note]
+
+
 def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
     """Create OpenAI Agents SDK tools from the ResearchToolAdapter.
 
@@ -312,7 +398,7 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         return adapter.call("run_sql", query=query, limit=limit)
 
     # Return all data retrieval tools
-    return [
+    tools = [
         league_snapshot,
         standings,
         week_games,
@@ -332,3 +418,9 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         player_weekly_log,
         run_sql,
     ]
+
+    # Add context tools if context handlers are registered
+    if "get_league_memory" in adapter.available_tools:
+        tools.extend(create_context_tools(adapter))
+
+    return tools

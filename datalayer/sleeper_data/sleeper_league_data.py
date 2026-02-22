@@ -233,6 +233,8 @@ class SleeperLeagueData:
                         for week, wins, losses, ties in _record_string_to_weeks(
                             record_string
                         ):
+                            if week > effective_week:
+                                break
                             if (
                                 playoff_week_start is not None
                                 and week >= playoff_week_start
@@ -283,24 +285,32 @@ class SleeperLeagueData:
                     if standings:
                         bulk_insert(conn, standings[0].table_name, standings)
 
-            raw_winners = get_winners_bracket(self.league_id, client=self.client)
-            raw_losers = get_losers_bracket(self.league_id, client=self.client)
-            winners = normalize_bracket(
-                raw_winners,
-                league_id=self.league_id,
-                season=season,
-                bracket_type="winners",
+            # Only load playoff brackets if we've reached the playoff weeks.
+            # Loading them earlier would leak future results when using
+            # week_override to view a mid-season snapshot.
+            should_load_brackets = (
+                playoff_week_start is None
+                or effective_week >= playoff_week_start
             )
-            losers = normalize_bracket(
-                raw_losers,
-                league_id=self.league_id,
-                season=season,
-                bracket_type="losers",
-            )
-            if winners:
-                bulk_insert(conn, winners[0].table_name, winners)
-            if losers:
-                bulk_insert(conn, losers[0].table_name, losers)
+            if should_load_brackets:
+                raw_winners = get_winners_bracket(self.league_id, client=self.client)
+                raw_losers = get_losers_bracket(self.league_id, client=self.client)
+                winners = normalize_bracket(
+                    raw_winners,
+                    league_id=self.league_id,
+                    season=season,
+                    bracket_type="winners",
+                )
+                losers = normalize_bracket(
+                    raw_losers,
+                    league_id=self.league_id,
+                    season=season,
+                    bracket_type="losers",
+                )
+                if winners:
+                    bulk_insert(conn, winners[0].table_name, winners)
+                if losers:
+                    bulk_insert(conn, losers[0].table_name, losers)
 
             season_context = SeasonContext(
                 league_id=self.league_id,
@@ -658,6 +668,10 @@ class SleeperLeagueData:
     def get_roster_current(self, roster_key: Any) -> dict[str, Any]:
         """Get a team's current roster organized by position.
 
+        When week_override is set, returns the roster as it was during the
+        override week (via player_performances) instead of the current API
+        snapshot, to avoid leaking future trades and roster moves.
+
         Args:
             roster_key: Team name, manager name, or roster_id.
 
@@ -665,6 +679,10 @@ class SleeperLeagueData:
         """
         if not self._query_conn:
             raise RuntimeError("Data not loaded. Call load() before querying.")
+        if self.week_override is not None and self.effective_week is not None:
+            return get_roster_snapshot(
+                self._query_conn, self.league_id, roster_key, self.effective_week
+            )
         return get_roster_current(self._query_conn, self.league_id, roster_key)
 
     def get_roster_snapshot(self, roster_key: Any, week: int) -> dict[str, Any]:

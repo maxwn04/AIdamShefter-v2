@@ -8,8 +8,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 from agents import Agent, Runner, AgentOutputSchema
+from agents.exceptions import MaxTurnsExceeded
 
+from datalayer.context_store import ContextStore
+from datalayer.context_tools import create_context_tool_handlers
 from datalayer.sleeper_data import SleeperLeagueData
+from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 
 from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
 from reporter.agent.research_log import ResearchLog
@@ -18,6 +22,12 @@ from reporter.agent.schemas import (
     ArticleOutput,
 )
 from reporter.tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
+
+_WRAP_UP_INSTRUCTION = (
+    "You have reached the maximum number of research turns. "
+    "Please output the ReportBrief now using whatever research you have "
+    "gathered so far. Do not make any more tool calls."
+)
 from reporter.tools.registry import create_tool_registry
 
 
@@ -59,19 +69,34 @@ class ResearchAgent:
         *,
         model: str = "gpt-5-mini",
         log_path: Optional[Path] = None,
+        context_store: Optional[ContextStore] = None,
     ):
         self.data = data
         self.config = config
         self.model = model
         self.log_path = log_path
+        self.context_store = context_store
 
         # Create research log and set up streaming if path provided
         self.research_log = ResearchLog()
         if log_path:
             self.research_log.start_streaming(log_path)
 
+        # Build context tool handlers if store is available
+        extra_handlers: dict[str, Any] | None = None
+        if context_store and data._query_conn:
+            week = config.time_range.week_end
+            resolve_fn = lambda key: resolve_roster_id(
+                data._query_conn, data.league_id, key
+            )
+            extra_handlers = create_context_tool_handlers(
+                context_store, week=week, resolve_roster_fn=resolve_fn
+            )
+
         # Create adapter with the shared log
-        self.adapter = ResearchToolAdapter(data, research_log=self.research_log)
+        self.adapter = ResearchToolAdapter(
+            data, research_log=self.research_log, extra_handlers=extra_handlers
+        )
         self.tools = create_tool_registry(self.adapter)
 
     def _build_system_prompt(self) -> str:
@@ -165,8 +190,12 @@ class ResearchAgent:
         tool_start_times: dict[str, float] = {}
         tool_call_names: dict[str, str] = {}
 
+        hard_limit = ResearchToolAdapter.DEFAULT_HARD_LIMIT
+
         try:
-            stream = Runner.run_streamed(agent, user_prompt, max_turns=30)
+            stream = Runner.run_streamed(
+                agent, user_prompt, max_turns=hard_limit
+            )
 
             async for event in stream.stream_events():
                 if event.type != "run_item_stream_event":
@@ -247,6 +276,41 @@ class ResearchAgent:
                 self.research_log.add_output(f"ReportBrief generated: {preview}...")
 
             return stream.final_output, self.research_log
+
+        except MaxTurnsExceeded:
+            print()
+            print(f"  Research hit the {hard_limit}-turn limit.")
+            print("  Running a wrap-up pass to produce the brief...")
+            self.research_log.add_reasoning(
+                f"Hit {hard_limit}-turn limit. Running wrap-up pass."
+            )
+
+            # Run a second, short pass with no tools — just ask the agent
+            # to synthesize what it has into a ReportBrief.
+            wrap_agent = Agent(
+                name="researcher_wrapup",
+                instructions=system_prompt,
+                model=self.model,
+                tools=[],
+                output_type=AgentOutputSchema(
+                    ReportBrief, strict_json_schema=False
+                ),
+            )
+
+            # Build input from the original prompt + wrap-up instruction
+            wrap_input = (
+                f"{user_prompt}\n\n---\n\n{_WRAP_UP_INSTRUCTION}"
+            )
+            wrap_result = await Runner.run(wrap_agent, wrap_input)
+
+            if wrap_result.final_output:
+                preview = str(wrap_result.final_output)[:200]
+                self.research_log.add_output(
+                    f"ReportBrief (wrap-up): {preview}..."
+                )
+
+            return wrap_result.final_output, self.research_log
+
         finally:
             # Always close the streaming file
             self.research_log.stop_streaming()
@@ -343,9 +407,11 @@ class ReporterAgent:
         data: SleeperLeagueData,
         *,
         model: str = "gpt-5-mini",
+        context_store: Optional[ContextStore] = None,
     ):
         self.data = data
         self.model = model
+        self.context_store = context_store
 
     async def run(
         self,
@@ -422,7 +488,9 @@ class ReporterAgent:
         )
 
         # Phase 1: Research
-        research_agent = ResearchAgent(self.data, config, model=self.model)
+        research_agent = ResearchAgent(
+            self.data, config, model=self.model, context_store=self.context_store
+        )
         brief, research_log = await research_agent.research()
 
         # Phase 2: Draft
@@ -454,9 +522,20 @@ class ReporterAgent:
         Returns:
             ArticleOutput with article, config, brief, and research log.
         """
+        # Mark stale storylines before research
+        if self.context_store:
+            week = config.time_range.week_end
+            stale_count = self.context_store.mark_stale(week)
+            if stale_count:
+                print(f"  Marked {stale_count} storyline(s) as stale")
+
         # Phase 1: Research
         research_agent = ResearchAgent(
-            self.data, config, model=self.model, log_path=log_path
+            self.data,
+            config,
+            model=self.model,
+            log_path=log_path,
+            context_store=self.context_store,
         )
         brief, research_log = await research_agent.research()
 
