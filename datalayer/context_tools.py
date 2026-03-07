@@ -15,22 +15,6 @@ CONTEXT_TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_league_memory",
-            "description": (
-                "Get all persistent context for this league: active storylines "
-                "from previous weeks, team narratives/outlook, and league-wide notes. "
-                "Call this FIRST before researching to understand ongoing narratives."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "save_storyline",
             "description": (
                 "Create or update a persistent storyline that carries across weeks. "
@@ -160,18 +144,6 @@ def create_context_tool_handlers(
         except (ValueError, TypeError):
             return None
 
-    def get_league_memory() -> dict[str, Any]:
-        context = store.get_full_context()
-        if not context["storylines"] and not context["team_context"] and not context["league_context"]:
-            return {
-                "has_previous_context": False,
-                "message": "No previous context found. This appears to be the first run for this league/season.",
-            }
-        return {
-            "has_previous_context": True,
-            **context,
-        }
-
     def save_storyline(
         id: str,
         headline: str,
@@ -218,7 +190,6 @@ def create_context_tool_handlers(
         return {"saved": True, "key": key}
 
     return {
-        "get_league_memory": get_league_memory,
         "save_storyline": save_storyline,
         "save_team_context": save_team_context,
         "save_league_note": save_league_note,

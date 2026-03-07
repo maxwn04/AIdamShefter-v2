@@ -16,10 +16,12 @@ from datalayer.sleeper_data import SleeperLeagueData
 from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 
 from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
+from reporter.agent.curator import StorylineCurator
 from reporter.agent.research_log import ResearchLog
 from reporter.agent.schemas import (
     ReportBrief,
     ArticleOutput,
+    StorylineCandidate,
 )
 from reporter.tools.sleeper_tools import ResearchToolAdapter, TOOL_DOCS
 
@@ -70,12 +72,20 @@ class ResearchAgent:
         model: str = "gpt-5-mini",
         log_path: Optional[Path] = None,
         context_store: Optional[ContextStore] = None,
+        enriched_storylines: Optional[list[dict]] = None,
+        team_context: Optional[list[dict]] = None,
+        league_context: Optional[dict[str, str]] = None,
+        storyline_candidates: Optional[list[StorylineCandidate]] = None,
     ):
         self.data = data
         self.config = config
         self.model = model
         self.log_path = log_path
         self.context_store = context_store
+        self.enriched_storylines = enriched_storylines or []
+        self.team_context = team_context or []
+        self.league_context = league_context or {}
+        self.storyline_candidates = storyline_candidates or []
 
         # Create research log and set up streaming if path provided
         self.research_log = ResearchLog()
@@ -154,6 +164,44 @@ class ResearchAgent:
                 lines.append(
                     f"**Roast teams:** {', '.join(bp.disfavored_teams)} (intensity {bp.intensity})"
                 )
+
+        # Inject curated context
+        if self.enriched_storylines:
+            lines.extend(["", "## Continuing Storylines", ""])
+            for s in self.enriched_storylines:
+                lines.append(f"### [{s['id']}] {s['headline']} (priority {s.get('priority', 2)})")
+                lines.append(f"{s['summary']}")
+                if s.get("history"):
+                    lines.append("**Arc history:**")
+                    for h in s["history"]:
+                        lines.append(f"  - Week {h['week']}: {h['headline']} — {h['summary']}")
+                if s.get("facts"):
+                    lines.append("**Historical facts:**")
+                    for f in s["facts"]:
+                        lines.append(f"  - [week {f['week_recorded']}] {f['claim_text']}")
+                lines.append("")
+
+        if self.storyline_candidates:
+            lines.extend(["## Suggested New Storylines", ""])
+            for c in self.storyline_candidates:
+                tags = ", ".join(c.suggested_tags) if c.suggested_tags else ""
+                lines.append(f"- **{c.suggested_headline}**: {c.reasoning}")
+                if tags:
+                    lines.append(f"  Tags: {tags}")
+            lines.append("")
+
+        if self.team_context:
+            lines.extend(["## Team Context", ""])
+            for tc in self.team_context:
+                outlook = f" ({tc['outlook']})" if tc.get("outlook") else ""
+                lines.append(f"- **Roster {tc['roster_id']}**{outlook}: {tc['narrative']}")
+            lines.append("")
+
+        if self.league_context:
+            lines.extend(["## League Notes", ""])
+            for key, value in self.league_context.items():
+                lines.append(f"- **{key}**: {value}")
+            lines.append("")
 
         lines.extend(
             [
@@ -487,24 +535,7 @@ class ReporterAgent:
             custom_instructions=request,
         )
 
-        # Phase 1: Research
-        research_agent = ResearchAgent(
-            self.data, config, model=self.model, context_store=self.context_store
-        )
-        brief, research_log = await research_agent.research()
-
-        # Phase 2: Draft
-        draft_agent = DraftAgent(config, model=self.model)
-        article = await draft_agent.draft(brief)
-
-        return ArticleOutput(
-            article=article,
-            config=config,
-            brief=brief,
-            research_log=research_log,
-            verification=None,
-            trace_id=None,
-        )
+        return await self.run_with_config(config)
 
     async def run_with_config(
         self,
@@ -522,24 +553,64 @@ class ReporterAgent:
         Returns:
             ArticleOutput with article, config, brief, and research log.
         """
-        # Mark stale storylines before research
+        week = config.time_range.week_end
+
+        # 1. Mark stale storylines
         if self.context_store:
-            week = config.time_range.week_end
             stale_count = self.context_store.mark_stale(week)
             if stale_count:
                 print(f"  Marked {stale_count} storyline(s) as stale")
 
-        # Phase 1: Research
+        # 2. Fetch lightweight game data for curator context
+        week_data = self._fetch_curator_data(week)
+
+        # 3. Curator phase — select relevant storylines
+        enriched_storylines: list[dict] = []
+        team_context: list[dict] = []
+        league_context: dict[str, str] = {}
+        storyline_candidates: list[StorylineCandidate] = []
+
+        if self.context_store:
+            summaries = self.context_store.get_storyline_summaries()
+            if summaries or week_data:
+                print(f"  Curating {len(summaries)} storyline(s)...")
+                curator = StorylineCurator(model=self.model)
+                curated = await curator.curate(config, summaries, week_data=week_data)
+                # Validate IDs against real storylines
+                valid_ids = {s["id"] for s in summaries}
+                selected_ids = [
+                    sid for sid in curated.relevant_storyline_ids
+                    if sid in valid_ids
+                ]
+                if selected_ids:
+                    enriched_storylines = self.context_store.get_enriched_storylines(
+                        selected_ids
+                    )
+                    print(f"  Selected {len(selected_ids)} storyline(s)")
+                storyline_candidates = list(curated.new_storyline_candidates)
+
+            team_context = self.context_store.get_all_team_context()
+            league_context = self.context_store.get_league_context()
+
+        # 4. Research with injected context
         research_agent = ResearchAgent(
             self.data,
             config,
             model=self.model,
             log_path=log_path,
             context_store=self.context_store,
+            enriched_storylines=enriched_storylines,
+            team_context=team_context,
+            league_context=league_context,
+            storyline_candidates=storyline_candidates,
         )
         brief, research_log = await research_agent.research()
 
-        # Phase 2: Draft
+        # 5. Persist facts from brief
+        if self.context_store and brief:
+            self._persist_brief_facts(brief, week=week)
+
+        # 6. Draft
         draft_agent = DraftAgent(config, model=self.model)
         article = await draft_agent.draft(brief)
 
@@ -551,3 +622,33 @@ class ReporterAgent:
             verification=None,
             trace_id=None,
         )
+
+    def _fetch_curator_data(self, week: int) -> dict:
+        """Fetch lightweight game data for the curator's context."""
+        return {
+            "games": self.data.get_week_games(week),
+            "standings": self.data.get_standings(week),
+            "top_performers": self.data.get_week_player_leaderboard(week, limit=5),
+            "transactions": self.data.get_week_transactions(week),
+        }
+
+    def _persist_brief_facts(self, brief: ReportBrief, *, week: int) -> None:
+        """Persist facts from the brief, linked to their storylines."""
+        for storyline in brief.storylines:
+            facts = [brief.get_fact(fid) for fid in storyline.supporting_fact_ids]
+            facts = [f for f in facts if f is not None]
+            if facts:
+                self.context_store.persist_facts(
+                    [
+                        {
+                            "id": f.id,
+                            "claim_text": f.claim_text,
+                            "data_refs": f.data_refs,
+                            "numbers": f.numbers,
+                            "category": f.category,
+                        }
+                        for f in facts
+                    ],
+                    storyline.id,
+                    week=week,
+                )

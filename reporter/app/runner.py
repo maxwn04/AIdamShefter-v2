@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from datalayer.context_store import ContextStore
 from datalayer.sleeper_data import SleeperLeagueData
 
 from reporter.agent.clarify import ClarificationAgent
 from reporter.agent.reporter_agent import ReporterAgent
+from reporter.agent.workflows import _get_season, _make_context_store
 from reporter.app.config import load_config
 
 
@@ -80,17 +80,8 @@ async def run(
 
     # Set up persistent context store
     data_dir = config.data_dir if config else Path(".data")
-    season = ""
-    if data._query_conn:
-        from sqlalchemy import text
-        row = data._query_conn.execute(text("SELECT season FROM leagues LIMIT 1")).first()
-        if row:
-            season = row[0]
-    context_store = ContextStore(
-        db_path=data_dir / "context.db",
-        league_id=data.league_id,
-        season=season,
-    )
+    season = _get_season(data)
+    context_store = _make_context_store(data)
 
     print(f"League: {data.league_id}")
     print(f"Season: {season}")

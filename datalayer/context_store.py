@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS context_meta (
@@ -65,6 +65,37 @@ CREATE TABLE IF NOT EXISTS league_context (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (league_id, season, key)
 );
+
+CREATE TABLE IF NOT EXISTS storyline_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    storyline_id TEXT NOT NULL,
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority INTEGER NOT NULL,
+    week INTEGER NOT NULL,
+    snapshot_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_history_storyline
+    ON storyline_history(storyline_id, week);
+
+CREATE TABLE IF NOT EXISTS persisted_facts (
+    storyline_id TEXT NOT NULL,
+    week_recorded INTEGER NOT NULL,
+    fact_id TEXT NOT NULL,
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    claim_text TEXT NOT NULL,
+    data_refs TEXT,
+    numbers TEXT,
+    category TEXT NOT NULL DEFAULT 'general',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (storyline_id, week_recorded, fact_id)
+);
+CREATE INDEX IF NOT EXISTS idx_facts_storyline
+    ON persisted_facts(storyline_id);
 """
 
 
@@ -114,8 +145,40 @@ class ContextStore:
         if current == SCHEMA_VERSION:
             return
 
-        # Future migrations go here:
-        # if current < "2": ...
+        if current == "1":
+            self._conn.executescript("""
+                CREATE TABLE IF NOT EXISTS storyline_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    storyline_id TEXT NOT NULL,
+                    league_id TEXT NOT NULL,
+                    season TEXT NOT NULL,
+                    headline TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    priority INTEGER NOT NULL,
+                    week INTEGER NOT NULL,
+                    snapshot_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS idx_history_storyline
+                    ON storyline_history(storyline_id, week);
+
+                CREATE TABLE IF NOT EXISTS persisted_facts (
+                    storyline_id TEXT NOT NULL,
+                    week_recorded INTEGER NOT NULL,
+                    fact_id TEXT NOT NULL,
+                    league_id TEXT NOT NULL,
+                    season TEXT NOT NULL,
+                    claim_text TEXT NOT NULL,
+                    data_refs TEXT,
+                    numbers TEXT,
+                    category TEXT NOT NULL DEFAULT 'general',
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (storyline_id, week_recorded, fact_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_facts_storyline
+                    ON persisted_facts(storyline_id);
+            """)
+            current = "2"
 
         cur.execute(
             "UPDATE context_meta SET value = ? WHERE key = 'schema_version'",
@@ -201,11 +264,20 @@ class ContextStore:
     def upsert_storyline(self, storyline: dict[str, Any], *, week: int) -> None:
         """Create or update a storyline by id.
 
+        On update, the previous state is automatically snapshotted to
+        storyline_history before overwriting.
+
         Args:
             storyline: Dict with at least 'id', 'headline', 'summary', 'status'.
                 Optional: 'priority', 'tags', 'team_ids'.
             week: Current week number.
         """
+        existing = self._conn.execute(
+            "SELECT id FROM storylines WHERE id = ?", (storyline["id"],)
+        ).fetchone()
+        if existing:
+            self._append_storyline_history(storyline["id"], week=week)
+
         now = _now_iso()
         tags = json.dumps(storyline.get("tags", [])) if storyline.get("tags") else None
         team_ids = (
@@ -318,6 +390,139 @@ class ContextStore:
         )
         self._conn.commit()
         return cur.rowcount
+
+    # ------------------------------------------------------------------
+    # Storyline History & Facts
+    # ------------------------------------------------------------------
+
+    def _append_storyline_history(self, storyline_id: str, *, week: int) -> None:
+        """Snapshot the current state of a storyline into history."""
+        row = self._conn.execute(
+            "SELECT * FROM storylines WHERE id = ?", (storyline_id,)
+        ).fetchone()
+        if not row:
+            return
+        self._conn.execute(
+            """INSERT INTO storyline_history
+                   (storyline_id, league_id, season, headline, summary,
+                    status, priority, week, snapshot_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row["id"],
+                row["league_id"],
+                row["season"],
+                row["headline"],
+                row["summary"],
+                row["status"],
+                row["priority"],
+                week,
+                _now_iso(),
+            ),
+        )
+
+    def get_storyline_summaries(self) -> list[dict[str, Any]]:
+        """Lightweight active/stale storyline list for curator input."""
+        cur = self._conn.execute(
+            """SELECT id, headline, summary, status, tags, team_ids,
+                      priority, week_created, week_last_updated
+               FROM storylines
+               WHERE league_id = ? AND season = ? AND status IN ('active', 'stale')
+               ORDER BY priority, week_last_updated DESC""",
+            (self.league_id, self.season),
+        )
+        rows = []
+        for row in cur.fetchall():
+            d = dict(row)
+            d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
+            d["team_ids"] = json.loads(d["team_ids"]) if d.get("team_ids") else []
+            rows.append(d)
+        return rows
+
+    def get_storyline_history(self, storyline_id: str) -> list[dict[str, Any]]:
+        """Full history for one storyline, ordered by week ASC."""
+        cur = self._conn.execute(
+            """SELECT * FROM storyline_history
+               WHERE storyline_id = ?
+               ORDER BY week ASC, id ASC""",
+            (storyline_id,),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    def get_storyline_facts(self, storyline_id: str) -> list[dict[str, Any]]:
+        """All persisted facts for one storyline, ordered by week_recorded ASC."""
+        cur = self._conn.execute(
+            """SELECT * FROM persisted_facts
+               WHERE storyline_id = ?
+               ORDER BY week_recorded ASC""",
+            (storyline_id,),
+        )
+        rows = []
+        for row in cur.fetchall():
+            d = dict(row)
+            d["data_refs"] = json.loads(d["data_refs"]) if d.get("data_refs") else []
+            d["numbers"] = json.loads(d["numbers"]) if d.get("numbers") else {}
+            rows.append(d)
+        return rows
+
+    def get_enriched_storylines(self, storyline_ids: list[str]) -> list[dict[str, Any]]:
+        """Current state + history + facts for a list of storyline IDs.
+
+        Each dict includes 'history' (capped at 6 most recent) and
+        'facts' (capped at 15 most recent).
+        """
+        if not storyline_ids:
+            return []
+        placeholders = ",".join("?" for _ in storyline_ids)
+        cur = self._conn.execute(
+            f"""SELECT * FROM storylines
+                WHERE id IN ({placeholders})
+                ORDER BY priority, week_last_updated DESC""",
+            storyline_ids,
+        )
+        results = []
+        for row in cur.fetchall():
+            d = self._storyline_row_to_dict(row)
+            history = self.get_storyline_history(d["id"])
+            d["history"] = history[-6:]
+            facts = self.get_storyline_facts(d["id"])
+            d["facts"] = facts[-15:]
+            results.append(d)
+        return results
+
+    def persist_facts(
+        self, facts: list[dict[str, Any]], storyline_id: str, *, week: int
+    ) -> int:
+        """Persist facts linked to a storyline.
+
+        Uses INSERT OR IGNORE to deduplicate on (storyline_id, week, fact_id).
+        Returns count of newly inserted facts.
+        """
+        now = _now_iso()
+        inserted = 0
+        for fact in facts:
+            data_refs = json.dumps(fact.get("data_refs", []))
+            numbers = json.dumps(fact.get("numbers", {}))
+            cur = self._conn.execute(
+                """INSERT OR IGNORE INTO persisted_facts
+                       (storyline_id, week_recorded, fact_id, league_id, season,
+                        claim_text, data_refs, numbers, category, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    storyline_id,
+                    week,
+                    fact["id"],
+                    self.league_id,
+                    self.season,
+                    fact["claim_text"],
+                    data_refs,
+                    numbers,
+                    fact.get("category", "general"),
+                    now,
+                ),
+            )
+            inserted += cur.rowcount
+        self._conn.commit()
+        return inserted
 
     def close(self) -> None:
         """Close the database connection."""
