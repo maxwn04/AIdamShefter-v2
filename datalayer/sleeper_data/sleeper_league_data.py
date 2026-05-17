@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Mapping, Optional
 
 from sqlalchemy import create_engine, text
@@ -80,6 +81,54 @@ class SleeperLeagueData:
         self.engine = None
         self._query_conn = None
         self.effective_week: Optional[int] = None
+
+    @classmethod
+    def from_file(cls, path: str | os.PathLike[str]) -> "SleeperLeagueData":
+        """Open a previously exported SQLite snapshot for querying.
+
+        This bypasses Sleeper API loading entirely and is intended for
+        multi-step agent runs that need a stable view of league data.
+        """
+        snapshot_path = Path(path).expanduser().resolve()
+        if not snapshot_path.exists():
+            raise FileNotFoundError(f"Snapshot not found: {snapshot_path}")
+
+        obj = cls.__new__(cls)
+        obj.engine = create_engine(
+            f"sqlite:///{snapshot_path.as_posix()}",
+            connect_args={"check_same_thread": False},
+        )
+        obj._query_conn = obj.engine.connect()
+
+        league_row = obj._query_conn.execute(
+            text("SELECT league_id FROM leagues LIMIT 1")
+        ).first()
+        if league_row is None:
+            obj._query_conn.close()
+            raise ValueError(f"Snapshot has no league row: {snapshot_path}")
+
+        context_row = obj._query_conn.execute(
+            text(
+                "SELECT effective_week, override_week "
+                "FROM season_context LIMIT 1"
+            )
+        ).first()
+
+        obj.league_id = str(league_row._mapping["league_id"])
+        obj.effective_week = (
+            int(context_row._mapping["effective_week"])
+            if context_row is not None
+            else None
+        )
+        obj.week_override = (
+            int(context_row._mapping["override_week"])
+            if context_row is not None
+            and context_row._mapping["override_week"] is not None
+            else None
+        )
+        obj.client = SleeperClient()
+
+        return obj
 
     def load(self) -> None:
         # check_same_thread=False allows the connection to be used from
