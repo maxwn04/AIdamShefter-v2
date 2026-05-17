@@ -12,6 +12,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "pydantic>=2.0",
+    "openai>=2.26.0",
     "openai-agents>=0.1.0",
     "sqlalchemy>=2.0",
 ]
@@ -28,9 +29,9 @@ reporter = "reporter.app.runner:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["datalayer*", "reporter*"]
+include = ["datalayer*", "reporter*", "ai_gateway*"]
 
 [tool.pytest.ini_options]
-testpaths = ["datalayer/tests", "reporter/tests"]
+testpaths = ["datalayer/tests", "reporter/tests", "ai_gateway/tests"]
 addopts = "-ra"
 pythonpath = ["."]
