@@ -3,13 +3,36 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import text
+
+from datalayer.context_store import ContextStore
 from datalayer.sleeper_data import SleeperLeagueData
 
 from reporter.agent.config import ReportConfig, TimeRange, ToneControls, BiasProfile
 from reporter.agent.schemas import ArticleOutput
 from reporter.agent.reporter_agent import ReporterAgent
+
+
+def _get_season(data: SleeperLeagueData) -> str:
+    """Extract the season string from a loaded SleeperLeagueData instance."""
+    if not data._query_conn:
+        return ""
+    row = data._query_conn.execute(
+        text("SELECT season FROM leagues LIMIT 1")
+    ).first()
+    return row[0] if row else ""
+
+
+def _make_context_store(data: SleeperLeagueData) -> ContextStore:
+    """Create a ContextStore for the given loaded data."""
+    return ContextStore(
+        db_path=Path(".data") / "context.db",
+        league_id=data.league_id,
+        season=_get_season(data),
+    )
 
 
 async def generate_report_async(
@@ -66,7 +89,8 @@ async def generate_report_async(
         week = data.effective_week
 
     # Create and run the agent
-    agent = ReporterAgent(data, model=model)
+    context_store = _make_context_store(data)
+    agent = ReporterAgent(data, model=model, context_store=context_store)
     return await agent.run(
         request,
         week=week,
@@ -144,7 +168,8 @@ async def generate_with_config_async(
         data = SleeperLeagueData()
         data.load()
 
-    agent = ReporterAgent(data, model=model)
+    context_store = _make_context_store(data)
+    agent = ReporterAgent(data, model=model, context_store=context_store)
     return await agent.run_with_config(config)
 
 

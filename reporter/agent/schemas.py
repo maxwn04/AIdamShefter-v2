@@ -11,6 +11,22 @@ if TYPE_CHECKING:
     from reporter.agent.research_log import ResearchLog
 
 
+class StorylineCandidate(BaseModel):
+    """A suggested new storyline from the curator."""
+
+    suggested_headline: str
+    reasoning: str
+    suggested_tags: list[str] = Field(default_factory=list)
+
+
+class CuratedContext(BaseModel):
+    """Output of the storyline curator phase."""
+
+    relevant_storyline_ids: list[str] = Field(default_factory=list)
+    new_storyline_candidates: list[StorylineCandidate] = Field(default_factory=list)
+    reasoning: str = ""
+
+
 class BriefMeta(BaseModel):
     """Metadata for a report brief."""
 

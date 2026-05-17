@@ -27,6 +27,8 @@ class TestSchemaCreation:
         assert "team_context" in tables
         assert "league_context" in tables
         assert "context_meta" in tables
+        assert "storyline_history" in tables
+        assert "persisted_facts" in tables
 
     def test_sets_schema_version(self, store: ContextStore):
         cur = store._conn.execute(
@@ -247,25 +249,6 @@ class TestMarkStale:
 
 
 class TestContextToolHandlers:
-    def test_get_league_memory_empty(self, store: ContextStore):
-        from datalayer.context_tools import create_context_tool_handlers
-
-        handlers = create_context_tool_handlers(store, week=5)
-        result = handlers["get_league_memory"]()
-        assert result["has_previous_context"] is False
-
-    def test_get_league_memory_with_data(self, store: ContextStore):
-        from datalayer.context_tools import create_context_tool_handlers
-
-        store.upsert_storyline(
-            {"id": "s1", "headline": "H", "summary": "S", "status": "active"},
-            week=3,
-        )
-        handlers = create_context_tool_handlers(store, week=5)
-        result = handlers["get_league_memory"]()
-        assert result["has_previous_context"] is True
-        assert len(result["storylines"]) == 1
-
     def test_save_storyline(self, store: ContextStore):
         from datalayer.context_tools import create_context_tool_handlers
 
@@ -294,3 +277,314 @@ class TestContextToolHandlers:
         result = handlers["save_league_note"](key="theme", value="Chaos season")
         assert result["saved"] is True
         assert store.get_league_context()["theme"] == "Chaos season"
+
+
+class TestStorylineHistory:
+    def test_no_history_on_create(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "H", "summary": "S", "status": "active"},
+            week=5,
+        )
+        history = store.get_storyline_history("s1")
+        assert history == []
+
+    def test_history_appended_on_update(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V1", "summary": "First", "status": "active"},
+            week=5,
+        )
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V2", "summary": "Updated", "status": "active"},
+            week=7,
+        )
+        history = store.get_storyline_history("s1")
+        assert len(history) == 1
+        assert history[0]["headline"] == "V1"
+        assert history[0]["summary"] == "First"
+        assert history[0]["week"] == 7
+
+    def test_preserves_old_values(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "Original", "summary": "Sum1", "status": "active", "priority": 1},
+            week=3,
+        )
+        store.upsert_storyline(
+            {"id": "s1", "headline": "Changed", "summary": "Sum2", "status": "active", "priority": 2},
+            week=5,
+        )
+        history = store.get_storyline_history("s1")
+        assert len(history) == 1
+        assert history[0]["headline"] == "Original"
+        assert history[0]["summary"] == "Sum1"
+        assert history[0]["priority"] == 1
+
+    def test_chronological_ordering(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V1", "summary": "S", "status": "active"},
+            week=3,
+        )
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V2", "summary": "S", "status": "active"},
+            week=5,
+        )
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V3", "summary": "S", "status": "active"},
+            week=7,
+        )
+        history = store.get_storyline_history("s1")
+        assert len(history) == 2
+        assert history[0]["headline"] == "V1"
+        assert history[1]["headline"] == "V2"
+
+    def test_multiple_updates_create_multiple_rows(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V1", "summary": "S", "status": "active"},
+            week=1,
+        )
+        for w in range(2, 6):
+            store.upsert_storyline(
+                {"id": "s1", "headline": f"V{w}", "summary": "S", "status": "active"},
+                week=w,
+            )
+        history = store.get_storyline_history("s1")
+        assert len(history) == 4  # 4 updates after the initial create
+
+
+class TestPersistedFacts:
+    def test_basic_persistence(self, store: ContextStore):
+        facts = [
+            {"id": "fact_001", "claim_text": "Josh Allen scored 38.7", "data_refs": ["week_games:week=1"], "numbers": {"points": 38.7}, "category": "score"},
+        ]
+        count = store.persist_facts(facts, "story_1", week=5)
+        assert count == 1
+
+        stored = store.get_storyline_facts("story_1")
+        assert len(stored) == 1
+        assert stored[0]["claim_text"] == "Josh Allen scored 38.7"
+        assert stored[0]["data_refs"] == ["week_games:week=1"]
+        assert stored[0]["numbers"] == {"points": 38.7}
+        assert stored[0]["category"] == "score"
+
+    def test_deduplication(self, store: ContextStore):
+        facts = [
+            {"id": "fact_001", "claim_text": "Claim A"},
+        ]
+        count1 = store.persist_facts(facts, "story_1", week=5)
+        count2 = store.persist_facts(facts, "story_1", week=5)
+        assert count1 == 1
+        assert count2 == 0
+
+        stored = store.get_storyline_facts("story_1")
+        assert len(stored) == 1
+
+    def test_same_fact_id_different_weeks(self, store: ContextStore):
+        facts = [{"id": "fact_001", "claim_text": "Week 5 version"}]
+        store.persist_facts(facts, "story_1", week=5)
+
+        facts2 = [{"id": "fact_001", "claim_text": "Week 6 version"}]
+        store.persist_facts(facts2, "story_1", week=6)
+
+        stored = store.get_storyline_facts("story_1")
+        assert len(stored) == 2
+
+    def test_retrieval_by_storyline(self, store: ContextStore):
+        store.persist_facts(
+            [{"id": "f1", "claim_text": "Fact for story A"}],
+            "story_a",
+            week=5,
+        )
+        store.persist_facts(
+            [{"id": "f2", "claim_text": "Fact for story B"}],
+            "story_b",
+            week=5,
+        )
+
+        facts_a = store.get_storyline_facts("story_a")
+        facts_b = store.get_storyline_facts("story_b")
+        assert len(facts_a) == 1
+        assert len(facts_b) == 1
+        assert facts_a[0]["claim_text"] == "Fact for story A"
+        assert facts_b[0]["claim_text"] == "Fact for story B"
+
+
+class TestEnrichedStorylines:
+    def test_includes_history_and_facts(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V1", "summary": "S", "status": "active"},
+            week=3,
+        )
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V2", "summary": "Updated", "status": "active"},
+            week=5,
+        )
+        store.persist_facts(
+            [{"id": "f1", "claim_text": "Some fact"}],
+            "s1",
+            week=5,
+        )
+
+        enriched = store.get_enriched_storylines(["s1"])
+        assert len(enriched) == 1
+        assert enriched[0]["headline"] == "V2"
+        assert len(enriched[0]["history"]) == 1
+        assert enriched[0]["history"][0]["headline"] == "V1"
+        assert len(enriched[0]["facts"]) == 1
+        assert enriched[0]["facts"][0]["claim_text"] == "Some fact"
+
+    def test_handles_empty_history(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "Fresh", "summary": "S", "status": "active"},
+            week=5,
+        )
+        enriched = store.get_enriched_storylines(["s1"])
+        assert len(enriched) == 1
+        assert enriched[0]["history"] == []
+        assert enriched[0]["facts"] == []
+
+    def test_respects_history_cap(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "V0", "summary": "S", "status": "active"},
+            week=1,
+        )
+        for w in range(2, 12):
+            store.upsert_storyline(
+                {"id": "s1", "headline": f"V{w}", "summary": "S", "status": "active"},
+                week=w,
+            )
+        enriched = store.get_enriched_storylines(["s1"])
+        assert len(enriched[0]["history"]) == 6  # capped at 6
+
+    def test_respects_facts_cap(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "H", "summary": "S", "status": "active"},
+            week=1,
+        )
+        for i in range(20):
+            store.persist_facts(
+                [{"id": f"f{i}", "claim_text": f"Fact {i}"}],
+                "s1",
+                week=i + 1,
+            )
+        enriched = store.get_enriched_storylines(["s1"])
+        assert len(enriched[0]["facts"]) == 15  # capped at 15
+
+    def test_empty_ids(self, store: ContextStore):
+        assert store.get_enriched_storylines([]) == []
+
+
+class TestStorylineSummaries:
+    def test_returns_active_and_stale(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "Active", "summary": "S", "status": "active"},
+            week=8,
+        )
+        store.upsert_storyline(
+            {"id": "s2", "headline": "Old", "summary": "S", "status": "active"},
+            week=1,
+        )
+        store.mark_stale(current_week=10, weeks_threshold=4)
+
+        summaries = store.get_storyline_summaries()
+        assert len(summaries) == 2
+        statuses = {s["status"] for s in summaries}
+        assert statuses == {"active", "stale"}
+
+    def test_excludes_resolved(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "H", "summary": "S", "status": "active"},
+            week=5,
+        )
+        store.resolve_storyline("s1")
+        summaries = store.get_storyline_summaries()
+        assert summaries == []
+
+    def test_returns_expected_fields(self, store: ContextStore):
+        store.upsert_storyline(
+            {"id": "s1", "headline": "H", "summary": "Sum", "status": "active",
+             "priority": 1, "tags": ["streak"], "team_ids": [3]},
+            week=5,
+        )
+        summaries = store.get_storyline_summaries()
+        s = summaries[0]
+        assert s["id"] == "s1"
+        assert s["headline"] == "H"
+        assert s["summary"] == "Sum"
+        assert s["priority"] == 1
+        assert s["tags"] == ["streak"]
+        assert s["team_ids"] == [3]
+        assert s["week_created"] == 5
+        assert s["week_last_updated"] == 5
+
+
+class TestSchemaMigration:
+    def test_v1_db_upgrades_to_v2(self, tmp_path: Path):
+        """A database created with v1 schema should be migrated to v2."""
+        import sqlite3
+
+        db_path = tmp_path / "legacy.db"
+        conn = sqlite3.connect(str(db_path))
+        # Create v1 schema manually (without new tables)
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS context_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS storylines (
+                id TEXT PRIMARY KEY,
+                league_id TEXT NOT NULL,
+                season TEXT NOT NULL,
+                headline TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                priority INTEGER NOT NULL DEFAULT 2,
+                tags TEXT,
+                team_ids TEXT,
+                week_created INTEGER NOT NULL,
+                week_last_updated INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS team_context (
+                league_id TEXT NOT NULL,
+                season TEXT NOT NULL,
+                roster_id INTEGER NOT NULL,
+                narrative TEXT NOT NULL,
+                outlook TEXT,
+                week_last_updated INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (league_id, season, roster_id)
+            );
+            CREATE TABLE IF NOT EXISTS league_context (
+                league_id TEXT NOT NULL,
+                season TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL,
+                week_last_updated INTEGER NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (league_id, season, key)
+            );
+            INSERT INTO context_meta (key, value) VALUES ('schema_version', '1');
+        """)
+        conn.close()
+
+        # Open with ContextStore — should migrate to v2
+        store = ContextStore(db_path, league_id="123", season="2024")
+        cur = store._conn.execute(
+            "SELECT value FROM context_meta WHERE key='schema_version'"
+        )
+        assert cur.fetchone()["value"] == "2"
+
+        # Verify new tables exist
+        cur = store._conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+        )
+        tables = {row["name"] for row in cur.fetchall()}
+        assert "storyline_history" in tables
+        assert "persisted_facts" in tables
+        store.close()
+
+    def test_fresh_db_starts_at_v2(self, store: ContextStore):
+        cur = store._conn.execute(
+            "SELECT value FROM context_meta WHERE key='schema_version'"
+        )
+        assert cur.fetchone()["value"] == "2"

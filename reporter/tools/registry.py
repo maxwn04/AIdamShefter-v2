@@ -9,18 +9,8 @@ from agents import function_tool
 from reporter.tools.sleeper_tools import ResearchToolAdapter
 
 
-def create_context_tools(adapter: ResearchToolAdapter) -> list[Callable]:
-    """Create OpenAI Agents SDK tools for persistent context operations."""
-
-    @function_tool
-    def get_league_memory() -> dict[str, Any]:
-        """Get persistent context: active storylines, team narratives, and league notes.
-
-        Call this FIRST before researching to understand ongoing narratives
-        from previous weeks. Returns storylines, team context, and league-wide
-        notes from previous runs.
-        """
-        return adapter.call("get_league_memory")
+def create_save_context_tools(adapter: ResearchToolAdapter) -> list[Callable]:
+    """Create OpenAI Agents SDK tools for saving persistent context."""
 
     @function_tool
     def save_storyline(
@@ -92,7 +82,7 @@ def create_context_tools(adapter: ResearchToolAdapter) -> list[Callable]:
         """
         return adapter.call("save_league_note", key=key, value=value)
 
-    return [get_league_memory, save_storyline, save_team_context, save_league_note]
+    return [save_storyline, save_team_context, save_league_note]
 
 
 def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
@@ -419,8 +409,8 @@ def create_tool_registry(adapter: ResearchToolAdapter) -> list[Callable]:
         run_sql,
     ]
 
-    # Add context tools if context handlers are registered
-    if "get_league_memory" in adapter.available_tools:
-        tools.extend(create_context_tools(adapter))
+    # Add save-context tools if context handlers are registered
+    if "save_storyline" in adapter.available_tools:
+        tools.extend(create_save_context_tools(adapter))
 
     return tools
