@@ -32,6 +32,6 @@ where = ["."]
 include = ["datalayer*", "reporter*", "ai_gateway*"]
 
 [tool.pytest.ini_options]
-testpaths = ["datalayer/tests", "reporter/tests", "ai_gateway/tests"]
+testpaths = ["datalayer/tests", "reporter/tests", "reporter_v2/tests", "ai_gateway/tests"]
 addopts = "-ra"
 pythonpath = ["."]
