@@ -17,10 +17,13 @@ Each week must be handled by a subagent, and weeks must run sequentially. Do not
 - Use `SLEEPER_WEEK_OVERRIDE=<week>` when creating each week’s snapshot.
 - Each weekly report must use `aida-report-writer`.
 - Each weekly report should be a weekly summary that ties the week into the larger state of the league.
+- Each weekly report must produce a compact brief and a sectioned Markdown article, not an unstructured recap.
 - Vary the editorial focus across weeks: rivalries, best teams, worst teams, standings movement, fraud watch, contender watch, collapse watch, waiver/trade fallout.
 - Vary the tone across weeks: hype, snarky, informative, measured, playful.
 - Wait for each subagent to finish before starting the next week.
 - The context database is the main audit trail. Reports should update storylines, team context, league notes, and persisted facts.
+- The simulation should make continuity stronger over time: each week should continue, complicate, resolve, or intentionally ignore prior arcs based on that week's verified data.
+- Good recurring arcs include repeated close matchups, rivalry chapters, trades or waiver moves that affect later matchups, bench-regret patterns, unlucky high scorers, paper tiger contenders, sleeping giants, playoff spoilers, injury survival stories, and breakout players changing a team's outlook.
 
 ## Setup
 
@@ -65,10 +68,14 @@ This is part of a sequential season simulation. Use:
 
 Important:
 - Read persistent context first.
+- Build a brief before drafting with an outline, verified facts, and a continuity plan.
 - Use current-week snapshot facts for all numbers.
 - Treat context as continuity, not factual proof.
+- In the article, use a headline plus multiple `##` sections. Avoid wall-of-text recaps.
+- If prior context exists, explicitly connect at least two relevant prior arcs to this week's current facts unless the data makes them irrelevant.
+- Look for durable storylines such as repeated close matchups, trade/waiver payoff, rivalry escalation, bench-regret patterns, playoff spoilers, unlucky high scorers, paper tigers, sleeping giants, injury survival, and breakout arrivals.
 - Update storylines/team context/league notes/persisted facts before finishing.
-- Return the article path and a concise list of context updates.
+- Return the brief path, article path, and a concise list of context updates.
 ```
 
 ## Focus And Tone Rotation
@@ -93,7 +100,7 @@ For each week:
 1. Compute the week focus and tone.
 2. Spawn one subagent with the weekly prompt.
 3. Wait for that subagent to finish.
-4. Record its article path and context-update summary in a season index file.
+4. Record its brief path, article path, and context-update summary in a season index file.
 5. Only then move to the next week.
 
 Write a season index:
@@ -107,6 +114,7 @@ Include:
 - week number
 - focus
 - tone
+- brief path
 - article path
 - reported context updates
 - any failures or follow-up notes
@@ -126,7 +134,7 @@ Return:
 
 - season run directory
 - weeks completed
+- brief paths
 - article paths
 - a short summary of how the context database evolved
 - any failed week, if applicable
-
