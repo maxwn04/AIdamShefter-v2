@@ -17,7 +17,8 @@ def create_gateway(config: AiGatewayConfig | None = None, client: Any | None = N
     gateway_config = config or AiGatewayConfig()
     provider = normalize_provider(gateway_config.provider)
     if provider == "auto":
-        return ModelRoutingGateway(gateway_config)
+        clients = {"openai": client} if client is not None else None
+        return ModelRoutingGateway(gateway_config, clients=clients)
     if provider == "openai":
         if client is None:
             return ModelRoutingGateway(gateway_config)

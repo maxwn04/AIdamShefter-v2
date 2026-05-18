@@ -103,6 +103,21 @@ def test_create_gateway_uses_router_without_injected_client():
     assert isinstance(gateway, ModelRoutingGateway)
 
 
+def test_create_gateway_wires_default_injected_client_into_auto_router(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    openai_client = FakeOpenAIClient({"status": "completed", "output_text": "Injected OpenAI"})
+
+    gateway = create_gateway(client=openai_client)
+
+    assert isinstance(gateway, ModelRoutingGateway)
+    response = run(gateway.get_response(AiRequest(messages=[ChatMessage(role="user", content="recap")])))
+
+    assert response.text == "Injected OpenAI"
+    assert response.provider_metadata["routed_provider"] == "openai"
+    assert openai_client.responses.kwargs is not None
+
+
 def test_router_uses_requested_claude_model_when_anthropic_key_exists(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
