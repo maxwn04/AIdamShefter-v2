@@ -26,8 +26,8 @@ async def generate_article(
 ) -> ArticleOutput:
     """Main entry point for generating an article with the v2 runner."""
 
-    gw = gateway or create_gateway(AiGatewayConfig(model=model or "gpt-5-mini"))
-    runner_config = RunnerConfig(model=model or "gpt-5-mini")
+    gw = gateway or create_gateway(AiGatewayConfig(model=model))
+    runner_config = RunnerConfig(model=model)
 
     artifacts = ArtifactStore()
     procedures = ProcedureState()

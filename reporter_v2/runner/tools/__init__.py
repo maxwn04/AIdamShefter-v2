@@ -21,11 +21,16 @@ from reporter_v2.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_SPECS,
     register_datalayer_tools,
 )
+from reporter_v2.runner.tools.persistent_tools import (
+    PERSISTENT_TOOL_SPECS,
+    register_persistent_tools,
+)
 from reporter_v2.runner.tools.procedure_tools import load_procedure
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 __all__ = [
     "DATALAYER_TOOL_SPECS",
+    "PERSISTENT_TOOL_SPECS",
     "ToolContext",
     "ToolRegistry",
     "load_procedure",
@@ -34,6 +39,7 @@ __all__ = [
     "read_section",
     "rewrite_section",
     "register_datalayer_tools",
+    "register_persistent_tools",
     "save_fact",
     "save_storyline",
     "set_section_order",

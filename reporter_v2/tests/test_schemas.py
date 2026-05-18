@@ -186,4 +186,4 @@ class TestRunnerState:
         assert config.soft_tool_limit == 40
         assert config.hard_tool_limit == 50
         assert config.max_turns == 60
-        assert config.model == "gpt-5-mini"
+        assert config.model is None
