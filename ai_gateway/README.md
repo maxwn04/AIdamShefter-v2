@@ -24,7 +24,10 @@ from ai_gateway import (
     ToolSpec,
     ToolCall,
     ToolResultMessage,
-    OpenAIGateway,
+    MODEL_REGISTRY,
+    ModelRoutingGateway,
+    OpenAIProvider,
+    AnthropicProvider,
     create_gateway,
 )
 ```
@@ -92,6 +95,42 @@ response = await gateway.get_response(
 print(response.text)
 ```
 
+By default, `create_gateway()` builds a `ModelRoutingGateway`. The router selects a provider from the requested model, configured provider, and available API keys:
+
+- `OPENAI_API_KEY` enables OpenAI models.
+- `ANTHROPIC_API_KEY` enables Claude models through the Anthropic SDK.
+- `AI_GATEWAY_PROVIDER` can be `auto`, `openai`, or `anthropic`. `gpt`, `chatgpt`, and `claude` are accepted as convenience aliases.
+- `AI_GATEWAY_MODEL` can set the default model directly.
+- `OPENAI_MODEL` sets the OpenAI fallback default, otherwise `REPORTER_MODEL` is used, otherwise `gpt-5o`.
+- `ANTHROPIC_MODEL` sets the Claude fallback default, otherwise `claude-sonnet-4-6`.
+
+When `provider="auto"`, known models are looked up in `MODEL_REGISTRY`; the router does not guess providers from model-name prefixes. If a requested provider is not configured, the router falls back to the first configured provider. For example, `AiGatewayConfig(provider="anthropic")` with no `ANTHROPIC_API_KEY` but with `OPENAI_API_KEY` falls back to OpenAI using `gpt-5o` unless overridden by `OPENAI_MODEL` or `REPORTER_MODEL`.
+
+```python
+from ai_gateway import AiGatewayConfig, AiRequest, ChatMessage, create_gateway
+
+gateway = create_gateway(AiGatewayConfig(provider="auto"))
+
+claude_response = await gateway.get_response(
+    AiRequest(
+        messages=[ChatMessage(role="user", content="Write a headline.")],
+        model="claude-sonnet-4-6",
+    )
+)
+
+openai_response = await gateway.get_response(
+    AiRequest(
+        messages=[ChatMessage(role="user", content="Write a headline.")],
+        model="gpt-5o",
+    )
+)
+```
+
+The built-in model registry includes the common chat/reasoning models used by this project:
+
+- OpenAI: `gpt-5.2`, `gpt-5.2-pro`, `gpt-5.1`, `gpt-5`, `gpt-5-pro`, `gpt-5-mini`, `gpt-5-nano`, `gpt-5o`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano`, `gpt-4o`, `gpt-4o-mini`, `o3`, `o3-pro`, `o4-mini`.
+- Anthropic: `claude-opus-4-7`, `claude-opus-4-6`, `claude-opus-4-5-20251101`, `claude-opus-4-1-20250805`, `claude-sonnet-4-6`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`.
+
 ## Tool Calling
 
 Tools are passed in as `ToolSpec` objects. Existing OpenAI-style tool JSON can be adapted directly:
@@ -121,7 +160,7 @@ print(final_response.text)
 
 ## Structured Output
 
-Pass a Pydantic model class as `structured_output_schema`. The OpenAI adapter sends it as a JSON Schema response format and validates the returned text into that model.
+Pass a Pydantic model class as `structured_output_schema`. Provider adapters send the schema using their provider-specific JSON Schema mechanism and validate the returned text into that model.
 
 ```python
 from pydantic import BaseModel
@@ -148,13 +187,13 @@ Invalid structured output raises `StructuredOutputValidationError`.
 
 ## OpenAI Provider
 
-`OpenAIGateway` uses the official OpenAI Python SDK and the Responses API.
+`OpenAIProvider` uses the official OpenAI Python SDK and the Responses API.
 
 Configuration defaults:
 
 - `provider="openai"`
 - `api_key` from `OPENAI_API_KEY`
-- `model` from `REPORTER_MODEL`, falling back to `gpt-5-mini`
+- `model` from `OPENAI_MODEL`, then `REPORTER_MODEL`, falling back to `gpt-5o`
 
 ```python
 from ai_gateway import AiGatewayConfig, create_gateway
@@ -181,6 +220,30 @@ response = await gateway.get_response(
 
 `provider_context` supports provider metadata needed across calls, such as `previous_response_id` for OpenAI Responses API continuation.
 
+## Anthropic Provider
+
+`AnthropicProvider` uses the official Anthropic Python SDK and the Messages API.
+
+Configuration defaults:
+
+- `provider="anthropic"`
+- `api_key` from `ANTHROPIC_API_KEY`
+- `model` from `ANTHROPIC_MODEL`, falling back to `claude-sonnet-4-6`
+
+```python
+from ai_gateway import AiGatewayConfig, create_gateway
+
+gateway = create_gateway(
+    AiGatewayConfig(
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        timeout=30,
+    )
+)
+```
+
+Anthropic tool definitions are translated from `ToolSpec` into Messages API tools with `input_schema`. Structured output schemas are sent using `output_config.format` with `type="json_schema"` and are validated into the requested Pydantic model after the response is returned.
+
 ## Errors
 
 - `UnsupportedProviderError`: Raised by `create_gateway` for unknown providers.
@@ -195,4 +258,4 @@ pytest ai_gateway/tests reporter/tests
 pytest
 ```
 
-The gateway tests use a fake OpenAI client, so they do not require network access or an API key.
+The gateway tests use fake provider clients, so they do not require network access or API keys.

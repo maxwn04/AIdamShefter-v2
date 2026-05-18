@@ -1,4 +1,4 @@
-"""OpenAI Responses API adapter for the AI gateway."""
+"""OpenAI Responses API provider adapter for the AI gateway."""
 
 from __future__ import annotations
 
@@ -21,18 +21,18 @@ from ai_gateway.models import (
 )
 
 
-class OpenAIGateway(AiGateway):
-    """AI gateway implementation backed by OpenAI's Responses API."""
+class OpenAIProvider(AiGateway):
+    """Provider adapter backed by OpenAI's Responses API."""
 
     def __init__(self, config: AiGatewayConfig | None = None, client: Any | None = None) -> None:
-        self.config = config or AiGatewayConfig()
+        self.config = config or AiGatewayConfig(provider="openai")
         self.client = client or self._create_client()
 
     def _create_client(self) -> Any:
         try:
             from openai import AsyncOpenAI
         except ImportError as exc:
-            raise RuntimeError("The openai package is required to use OpenAIGateway.") from exc
+            raise RuntimeError("The openai package is required to use OpenAIProvider.") from exc
 
         kwargs: dict[str, Any] = {}
         if self.config.api_key:
@@ -210,3 +210,4 @@ class OpenAIGateway(AiGateway):
         if isinstance(value, dict):
             return value.get(name, default)
         return getattr(value, name, default)
+

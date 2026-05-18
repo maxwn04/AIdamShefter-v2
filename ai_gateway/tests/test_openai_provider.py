@@ -1,4 +1,4 @@
-"""Tests for the OpenAI gateway adapter."""
+"""Tests for the OpenAI provider adapter."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from ai_gateway import (
     AiRequest,
     ChatMessage,
     GatewayToolArgumentError,
-    OpenAIGateway,
+    OpenAIProvider,
     StructuredOutputValidationError,
     ToolCall,
     ToolResultMessage,
@@ -55,7 +55,7 @@ def test_plain_text_response_normalizes():
             "usage": {"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
         }
     )
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     response = run(gateway.get_response(AiRequest(messages=[ChatMessage(role="user", content="recap")])))
 
@@ -70,7 +70,7 @@ def test_plain_text_response_normalizes():
 
 def test_maps_tools_into_responses_request():
     client = FakeClient({"status": "completed", "output_text": "ok"})
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     run(
         gateway.get_response(
@@ -116,7 +116,7 @@ def test_tool_call_response_normalizes_arguments():
             ],
         }
     )
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     response = run(gateway.get_response(AiRequest(messages=[ChatMessage(role="user", content="team game")])))
 
@@ -138,7 +138,7 @@ def test_malformed_tool_arguments_raise_gateway_error():
             ],
         }
     )
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     with pytest.raises(GatewayToolArgumentError):
         run(gateway.get_response(AiRequest(messages=[ChatMessage(role="user", content="team game")])))
@@ -146,7 +146,7 @@ def test_malformed_tool_arguments_raise_gateway_error():
 
 def test_tool_result_message_serializes_for_next_request():
     client = FakeClient({"status": "completed", "output_text": "thanks"})
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     run(
         gateway.get_response(
@@ -171,7 +171,7 @@ def test_tool_result_message_serializes_for_next_request():
 
 def test_structured_output_schema_is_sent_and_validated():
     client = FakeClient({"status": "completed", "output_text": '{"title": "Recap", "score": 98}'})
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     response = run(
         gateway.get_response(
@@ -189,7 +189,7 @@ def test_structured_output_schema_is_sent_and_validated():
 
 def test_invalid_structured_output_raises_gateway_error():
     client = FakeClient({"status": "completed", "output_text": '{"title": "Recap"}'})
-    gateway = OpenAIGateway(AiGatewayConfig(model="gpt-test"), client=client)
+    gateway = OpenAIProvider(AiGatewayConfig(model="gpt-test"), client=client)
 
     with pytest.raises(StructuredOutputValidationError):
         run(
