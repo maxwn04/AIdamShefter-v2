@@ -147,6 +147,26 @@ def test_runner_tool_call_dispatch() -> None:
     assert result_message.content == '{"ok": true, "value": 7}'
 
 
+def test_runner_passes_previous_response_id_after_tool_call() -> None:
+    gateway = FakeGateway(
+        [
+            AiResponse(
+                tool_calls=[tool_call("lookup")],
+                provider_metadata={"response_id": "resp_123"},
+            ),
+            AiResponse(text="Done."),
+        ]
+    )
+    runner = Runner(gateway, registry_with("lookup", lambda: "{}"))
+
+    run(runner.run("system", "user"))
+
+    assert gateway.requests[0].provider_context == {}
+    assert gateway.requests[1].provider_context == {
+        "previous_response_id": "resp_123"
+    }
+
+
 def test_runner_submit_article_breaks_loop() -> None:
     def submit_article() -> str:
         return '{"ok": true}'
@@ -164,6 +184,25 @@ def test_runner_submit_article_breaks_loop() -> None:
     assert output.run_log_summary["submitted"] is True
     assert output.run_log_summary["total_turns"] == 1
     assert len(gateway.requests) == 1
+
+
+def test_runner_failed_submit_article_does_not_break_loop() -> None:
+    def submit_article() -> str:
+        return '{"ok": false, "error": "Cannot submit an empty article."}'
+
+    gateway = FakeGateway(
+        [
+            AiResponse(tool_calls=[tool_call("submit_article")]),
+            AiResponse(text="Done."),
+        ]
+    )
+    runner = Runner(gateway, registry_with("submit_article", submit_article))
+
+    output = run(runner.run("system", "user"))
+
+    assert output.run_log_summary["submitted"] is False
+    assert output.run_log_summary["total_turns"] == 2
+    assert len(gateway.requests) == 2
 
 
 def test_runner_soft_guardrail() -> None:
@@ -214,6 +253,40 @@ def test_runner_hard_guardrail() -> None:
     guardrail_message = gateway.requests[1].messages[-1]
     assert guardrail_message.role == "system"
     assert "HARD LIMIT REACHED" in guardrail_message.content
+
+
+def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
+    calls: list[str] = []
+
+    def lookup() -> str:
+        calls.append("lookup")
+        return "{}"
+
+    gateway = FakeGateway(
+        [
+            AiResponse(tool_calls=[tool_call("lookup", call_id="call_1")]),
+            AiResponse(tool_calls=[tool_call("lookup", call_id="call_2")]),
+            AiResponse(text="Done."),
+        ]
+    )
+    runner = Runner(
+        gateway,
+        registry_with("lookup", lookup),
+        config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=1, max_turns=5),
+    )
+
+    output = run(runner.run("system", "user"))
+
+    assert calls == ["lookup"]
+    assert output.run_log_summary["total_tool_calls"] == 1
+    blocked_messages = [
+        message
+        for message in gateway.requests[2].messages
+        if isinstance(message, ToolResultMessage)
+        and message.tool_call_id == "call_2"
+    ]
+    assert len(blocked_messages) == 1
+    assert "Only submit_article may be called" in blocked_messages[0].content
 
 
 def test_runner_procedure_replacement() -> None:
