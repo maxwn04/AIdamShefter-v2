@@ -31,6 +31,9 @@ reporter = "reporter.app.runner:main"
 where = ["."]
 include = ["datalayer*", "reporter*", "ai_gateway*"]
 
+[tool.setuptools.package-data]
+reporter_v2 = ["procedures/*.md"]
+
 [tool.pytest.ini_options]
 testpaths = ["datalayer/tests", "reporter/tests", "reporter_v2/tests", "ai_gateway/tests"]
 addopts = "-ra"
