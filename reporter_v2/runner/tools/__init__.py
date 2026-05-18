@@ -17,10 +17,15 @@ from reporter_v2.runner.tools.brief_tools import (
     set_style,
 )
 from reporter_v2.runner.tools.context import ToolContext
+from reporter_v2.runner.tools.datalayer_tools import (
+    DATALAYER_TOOL_SPECS,
+    register_datalayer_tools,
+)
 from reporter_v2.runner.tools.procedure_tools import load_procedure
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 __all__ = [
+    "DATALAYER_TOOL_SPECS",
     "ToolContext",
     "ToolRegistry",
     "load_procedure",
@@ -28,6 +33,7 @@ __all__ = [
     "read_brief",
     "read_section",
     "rewrite_section",
+    "register_datalayer_tools",
     "save_fact",
     "save_storyline",
     "set_section_order",
