@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ai_gateway.model_registry import default_model_for_provider, normalize_provider
+
 
 class ChatMessage(BaseModel):
     """A normal conversation message."""
@@ -85,11 +87,22 @@ class AiUsage(BaseModel):
 class AiGatewayConfig(BaseModel):
     """Configuration for a gateway provider."""
 
-    provider: str = "openai"
-    api_key: str | None = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
-    model: str = Field(default_factory=lambda: os.getenv("REPORTER_MODEL", "gpt-5-mini"))
+    provider: str = Field(default_factory=lambda: os.getenv("AI_GATEWAY_PROVIDER", "auto"))
+    api_key: str | None = None
+    model: str | None = Field(default_factory=lambda: os.getenv("AI_GATEWAY_MODEL"))
     base_url: str | None = None
     timeout: float | None = None
+
+    def model_post_init(self, __context: Any) -> None:
+        provider = normalize_provider(self.provider)
+        if self.api_key is None:
+            if provider == "anthropic":
+                self.api_key = os.getenv("ANTHROPIC_API_KEY")
+            elif provider == "openai":
+                self.api_key = os.getenv("OPENAI_API_KEY")
+        if self.model is None:
+            if provider in {"anthropic", "openai"}:
+                self.model = default_model_for_provider(provider)
 
 
 class AiRequest(BaseModel):
