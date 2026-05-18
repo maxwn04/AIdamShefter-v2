@@ -119,6 +119,20 @@ def test_runner_simple_text_response() -> None:
     assert runner.log.entries[0].event_type == "model_text"
     assert gateway.requests[0].messages[0].role == "system"
     assert gateway.requests[0].messages[1].role == "user"
+    assert gateway.requests[0].model is None
+
+
+def test_runner_passes_explicit_model_override() -> None:
+    gateway = FakeGateway([AiResponse(text="Done.")])
+    runner = Runner(
+        gateway,
+        ToolRegistry(),
+        config=RunnerConfig(model="claude-sonnet-4-6"),
+    )
+
+    run(runner.run("system", "user"))
+
+    assert gateway.requests[0].model == "claude-sonnet-4-6"
 
 
 def test_runner_tool_call_dispatch() -> None:
