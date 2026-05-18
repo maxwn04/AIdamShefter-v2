@@ -18,9 +18,11 @@ from reporter_v2.runner.tools.brief_tools import (
 )
 from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.procedure_tools import load_procedure
+from reporter_v2.runner.tools.registry import ToolRegistry
 
 __all__ = [
     "ToolContext",
+    "ToolRegistry",
     "load_procedure",
     "read_article",
     "read_brief",
