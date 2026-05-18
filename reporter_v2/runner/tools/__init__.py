@@ -17,9 +17,11 @@ from reporter_v2.runner.tools.brief_tools import (
     set_style,
 )
 from reporter_v2.runner.tools.context import ToolContext
+from reporter_v2.runner.tools.procedure_tools import load_procedure
 
 __all__ = [
     "ToolContext",
+    "load_procedure",
     "read_article",
     "read_brief",
     "read_section",
