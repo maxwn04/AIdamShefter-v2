@@ -133,4 +133,5 @@ class ArticleOutput(BaseModel):
     article: str
     brief: ReportBrief
     run_log_summary: dict[str, Any] = Field(default_factory=dict)
+    run_log_entries: list[dict[str, Any]] = Field(default_factory=list)
     generated_at: str = Field(default_factory=lambda: datetime.now().isoformat())

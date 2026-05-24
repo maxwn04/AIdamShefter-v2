@@ -31,6 +31,7 @@ def make_response(
     *,
     text: str | None = None,
     tool_calls: list[ToolCall] | None = None,
+    reasoning_content: str | None = None,
 ) -> Any:
     raw_calls = [
         SimpleNamespace(
@@ -44,6 +45,7 @@ def make_response(
     ]
     message = SimpleNamespace(
         content=text,
+        reasoning_content=reasoning_content,
         tool_calls=raw_calls,
     )
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
@@ -205,6 +207,24 @@ def test_runner_carries_tool_call_history_after_tool_call() -> None:
     }
 
 
+def test_runner_preserves_reasoning_content_in_tool_call_history() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("lookup")],
+                reasoning_content="reasoning payload",
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    runner = Runner(registry_with("lookup", lambda: "{}"), complete=complete)
+
+    run(runner.run("system", "user"))
+
+    assistant_message = complete.requests[1]["messages"][-2]
+    assert assistant_message["reasoning_content"] == "reasoning payload"
+
+
 def test_runner_submit_article_breaks_loop() -> None:
     def submit_article() -> str:
         return '{"ok": true}'
@@ -243,57 +263,7 @@ def test_runner_failed_submit_article_does_not_break_loop() -> None:
     assert len(complete.requests) == 2
 
 
-def test_runner_soft_guardrail() -> None:
-    complete = FakeCompletion(
-        [
-            make_response(tool_calls=[tool_call("lookup")]),
-            make_response(text="Done."),
-        ]
-    )
-    runner = Runner(
-        registry_with("lookup", lambda: "{}"),
-        complete=complete,
-        config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=10, max_turns=5),
-    )
-
-    run(runner.run("system", "user"))
-
-    assert any(
-        entry.event_type == "guardrail"
-        and entry.data["guardrail_type"] == "soft_tool_limit"
-        for entry in runner.log.entries
-    )
-    guardrail_message = complete.requests[1]["messages"][-1]
-    assert guardrail_message["role"] == "system"
-    assert "Start wrapping up" in guardrail_message["content"]
-
-
-def test_runner_hard_guardrail() -> None:
-    complete = FakeCompletion(
-        [
-            make_response(tool_calls=[tool_call("lookup")]),
-            make_response(text="Done."),
-        ]
-    )
-    runner = Runner(
-        registry_with("lookup", lambda: "{}"),
-        complete=complete,
-        config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=1, max_turns=5),
-    )
-
-    run(runner.run("system", "user"))
-
-    assert any(
-        entry.event_type == "guardrail"
-        and entry.data["guardrail_type"] == "hard_tool_limit"
-        for entry in runner.log.entries
-    )
-    guardrail_message = complete.requests[1]["messages"][-1]
-    assert guardrail_message["role"] == "system"
-    assert "HARD LIMIT REACHED" in guardrail_message["content"]
-
-
-def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
+def test_runner_does_not_limit_tool_calls() -> None:
     calls: list[str] = []
 
     def lookup() -> str:
@@ -310,20 +280,14 @@ def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
     runner = Runner(
         registry_with("lookup", lookup),
         complete=complete,
-        config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=1, max_turns=5),
+        config=RunnerConfig(max_turns=5),
     )
 
     output = run(runner.run("system", "user"))
 
-    assert calls == ["lookup"]
-    assert output.run_log_summary["total_tool_calls"] == 1
-    blocked_messages = [
-        message
-        for message in complete.requests[2]["messages"]
-        if message.get("role") == "tool" and message.get("tool_call_id") == "call_2"
-    ]
-    assert len(blocked_messages) == 1
-    assert "Only submit_article may be called" in blocked_messages[0]["content"]
+    assert calls == ["lookup", "lookup"]
+    assert output.run_log_summary["total_tool_calls"] == 2
+    assert not any(entry.event_type == "guardrail" for entry in runner.log.entries)
 
 
 def test_runner_procedure_replacement() -> None:

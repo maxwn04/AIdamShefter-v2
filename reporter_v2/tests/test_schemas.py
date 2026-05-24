@@ -158,6 +158,12 @@ class TestArticleOutput:
             article="# Week 8 Recap\n\nContent here...",
             brief=brief,
             run_log_summary={"tool_calls": 3},
+            run_log_entries=[
+                {
+                    "event_type": "tool_call",
+                    "data": {"tool_name": "standings", "params": {"week": 8}},
+                }
+            ],
         )
 
         roundtripped = ArticleOutput.model_validate(output.model_dump())
@@ -165,6 +171,7 @@ class TestArticleOutput:
         assert roundtripped.article.startswith("# Week 8")
         assert roundtripped.brief.meta.league_name == "Test League"
         assert roundtripped.run_log_summary == {"tool_calls": 3}
+        assert roundtripped.run_log_entries[0]["data"]["params"] == {"week": 8}
         assert roundtripped.generated_at is not None
 
 
@@ -183,7 +190,5 @@ class TestRunnerState:
     def test_runner_config_defaults(self):
         config = RunnerConfig()
 
-        assert config.soft_tool_limit == 40
-        assert config.hard_tool_limit == 50
         assert config.max_turns == 60
         assert config.model is None

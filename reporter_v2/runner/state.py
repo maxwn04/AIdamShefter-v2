@@ -17,7 +17,5 @@ class ProcedureState(BaseModel):
 
 
 class RunnerConfig(BaseModel):
-    soft_tool_limit: int = 40
-    hard_tool_limit: int = 50
     max_turns: int = 60
     model: str | None = None

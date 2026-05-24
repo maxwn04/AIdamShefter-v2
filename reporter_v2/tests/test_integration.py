@@ -229,6 +229,12 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         "drafting",
         "verification",
     ]
+    assert any(
+        entry["event_type"] == "tool_call"
+        and entry["data"]["tool_name"] == "league_snapshot"
+        and entry["data"]["params"] == {"week": 8}
+        for entry in output.run_log_entries
+    )
     first_request = complete.requests[0]
     assert first_request["model"] == "test-model"
     tool_names = [spec["function"]["name"] for spec in first_request["tools"]]

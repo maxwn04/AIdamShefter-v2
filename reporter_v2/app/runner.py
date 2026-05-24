@@ -120,6 +120,12 @@ Examples:
         action="store_true",
         help="Do not load or write persistent context.",
     )
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=None,
+        help="Maximum model turns before stopping. Defaults to REPORTER_V2_MAX_TURNS or 60.",
+    )
     return parser.parse_args()
 
 
@@ -128,6 +134,7 @@ async def run(args: argparse.Namespace) -> None:
     load_dotenv()
     prompt = args.prompt or _prompt_for_request()
     selected_model = _resolve_model(args.model)
+    max_turns = _resolve_max_turns(args.max_turns)
     output_dir = args.output_dir or Path(os.getenv("REPORTER_OUTPUT_DIR", ".output"))
     data_dir = args.data_dir or Path(os.getenv("REPORTER_DATA_DIR", ".data"))
 
@@ -162,6 +169,7 @@ async def run(args: argparse.Namespace) -> None:
     print(f"Season: {season}")
     print(f"Weeks: {time_range.week_start}-{time_range.week_end}")
     print(f"Model: {selected_model}")
+    print(f"Max turns: {max_turns}")
     if context_store is not None:
         print(f"Context DB: {data_dir / 'context.db'}")
     print(f"Stream log: {log_path}")
@@ -174,6 +182,7 @@ async def run(args: argparse.Namespace) -> None:
         report_config,
         context_store=context_store,
         model=selected_model,
+        max_turns=max_turns,
         log_path=log_path,
     )
 
@@ -198,6 +207,14 @@ async def run(args: argparse.Namespace) -> None:
         encoding="utf-8",
     )
     print(f"  Run log summary: {summary_path}")
+
+    run_log_path = output_dir / f"v2_article_{week_slug}.run_log.json"
+    run_log_path.write_text(
+        json.dumps(output.run_log_entries, indent=2),
+        encoding="utf-8",
+    )
+    print(f"  Run log entries: {run_log_path}")
+
     print(f"  Stream log: {log_path}")
     print()
     print("Done!")
@@ -229,6 +246,25 @@ def _resolve_model(model_arg: str | None) -> str:
         or os.getenv("REPORTER_MODEL")
         or "gpt-5-mini"
     )
+
+
+def _resolve_max_turns(max_turns_arg: int | None) -> int:
+    if max_turns_arg is not None:
+        if max_turns_arg < 1:
+            raise ValueError("--max-turns must be at least 1.")
+        return max_turns_arg
+
+    raw_value = os.getenv("REPORTER_V2_MAX_TURNS")
+    if raw_value is None or raw_value == "":
+        return 60
+
+    try:
+        max_turns = int(raw_value)
+    except ValueError as exc:
+        raise ValueError("REPORTER_V2_MAX_TURNS must be an integer.") from exc
+    if max_turns < 1:
+        raise ValueError("REPORTER_V2_MAX_TURNS must be at least 1.")
+    return max_turns
 
 
 def _resolve_time_range(

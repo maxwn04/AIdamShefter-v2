@@ -75,7 +75,7 @@ class Runner:
                 calls = extract_tool_calls(response)
                 if calls:
                     self.registry.set_turn(turn)
-                    messages.append(assistant_tool_call_message(calls))
+                    messages.append(assistant_tool_call_message(calls, response))
                     results = await self._execute_tool_batch(calls, turn)
                     for call, result_content in zip(calls, results):
                         if call.name == "load_procedure":
@@ -83,7 +83,6 @@ class Runner:
                         else:
                             messages.append(tool_result_message(call, result_content))
 
-                    self._check_guardrails(messages, turn)
                     continue
 
                 text = extract_text(response)
@@ -115,6 +114,9 @@ class Runner:
                     ],
                     "submitted": self._submitted,
                 },
+                run_log_entries=[
+                    entry.model_dump(mode="json") for entry in self.log.entries
+                ],
             )
         finally:
             self.log.stop_streaming()
@@ -124,28 +126,10 @@ class Runner:
         calls: list[ToolCall],
         turn: int,
     ) -> list[str]:
-        results: list[str | None] = [None] * len(calls)
-        scheduled: list[tuple[int, ToolCall]] = []
-        remaining_tool_slots = max(
-            self.config.hard_tool_limit - self.log.tool_call_count,
-            0,
-        )
-
-        for index, call in enumerate(calls):
-            if call.name == "submit_article" or remaining_tool_slots > 0:
-                scheduled.append((index, call))
-                if call.name != "submit_article":
-                    remaining_tool_slots -= 1
-            else:
-                results[index] = self._hard_limit_tool_result(turn)
-
         executed = await asyncio.gather(
-            *[self._execute_tool(call, turn) for _, call in scheduled]
+            *[self._execute_tool(call, turn) for call in calls]
         )
-        for (index, _), result in zip(scheduled, executed):
-            results[index] = result
-
-        return [result or "" for result in results]
+        return list(executed)
 
     async def _execute_tool(self, call: ToolCall, turn: int) -> str:
         handler = self.registry.get_handler(call.name)
@@ -178,22 +162,6 @@ class Runner:
 
         return result_content
 
-    def _hard_limit_tool_result(self, turn: int) -> str:
-        self.log.add_guardrail(
-            "hard_tool_limit_blocked",
-            self.log.tool_call_count,
-            self.config.hard_tool_limit,
-            turn=turn,
-        )
-        return self._as_tool_result_content(
-            {
-                "ok": False,
-                "error": (
-                    "Hard tool limit reached. Only submit_article may be called."
-                ),
-            }
-        )
-
     def _replace_procedure_message(
         self,
         messages: list[ChatMessage],
@@ -206,47 +174,6 @@ class Runner:
 
         messages.append(tool_result_message(call, content))
         self._procedure_message_idx = len(messages) - 1
-
-    def _check_guardrails(
-        self,
-        messages: list[ChatMessage],
-        turn: int,
-    ) -> None:
-        tool_count = self.log.tool_call_count
-        if tool_count >= self.config.hard_tool_limit:
-            self.log.add_guardrail(
-                "hard_tool_limit",
-                tool_count,
-                self.config.hard_tool_limit,
-                turn=turn,
-            )
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "HARD LIMIT REACHED. You must call submit_article() now. "
-                        "Do not make any more research or data tool calls."
-                    ),
-                }
-            )
-            return
-
-        if tool_count >= self.config.soft_tool_limit:
-            self.log.add_guardrail(
-                "soft_tool_limit",
-                tool_count,
-                self.config.soft_tool_limit,
-                turn=turn,
-            )
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        f"You have used {tool_count} tool calls. Start wrapping up: "
-                        "finalize your brief and move to drafting."
-                    ),
-                }
-            )
 
     @staticmethod
     def _as_tool_result_content(result: Any) -> str:
