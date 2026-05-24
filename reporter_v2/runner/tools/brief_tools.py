@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.schemas import (
     Fact,
     Outline,
@@ -15,6 +16,190 @@ from reporter_v2.runner.schemas import (
     Storyline,
 )
 from reporter_v2.runner.tools.context import ToolContext
+from reporter_v2.runner.tools.registry import ToolRegistry
+
+
+BRIEF_TOOL_SPECS: list[ToolDef] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "save_fact",
+            "description": (
+                "Add or update a verified fact in the report brief. Every numeric "
+                "or factual claim used in the article should be grounded in saved "
+                "facts with data references."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Stable fact ID, such as fact_001.",
+                    },
+                    "claim_text": {
+                        "type": "string",
+                        "description": "Human-readable factual claim.",
+                    },
+                    "data_refs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Tool/data references that sourced the claim, such as "
+                            "league_snapshot:week=8."
+                        ),
+                    },
+                    "numbers": {
+                        "type": "object",
+                        "description": "Important numeric values extracted from the claim.",
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "Fact category such as score, standing, player, transaction.",
+                    },
+                },
+                "required": ["id", "claim_text", "data_refs"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_storyline",
+            "description": (
+                "Add or update a narrative storyline in the brief, backed by saved "
+                "fact IDs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Stable storyline ID, such as story_001.",
+                    },
+                    "headline": {"type": "string"},
+                    "summary": {
+                        "type": "string",
+                        "description": "Short narrative summary grounded in facts.",
+                    },
+                    "supporting_fact_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 5,
+                        "description": "1 is lead-story priority; 5 is minor.",
+                    },
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["id", "headline", "summary", "supporting_fact_ids"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_outline",
+            "description": "Replace the planned article outline in the brief.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "bullet_points": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "required_fact_ids": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "storyline_ids": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            },
+                            "required": ["title"],
+                        },
+                    },
+                },
+                "required": ["sections"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_brief",
+            "description": "Read the current report brief and staleness metadata.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_style",
+            "description": "Set the resolved article voice and style controls.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "voice": {"type": "string"},
+                    "pacing": {"type": "string"},
+                    "humor_level": {"type": "integer", "minimum": 0, "maximum": 3},
+                    "formality": {"type": "string"},
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_bias",
+            "description": (
+                "Set bias framing rules. Bias affects word choice and emphasis only, "
+                "never scores, records, statistics, or other facts."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "favored_teams": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "disfavored_teams": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "intensity": {"type": "integer", "minimum": 0, "maximum": 3},
+                    "framing_rules": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+            },
+        },
+    },
+]
+
+
+def register_brief_tools(registry: ToolRegistry) -> None:
+    """Register all brief artifact tools against a ToolRegistry."""
+    handlers = {
+        "save_fact": save_fact,
+        "save_storyline": save_storyline,
+        "set_outline": set_outline,
+        "read_brief": read_brief,
+        "set_style": set_style,
+        "set_bias": set_bias,
+    }
+    for spec in BRIEF_TOOL_SPECS:
+        name = spec["function"]["name"]
+        registry.register_context_tool(name, handlers[name], spec)
 
 
 def save_fact(

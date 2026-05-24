@@ -15,18 +15,6 @@ from reporter.agent.schemas import (
     Section,
 )
 from reporter.agent.research_log import ResearchLog, ResearchLogEntry
-from reporter.agent.reporter_agent import ReporterAgent, ResearchAgent, DraftAgent
-from reporter.agent.clarify import ClarificationAgent
-from reporter.agent.workflows import (
-    generate_report,
-    generate_report_async,
-    generate_with_config,
-    generate_with_config_async,
-    weekly_recap,
-    weekly_recap_async,
-    snarky_recap,
-    snarky_recap_async,
-)
 
 __all__ = [
     # Config
@@ -58,3 +46,28 @@ __all__ = [
     "snarky_recap",
     "snarky_recap_async",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"ReporterAgent", "ResearchAgent", "DraftAgent"}:
+        from reporter.agent import reporter_agent
+
+        return getattr(reporter_agent, name)
+    if name == "ClarificationAgent":
+        from reporter.agent.clarify import ClarificationAgent
+
+        return ClarificationAgent
+    if name in {
+        "generate_report",
+        "generate_report_async",
+        "generate_with_config",
+        "generate_with_config_async",
+        "weekly_recap",
+        "weekly_recap_async",
+        "snarky_recap",
+        "snarky_recap_async",
+    }:
+        from reporter.agent import workflows
+
+        return getattr(workflows, name)
+    raise AttributeError(f"module 'reporter.agent' has no attribute {name!r}")

@@ -5,11 +5,45 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.tools.context import ToolContext
+from reporter_v2.runner.tools.registry import ToolRegistry
 
 
 PROCEDURE_DIR = Path(__file__).parent.parent.parent / "procedures"
 VALID_PROCEDURES = {"research", "storyline", "drafting", "verification"}
+
+PROCEDURE_TOOL_SPECS: list[ToolDef] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "load_procedure",
+            "description": (
+                "Load the current operating procedure. Use this before research, "
+                "storyline synthesis, drafting, and verification work."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "enum": sorted(VALID_PROCEDURES),
+                    },
+                },
+                "required": ["name"],
+            },
+        },
+    },
+]
+
+
+def register_procedure_tools(registry: ToolRegistry) -> None:
+    """Register procedure-loading tools against a ToolRegistry."""
+    registry.register_context_tool(
+        "load_procedure",
+        load_procedure,
+        PROCEDURE_TOOL_SPECS[0],
+    )
 
 
 def load_procedure(ctx: ToolContext, *, name: str) -> str:
@@ -33,4 +67,3 @@ def load_procedure(ctx: ToolContext, *, name: str) -> str:
     ctx.log.add_procedure_switch(previous, name, turn=ctx.turn)
 
     return path.read_text(encoding="utf-8")
-

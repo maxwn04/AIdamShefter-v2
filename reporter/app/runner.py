@@ -8,11 +8,11 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import text
+
+from datalayer.context_store import ContextStore
 from datalayer.sleeper_data import SleeperLeagueData
 
-from reporter.agent.clarify import ClarificationAgent
-from reporter.agent.reporter_agent import ReporterAgent
-from reporter.agent.workflows import _get_season, _make_context_store
 from reporter.app.config import load_config
 
 
@@ -56,11 +56,29 @@ Examples:
     return parser.parse_args()
 
 
+def _get_season(data: SleeperLeagueData) -> str:
+    """Extract the season string from a loaded SleeperLeagueData instance."""
+    if not data._query_conn:
+        return ""
+    row = data._query_conn.execute(text("SELECT season FROM leagues LIMIT 1")).first()
+    return row[0] if row else ""
+
+
+def _make_context_store(data: SleeperLeagueData, data_dir: Path) -> ContextStore:
+    """Create a ContextStore for the given loaded data."""
+    return ContextStore(
+        db_path=data_dir / "context.db",
+        league_id=data.league_id,
+        season=_get_season(data),
+    )
+
+
 async def run(
     prompt: str,
     week: Optional[int] = None,
     config=None,
     league_id: Optional[str] = None,
+    model: Optional[str] = None,
 ) -> None:
     """Run the reporter agent flow."""
     print()
@@ -81,7 +99,7 @@ async def run(
     # Set up persistent context store
     data_dir = config.data_dir if config else Path(".data")
     season = _get_season(data)
-    context_store = _make_context_store(data)
+    context_store = _make_context_store(data, data_dir)
 
     print(f"League: {data.league_id}")
     print(f"Season: {season}")
@@ -95,8 +113,10 @@ async def run(
     print(f"Your request: {prompt}")
     print()
 
-    model = config.model if config else "gpt-5-mini"
-    clarify_agent = ClarificationAgent(data, default_week=week, model=model)
+    selected_model = model or (config.model if config else "gpt-5-mini")
+    from reporter.agent.clarify import ClarificationAgent
+
+    clarify_agent = ClarificationAgent(data, default_week=week, model=selected_model)
     report_config = await clarify_agent.clarify(prompt)
 
     # Show the resolved config
@@ -149,7 +169,9 @@ async def run(
     print(f"  Run in another terminal: tail -f {log_path}")
     print()
 
-    reporter = ReporterAgent(data, model=model, context_store=context_store)
+    from reporter.agent.reporter_agent import ReporterAgent
+
+    reporter = ReporterAgent(data, model=selected_model, context_store=context_store)
     output = await reporter.run_with_config(report_config, log_path=log_path)
 
     # Show research summary
@@ -218,7 +240,15 @@ def main() -> None:
             print("No prompt provided. Exiting.")
             sys.exit(1)
 
-    asyncio.run(run(prompt, args.week, config, league_id=args.league))
+    asyncio.run(
+        run(
+            prompt,
+            args.week,
+            config,
+            league_id=args.league,
+            model=args.model,
+        )
+    )
 
 
 if __name__ == "__main__":

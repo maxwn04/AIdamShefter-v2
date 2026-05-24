@@ -6,8 +6,114 @@ import json
 import re
 from typing import Any
 
+from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.schemas import ArticleSection
 from reporter_v2.runner.tools.context import ToolContext
+from reporter_v2.runner.tools.registry import ToolRegistry
+
+
+ARTICLE_TOOL_SPECS: list[ToolDef] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "write_section",
+            "description": "Create or overwrite a named article section.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Stable section name, such as opening or playoff_race.",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Markdown content for the section.",
+                    },
+                },
+                "required": ["name", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_article",
+            "description": "Read all article sections in display order.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_section",
+            "description": "Read one named article section.",
+            "parameters": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "rewrite_section",
+            "description": "Replace an existing named article section.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "content": {"type": "string"},
+                },
+                "required": ["name", "content"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_section_order",
+            "description": "Set the display order of all existing article sections.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "names": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "All existing section names in desired display order.",
+                    },
+                },
+                "required": ["names"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "submit_article",
+            "description": (
+                "Signal that the article is complete. Call this exactly once after "
+                "drafting and verification are done."
+            ),
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+]
+
+
+def register_article_tools(registry: ToolRegistry) -> None:
+    """Register all article artifact tools against a ToolRegistry."""
+    handlers = {
+        "write_section": write_section,
+        "read_article": read_article,
+        "read_section": read_section,
+        "rewrite_section": rewrite_section,
+        "set_section_order": set_section_order,
+        "submit_article": submit_article,
+    }
+    for spec in ARTICLE_TOOL_SPECS:
+        name = spec["function"]["name"]
+        registry.register_context_tool(name, handlers[name], spec)
 
 
 def write_section(ctx: ToolContext, *, name: str, content: str) -> str:
