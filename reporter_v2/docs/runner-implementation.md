@@ -31,7 +31,7 @@ reporter_v2/
       procedure_tools.py # load_procedure
       datalayer_tools.py # 18 datalayer tool adapters
       persistent_tools.py # save/load persistent context
-      registry.py       # ToolRegistry: maps names to callables + ToolSpecs
+      registry.py       # ToolRegistry: maps names to callables + tool definitions
   procedures/
     research.md
     storyline.md
@@ -97,7 +97,7 @@ and 8 can run in parallel after 6. Phase 9 ties everything together.
 1. `Runner._execute_tool(call, turn)` looks up `registry.get_handler(call.name)`
 2. For brief/article/procedure tools, the handler is a closure with `ToolContext` bound
 3. For datalayer tools, the handler is a closure around the `SleeperLeagueData` method
-4. The handler returns a JSON string → `ToolResultMessage.content`
+4. The handler returns a JSON string → an OpenAI-format `tool` message
 
 ### How tools access ArtifactStore
 
@@ -114,12 +114,12 @@ Two sources:
 
 1. Model calls `load_procedure("drafting")`
 2. Handler reads markdown, updates `ProcedureState.active`, logs the switch
-3. Runner's `_replace_procedure_message()` removes the old procedure message and appends the new one
+3. Runner's `_replace_procedure_message()` compacts the old procedure result and appends the new one
 4. `_procedure_message_idx` tracks the position
 
 ### Potential Challenges
 
 1. **Procedure message index tracking** — removing a message shifts subsequent indices
-2. **Gateway message format** — removed `ToolResultMessage` means its `call_id` disappears; may need `"[procedure replaced]"` fallback for some providers
+2. **Chat-completions message format** — tool results must retain a matching assistant tool call; obsolete procedure content is replaced with `"[procedure replaced]"`
 3. **Parallel tool execution** — synchronous Pydantic mutations under Python's GIL; no real race conditions
 4. **`pyproject.toml`** — `reporter_v2` package must be added to the build config

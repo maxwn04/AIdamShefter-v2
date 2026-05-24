@@ -6,7 +6,7 @@ import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from ai_gateway import ToolSpec
+from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
@@ -139,7 +139,7 @@ PERSISTENT_TOOLS = [
 ]
 
 
-PERSISTENT_TOOL_SPECS: list[ToolSpec] = ToolSpec.from_openai_tools(PERSISTENT_TOOLS)
+PERSISTENT_TOOL_SPECS: list[ToolDef] = PERSISTENT_TOOLS
 
 
 def register_persistent_tools(
@@ -243,7 +243,8 @@ def register_persistent_tools(
         "load_league_notes": load_league_notes,
     }
     for spec in PERSISTENT_TOOL_SPECS:
-        registry.register(spec.name, handlers[spec.name], spec)
+        name = spec["function"]["name"]
+        registry.register(name, handlers[name], spec)
 
 
 def _resolve_team_keys(
