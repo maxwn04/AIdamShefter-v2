@@ -185,8 +185,9 @@ class RunLog(BaseModel):
             return f"{elapsed} Loaded procedure: {data['to_procedure']}{previous}"
         if entry.event_type == "tool_call":
             duration_ms = data.get("duration_ms", 0)
+            params = self._format_params(data.get("params", {}))
             return (
-                f"{elapsed} {data['tool_name']}() -> "
+                f"{elapsed} {data['tool_name']}({params}) -> "
                 f"{data['result_summary']} [{duration_ms}ms]"
             )
         if entry.event_type == "artifact_write":
@@ -206,3 +207,18 @@ class RunLog(BaseModel):
         if entry.event_type == "completion":
             return f"{elapsed} COMPLETE: {json.dumps(data)}"
         return f"{elapsed} {entry.event_type}: {data}"
+
+    @staticmethod
+    def _format_params(params: Any, *, max_chars: int = 300) -> str:
+        if not params:
+            return ""
+
+        formatted = json.dumps(
+            params,
+            sort_keys=True,
+            ensure_ascii=False,
+            default=str,
+        )
+        if len(formatted) <= max_chars:
+            return formatted
+        return formatted[: max_chars - 3] + "..."

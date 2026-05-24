@@ -31,6 +31,7 @@ async def generate_article(
     *,
     context_store: ContextStore | None = None,
     model: str | None = None,
+    max_turns: int = 60,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
 ) -> ArticleOutput:
@@ -58,7 +59,7 @@ async def generate_article(
     runner = Runner(
         registry,
         complete=complete,
-        config=RunnerConfig(model=model),
+        config=RunnerConfig(model=model, max_turns=max_turns),
         log_path=log_path,
     )
     runner.artifacts.brief.meta.league_id = str(data.league_id)

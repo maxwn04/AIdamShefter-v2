@@ -51,7 +51,7 @@ def test_streaming(tmp_path) -> None:
 
     log.start_streaming(path)
     log.add_procedure_switch(None, "research", turn=1)
-    log.add_tool_call("standings", {}, "12 teams", 25, turn=2)
+    log.add_tool_call("standings", {"week": 8}, "12 teams", 25, turn=2)
     log.add_artifact_write("brief", "save_fact", "fact_001", revision=1, turn=3)
     log.add_model_text("Drafting a lead from the standings.", turn=4)
     log.add_guardrail("tool_limit", 40, 50, turn=5)
@@ -61,7 +61,7 @@ def test_streaming(tmp_path) -> None:
     content = path.read_text(encoding="utf-8")
     assert content.startswith("# Run Log: stream01\nStarted: 2026-05-18T10:00:00")
     assert "Loaded procedure: research" in content
-    assert "standings() -> 12 teams [25ms]" in content
+    assert 'standings({"week": 8}) -> 12 teams [25ms]' in content
     assert "save_fact(fact_001) -> brief rev 1" in content
     assert "Model: Drafting a lead from the standings." in content
     assert "GUARDRAIL: tool_limit (40/50)" in content
@@ -69,6 +69,21 @@ def test_streaming(tmp_path) -> None:
     assert "Completed:" in content
     assert "Total tool calls: 1" in content
     assert log._stream_file is None
+
+
+def test_streaming_truncates_long_tool_arguments(tmp_path) -> None:
+    path = tmp_path / "run-log.md"
+    log = RunLog(session_id="stream02")
+
+    log.start_streaming(path)
+    log.add_tool_call("write_section", {"content": "x" * 500}, "ok", 1, turn=1)
+    log.stop_streaming()
+
+    content = path.read_text(encoding="utf-8")
+    assert 'write_section({"content": "' in content
+    assert "..." in content
+    assert '"content": "' + ("x" * 500) not in content
+    assert log.entries[0].data["params"] == {"content": "x" * 500}
 
 
 def test_format_elapsed() -> None:

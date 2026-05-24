@@ -31,11 +31,16 @@ def tool_result_message(call: ToolCall, result: Any) -> ChatMessage:
     }
 
 
-def assistant_tool_call_message(calls: list[ToolCall]) -> ChatMessage:
+def assistant_tool_call_message(
+    calls: list[ToolCall],
+    response: Any | None = None,
+) -> ChatMessage:
     """Build the assistant message that must precede tool result messages."""
-    return {
+    source_message = _first_message(response) if response is not None else None
+    content = _read_attr(source_message, "content")
+    message: ChatMessage = {
         "role": "assistant",
-        "content": None,
+        "content": content,
         "tool_calls": [
             {
                 "id": call.id,
@@ -48,6 +53,18 @@ def assistant_tool_call_message(calls: list[ToolCall]) -> ChatMessage:
             for call in calls
         ],
     }
+
+    reasoning_content = _read_attr(source_message, "reasoning_content")
+    if reasoning_content is not None:
+        # DeepSeek thinking-mode responses must be passed back verbatim on
+        # subsequent turns, or the API rejects the tool result turn.
+        message["reasoning_content"] = reasoning_content
+
+    provider_specific_fields = _read_attr(source_message, "provider_specific_fields")
+    if provider_specific_fields is not None:
+        message["provider_specific_fields"] = provider_specific_fields
+
+    return message
 
 
 def extract_tool_calls(response: Any) -> list[ToolCall]:

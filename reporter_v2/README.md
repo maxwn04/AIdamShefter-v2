@@ -30,6 +30,7 @@ SLEEPER_WEEK_OVERRIDE=8
 REPORTER_V2_MODEL=gpt-5-mini
 REPORTER_OUTPUT_DIR=.output
 REPORTER_DATA_DIR=.data
+REPORTER_V2_MAX_TURNS=60
 ```
 
 `reporter-v2` uses LiteLLM model IDs, so provider-specific API keys should be
@@ -111,6 +112,7 @@ reporter-v2 "weekly recap" --week 8 --output-dir .output/v2-runs
 - `--roast`: team to frame negatively
 - `--bias-intensity`: framing intensity from `0` to `3`
 - `--evidence-policy`: `strict`, `standard`, or `relaxed`
+- `--max-turns`: maximum model turns before stopping; defaults to `60`
 - `--no-context`: skip persistent context reads/writes
 
 ## Outputs
@@ -120,6 +122,7 @@ By default, outputs are written to `.output/`:
 - `v2_article_week8.md`: final article
 - `v2_article_week8.brief.json`: verified brief
 - `v2_article_week8.run_log_summary.json`: run summary
+- `v2_article_week8.run_log.json`: structured run log with full tool arguments
 - `v2_week8.stream.log`: streaming run log
 
 Persistent narrative context is stored in `.data/context.db` unless overridden
