@@ -3,8 +3,8 @@
 ## Goal
 
 Replace the rigid multi-agent pipeline of reporter v1 with a single model loop
-that flexibly decides what to do next. The runner is model-agnostic via the
-`ai_gateway` abstraction and uses tool calls to drive research, drafting, and
+that flexibly decides what to do next. The runner is model-agnostic via
+`litellm.acompletion()` and uses tool calls to drive research, drafting, and
 verification without hard-coded phase transitions.
 
 ## Why V2
@@ -28,10 +28,11 @@ conversation. The artifact system manages that cost.
 │  System Prompt (lean: identity + tool index)        │
 │                                                     │
 │  while not done:                                    │
-│    response = gateway.get_response(request)         │
-│    if response.tool_calls:                          │
-│      results = execute_tools(response.tool_calls)   │
-│      append results to messages                     │
+│    response = completion(model, messages, tools)    │
+│    if tool calls:                                   │
+│      append assistant tool_call message             │
+│      execute tools                                  │
+│      append tool result messages                    │
 │    else:                                            │
 │      done = True                                    │
 └─────────────────────────────────────────────────────┘
@@ -41,9 +42,10 @@ conversation. The artifact system manages that cost.
 
 ### Procedures replace, not stack
 
-`load_procedure()` removes the previous procedure's message from the conversation
-and appends the new one. Only one procedure is active at a time. History is derived
-from the RunLog. This prevents conflicting instructions and unnecessary token growth.
+`load_procedure()` compacts the previous procedure's tool result and appends the
+new one. Only one procedure is active at a time. History is derived from the
+RunLog. The compact placeholder preserves chat-completions tool-call history
+without carrying obsolete procedure text forward.
 
 **Available procedures:** `research`, `storyline`, `drafting`, `verification`
 

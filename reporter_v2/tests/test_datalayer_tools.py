@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ai_gateway import ToolSpec
 from datalayer.tools import SLEEPER_TOOLS
 from reporter_v2.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_SPECS,
@@ -165,8 +164,10 @@ def decode(result: str) -> Any:
 
 
 def test_datalayer_tool_specs_come_from_sleeper_tools() -> None:
-    assert DATALAYER_TOOL_SPECS == ToolSpec.from_openai_tools(SLEEPER_TOOLS)
-    assert [spec.name for spec in DATALAYER_TOOL_SPECS] == EXPECTED_TOOL_NAMES
+    assert DATALAYER_TOOL_SPECS is SLEEPER_TOOLS
+    assert [
+        spec["function"]["name"] for spec in DATALAYER_TOOL_SPECS
+    ] == EXPECTED_TOOL_NAMES
 
 
 def test_register_all_datalayer_tools() -> None:

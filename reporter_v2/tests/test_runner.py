@@ -3,37 +3,65 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
-from ai_gateway import (
-    AiGateway,
-    AiRequest,
-    AiResponse,
-    ToolCall,
-    ToolResultMessage,
-    ToolSpec,
-)
+from reporter_v2.runner.models import ToolCall
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.state import RunnerConfig
 from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 
-class FakeGateway(AiGateway):
-    def __init__(self, responses: list[AiResponse]) -> None:
+class FakeCompletion:
+    def __init__(self, responses: list[Any]) -> None:
         self.responses = responses
-        self.requests: list[AiRequest] = []
+        self.requests: list[dict[str, Any]] = []
 
-    async def get_response(self, request: AiRequest) -> AiResponse:
-        self.requests.append(request)
+    async def __call__(self, **kwargs: Any) -> Any:
+        self.requests.append(kwargs)
         if not self.responses:
-            return AiResponse()
+            return make_response()
         return self.responses.pop(0)
+
+
+def make_response(
+    *,
+    text: str | None = None,
+    tool_calls: list[ToolCall] | None = None,
+) -> Any:
+    raw_calls = [
+        SimpleNamespace(
+            id=call.id,
+            function=SimpleNamespace(
+                name=call.name,
+                arguments=json.dumps(call.arguments),
+            ),
+        )
+        for call in tool_calls or []
+    ]
+    message = SimpleNamespace(
+        content=text,
+        tool_calls=raw_calls,
+    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
 def run(coro: Any) -> Any:
     return asyncio.run(coro)
+
+
+def tool_def(name: str, description: str = "Test tool") -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {"type": "object", "properties": {}},
+        },
+    }
 
 
 def registry_with(
@@ -43,15 +71,7 @@ def registry_with(
     description: str = "Test tool",
 ) -> ToolRegistry:
     registry = ToolRegistry()
-    registry.register(
-        name,
-        handler,
-        ToolSpec(
-            name=name,
-            description=description,
-            parameters={"type": "object", "properties": {}},
-        ),
-    )
+    registry.register(name, handler, tool_def(name, description))
     return registry
 
 
@@ -67,13 +87,7 @@ def test_tool_registry_exposes_specs_and_names() -> None:
     registry = registry_with("lookup", lambda: "{}")
 
     assert registry.tool_names == ["lookup"]
-    assert registry.tool_specs == [
-        ToolSpec(
-            name="lookup",
-            description="Test tool",
-            parameters={"type": "object", "properties": {}},
-        )
-    ]
+    assert registry.tool_specs == [tool_def("lookup")]
     assert registry.get_handler("lookup") is not None
     assert registry.get_handler("missing") is None
 
@@ -86,18 +100,14 @@ def test_runner_context_tool_dispatch_updates_turn() -> None:
         return "{}"
 
     registry = ToolRegistry()
-    registry.register_context_tool(
-        "context_tool",
-        context_tool,
-        ToolSpec(name="context_tool", parameters={"type": "object", "properties": {}}),
-    )
-    gateway = FakeGateway(
+    registry.register_context_tool("context_tool", context_tool, tool_def("context_tool"))
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("context_tool")]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("context_tool")]),
+            make_response(text="Done."),
         ]
     )
-    runner = Runner(gateway, registry)
+    runner = Runner(registry, complete=complete)
 
     run(runner.run("system", "user"))
 
@@ -108,8 +118,8 @@ def test_runner_context_tool_dispatch_updates_turn() -> None:
 
 
 def test_runner_simple_text_response() -> None:
-    gateway = FakeGateway([AiResponse(text="Done.")])
-    runner = Runner(gateway, ToolRegistry())
+    complete = FakeCompletion([make_response(text="Done.")])
+    runner = Runner(ToolRegistry(), complete=complete)
 
     output = run(runner.run("system", "user"))
 
@@ -117,22 +127,22 @@ def test_runner_simple_text_response() -> None:
     assert output.run_log_summary["total_turns"] == 1
     assert output.run_log_summary["total_tool_calls"] == 0
     assert runner.log.entries[0].event_type == "model_text"
-    assert gateway.requests[0].messages[0].role == "system"
-    assert gateway.requests[0].messages[1].role == "user"
-    assert gateway.requests[0].model is None
+    assert complete.requests[0]["messages"][0]["role"] == "system"
+    assert complete.requests[0]["messages"][1]["role"] == "user"
+    assert complete.requests[0]["model"] is None
 
 
 def test_runner_passes_explicit_model_override() -> None:
-    gateway = FakeGateway([AiResponse(text="Done.")])
+    complete = FakeCompletion([make_response(text="Done.")])
     runner = Runner(
-        gateway,
         ToolRegistry(),
+        complete=complete,
         config=RunnerConfig(model="claude-sonnet-4-6"),
     )
 
     run(runner.run("system", "user"))
 
-    assert gateway.requests[0].model == "claude-sonnet-4-6"
+    assert complete.requests[0]["model"] == "claude-sonnet-4-6"
 
 
 def test_runner_tool_call_dispatch() -> None:
@@ -142,42 +152,56 @@ def test_runner_tool_call_dispatch() -> None:
         calls.append({"value": value})
         return {"ok": True, "value": value}
 
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("lookup", {"value": 7})]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("lookup", {"value": 7})]),
+            make_response(text="Done."),
         ]
     )
-    runner = Runner(gateway, registry_with("lookup", handler))
+    runner = Runner(registry_with("lookup", handler), complete=complete)
 
     output = run(runner.run("system", "user"))
 
     assert calls == [{"value": 7}]
     assert output.run_log_summary["total_tool_calls"] == 1
-    assert len(gateway.requests) == 2
-    result_message = gateway.requests[1].messages[-1]
-    assert isinstance(result_message, ToolResultMessage)
-    assert result_message.tool_call_id == "call_1"
-    assert result_message.content == '{"ok": true, "value": 7}'
+    assert len(complete.requests) == 2
+    assistant_message = complete.requests[1]["messages"][-2]
+    result_message = complete.requests[1]["messages"][-1]
+    assert assistant_message["role"] == "assistant"
+    assert assistant_message["tool_calls"][0]["id"] == "call_1"
+    assert result_message["role"] == "tool"
+    assert result_message["tool_call_id"] == "call_1"
+    assert result_message["content"] == '{"ok": true, "value": 7}'
 
 
-def test_runner_passes_previous_response_id_after_tool_call() -> None:
-    gateway = FakeGateway(
+def test_runner_carries_tool_call_history_after_tool_call() -> None:
+    complete = FakeCompletion(
         [
-            AiResponse(
-                tool_calls=[tool_call("lookup")],
-                provider_metadata={"response_id": "resp_123"},
-            ),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
         ]
     )
-    runner = Runner(gateway, registry_with("lookup", lambda: "{}"))
+    runner = Runner(registry_with("lookup", lambda: "{}"), complete=complete)
 
     run(runner.run("system", "user"))
 
-    assert gateway.requests[0].provider_context == {}
-    assert gateway.requests[1].provider_context == {
-        "previous_response_id": "resp_123"
+    second_request_messages = complete.requests[1]["messages"]
+    assert second_request_messages[-2] == {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "lookup", "arguments": "{}"},
+            }
+        ],
+    }
+    assert second_request_messages[-1] == {
+        "role": "tool",
+        "tool_call_id": "call_1",
+        "name": "lookup",
+        "content": "{}",
     }
 
 
@@ -185,50 +209,50 @@ def test_runner_submit_article_breaks_loop() -> None:
     def submit_article() -> str:
         return '{"ok": true}'
 
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("submit_article")]),
-            AiResponse(text="Should not be requested."),
+            make_response(tool_calls=[tool_call("submit_article")]),
+            make_response(text="Should not be requested."),
         ]
     )
-    runner = Runner(gateway, registry_with("submit_article", submit_article))
+    runner = Runner(registry_with("submit_article", submit_article), complete=complete)
 
     output = run(runner.run("system", "user"))
 
     assert output.run_log_summary["submitted"] is True
     assert output.run_log_summary["total_turns"] == 1
-    assert len(gateway.requests) == 1
+    assert len(complete.requests) == 1
 
 
 def test_runner_failed_submit_article_does_not_break_loop() -> None:
     def submit_article() -> str:
         return '{"ok": false, "error": "Cannot submit an empty article."}'
 
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("submit_article")]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("submit_article")]),
+            make_response(text="Done."),
         ]
     )
-    runner = Runner(gateway, registry_with("submit_article", submit_article))
+    runner = Runner(registry_with("submit_article", submit_article), complete=complete)
 
     output = run(runner.run("system", "user"))
 
     assert output.run_log_summary["submitted"] is False
     assert output.run_log_summary["total_turns"] == 2
-    assert len(gateway.requests) == 2
+    assert len(complete.requests) == 2
 
 
 def test_runner_soft_guardrail() -> None:
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("lookup")]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
         ]
     )
     runner = Runner(
-        gateway,
         registry_with("lookup", lambda: "{}"),
+        complete=complete,
         config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=10, max_turns=5),
     )
 
@@ -239,21 +263,21 @@ def test_runner_soft_guardrail() -> None:
         and entry.data["guardrail_type"] == "soft_tool_limit"
         for entry in runner.log.entries
     )
-    guardrail_message = gateway.requests[1].messages[-1]
-    assert guardrail_message.role == "system"
-    assert "Start wrapping up" in guardrail_message.content
+    guardrail_message = complete.requests[1]["messages"][-1]
+    assert guardrail_message["role"] == "system"
+    assert "Start wrapping up" in guardrail_message["content"]
 
 
 def test_runner_hard_guardrail() -> None:
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("lookup")]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
         ]
     )
     runner = Runner(
-        gateway,
         registry_with("lookup", lambda: "{}"),
+        complete=complete,
         config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=1, max_turns=5),
     )
 
@@ -264,9 +288,9 @@ def test_runner_hard_guardrail() -> None:
         and entry.data["guardrail_type"] == "hard_tool_limit"
         for entry in runner.log.entries
     )
-    guardrail_message = gateway.requests[1].messages[-1]
-    assert guardrail_message.role == "system"
-    assert "HARD LIMIT REACHED" in guardrail_message.content
+    guardrail_message = complete.requests[1]["messages"][-1]
+    assert guardrail_message["role"] == "system"
+    assert "HARD LIMIT REACHED" in guardrail_message["content"]
 
 
 def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
@@ -276,16 +300,16 @@ def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
         calls.append("lookup")
         return "{}"
 
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("lookup", call_id="call_1")]),
-            AiResponse(tool_calls=[tool_call("lookup", call_id="call_2")]),
-            AiResponse(text="Done."),
+            make_response(tool_calls=[tool_call("lookup", call_id="call_1")]),
+            make_response(tool_calls=[tool_call("lookup", call_id="call_2")]),
+            make_response(text="Done."),
         ]
     )
     runner = Runner(
-        gateway,
         registry_with("lookup", lookup),
+        complete=complete,
         config=RunnerConfig(soft_tool_limit=1, hard_tool_limit=1, max_turns=5),
     )
 
@@ -295,60 +319,68 @@ def test_runner_blocks_non_submit_tools_after_hard_limit() -> None:
     assert output.run_log_summary["total_tool_calls"] == 1
     blocked_messages = [
         message
-        for message in gateway.requests[2].messages
-        if isinstance(message, ToolResultMessage)
-        and message.tool_call_id == "call_2"
+        for message in complete.requests[2]["messages"]
+        if message.get("role") == "tool" and message.get("tool_call_id") == "call_2"
     ]
     assert len(blocked_messages) == 1
-    assert "Only submit_article may be called" in blocked_messages[0].content
+    assert "Only submit_article may be called" in blocked_messages[0]["content"]
 
 
 def test_runner_procedure_replacement() -> None:
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(
+            make_response(
                 tool_calls=[
                     tool_call("load_procedure", {"name": "research"}, "call_1")
                 ]
             ),
-            AiResponse(
+            make_response(
                 tool_calls=[
                     tool_call("load_procedure", {"name": "drafting"}, "call_2")
                 ]
             ),
-            AiResponse(text="Done."),
+            make_response(text="Done."),
         ]
     )
     runner = Runner(
-        gateway,
         registry_with("load_procedure", lambda *, name: f"# {name.title()}"),
+        complete=complete,
     )
 
     run(runner.run("system", "user"))
 
-    third_request_messages = gateway.requests[2].messages
+    third_request_messages = complete.requests[2]["messages"]
     procedure_messages = [
         message
         for message in third_request_messages
-        if isinstance(message, ToolResultMessage)
-        and message.name == "load_procedure"
+        if message.get("role") == "tool" and message.get("name") == "load_procedure"
     ]
-    assert len(procedure_messages) == 1
-    assert procedure_messages[0].tool_call_id == "call_2"
-    assert procedure_messages[0].content == "# Drafting"
+    active_procedure_messages = [
+        message
+        for message in procedure_messages
+        if message.get("content") != "[procedure replaced]"
+    ]
+    assert len(active_procedure_messages) == 1
+    assert active_procedure_messages[0]["tool_call_id"] == "call_2"
+    assert active_procedure_messages[0]["content"] == "# Drafting"
+    assert any(
+        message["tool_call_id"] == "call_1"
+        and message["content"] == "[procedure replaced]"
+        for message in procedure_messages
+    )
 
 
 def test_runner_max_turns() -> None:
-    gateway = FakeGateway(
+    complete = FakeCompletion(
         [
-            AiResponse(tool_calls=[tool_call("lookup", call_id="call_1")]),
-            AiResponse(tool_calls=[tool_call("lookup", call_id="call_2")]),
-            AiResponse(tool_calls=[tool_call("lookup", call_id="call_3")]),
+            make_response(tool_calls=[tool_call("lookup", call_id="call_1")]),
+            make_response(tool_calls=[tool_call("lookup", call_id="call_2")]),
+            make_response(tool_calls=[tool_call("lookup", call_id="call_3")]),
         ]
     )
     runner = Runner(
-        gateway,
         registry_with("lookup", lambda: "{}"),
+        complete=complete,
         config=RunnerConfig(max_turns=2),
     )
 
@@ -356,4 +388,4 @@ def test_runner_max_turns() -> None:
 
     assert output.run_log_summary["total_turns"] == 2
     assert output.run_log_summary["total_tool_calls"] == 2
-    assert len(gateway.requests) == 2
+    assert len(complete.requests) == 2

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from ai_gateway import ToolSpec
+from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.tools.context import ToolContext
 
 
@@ -14,7 +14,7 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._handlers: dict[str, Callable[..., Any]] = {}
-        self._specs: dict[str, ToolSpec] = {}
+        self._specs: dict[str, ToolDef] = {}
         self._context: ToolContext | None = None
 
     def set_context(self, context: ToolContext) -> None:
@@ -24,7 +24,7 @@ class ToolRegistry:
         self,
         name: str,
         handler: Callable[..., Any],
-        spec: ToolSpec,
+        spec: ToolDef,
     ) -> None:
         self._handlers[name] = handler
         self._specs[name] = spec
@@ -33,7 +33,7 @@ class ToolRegistry:
         self,
         name: str,
         handler: Callable[..., Any],
-        spec: ToolSpec,
+        spec: ToolDef,
     ) -> None:
         def bound_handler(**kwargs: Any) -> Any:
             if self._context is None:
@@ -50,7 +50,7 @@ class ToolRegistry:
             self._context.turn = turn
 
     @property
-    def tool_specs(self) -> list[ToolSpec]:
+    def tool_specs(self) -> list[ToolDef]:
         return list(self._specs.values())
 
     @property

@@ -5,15 +5,17 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from ai_gateway import (
-    AiGateway,
-    AiRequest,
+from reporter_v2.runner.models import (
     ChatMessage,
     ToolCall,
-    ToolResultMessage,
+    assistant_tool_call_message,
+    extract_text,
+    extract_tool_calls,
+    tool_result_message,
 )
 from reporter_v2.runner.run_log import RunLog
 from reporter_v2.runner.schemas import ArticleOutput
@@ -22,19 +24,22 @@ from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 
+CompletionFn = Callable[..., Awaitable[Any]]
+
+
 class Runner:
     """Single-loop runner that drives research, drafting, and verification."""
 
     def __init__(
         self,
-        gateway: AiGateway,
         registry: ToolRegistry,
         *,
+        complete: CompletionFn | None = None,
         config: RunnerConfig | None = None,
         log_path: Path | None = None,
     ) -> None:
-        self.gateway = gateway
         self.registry = registry
+        self._complete = complete or _default_completion()
         self.config = config or RunnerConfig()
         self.artifacts = ArtifactStore()
         self.procedures = ProcedureState()
@@ -52,45 +57,39 @@ class Runner:
             self.log.start_streaming(log_path)
 
     async def run(self, system_prompt: str, user_message: str) -> ArticleOutput:
-        messages: list[ChatMessage | ToolResultMessage] = [
-            ChatMessage(role="system", content=system_prompt),
-            ChatMessage(role="user", content=user_message),
+        messages: list[ChatMessage] = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
         ]
         turn = 0
-        previous_response_id: str | None = None
 
         try:
             while turn < self.config.max_turns and not self._submitted:
                 turn += 1
-                provider_context = {}
-                if previous_response_id is not None:
-                    provider_context["previous_response_id"] = previous_response_id
-                request = AiRequest(
+                response = await self._complete(
+                    model=self.config.model,
                     messages=list(messages),
                     tools=self.registry.tool_specs,
-                    model=self.config.model,
-                    provider_context=provider_context,
                 )
-                response = await self.gateway.get_response(request)
-                response_id = response.provider_metadata.get("response_id")
-                if response_id is not None:
-                    previous_response_id = str(response_id)
 
-                if response.tool_calls:
+                calls = extract_tool_calls(response)
+                if calls:
                     self.registry.set_turn(turn)
-                    results = await self._execute_tool_batch(response.tool_calls, turn)
-                    for call, result_content in zip(response.tool_calls, results):
+                    messages.append(assistant_tool_call_message(calls))
+                    results = await self._execute_tool_batch(calls, turn)
+                    for call, result_content in zip(calls, results):
                         if call.name == "load_procedure":
                             self._replace_procedure_message(messages, call, result_content)
                         else:
-                            messages.append(ToolResultMessage.from_call(call, result_content))
+                            messages.append(tool_result_message(call, result_content))
 
                     self._check_guardrails(messages, turn)
                     continue
 
-                if response.text:
-                    self.log.add_model_text(response.text, turn=turn)
-                    messages.append(ChatMessage(role="assistant", content=response.text))
+                text = extract_text(response)
+                if text:
+                    self.log.add_model_text(text, turn=turn)
+                    messages.append({"role": "assistant", "content": text})
                     break
 
                 break
@@ -197,20 +196,20 @@ class Runner:
 
     def _replace_procedure_message(
         self,
-        messages: list[ChatMessage | ToolResultMessage],
+        messages: list[ChatMessage],
         call: ToolCall,
         content: str,
     ) -> None:
-        """Remove the previous procedure message and append the new one."""
+        """Compact the previous procedure result and append the new one."""
         if self._procedure_message_idx is not None:
-            messages.pop(self._procedure_message_idx)
+            messages[self._procedure_message_idx]["content"] = "[procedure replaced]"
 
-        messages.append(ToolResultMessage.from_call(call, content))
+        messages.append(tool_result_message(call, content))
         self._procedure_message_idx = len(messages) - 1
 
     def _check_guardrails(
         self,
-        messages: list[ChatMessage | ToolResultMessage],
+        messages: list[ChatMessage],
         turn: int,
     ) -> None:
         tool_count = self.log.tool_call_count
@@ -222,13 +221,13 @@ class Runner:
                 turn=turn,
             )
             messages.append(
-                ChatMessage(
-                    role="system",
-                    content=(
+                {
+                    "role": "system",
+                    "content": (
                         "HARD LIMIT REACHED. You must call submit_article() now. "
                         "Do not make any more research or data tool calls."
                     ),
-                )
+                }
             )
             return
 
@@ -240,13 +239,13 @@ class Runner:
                 turn=turn,
             )
             messages.append(
-                ChatMessage(
-                    role="system",
-                    content=(
+                {
+                    "role": "system",
+                    "content": (
                         f"You have used {tool_count} tool calls. Start wrapping up: "
                         "finalize your brief and move to drafting."
                     ),
-                )
+                }
             )
 
     @staticmethod
@@ -280,3 +279,9 @@ class Runner:
         if isinstance(data, list):
             return f"{len(data)} items"
         return result[:80] + "..."
+
+
+def _default_completion() -> CompletionFn:
+    import litellm
+
+    return litellm.acompletion
