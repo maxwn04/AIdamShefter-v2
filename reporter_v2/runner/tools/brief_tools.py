@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.schemas import (
     Fact,
+    MemoryCallback,
     Outline,
     ResolvedBias,
     ResolvedStyle,
@@ -58,6 +59,78 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
                     },
                 },
                 "required": ["id", "claim_text", "data_refs"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_memory_callback",
+            "description": (
+                "Add or update a verified memory callback in the report brief. "
+                "Use this only after the old event and current payoff have both "
+                "been saved as facts."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "Stable callback ID, such as callback_trade_regret.",
+                    },
+                    "callback_type": {
+                        "type": "string",
+                        "description": (
+                            "Callback type such as trade_regret, revenge_game, "
+                            "waiver_hero, or close_game_callback."
+                        ),
+                    },
+                    "claim_text": {
+                        "type": "string",
+                        "description": (
+                            "Verified callback claim that links the old event to "
+                            "the current payoff."
+                        ),
+                    },
+                    "old_event_fact_id": {
+                        "type": "string",
+                        "description": "Saved fact ID proving the older receipt.",
+                    },
+                    "current_event_fact_id": {
+                        "type": "string",
+                        "description": "Saved fact ID proving the current payoff.",
+                    },
+                    "why_now": {
+                        "type": "string",
+                        "description": (
+                            "Why the current week changes the meaning of the old event."
+                        ),
+                    },
+                    "interestingness_reason": {
+                        "type": "string",
+                        "description": (
+                            "Why this callback is worth drafting: stakes, reversal, "
+                            "comedy value, specificity, or article fit."
+                        ),
+                    },
+                    "memory_refs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Optional persistent memory IDs or labels that led to "
+                            "the callback investigation."
+                        ),
+                    },
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": [
+                    "id",
+                    "callback_type",
+                    "claim_text",
+                    "old_event_fact_id",
+                    "current_event_fact_id",
+                    "why_now",
+                ],
             },
         },
     },
@@ -191,6 +264,7 @@ def register_brief_tools(registry: ToolRegistry) -> None:
     """Register all brief artifact tools against a ToolRegistry."""
     handlers = {
         "save_fact": save_fact,
+        "save_memory_callback": save_memory_callback,
         "save_storyline": save_storyline,
         "set_outline": set_outline,
         "read_brief": read_brief,
@@ -230,6 +304,64 @@ def save_fact(
     revision = brief.bump_revision()
     ctx.log.add_artifact_write("brief", operation, id, revision, turn=ctx.turn)
     return _success({"fact_id": id, "brief_revision": revision})
+
+
+def save_memory_callback(
+    ctx: ToolContext,
+    *,
+    id: str,
+    callback_type: str,
+    claim_text: str,
+    old_event_fact_id: str,
+    current_event_fact_id: str,
+    why_now: str,
+    interestingness_reason: str = "",
+    memory_refs: list[str] | None = None,
+    tags: list[str] | None = None,
+) -> str:
+    """Add or update a verified memory callback in the brief."""
+    for field_name, value in {
+        "callback_type": callback_type,
+        "claim_text": claim_text,
+        "old_event_fact_id": old_event_fact_id,
+        "current_event_fact_id": current_event_fact_id,
+        "why_now": why_now,
+    }.items():
+        if not value.strip():
+            return _error(f"{field_name} must be non-empty")
+
+    brief = ctx.artifacts.brief
+    missing_fact_ids = [
+        fact_id
+        for fact_id in [old_event_fact_id, current_event_fact_id]
+        if brief.get_fact(fact_id) is None
+    ]
+    if missing_fact_ids:
+        return _error(
+            "memory callbacks require verified fact ids",
+            {"missing_fact_ids": missing_fact_ids},
+        )
+
+    callback = MemoryCallback(
+        id=id,
+        callback_type=callback_type,
+        claim_text=claim_text,
+        old_event_fact_id=old_event_fact_id,
+        current_event_fact_id=current_event_fact_id,
+        why_now=why_now,
+        interestingness_reason=interestingness_reason,
+        memory_refs=memory_refs or [],
+        tags=tags or [],
+    )
+    operation = (
+        "update_memory_callback"
+        if brief.get_memory_callback(id) is not None
+        else "save_memory_callback"
+    )
+    _upsert_by_id(brief.memory_callbacks, callback)
+    revision = brief.bump_revision()
+    ctx.log.add_artifact_write("brief", operation, id, revision, turn=ctx.turn)
+    return _success({"callback_id": id, "brief_revision": revision})
 
 
 def save_storyline(

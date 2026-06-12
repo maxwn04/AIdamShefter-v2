@@ -60,10 +60,23 @@ class ResolvedBias(BaseModel):
     framing_rules: list[str] = Field(default_factory=list)
 
 
+class MemoryCallback(BaseModel):
+    id: str
+    callback_type: str
+    claim_text: str
+    old_event_fact_id: str
+    current_event_fact_id: str
+    why_now: str
+    interestingness_reason: str = ""
+    memory_refs: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
 class ReportBrief(BaseModel):
     revision: int = 0
     meta: BriefMeta = Field(default_factory=BriefMeta)
     facts: list[Fact] = Field(default_factory=list)
+    memory_callbacks: list[MemoryCallback] = Field(default_factory=list)
     storylines: list[Storyline] = Field(default_factory=list)
     outline: Outline = Field(default_factory=Outline)
     style: ResolvedStyle = Field(default_factory=ResolvedStyle)
@@ -73,6 +86,12 @@ class ReportBrief(BaseModel):
         for fact in self.facts:
             if fact.id == fact_id:
                 return fact
+        return None
+
+    def get_memory_callback(self, callback_id: str) -> MemoryCallback | None:
+        for callback in self.memory_callbacks:
+            if callback.id == callback_id:
+                return callback
         return None
 
     def bump_revision(self) -> int:

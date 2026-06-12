@@ -239,6 +239,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert first_request["model"] == "test-model"
     tool_names = [spec["function"]["name"] for spec in first_request["tools"]]
     assert "save_fact" in tool_names
+    assert "save_memory_callback" in tool_names
     assert "write_section" in tool_names
     assert "league_snapshot" in tool_names
 
