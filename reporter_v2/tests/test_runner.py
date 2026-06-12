@@ -10,7 +10,7 @@ from typing import Any
 
 from reporter_v2.runner.models import ToolCall
 from reporter_v2.runner.runner import Runner
-from reporter_v2.runner.state import RunnerConfig
+from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
 from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
@@ -309,6 +309,7 @@ def test_runner_procedure_replacement() -> None:
     runner = Runner(
         registry_with("load_procedure", lambda *, name: f"# {name.title()}"),
         complete=complete,
+        config=RunnerConfig(procedure_history_mode="replace"),
     )
 
     run(runner.run("system", "user"))
@@ -330,6 +331,49 @@ def test_runner_procedure_replacement() -> None:
     assert any(
         message["tool_call_id"] == "call_1"
         and message["content"] == "[procedure replaced]"
+        for message in procedure_messages
+    )
+
+
+def test_runner_procedure_append_mode() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call("load_procedure", {"name": "research"}, "call_1")
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call("load_procedure", {"name": "drafting"}, "call_2")
+                ]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    runner = Runner(
+        registry_with("load_procedure", lambda *, name: f"# {name.title()}"),
+        complete=complete,
+        config=RunnerConfig(procedure_history_mode=ProcedureHistoryMode.APPEND),
+    )
+
+    run(runner.run("system", "user"))
+
+    third_request_messages = complete.requests[2]["messages"]
+    procedure_messages = [
+        message
+        for message in third_request_messages
+        if message.get("role") == "tool" and message.get("name") == "load_procedure"
+    ]
+    assert [
+        (message["tool_call_id"], message["content"])
+        for message in procedure_messages
+    ] == [
+        ("call_1", "# Research"),
+        ("call_2", "# Drafting"),
+    ]
+    assert all(
+        message["content"] != "[procedure replaced]"
         for message in procedure_messages
     )
 

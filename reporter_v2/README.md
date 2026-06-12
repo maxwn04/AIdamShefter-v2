@@ -31,6 +31,7 @@ REPORTER_V2_MODEL=gpt-5-mini
 REPORTER_OUTPUT_DIR=.output
 REPORTER_DATA_DIR=.data
 REPORTER_V2_MAX_TURNS=60
+REPORTER_V2_PROCEDURE_MODE=replace
 ```
 
 `reporter-v2` uses LiteLLM model IDs, so provider-specific API keys should be
@@ -100,6 +101,8 @@ reporter-v2 "weekly recap" --week 8 --output-dir .output/v2-runs
 
 - `--week`: single week to cover
 - `--week-start` / `--week-end`: range of weeks to cover
+- `--week-override`: pin the Sleeper effective week during data load; overrides
+  `SLEEPER_WEEK_OVERRIDE`
 - `--league`: override `SLEEPER_LEAGUE_ID`
 - `--model`: LiteLLM model ID
 - `--voice`: writing persona
@@ -113,6 +116,8 @@ reporter-v2 "weekly recap" --week 8 --output-dir .output/v2-runs
 - `--bias-intensity`: framing intensity from `0` to `3`
 - `--evidence-policy`: `strict`, `standard`, or `relaxed`
 - `--max-turns`: maximum model turns before stopping; defaults to `60`
+- `--procedure-mode`: `replace` keeps only the latest full procedure in
+  conversation history; `append` keeps every loaded procedure result
 - `--no-context`: skip persistent context reads/writes
 
 ## Outputs

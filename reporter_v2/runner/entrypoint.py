@@ -13,7 +13,7 @@ from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 from reporter_v2.config import ReportConfig
 from reporter_v2.runner.runner import CompletionFn, Runner
 from reporter_v2.runner.schemas import ArticleOutput
-from reporter_v2.runner.state import RunnerConfig
+from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
 from reporter_v2.runner.tools.article_tools import register_article_tools
 from reporter_v2.runner.tools.brief_tools import register_brief_tools
 from reporter_v2.runner.tools.datalayer_tools import register_datalayer_tools
@@ -32,6 +32,7 @@ async def generate_article(
     context_store: ContextStore | None = None,
     model: str | None = None,
     max_turns: int = 60,
+    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
 ) -> ArticleOutput:
@@ -59,7 +60,11 @@ async def generate_article(
     runner = Runner(
         registry,
         complete=complete,
-        config=RunnerConfig(model=model, max_turns=max_turns),
+        config=RunnerConfig(
+            model=model,
+            max_turns=max_turns,
+            procedure_history_mode=procedure_history_mode,
+        ),
         log_path=log_path,
     )
     runner.artifacts.brief.meta.league_id = str(data.league_id)

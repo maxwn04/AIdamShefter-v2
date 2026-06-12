@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field
 
 from reporter_v2.runner.schemas import Article, ReportBrief
+
+
+class ProcedureHistoryMode(str, Enum):
+    REPLACE = "replace"
+    APPEND = "append"
 
 
 class ArtifactStore(BaseModel):
@@ -19,3 +26,4 @@ class ProcedureState(BaseModel):
 class RunnerConfig(BaseModel):
     max_turns: int = 60
     model: str | None = None
+    procedure_history_mode: ProcedureHistoryMode = ProcedureHistoryMode.REPLACE

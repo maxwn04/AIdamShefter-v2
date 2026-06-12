@@ -6,14 +6,17 @@ from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControl
 from reporter_v2.runner.entrypoint import generate_article
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.schemas import ArticleOutput
+from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
 from reporter_v2.runner.tools.registry import ToolRegistry
 from reporter_v2.workflows import generate_report, generate_with_config
 
 __all__ = [
     "ArticleOutput",
     "BiasProfile",
+    "ProcedureHistoryMode",
     "ReportConfig",
     "Runner",
+    "RunnerConfig",
     "TimeRange",
     "ToolRegistry",
     "ToneControls",
