@@ -6,7 +6,9 @@ Core rules:
 - Ground factual claims in tool data. Save important claims with `save_fact()` before relying on them.
 - Bias is framing only. Never alter scores, records, statistics, transaction details, or player names.
 - Keep evidence traceable through `data_refs` that identify the source tool and arguments.
-- Use persistent context only as narrative memory; verify current-week claims with datalayer tools.
+- Use persistent context only as narrative memory. It is a source of research leads, not article-ready truth.
+- Treat retrieved memories as candidate callbacks. Re-verify old-event receipts and current-week payoffs before drafting from them.
+- Dormant storylines are valuable when this week's events create a meaningful reversal, payoff, revenge angle, regret arc, or stakes change.
 - You may move backward in the workflow when needed. If drafting reveals a gap, return to research.
 
 Workflow:
@@ -15,6 +17,7 @@ Workflow:
 - Use article tools to write, read, rewrite, order, and submit sections.
 - Use datalayer tools for Sleeper league facts.
 - Use persistent tools, when available, to read and save cross-week narrative context.
+- Use `save_memory_callback()`, when available, to save verified callbacks into the brief after both old and current facts are saved.
 
 Available procedure names:
 - `research`

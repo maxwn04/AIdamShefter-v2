@@ -8,6 +8,7 @@ from reporter_v2.runner.tools import (
     ToolContext,
     read_brief,
     save_fact,
+    save_memory_callback,
     save_storyline,
     set_bias,
     set_outline,
@@ -101,6 +102,106 @@ def test_save_fact_upsert():
     assert ctx.artifacts.brief.facts[0].claim_text == "Replacement claim."
     assert ctx.artifacts.brief.facts[0].data_refs == ["source:new"]
     assert ctx.log.entries[-1].data["operation"] == "update_fact"
+
+
+def test_save_memory_callback_valid():
+    ctx = make_ctx()
+    save_fact(
+        ctx,
+        id="fact_old_trade",
+        claim_text="Team A traded Player X before Week 3.",
+        data_refs=["transactions:week_to=3"],
+        category="transaction",
+    )
+    save_fact(
+        ctx,
+        id="fact_current_payoff",
+        claim_text="Player X scored 24.1 points against Team A in Week 8.",
+        data_refs=["team_game:week=8"],
+        category="player",
+    )
+
+    result = parse_result(
+        save_memory_callback(
+            ctx,
+            id="callback_trade_regret",
+            callback_type="trade_regret",
+            claim_text=(
+                "Team A's Week 3 trade looked worse after Player X scored 24.1 "
+                "points against them in Week 8."
+            ),
+            old_event_fact_id="fact_old_trade",
+            current_event_fact_id="fact_current_payoff",
+            why_now="The traded-away player directly hurt his former manager.",
+            interestingness_reason="Specific revenge payoff with trade regret.",
+            memory_refs=["story_2024_w3_trade"],
+            tags=["trade_regret", "week_8"],
+        )
+    )
+
+    assert result == {
+        "ok": True,
+        "callback_id": "callback_trade_regret",
+        "brief_revision": 3,
+    }
+    callback = ctx.artifacts.brief.memory_callbacks[0]
+    assert callback.old_event_fact_id == "fact_old_trade"
+    assert callback.current_event_fact_id == "fact_current_payoff"
+    assert callback.memory_refs == ["story_2024_w3_trade"]
+    assert ctx.log.entries[-1].data["operation"] == "save_memory_callback"
+
+
+def test_save_memory_callback_requires_existing_fact_ids():
+    ctx = make_ctx()
+    save_fact(ctx, id="fact_old_trade", claim_text="A trade happened.", data_refs=["source"])
+
+    result = parse_result(
+        save_memory_callback(
+            ctx,
+            id="callback_trade_regret",
+            callback_type="trade_regret",
+            claim_text="A callback claim.",
+            old_event_fact_id="fact_old_trade",
+            current_event_fact_id="missing_current_fact",
+            why_now="The current payoff needs proof.",
+        )
+    )
+
+    assert result["ok"] is False
+    assert result["missing_fact_ids"] == ["missing_current_fact"]
+    assert ctx.artifacts.brief.memory_callbacks == []
+
+
+def test_save_memory_callback_upsert():
+    ctx = make_ctx()
+    save_fact(ctx, id="fact_old", claim_text="Old event.", data_refs=["old"])
+    save_fact(ctx, id="fact_current", claim_text="Current event.", data_refs=["current"])
+    save_memory_callback(
+        ctx,
+        id="callback_001",
+        callback_type="revenge_game",
+        claim_text="Original callback.",
+        old_event_fact_id="fact_old",
+        current_event_fact_id="fact_current",
+        why_now="Original reason.",
+    )
+
+    result = parse_result(
+        save_memory_callback(
+            ctx,
+            id="callback_001",
+            callback_type="revenge_game",
+            claim_text="Updated callback.",
+            old_event_fact_id="fact_old",
+            current_event_fact_id="fact_current",
+            why_now="Updated reason.",
+        )
+    )
+
+    assert result["brief_revision"] == 4
+    assert len(ctx.artifacts.brief.memory_callbacks) == 1
+    assert ctx.artifacts.brief.memory_callbacks[0].claim_text == "Updated callback."
+    assert ctx.log.entries[-1].data["operation"] == "update_memory_callback"
 
 
 def test_save_storyline_valid():

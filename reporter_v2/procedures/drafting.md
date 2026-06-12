@@ -5,6 +5,7 @@ You are writing the article from the brief artifact. Use `read_brief`, then writ
 ## Operating Rules
 
 - The brief is the source of truth. Use only saved facts, storylines, outline, style, and bias.
+- Treat `memory_callbacks` as verified brief material, but still name the old event and current payoff in prose.
 - Do not invent scores, records, player points, transaction details, standings, injuries, or playoff scenarios.
 - Numeric claims must match the fact `numbers` values or the fact `claim_text`.
 - Follow the outline unless it is stale or incomplete. If it is stale, switch to `storyline` to refresh it.
@@ -25,6 +26,8 @@ You are writing the article from the brief artifact. Use `read_brief`, then writ
 - Open with the best material, not a generic recap sentence.
 - Use concrete details from facts rather than vague claims.
 - Prioritize priority-1 storylines, then priority-2 storylines, then quick hits.
+- For callback paragraphs, clearly state what happened then, what happened now, and why the meaning changed.
+- Do not use vague continuity phrases such as "this has been brewing," "the storyline continues," or "it came full circle" unless the paragraph names the old event and the new payoff.
 - Keep paragraphs focused. Standard sections should usually be 2-5 paragraphs.
 - Use Markdown:
   - `#` for the headline if the opening section includes one.

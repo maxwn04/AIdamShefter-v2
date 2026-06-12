@@ -9,6 +9,7 @@ You are turning verified facts into a usable article plan. Read the current brie
 - Storyline summaries may interpret the data, but they must not add new factual claims.
 - Set the outline after the main storylines are saved. If `read_brief` reports stale outline or storyline IDs later, refresh the affected plan.
 - Bias is framing only. Use `set_bias` to preserve the user's framing preferences without altering scores, records, or outcomes.
+- Callback storylines must be supported by both an old-event fact or verified memory receipt and a current-event fact.
 
 ## Storyline Creation
 
@@ -77,5 +78,31 @@ If persistent context tools are available, save narrative state before drafting:
 - Use `save_persistent_storyline` for arcs likely to matter in future weeks.
 - Use `save_team_context` for researched teams whose trajectory changed.
 - Use `save_league_note` for league-wide context such as season themes, trade activity, or rivalries.
+- Use `save_memory_callback` for verified callbacks that belong in the brief, if the callback was not already saved during research.
+
+Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:
+
+- `trade_payoff`
+- `trade_regret`
+- `trade_flop`
+- `revenge_game`
+- `regular_season_sweep`
+- `playoff_reversal`
+- `close_game_callback`
+- `waiver_hero`
+- `rivalry_escalation`
+- `lineup_mistake_repeat`
+
+When schema fields do not exist for arc metadata, use structured text in the persistent storyline summary:
+
+```text
+Arc type: trade_regret
+Origin week: 3
+Involved: Team A, Team B, Player X, Player Y
+Receipt: Team A traded Player X for Player Y before Week 3.
+Why it may matter later: Player X could swing a playoff matchup against Team A.
+Next callback trigger: Team A faces Team B, Player X faces Team A, or either side loses a playoff game because of the trade assets.
+Verification needed before use: confirm original trade receipt and current payoff with saved brief facts.
+```
 
 When the brief has facts, storylines, outline, style, and bias ready, switch to `drafting`.

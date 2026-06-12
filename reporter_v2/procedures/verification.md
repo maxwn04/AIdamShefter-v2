@@ -9,6 +9,7 @@ You are checking the drafted article against the brief artifact. Your job is to 
 - Treat the brief as authoritative. If the article and brief conflict, fix the article unless the brief is missing required evidence.
 - If the brief is missing evidence for a necessary claim, switch to `research` instead of guessing.
 - If the outline or storylines are stale, switch to `storyline` before final verification.
+- Treat callback claims as factual claims. They need evidence for both the older event and the current event.
 
 ## Claims To Check
 
@@ -21,8 +22,20 @@ Check all claims involving:
 - Margins of victory or defeat.
 - Streak lengths and week ranges.
 - Any superlative such as "highest", "first", "best", "worst", or "season high".
+- Any callback, revenge, regret, reversal, payoff, rematch, rivalry, or "full circle" claim.
 
 Flavor claims can be looser, but they must not imply unsupported facts.
+
+## Callback Checks
+
+For every callback paragraph:
+
+- Map the older event to a saved fact ID or a verified memory receipt.
+- Map the current payoff to a current-run saved fact ID.
+- If the callback appears in `memory_callbacks`, confirm its `old_event_fact_id` and `current_event_fact_id` both exist in the brief.
+- Confirm the paragraph explains what happened then, what happened now, and why the meaning changed.
+- Treat unsourced narrative memory as research context only, not prose support.
+- Reject or soften callbacks where the older event is real but the current payoff is weak, incidental, or not proven.
 
 ## Verification Flow
 
