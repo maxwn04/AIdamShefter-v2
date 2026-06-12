@@ -10,7 +10,12 @@ from reporter_v2.runner.schemas import (
     ReportBrief,
     Storyline,
 )
-from reporter_v2.runner.state import ArtifactStore, ProcedureState, RunnerConfig
+from reporter_v2.runner.state import (
+    ArtifactStore,
+    ProcedureHistoryMode,
+    ProcedureState,
+    RunnerConfig,
+)
 
 
 class TestFact:
@@ -192,3 +197,4 @@ class TestRunnerState:
 
         assert config.max_turns == 60
         assert config.model is None
+        assert config.procedure_history_mode == ProcedureHistoryMode.REPLACE

@@ -12,6 +12,7 @@ from datalayer.sleeper_data import SleeperLeagueData
 from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControls
 from reporter_v2.runner.entrypoint import generate_article
 from reporter_v2.runner.schemas import ArticleOutput
+from reporter_v2.runner.state import ProcedureHistoryMode
 
 
 async def generate_report_async(
@@ -32,6 +33,7 @@ async def generate_report_async(
     context_store: ContextStore | None = None,
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
+    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
 ) -> ArticleOutput:
     """Generate a fantasy football report asynchronously."""
     data = _ensure_data(data)
@@ -54,6 +56,7 @@ async def generate_report_async(
         context_store=context_store,
         data_dir=data_dir,
         log_path=log_path,
+        procedure_history_mode=procedure_history_mode,
     )
 
 
@@ -73,6 +76,7 @@ async def generate_with_config_async(
     context_store: ContextStore | None = None,
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
+    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
 ) -> ArticleOutput:
     """Generate a report using a pre-built ReportConfig."""
     data = _ensure_data(data)
@@ -83,6 +87,7 @@ async def generate_with_config_async(
         context_store=context_store,
         model=model,
         log_path=log_path,
+        procedure_history_mode=procedure_history_mode,
     )
 
 

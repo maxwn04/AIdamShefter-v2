@@ -19,7 +19,12 @@ from reporter_v2.runner.models import (
 )
 from reporter_v2.runner.run_log import RunLog
 from reporter_v2.runner.schemas import ArticleOutput
-from reporter_v2.runner.state import ArtifactStore, ProcedureState, RunnerConfig
+from reporter_v2.runner.state import (
+    ArtifactStore,
+    ProcedureHistoryMode,
+    ProcedureState,
+    RunnerConfig,
+)
 from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
@@ -79,7 +84,7 @@ class Runner:
                     results = await self._execute_tool_batch(calls, turn)
                     for call, result_content in zip(calls, results):
                         if call.name == "load_procedure":
-                            self._replace_procedure_message(messages, call, result_content)
+                            self._append_procedure_message(messages, call, result_content)
                         else:
                             messages.append(tool_result_message(call, result_content))
 
@@ -162,18 +167,22 @@ class Runner:
 
         return result_content
 
-    def _replace_procedure_message(
+    def _append_procedure_message(
         self,
         messages: list[ChatMessage],
         call: ToolCall,
         content: str,
     ) -> None:
-        """Compact the previous procedure result and append the new one."""
-        if self._procedure_message_idx is not None:
+        """Append procedure output, compacting prior output when configured."""
+        if (
+            self.config.procedure_history_mode == ProcedureHistoryMode.REPLACE
+            and self._procedure_message_idx is not None
+        ):
             messages[self._procedure_message_idx]["content"] = "[procedure replaced]"
 
         messages.append(tool_result_message(call, content))
-        self._procedure_message_idx = len(messages) - 1
+        if self.config.procedure_history_mode == ProcedureHistoryMode.REPLACE:
+            self._procedure_message_idx = len(messages) - 1
 
     @staticmethod
     def _as_tool_result_content(result: Any) -> str:

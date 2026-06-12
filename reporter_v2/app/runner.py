@@ -13,9 +13,10 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 
 from datalayer.context_store import ContextStore
-from datalayer.sleeper_data import SleeperLeagueData
+from datalayer.sleeper_data import SleeperConfig, SleeperLeagueData
 from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControls
 from reporter_v2.runner.entrypoint import generate_article
+from reporter_v2.runner.state import ProcedureHistoryMode
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,6 +39,15 @@ Examples:
     parser.add_argument("--week", "-w", type=int, help="Single week to cover.")
     parser.add_argument("--week-start", type=int, help="Start week for a range.")
     parser.add_argument("--week-end", type=int, help="End week for a range.")
+    parser.add_argument(
+        "--week-override",
+        type=int,
+        default=None,
+        help=(
+            "Pin the Sleeper effective week during data load. "
+            "Overrides SLEEPER_WEEK_OVERRIDE."
+        ),
+    )
     parser.add_argument(
         "--league",
         "-l",
@@ -126,6 +136,15 @@ Examples:
         default=None,
         help="Maximum model turns before stopping. Defaults to REPORTER_V2_MAX_TURNS or 60.",
     )
+    parser.add_argument(
+        "--procedure-mode",
+        choices=[mode.value for mode in ProcedureHistoryMode],
+        default=None,
+        help=(
+            "How to retain loaded procedure tool results: replace or append. "
+            "Defaults to REPORTER_V2_PROCEDURE_MODE or replace."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -135,6 +154,9 @@ async def run(args: argparse.Namespace) -> None:
     prompt = args.prompt or _prompt_for_request()
     selected_model = _resolve_model(args.model)
     max_turns = _resolve_max_turns(args.max_turns)
+    procedure_history_mode = _resolve_procedure_history_mode(
+        getattr(args, "procedure_mode", None)
+    )
     output_dir = args.output_dir or Path(os.getenv("REPORTER_OUTPUT_DIR", ".output"))
     data_dir = args.data_dir or Path(os.getenv("REPORTER_DATA_DIR", ".data"))
 
@@ -145,7 +167,7 @@ async def run(args: argparse.Namespace) -> None:
     print()
     print("Loading league data...")
 
-    data = SleeperLeagueData(league_id=args.league)
+    data = _make_sleeper_data(args.league, getattr(args, "week_override", None))
     data.load()
 
     time_range = _resolve_time_range(args, data)
@@ -168,8 +190,11 @@ async def run(args: argparse.Namespace) -> None:
     print(f"League: {data.league_id}")
     print(f"Season: {season}")
     print(f"Weeks: {time_range.week_start}-{time_range.week_end}")
+    if data.week_override is not None:
+        print(f"Sleeper week override: {data.week_override}")
     print(f"Model: {selected_model}")
     print(f"Max turns: {max_turns}")
+    print(f"Procedure mode: {procedure_history_mode.value}")
     if context_store is not None:
         print(f"Context DB: {data_dir / 'context.db'}")
     print(f"Stream log: {log_path}")
@@ -183,6 +208,7 @@ async def run(args: argparse.Namespace) -> None:
         context_store=context_store,
         model=selected_model,
         max_turns=max_turns,
+        procedure_history_mode=procedure_history_mode,
         log_path=log_path,
     )
 
@@ -265,6 +291,47 @@ def _resolve_max_turns(max_turns_arg: int | None) -> int:
     if max_turns < 1:
         raise ValueError("REPORTER_V2_MAX_TURNS must be at least 1.")
     return max_turns
+
+
+def _make_sleeper_data(
+    league_arg: str | None,
+    week_override_arg: int | None,
+) -> SleeperLeagueData:
+    if week_override_arg is None:
+        return SleeperLeagueData(league_id=league_arg)
+
+    league_id = league_arg or os.getenv("SLEEPER_LEAGUE_ID")
+    if not league_id:
+        raise ValueError(
+            "SLEEPER_LEAGUE_ID must be set or --league must be provided "
+            "when using --week-override."
+        )
+
+    return SleeperLeagueData(
+        config=SleeperConfig(
+            league_id=str(league_id),
+            week_override=week_override_arg,
+        )
+    )
+
+
+def _resolve_procedure_history_mode(
+    procedure_mode_arg: str | None,
+) -> ProcedureHistoryMode:
+    raw_value = procedure_mode_arg or os.getenv("REPORTER_V2_PROCEDURE_MODE")
+    if raw_value is None or raw_value == "":
+        return ProcedureHistoryMode.REPLACE
+
+    try:
+        return ProcedureHistoryMode(raw_value)
+    except ValueError as exc:
+        allowed = ", ".join(mode.value for mode in ProcedureHistoryMode)
+        name = (
+            "--procedure-mode"
+            if procedure_mode_arg is not None
+            else "REPORTER_V2_PROCEDURE_MODE"
+        )
+        raise ValueError(f"{name} must be one of: {allowed}.") from exc
 
 
 def _resolve_time_range(
