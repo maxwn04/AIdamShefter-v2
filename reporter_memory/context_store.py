@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "2.1"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS context_meta (
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS context_meta (
 );
 
 CREATE TABLE IF NOT EXISTS storylines (
-    id TEXT PRIMARY KEY,
+    id TEXT NOT NULL,
     league_id TEXT NOT NULL,
     season TEXT NOT NULL,
     headline TEXT NOT NULL,
@@ -40,7 +40,8 @@ CREATE TABLE IF NOT EXISTS storylines (
     week_created INTEGER NOT NULL,
     week_last_updated INTEGER NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (league_id, season, id)
 );
 CREATE INDEX IF NOT EXISTS idx_storylines_league
     ON storylines(league_id, season, status);
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS storyline_history (
     snapshot_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_history_storyline
-    ON storyline_history(storyline_id, week);
+    ON storyline_history(league_id, season, storyline_id, week);
 
 CREATE TABLE IF NOT EXISTS persisted_facts (
     storyline_id TEXT NOT NULL,
@@ -92,10 +93,10 @@ CREATE TABLE IF NOT EXISTS persisted_facts (
     numbers TEXT,
     category TEXT NOT NULL DEFAULT 'general',
     created_at TEXT NOT NULL,
-    PRIMARY KEY (storyline_id, week_recorded, fact_id)
+    PRIMARY KEY (league_id, season, storyline_id, week_recorded, fact_id)
 );
 CREATE INDEX IF NOT EXISTS idx_facts_storyline
-    ON persisted_facts(storyline_id);
+    ON persisted_facts(league_id, season, storyline_id);
 """
 
 
@@ -142,49 +143,12 @@ class ContextStore:
         row = cur.fetchone()
         current = row["value"] if row else "0"
 
-        if current == SCHEMA_VERSION:
-            return
-
-        if current == "1":
-            self._conn.executescript("""
-                CREATE TABLE IF NOT EXISTS storyline_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    storyline_id TEXT NOT NULL,
-                    league_id TEXT NOT NULL,
-                    season TEXT NOT NULL,
-                    headline TEXT NOT NULL,
-                    summary TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    priority INTEGER NOT NULL,
-                    week INTEGER NOT NULL,
-                    snapshot_at TEXT NOT NULL
-                );
-                CREATE INDEX IF NOT EXISTS idx_history_storyline
-                    ON storyline_history(storyline_id, week);
-
-                CREATE TABLE IF NOT EXISTS persisted_facts (
-                    storyline_id TEXT NOT NULL,
-                    week_recorded INTEGER NOT NULL,
-                    fact_id TEXT NOT NULL,
-                    league_id TEXT NOT NULL,
-                    season TEXT NOT NULL,
-                    claim_text TEXT NOT NULL,
-                    data_refs TEXT,
-                    numbers TEXT,
-                    category TEXT NOT NULL DEFAULT 'general',
-                    created_at TEXT NOT NULL,
-                    PRIMARY KEY (storyline_id, week_recorded, fact_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_facts_storyline
-                    ON persisted_facts(storyline_id);
-            """)
-            current = "2"
-
-        cur.execute(
-            "UPDATE context_meta SET value = ? WHERE key = 'schema_version'",
-            (SCHEMA_VERSION,),
-        )
-        self._conn.commit()
+        if current != SCHEMA_VERSION:
+            raise RuntimeError(
+                "Unsupported reporter memory schema version "
+                f"{current!r}; expected {SCHEMA_VERSION!r}. "
+                "Delete or recreate the context database."
+            )
 
     # ------------------------------------------------------------------
     # Read
@@ -273,7 +237,9 @@ class ContextStore:
             week: Current week number.
         """
         existing = self._conn.execute(
-            "SELECT id FROM storylines WHERE id = ?", (storyline["id"],)
+            """SELECT id FROM storylines
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, storyline["id"]),
         ).fetchone()
         if existing:
             self._append_storyline_history(storyline["id"], week=week)
@@ -291,7 +257,7 @@ class ContextStore:
                    (id, league_id, season, headline, summary, status, priority,
                     tags, team_ids, week_created, week_last_updated, created_at, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(id) DO UPDATE SET
+               ON CONFLICT(league_id, season, id) DO UPDATE SET
                    headline = excluded.headline,
                    summary = excluded.summary,
                    status = excluded.status,
@@ -398,7 +364,9 @@ class ContextStore:
     def _append_storyline_history(self, storyline_id: str, *, week: int) -> None:
         """Snapshot the current state of a storyline into history."""
         row = self._conn.execute(
-            "SELECT * FROM storylines WHERE id = ?", (storyline_id,)
+            """SELECT * FROM storylines
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, storyline_id),
         ).fetchone()
         if not row:
             return
@@ -442,9 +410,9 @@ class ContextStore:
         """Full history for one storyline, ordered by week ASC."""
         cur = self._conn.execute(
             """SELECT * FROM storyline_history
-               WHERE storyline_id = ?
+               WHERE league_id = ? AND season = ? AND storyline_id = ?
                ORDER BY week ASC, id ASC""",
-            (storyline_id,),
+            (self.league_id, self.season, storyline_id),
         )
         return [dict(row) for row in cur.fetchall()]
 
@@ -452,9 +420,9 @@ class ContextStore:
         """All persisted facts for one storyline, ordered by week_recorded ASC."""
         cur = self._conn.execute(
             """SELECT * FROM persisted_facts
-               WHERE storyline_id = ?
+               WHERE league_id = ? AND season = ? AND storyline_id = ?
                ORDER BY week_recorded ASC""",
-            (storyline_id,),
+            (self.league_id, self.season, storyline_id),
         )
         rows = []
         for row in cur.fetchall():
@@ -475,9 +443,9 @@ class ContextStore:
         placeholders = ",".join("?" for _ in storyline_ids)
         cur = self._conn.execute(
             f"""SELECT * FROM storylines
-                WHERE id IN ({placeholders})
+                WHERE league_id = ? AND season = ? AND id IN ({placeholders})
                 ORDER BY priority, week_last_updated DESC""",
-            storyline_ids,
+            [self.league_id, self.season, *storyline_ids],
         )
         results = []
         for row in cur.fetchall():

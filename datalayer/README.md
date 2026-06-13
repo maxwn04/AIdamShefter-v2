@@ -1,5 +1,9 @@
 ## Sleeper Data Layer
 
+`datalayer` owns Sleeper data fetch, normalization, in-memory storage, and
+factual queries only. Persistent reporter narrative memory lives in
+`reporter_memory/`; `sleeperdl context` and `sleeperdl memory` are not supported.
+
 ### Setup
 
 1. Create a `.env` file (project root) with:

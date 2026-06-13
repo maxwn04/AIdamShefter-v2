@@ -1,6 +1,7 @@
 # Reporter Redesign: Iterative Research Mode
 
-> Status: Current (implemented — agent-driven iterative research)
+> Status: Historical v1 design. Superseded by `reporter_v2/`; the installed
+> reporter CLI is `reporter-v2`.
 
 ## Overview
 
@@ -86,18 +87,15 @@ The current implementation suffers from:
 
 ---
 
-## CLI Interface
+## Historical CLI Interface
 
-The reporter is accessed through the `reporter` command (installed via `pip install -e .`):
+V1 used the `reporter` command. That command is no longer installed; use
+`reporter-v2` for current runs.
 
 ```bash
-# Direct mode with prompt
-reporter "weekly recap"
-reporter "snarky recap, roast Team Taco" --week 8
-reporter "power rankings" -w 12
-
-# Interactive mode - prompts for input
-reporter
+reporter-v2 "weekly recap" --week 8
+reporter-v2 "snarky recap, roast Team Taco" --week 8
+reporter-v2 "power rankings" --week 12
 ```
 
 ### CLI Flow

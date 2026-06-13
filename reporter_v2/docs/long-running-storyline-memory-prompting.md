@@ -2,11 +2,12 @@
 
 ## Purpose
 
-Improve `reporter-v2` memory behavior without changing storage.
+Improve `reporter-v2` memory behavior on top of the current `reporter_memory`
+storage layer.
 
-This pass uses the current persistent context tools and schema, but changes the
-agent's workflow so it treats persistent memory as research leads, not truth. It
-can ship independently from the architecture remodel.
+This pass uses the current persistent context tools and schema `2.1`, but
+changes the agent's workflow so it treats persistent memory as research leads,
+not truth.
 
 ## Core Decisions
 

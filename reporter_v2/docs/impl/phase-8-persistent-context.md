@@ -1,13 +1,13 @@
 # Phase 8: Persistent Context Tools
 
 **Goal:** Implement tools that read/write persistent context (storylines, team
-context, league notes) via the existing `ContextStore`.
+context, league notes) via `reporter_memory.ContextStore`.
 
 **Files to create:**
 - `reporter_v2/runner/tools/persistent_tools.py`
 - `reporter_v2/tests/test_persistent_tools.py`
 
-**Dependencies:** Phase 6 (ToolRegistry), existing `ContextStore`
+**Dependencies:** Phase 6 (ToolRegistry), `reporter_memory.ContextStore`
 
 ---
 
@@ -15,6 +15,10 @@ context, league notes) via the existing `ContextStore`.
 
 V2 adds **read tools** that v1 didn't have as explicit tools (v1 injected context
 into the prompt). V2 makes them tool-callable so the model can load them on demand.
+
+The backing store lives in `reporter_memory/` and uses schema `2.1`. Storyline
+identity, storyline history, and persisted facts are scoped by
+`(league_id, season, id)`. Legacy `.data/context.db` files are not migrated.
 
 ## `reporter_v2/runner/tools/persistent_tools.py`
 
@@ -63,7 +67,7 @@ def register_persistent_tools(
 
 ## Tests
 
-- Use an in-memory SQLite `ContextStore` (same pattern as v1 tests)
+- Use an in-memory SQLite `reporter_memory.ContextStore`
 - `test_save_and_load_storyline` -- save, then load, verify round-trip
 - `test_save_team_context` -- save and verify
 - `test_load_empty_context` -- verify empty lists/dicts returned when nothing saved

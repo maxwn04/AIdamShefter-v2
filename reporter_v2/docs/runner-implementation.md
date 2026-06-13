@@ -10,6 +10,7 @@ file paths, data structures, function signatures, and test strategies.
 - **Python 3.11+ union syntax** (`X | Y`)
 - **Absolute imports** from package root (`from reporter_v2.runner.schemas import ...`)
 - **`__future__.annotations`** in every module
+- Persistent context imports come from `reporter_memory`, not `datalayer`
 
 ## Package Structure (Final State)
 
@@ -51,6 +52,13 @@ reporter_v2/
     test_datalayer_tools.py
     test_persistent_tools.py
     test_integration.py
+
+reporter_memory/
+  __init__.py
+  context_store.py      # ContextStore, schema 2.1, scoped memory tables
+  context_tools.py      # legacy-style memory tool specs/handlers
+  tests/
+    test_context_store.py
 ```
 
 ## Implementation Phases
@@ -64,7 +72,7 @@ reporter_v2/
 | 5 | [Procedure Loading](impl/phase-5-procedure-loading.md) | `load_procedure` with replacement semantics | 1, 2 |
 | 6 | [Runner Loop](impl/phase-6-runner-loop.md) | Core `run()` loop, ToolRegistry, guardrails | 1–5 |
 | 7 | [Datalayer Tools](impl/phase-7-datalayer-tools.md) | Adapt 18 existing datalayer tools for v2 registry | 6 |
-| 8 | [Persistent Context](impl/phase-8-persistent-context.md) | Read/write persistent storylines, team context, league notes | 6 |
+| 8 | [Persistent Context](impl/phase-8-persistent-context.md) | Read/write `reporter_memory` storylines, team context, league notes | 6 |
 | 9 | [Integration & CLI](impl/phase-9-integration-cli.md) | `generate_article()` entry point, system prompt, e2e tests | All |
 
 ## Dependency Graph

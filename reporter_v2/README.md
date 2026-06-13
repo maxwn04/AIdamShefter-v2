@@ -4,6 +4,8 @@ Reporter V2 is the single-loop fantasy football reporter. It researches Sleeper
 league data, builds a verified brief, writes article sections, self-verifies,
 and submits the final article from one tool-using model loop.
 
+Persistent narrative memory is provided by `reporter_memory`, not `datalayer`.
+
 ## Install
 
 From the project root:
@@ -132,6 +134,15 @@ By default, outputs are written to `.output/`:
 
 Persistent narrative context is stored in `.data/context.db` unless overridden
 with `REPORTER_DATA_DIR` or `--data-dir`.
+
+The memory database uses `reporter_memory` schema `2.1`. Storyline IDs, history,
+and persisted facts are scoped by league and season. Old context DB schemas are
+not migrated; delete or recreate `.data/context.db` if you see an unsupported
+schema-version error.
+
+There is no `sleeperdl context` or `sleeperdl memory` surface. Reporter v2 reads
+and writes memory through its persistent tools backed by
+`reporter_memory.ContextStore`.
 
 ## Troubleshooting
 

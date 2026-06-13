@@ -446,10 +446,6 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
     }
 
 
-# Re-export context tools for convenience
-from datalayer.context_tools import CONTEXT_TOOLS, create_context_tool_handlers
-
-
 # Type import for type hints only
 if False:  # TYPE_CHECKING equivalent without import
     from datalayer.sleeper_data import SleeperLeagueData

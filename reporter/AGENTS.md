@@ -1,5 +1,9 @@
 # Reporter Architecture
 
+This is deprecated reporter v1 guidance. The supported runtime is
+`reporter_v2/`, and persistent narrative memory now lives in
+`reporter_memory/`.
+
 ## Two-Phase Pipeline
 
 **Phase 1 — Research** (`ResearchAgent`): Has full tool access. Iteratively queries the datalayer, builds a `ReportBrief` containing verified `Fact` objects and `Storyline` narratives. All tool calls logged in `ResearchLog`.
@@ -40,6 +44,8 @@ All prompt templates live in `prompts/`:
 - `bias/bias_rules.md` — Bias framing rules
 
 ## Programmatic Usage
+
+Prefer `reporter_v2.workflows` for new code. The v1 example below is historical.
 
 ```python
 from reporter.agent.workflows import generate_report

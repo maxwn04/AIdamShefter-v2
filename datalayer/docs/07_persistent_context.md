@@ -1,48 +1,59 @@
-# Persistent League Context
+# Reporter Memory Boundary
 
-## Problem
+Persistent reporter memory no longer belongs to `datalayer`.
 
-The research agent has no memory between runs. Each invocation re-discovers storylines, team arcs, and league themes from scratch. This leads to repetitive research and misses multi-week narrative threads.
+`datalayer` owns Sleeper API fetch, normalization, in-memory SQLite loading, and
+factual query tools. Narrative memory now lives in `reporter_memory/` so it can
+evolve independently from Sleeper data loading.
 
-## Solution
+## Current Ownership
 
-A separate file-backed SQLite database (`context.db`) stores agent-generated context: storylines, team notes, and league-wide metadata. The existing fresh-load pattern for Sleeper API data is unchanged.
+- `reporter_memory/context_store.py` — `ContextStore`, schema creation, reads,
+  writes, stale marking, history, and persisted facts.
+- `reporter_memory/context_tools.py` — legacy-style memory tool definitions and
+  handlers used by reporter integrations.
+- `reporter_v2/runner/tools/persistent_tools.py` — v2 tool surface exposed to
+  the model.
+- `.data/context.db` — default file-backed SQLite database for reporter memory.
 
-```
-Sleeper API → [in-memory SQLite] → query tools (unchanged)
-                                         ↕
-                              [context.db] → context tools (new)
-```
+`datalayer/context_store.py`, `datalayer/context_tools.py`, `sleeperdl context`,
+and `sleeperdl memory` have been removed.
 
-## Data Model
+## Schema
 
-Three tables in `context.db`, scoped by `league_id` + `season`:
+The current memory schema version is `2.1`.
 
-- **`storylines`** — Persistent narrative threads (e.g., "Team X's 5-game win streak"). Has lifecycle: `active` → `resolved` or `stale`. Priority 1-5.
-- **`team_context`** — One row per team. Free-text narrative + outlook enum (`rebuilding`, `contending`, `middling`, `surging`, `fading`). Replaced each run.
-- **`league_context`** — Key-value pairs for league-wide notes (season themes, trade deadline recaps, rivalry notes).
-- **`context_meta`** — Schema versioning for auto-migration.
+The store supports multiple leagues and seasons in the same SQLite file. Storyline
+identity is scoped by `(league_id, season, id)`, and all storyline history and
+persisted fact lookups are scoped by the same league and season. Reusing a
+storyline ID in another league or season is valid and isolated.
 
-## Agent Flow
+Main tables:
 
-1. Agent calls `get_league_memory()` first — reads previous storylines, team context, league notes
-2. Researches current week data using existing tools
-3. Builds ReportBrief incorporating persistent context
-4. Agent calls `save_storyline()`, `save_team_context()`, `save_league_note()` to update memory
-5. Draft agent writes from brief (unchanged)
+- `storylines` — Persistent narrative threads with lifecycle status, priority,
+  tags, team IDs, week created, and week last updated.
+- `team_context` — One row per `(league_id, season, roster_id)` with narrative
+  and outlook.
+- `league_context` — Key/value league notes scoped by league and season.
+- `storyline_history` — Snapshots of previous storyline state on update.
+- `persisted_facts` — Verified facts attached to a storyline for continuity.
+- `context_meta` — Schema version metadata.
 
-## Key Design Decisions
+Legacy schema versions are intentionally not migrated. If an old `.data/context.db`
+exists, delete or recreate it.
 
-- **Separate DB file**: Context store uses its own SQLite connection, not the in-memory datalayer DB. This keeps the two systems decoupled.
-- **DB location**: `.data/context.db` (project-local, gitignored). Single file supports multiple leagues via `league_id` scoping.
-- **Stale detection**: Storylines not updated in N weeks (default 4) are auto-marked `stale` before research begins.
-- **Roster resolution**: Context tools accept `roster_key` (team name, manager name, or roster_id) and resolve via the existing `resolve_roster_id()` function from the datalayer.
-- **Week parameter**: All write operations take a `week` parameter for timestamping. This comes from `ReportConfig.time_range.week_end`.
+## Reporter V2 Flow
 
-## Files
+1. `reporter_v2` creates a `ContextStore` using the loaded Sleeper league ID and
+   season.
+2. The runner registers persistent tools when a context store is available:
+   `save_persistent_storyline`, `save_team_context`, `save_league_note`,
+   `load_persistent_storylines`, `load_team_context`, and `load_league_notes`.
+3. Memory is treated as narrative context and research leads, not factual truth.
+4. Current article facts still come from datalayer query tools and the v2 brief.
 
-- `datalayer/context_store.py` — `ContextStore` class with schema, migration, CRUD
-- `datalayer/context_tools.py` — `CONTEXT_TOOLS` definitions + `create_context_tool_handlers()`
-- `reporter/tools/registry.py` — `create_context_tools()` wraps handlers as Agents SDK tools
-- `reporter/agent/reporter_agent.py` — `ResearchAgent` accepts optional `ContextStore`
-- `reporter/app/runner.py` — Creates `ContextStore`, passes to `ReporterAgent`
+## Datalayer Contract
+
+The datalayer should not import or re-export reporter memory code. It may provide
+factual lookup support used by reporter memory callers, such as roster resolution,
+but memory persistence remains outside the datalayer package.

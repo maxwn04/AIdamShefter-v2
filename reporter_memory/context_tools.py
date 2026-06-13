@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from datalayer.context_store import ContextStore
+from reporter_memory.context_store import ContextStore
 
 
 CONTEXT_TOOLS = [
