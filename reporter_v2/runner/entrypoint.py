@@ -22,7 +22,7 @@ from reporter_v2.runner.tools.procedure_tools import register_procedure_tools
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
-    from datalayer.context_store import ContextStore
+    from reporter_memory.context_store import ContextStore
 
 
 async def generate_article(

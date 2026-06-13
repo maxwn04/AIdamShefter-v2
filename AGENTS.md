@@ -2,17 +2,22 @@
 
 ## What This Project Is
 
-AIdamShefter-v2 is an AI-powered fantasy football reporter. It has two major subsystems:
+AIdamShefter-v2 is an AI-powered fantasy football reporter. It has three major subsystems:
 
 1. **Datalayer** (`datalayer/`) — Fetches Sleeper fantasy football league data, normalizes it into dataclasses, loads it into an in-memory SQLite database, and exposes typed query methods + a guarded SQL escape hatch.
-2. **Reporter** (`reporter/`) — An OpenAI Agents SDK-based pipeline that uses the datalayer tools to research league data, then writes data-grounded articles with configurable voice, bias, and style.
+2. **Reporter Memory** (`reporter_memory/`) — Persistent reporter-generated narrative memory: storylines, team context, league notes, history, and persisted facts. Current schema is `2.1`; storyline IDs, history, and facts are scoped by league and season.
+3. **Reporter V2** (`reporter_v2/`) — A single-loop agent that uses datalayer tools and reporter memory to research league data, then writes data-grounded articles with configurable voice, bias, and style.
+
+`reporter/` is deprecated v1 source retained for historical reference.
+`sleeperdl context` and `sleeperdl memory` are removed; memory access belongs to
+`reporter_memory` and reporter v2 persistent tools.
 
 The pipeline: `Sleeper API → Normalize → In-Memory SQLite → Query API → Reporter Agent → Article`
 
 ## Setup
 
 ```bash
-pip install -e .                   # Installs both datalayer CLI and reporter CLI
+pip install -e .                   # Installs datalayer CLI and reporter-v2 CLI
 ```
 
 Required `.env` file in project root:
@@ -28,21 +33,21 @@ REPORTER_OUTPUT_DIR=.output        # Optional: where articles are saved
 
 ```bash
 # Tests
-pytest                                          # All tests (datalayer + reporter)
+pytest                                          # All default tests
 pytest datalayer/tests/                         # All datalayer tests
+pytest reporter_memory/tests/                   # Reporter memory tests
+pytest reporter_v2/tests/                       # Reporter v2 tests
 pytest datalayer/tests/unit/                    # Datalayer unit tests
 pytest datalayer/tests/integration/             # Datalayer integration tests
-pytest reporter/tests/                          # Reporter tests
 
 # Datalayer CLI
 sleeperdl app                                   # Interactive query shell
 sleeperdl load-export --output out.sqlite       # Export to SQLite file
 
 # Reporter CLI
-reporter "weekly recap"                         # Natural language request
-reporter "snarky recap, roast Team Taco" -w 8   # With week and style hints
-reporter "power rankings with analysis"         # Any article type
-reporter                                        # Interactive prompt
+reporter-v2 "weekly recap" --week 8                         # Natural language request
+reporter-v2 "snarky recap, roast Team Taco" --week 8         # With week and style hints
+reporter-v2 "power rankings with analysis" --week 8          # Any article type
 ```
 
 ## Project Structure
@@ -69,13 +74,19 @@ datalayer/
 └── docs/                         # Design docs
 
 reporter/
-├── __init__.py
-├── agent/                        # Core agent logic (config, schemas, workflows)
-├── app/                          # CLI entry point (runner.py, config.py)
-├── tools/                        # Tool registry + adapter
+└── ...                            # Deprecated v1 reporter source
+
+reporter_memory/
+├── context_store.py              # Persistent memory store
+├── context_tools.py              # Legacy-style memory tool definitions/handlers
+└── tests/                        # Reporter memory tests
+
+reporter_v2/
+├── runner/                       # Core runner logic and tools
+├── app/                          # CLI entry point
 ├── prompts/                      # Prompt templates
-├── docs/                         # Design docs
-└── tests/                        # Reporter tests
+├── procedures/                   # Procedure files loaded by the runner
+└── tests/                        # Reporter v2 tests
 ```
 
 ## Code Conventions

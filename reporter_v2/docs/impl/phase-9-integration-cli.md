@@ -62,6 +62,9 @@ async def generate_article(
     return await runner.run(system_prompt, user_message)
 ```
 
+`ContextStore` is imported from `reporter_memory.context_store`. The CLI creates
+it at `.data/context.db` by default unless persistent context is disabled.
+
 ## System Prompt (`reporter_v2/prompts/system.md`)
 
 A lean prompt that establishes identity and rules. Phase-specific instructions

@@ -1,5 +1,9 @@
 # Datalayer Architecture
 
+`datalayer` owns Sleeper data fetch/normalize/load/query only. Persistent
+reporter narrative memory lives in `reporter_memory/`; do not add memory tables,
+context tools, or `sleeperdl context`/`memory` commands here.
+
 ## Entry Point: `SleeperLeagueData`
 
 **File:** `sleeper_data/sleeper_league_data.py`

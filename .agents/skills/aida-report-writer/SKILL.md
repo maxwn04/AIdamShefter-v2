@@ -39,18 +39,39 @@ Use the same `$snapshot` for the rest of the run.
 If a caller supplies a specific historical week, set `SLEEPER_WEEK_OVERRIDE` only for the load command so the snapshot reflects the league state through that week:
 
 ```bash
+week=8
 SLEEPER_WEEK_OVERRIDE=8 sleeperdl load --output "$snapshot" --refresh
 ```
 
-After the snapshot exists, pass the same week explicitly to `sleeperdl query` calls.
+After the snapshot exists, keep the resolved week in `$week` and pass the same
+week explicitly to `sleeperdl query` calls.
 
 ## Read Context First
 
-Load persistent context:
+Load persistent context through `reporter_memory`. Do not use `sleeperdl context`
+or `sleeperdl memory`; those datalayer commands were removed.
 
 ```bash
-sleeperdl context full --snapshot "$snapshot"
-sleeperdl context storylines --snapshot "$snapshot"
+python - "$snapshot" <<'PY'
+import json
+import sys
+
+from datalayer.sleeper_data import SleeperLeagueData
+from reporter_memory import ContextStore
+
+snapshot = sys.argv[1]
+data = SleeperLeagueData.from_file(snapshot)
+season = str(data.run_sql("SELECT season FROM leagues LIMIT 1")["rows"][0][0])
+store = ContextStore(".data/context.db", league_id=data.league_id, season=season)
+context = store.get_full_context()
+print(json.dumps({
+    "has_previous_context": bool(
+        context["storylines"] or context["team_context"] or context["league_context"]
+    ),
+    **context,
+}, indent=2, default=str))
+store.close()
+PY
 ```
 
 Use this to identify:
@@ -65,7 +86,20 @@ If memory is empty, proceed from fresh data.
 If relevant existing storylines appear, enrich them before research:
 
 ```bash
-sleeperdl context enriched --snapshot "$snapshot" story_alpha_surge story_trade_fallout
+python - "$snapshot" story_alpha_surge story_trade_fallout <<'PY'
+import json
+import sys
+
+from datalayer.sleeper_data import SleeperLeagueData
+from reporter_memory import ContextStore
+
+snapshot, *storyline_ids = sys.argv[1:]
+data = SleeperLeagueData.from_file(snapshot)
+season = str(data.run_sql("SELECT season FROM leagues LIMIT 1")["rows"][0][0])
+store = ContextStore(".data/context.db", league_id=data.league_id, season=season)
+print(json.dumps(store.get_enriched_storylines(storyline_ids), indent=2, default=str))
+store.close()
+PY
 ```
 
 Use enriched context to see storyline history and persisted facts. Persisted facts are useful continuity cues, but current-week claims still need snapshot verification.
@@ -157,7 +191,7 @@ The user’s request matters, but if the data clearly points to a stronger adjac
 
 When choosing the angle, explicitly consider:
 
-- existing relevant storylines from `context storylines`
+- existing relevant storylines from `reporter_memory`
 - enriched history/facts for those storylines
 - 1-3 new storyline hypotheses suggested by the week’s data
 - which storylines should be continued, resolved, or newly created after publication
@@ -222,49 +256,114 @@ When updating an existing storyline, use the existing storyline ID. The new summ
 
 When creating a new storyline, only persist it if it has future value. A single weird box score can be a section in the article without becoming durable memory.
 
-Save or extend major arcs:
+Create a compact context update file:
 
-```bash
-sleeperdl context save-storyline \
-  --snapshot "$snapshot" \
-  --id "story_2026_w8_alpha_surge" \
-  --headline "Alpha Keeps Climbing" \
-  --summary "Alpha extended its surge with another high-scoring win and is now a real playoff threat." \
-  --status active \
-  --priority 1 \
-  --tags "surge,playoff-race" \
-  --team-keys "Alpha"
+```text
+$run_dir/context_updates.json
 ```
 
-Save team context for teams you materially covered:
+Use this shape:
 
-```bash
-sleeperdl context save-team \
-  --snapshot "$snapshot" \
-  --roster-key "Alpha" \
-  --narrative "Alpha is surging behind consistent top-end scoring and should be treated as a playoff threat." \
-  --outlook surging
+```json
+{
+  "storylines": [
+    {
+      "id": "story_2026_w8_alpha_surge",
+      "headline": "Alpha Keeps Climbing",
+      "summary": "Alpha extended its surge with another high-scoring win and is now a real playoff threat.",
+      "status": "active",
+      "priority": 1,
+      "tags": ["surge", "playoff-race"],
+      "team_keys": ["Alpha"]
+    }
+  ],
+  "team_context": [
+    {
+      "roster_key": "Alpha",
+      "narrative": "Alpha is surging behind consistent top-end scoring and should be treated as a playoff threat.",
+      "outlook": "surging"
+    }
+  ],
+  "league_notes": [
+    {
+      "key": "week_8_theme",
+      "value": "Week 8 was defined by playoff volatility and bench-point regret."
+    }
+  ],
+  "persisted_facts": [
+    {
+      "storyline_id": "story_2026_w8_alpha_surge",
+      "facts": [
+        {
+          "id": "fact_alpha_w8_score",
+          "claim_text": "Alpha beat Beta 142.3 to 98.7 in Week 8.",
+          "data_refs": ["team_game:Alpha,week=8"],
+          "numbers": {"alpha_points": 142.3, "beta_points": 98.7, "week": 8},
+          "category": "score"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-Save league-wide themes when useful:
+Apply the updates with `reporter_memory`:
 
 ```bash
-sleeperdl context save-league-note \
-  --snapshot "$snapshot" \
-  --key "week_8_theme" \
-  --value "Week 8 was defined by playoff volatility and bench-point regret."
+python - "$snapshot" "$run_dir/context_updates.json" "$week" <<'PY'
+import json
+import sys
+
+from datalayer.sleeper_data import SleeperLeagueData
+from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
+from reporter_memory import ContextStore
+
+snapshot, updates_path, week_raw = sys.argv[1:]
+week = int(week_raw)
+data = SleeperLeagueData.from_file(snapshot)
+season = str(data.run_sql("SELECT season FROM leagues LIMIT 1")["rows"][0][0])
+store = ContextStore(".data/context.db", league_id=data.league_id, season=season)
+updates = json.loads(open(updates_path, encoding="utf-8").read())
+
+def resolve_team_ids(team_keys):
+    team_ids = []
+    for key in team_keys:
+        result = resolve_roster_id(data._query_conn, data.league_id, key)
+        if result.get("found"):
+            team_ids.append(int(result["roster_id"]))
+    return team_ids
+
+for storyline in updates.get("storylines", []):
+    payload = dict(storyline)
+    payload["team_ids"] = resolve_team_ids(payload.pop("team_keys", []))
+    store.upsert_storyline(payload, week=week)
+
+for note in updates.get("team_context", []):
+    team_ids = resolve_team_ids([note["roster_key"]])
+    if team_ids:
+        store.upsert_team_context(
+            team_ids[0],
+            note["narrative"],
+            note.get("outlook"),
+            week=week,
+        )
+
+for note in updates.get("league_notes", []):
+    store.upsert_league_context(note["key"], note["value"], week=week)
+
+for fact_group in updates.get("persisted_facts", []):
+    store.persist_facts(
+        fact_group.get("facts", []),
+        fact_group["storyline_id"],
+        week=week,
+    )
+
+store.close()
+PY
 ```
 
-Persist supporting facts for durable storylines. Keep these compact and tied to tool refs:
-
-```bash
-sleeperdl context persist-facts \
-  --snapshot "$snapshot" \
-  --storyline-id "story_2026_w8_alpha_surge" \
-  --facts-json '[{"id":"fact_alpha_w8_score","claim_text":"Alpha beat Beta 142.3 to 98.7 in Week 8.","data_refs":["team_game:Alpha,week=8"],"numbers":{"alpha_points":142.3,"beta_points":98.7,"week":8},"category":"score"}]'
-```
-
-If old active storylines are no longer relevant, resolve them with `save-storyline --status resolved` using the existing id.
+If old active storylines are no longer relevant, include them in `storylines`
+with `status: "resolved"` using the existing ID.
 
 ## Verify Before Final
 

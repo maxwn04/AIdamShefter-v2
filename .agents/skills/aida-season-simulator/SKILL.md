@@ -6,7 +6,10 @@ argument-hint: "<week range, e.g. weeks 1-14>"
 
 # AIda Season Simulator
 
-Simulate a season of weekly AIda reports. The goal is to rebuild `.data/context.db` naturally as if the reporter had been run every week.
+Simulate a season of weekly AIda reports. The goal is to rebuild
+`.data/context.db` naturally as if the reporter had been run every week.
+Persistent context is owned by `reporter_memory` schema `2.1`; do not use
+removed `sleeperdl context` or `sleeperdl memory` commands.
 
 Each week must be handled by a subagent, and weeks must run sequentially. Do not parallelize weeks. The whole point is that Week N+1 reads the context created by Week N.
 
@@ -21,7 +24,9 @@ Each week must be handled by a subagent, and weeks must run sequentially. Do not
 - Vary the editorial focus across weeks: rivalries, best teams, worst teams, standings movement, fraud watch, contender watch, collapse watch, waiver/trade fallout.
 - Vary the tone across weeks: hype, snarky, informative, measured, playful.
 - Wait for each subagent to finish before starting the next week.
-- The context database is the main audit trail. Reports should update storylines, team context, league notes, and persisted facts.
+- The context database is the main audit trail. Reports should update
+  storylines, team context, league notes, and persisted facts through
+  `reporter_memory`.
 - The simulation should make continuity stronger over time: each week should continue, complicate, resolve, or intentionally ignore prior arcs based on that week's verified data.
 - Good recurring arcs include repeated close matchups, rivalry chapters, trades or waiver moves that affect later matchups, bench-regret patterns, unlucky high scorers, paper tiger contenders, sleeping giants, playoff spoilers, injury survival stories, and breakout players changing a team's outlook.
 
@@ -32,6 +37,9 @@ Wipe the context database before starting:
 ```bash
 rm -f .data/context.db
 ```
+
+This is intentional. Old memory schemas are not migrated after the
+`reporter_memory` split.
 
 Create a parent run directory:
 
@@ -75,6 +83,8 @@ Important:
 - If prior context exists, explicitly connect at least two relevant prior arcs to this week's current facts unless the data makes them irrelevant.
 - Look for durable storylines such as repeated close matchups, trade/waiver payoff, rivalry escalation, bench-regret patterns, playoff spoilers, unlucky high scorers, paper tigers, sleeping giants, injury survival, and breakout arrivals.
 - Update storylines/team context/league notes/persisted facts before finishing.
+- Apply memory updates through the `aida-report-writer` `context_updates.json`
+  flow, which uses `reporter_memory.ContextStore`.
 - Return the brief path, article path, and a concise list of context updates.
 ```
 

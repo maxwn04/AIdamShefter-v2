@@ -1,6 +1,7 @@
 # AI Fantasy Football Reporter — Master Design Document
 
-> Status: Superseded by iterative research architecture (see redesign_iterative_research.md)
+> Status: Historical v1 design. Superseded by `reporter_v2/`; persistent memory
+> lives in `reporter_memory/`.
 
 ## 1. Overview
 

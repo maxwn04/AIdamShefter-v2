@@ -10,8 +10,8 @@ from typing import Optional
 
 from sqlalchemy import text
 
-from datalayer.context_store import ContextStore
 from datalayer.sleeper_data import SleeperLeagueData
+from reporter_memory.context_store import ContextStore
 
 from reporter.app.config import load_config
 

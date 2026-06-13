@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
-from datalayer.context_store import ContextStore, SCHEMA_VERSION
+from reporter_memory.context_store import ContextStore, SCHEMA_VERSION
 
 
 @pytest.fixture
@@ -114,7 +112,7 @@ class TestStorylines:
             week=1,
         )
         store_b.upsert_storyline(
-            {"id": "s2", "headline": "B story", "summary": "S", "status": "active"},
+            {"id": "s1", "headline": "B story", "summary": "S", "status": "active"},
             week=1,
         )
 
@@ -122,6 +120,26 @@ class TestStorylines:
         assert store_a.get_active_storylines()[0]["headline"] == "A story"
         assert len(store_b.get_active_storylines()) == 1
         assert store_b.get_active_storylines()[0]["headline"] == "B story"
+        store_a.close()
+        store_b.close()
+
+    def test_season_scoping_same_storyline_id(self, tmp_path: Path):
+        store_2024 = ContextStore(tmp_path / "ctx.db", league_id="AAA", season="2024")
+        store_2025 = ContextStore(tmp_path / "ctx.db", league_id="AAA", season="2025")
+
+        store_2024.upsert_storyline(
+            {"id": "s1", "headline": "2024 story", "summary": "S", "status": "active"},
+            week=1,
+        )
+        store_2025.upsert_storyline(
+            {"id": "s1", "headline": "2025 story", "summary": "S", "status": "active"},
+            week=1,
+        )
+
+        assert store_2024.get_active_storylines()[0]["headline"] == "2024 story"
+        assert store_2025.get_active_storylines()[0]["headline"] == "2025 story"
+        store_2024.close()
+        store_2025.close()
 
     def test_priority_ordering(self, store: ContextStore):
         store.upsert_storyline(
@@ -250,7 +268,7 @@ class TestMarkStale:
 
 class TestContextToolHandlers:
     def test_save_storyline(self, store: ContextStore):
-        from datalayer.context_tools import create_context_tool_handlers
+        from reporter_memory.context_tools import create_context_tool_handlers
 
         handlers = create_context_tool_handlers(store, week=5)
         result = handlers["save_storyline"](
@@ -260,7 +278,7 @@ class TestContextToolHandlers:
         assert len(store.get_active_storylines()) == 1
 
     def test_save_team_context_with_int_key(self, store: ContextStore):
-        from datalayer.context_tools import create_context_tool_handlers
+        from reporter_memory.context_tools import create_context_tool_handlers
 
         handlers = create_context_tool_handlers(store, week=5)
         result = handlers["save_team_context"](
@@ -271,7 +289,7 @@ class TestContextToolHandlers:
         assert ctx["narrative"] == "Test note"
 
     def test_save_league_note(self, store: ContextStore):
-        from datalayer.context_tools import create_context_tool_handlers
+        from reporter_memory.context_tools import create_context_tool_handlers
 
         handlers = create_context_tool_handlers(store, week=5)
         result = handlers["save_league_note"](key="theme", value="Chaos season")
@@ -349,6 +367,32 @@ class TestStorylineHistory:
         history = store.get_storyline_history("s1")
         assert len(history) == 4  # 4 updates after the initial create
 
+    def test_history_scoped_by_league(self, tmp_path: Path):
+        store_a = ContextStore(tmp_path / "ctx.db", league_id="AAA", season="2024")
+        store_b = ContextStore(tmp_path / "ctx.db", league_id="BBB", season="2024")
+
+        store_a.upsert_storyline(
+            {"id": "s1", "headline": "A v1", "summary": "S", "status": "active"},
+            week=1,
+        )
+        store_b.upsert_storyline(
+            {"id": "s1", "headline": "B v1", "summary": "S", "status": "active"},
+            week=1,
+        )
+        store_a.upsert_storyline(
+            {"id": "s1", "headline": "A v2", "summary": "S", "status": "active"},
+            week=2,
+        )
+        store_b.upsert_storyline(
+            {"id": "s1", "headline": "B v2", "summary": "S", "status": "active"},
+            week=2,
+        )
+
+        assert store_a.get_storyline_history("s1")[0]["headline"] == "A v1"
+        assert store_b.get_storyline_history("s1")[0]["headline"] == "B v1"
+        store_a.close()
+        store_b.close()
+
 
 class TestPersistedFacts:
     def test_basic_persistence(self, store: ContextStore):
@@ -405,6 +449,26 @@ class TestPersistedFacts:
         assert len(facts_b) == 1
         assert facts_a[0]["claim_text"] == "Fact for story A"
         assert facts_b[0]["claim_text"] == "Fact for story B"
+
+    def test_facts_scoped_by_league(self, tmp_path: Path):
+        store_a = ContextStore(tmp_path / "ctx.db", league_id="AAA", season="2024")
+        store_b = ContextStore(tmp_path / "ctx.db", league_id="BBB", season="2024")
+
+        store_a.persist_facts(
+            [{"id": "f1", "claim_text": "A fact"}],
+            "s1",
+            week=5,
+        )
+        store_b.persist_facts(
+            [{"id": "f1", "claim_text": "B fact"}],
+            "s1",
+            week=5,
+        )
+
+        assert store_a.get_storyline_facts("s1")[0]["claim_text"] == "A fact"
+        assert store_b.get_storyline_facts("s1")[0]["claim_text"] == "B fact"
+        store_a.close()
+        store_b.close()
 
 
 class TestEnrichedStorylines:
@@ -471,6 +535,24 @@ class TestEnrichedStorylines:
     def test_empty_ids(self, store: ContextStore):
         assert store.get_enriched_storylines([]) == []
 
+    def test_enriched_storylines_scoped_by_league(self, tmp_path: Path):
+        store_a = ContextStore(tmp_path / "ctx.db", league_id="AAA", season="2024")
+        store_b = ContextStore(tmp_path / "ctx.db", league_id="BBB", season="2024")
+
+        store_a.upsert_storyline(
+            {"id": "s1", "headline": "A story", "summary": "S", "status": "active"},
+            week=1,
+        )
+        store_b.upsert_storyline(
+            {"id": "s1", "headline": "B story", "summary": "S", "status": "active"},
+            week=1,
+        )
+
+        assert store_a.get_enriched_storylines(["s1"])[0]["headline"] == "A story"
+        assert store_b.get_enriched_storylines(["s1"])[0]["headline"] == "B story"
+        store_a.close()
+        store_b.close()
+
 
 class TestStorylineSummaries:
     def test_returns_active_and_stale(self, store: ContextStore):
@@ -517,8 +599,8 @@ class TestStorylineSummaries:
 
 
 class TestSchemaMigration:
-    def test_v1_db_upgrades_to_v2(self, tmp_path: Path):
-        """A database created with v1 schema should be migrated to v2."""
+    def test_legacy_schema_is_rejected(self, tmp_path: Path):
+        """Old schema versions are rejected instead of migrated."""
         import sqlite3
 
         db_path = tmp_path / "legacy.db"
@@ -567,24 +649,11 @@ class TestSchemaMigration:
         """)
         conn.close()
 
-        # Open with ContextStore — should migrate to v2
-        store = ContextStore(db_path, league_id="123", season="2024")
+        with pytest.raises(RuntimeError, match="Unsupported reporter memory schema"):
+            ContextStore(db_path, league_id="123", season="2024")
+
+    def test_fresh_db_starts_at_current_schema(self, store: ContextStore):
         cur = store._conn.execute(
             "SELECT value FROM context_meta WHERE key='schema_version'"
         )
-        assert cur.fetchone()["value"] == "2"
-
-        # Verify new tables exist
-        cur = store._conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
-        tables = {row["name"] for row in cur.fetchall()}
-        assert "storyline_history" in tables
-        assert "persisted_facts" in tables
-        store.close()
-
-    def test_fresh_db_starts_at_v2(self, store: ContextStore):
-        cur = store._conn.execute(
-            "SELECT value FROM context_meta WHERE key='schema_version'"
-        )
-        assert cur.fetchone()["value"] == "2"
+        assert cur.fetchone()["value"] == SCHEMA_VERSION

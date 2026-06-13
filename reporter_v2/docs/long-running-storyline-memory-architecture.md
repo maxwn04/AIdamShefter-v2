@@ -1,5 +1,10 @@
 # Long-Running Storyline Memory: Architecture
 
+> Part 1 implemented: memory now lives in `reporter_memory/`, datalayer memory
+> shims and `sleeperdl` memory commands were removed, and schema `2.1` scopes
+> existing storylines/history/facts by league and season. The v3 event/search
+> architecture below remains future work.
+
 ## Purpose
 
 Build a real memory layer for `reporter-v2`: source-backed events, entity-aware
@@ -20,26 +25,23 @@ better memory primitives.
 - Embeddings are optional and should index rich memory documents, not just titles
   and summaries.
 - SQLite remains the near-term source of truth.
-- Memory should move out of `datalayer` into `reporter_memory/`.
+- Memory lives outside `datalayer` in `reporter_memory/`.
 - If the datalayer later becomes persistent SQL, memory may share the same
   physical database while keeping a separate logical module and table namespace.
 
 ## Package Boundary
 
-Move memory implementation to `reporter_memory/`.
+Memory implementation lives in `reporter_memory/`.
 
 Reasoning:
 
 - `datalayer` owns Sleeper fetch, normalize, load, and factual queries.
 - Memory owns reporter-generated narrative state, source-backed callbacks,
   retrieval, and usage history.
-- Reporter v1, reporter v2, and CLI inspection can share one memory package.
-
-Keep compatibility shims:
-
-- `datalayer/context_store.py` re-exports `ContextStore` and `SCHEMA_VERSION`.
-- `datalayer/context_tools.py` re-exports legacy context tools.
-- `sleeperdl context` and `sleeperdl memory` keep working.
+- Reporter v2 and future CLI inspection can share one memory package.
+- Reporter v1 is deprecated and no longer drives the package boundary.
+- Do not keep datalayer compatibility shims; memory ownership should live in
+  `reporter_memory/`.
 
 If memory later shares a DB with persistent datalayer tables, keep logical
 separation through table prefixes or schemas:
@@ -426,7 +428,8 @@ Policy:
 
 ## Rollout
 
-1. Move memory implementation to `reporter_memory/` with datalayer shims.
+1. Move memory implementation to `reporter_memory/` and remove datalayer
+   ownership.
 2. Fix league/season scoping in existing memory.
 3. Add v2 post-run fact persistence.
 4. Add v3 event/entity/link/trigger/FTS tables.

@@ -10,7 +10,7 @@ from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
-    from datalayer.context_store import ContextStore
+    from reporter_memory.context_store import ContextStore
 
 
 PERSISTENT_TOOLS = [
