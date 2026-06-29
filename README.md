@@ -52,7 +52,7 @@ datalayer/          # Sleeper API data layer
   cli/              # sleeperdl CLI
 
 reporter_memory/    # Persistent narrative memory for reporter-generated context
-  context_store.py  # ContextStore, schema 2.1, league/season-scoped memory
+  context_store.py  # ContextStore, schema 3, league/season-scoped memory
   context_tools.py  # Legacy-style memory tool handlers for integrations
 
 reporter_v2/        # Supported AI reporter agent
@@ -73,7 +73,7 @@ reporter/           # Deprecated v1 reporter source retained for historical refe
 ## Memory Refactor Notes
 
 - Persistent memory lives in `reporter_memory/`, not `datalayer/`.
-- `.data/context.db` uses reporter memory schema `2.1`.
+- `.data/context.db` uses reporter memory schema `3`.
 - Storyline IDs are scoped by `(league_id, season, id)`.
 - `sleeperdl context` and `sleeperdl memory` have been removed.
 - The installed reporter CLI is `reporter-v2`; v1 scripts are no longer

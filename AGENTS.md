@@ -5,7 +5,7 @@
 AIdamShefter-v2 is an AI-powered fantasy football reporter. It has three major subsystems:
 
 1. **Datalayer** (`datalayer/`) — Fetches Sleeper fantasy football league data, normalizes it into dataclasses, loads it into an in-memory SQLite database, and exposes typed query methods + a guarded SQL escape hatch.
-2. **Reporter Memory** (`reporter_memory/`) — Persistent reporter-generated narrative memory: storylines, team context, league notes, history, and persisted facts. Current schema is `2.1`; storyline IDs, history, and facts are scoped by league and season.
+2. **Reporter Memory** (`reporter_memory/`) — Persistent reporter-generated narrative memory: storylines, team context, league notes, history, persisted facts, events, triggers, and access history. Current schema is `3`; memory rows are scoped by league and season.
 3. **Reporter V2** (`reporter_v2/`) — A single-loop agent that uses datalayer tools and reporter memory to research league data, then writes data-grounded articles with configurable voice, bias, and style.
 
 `reporter/` is deprecated v1 source retained for historical reference.

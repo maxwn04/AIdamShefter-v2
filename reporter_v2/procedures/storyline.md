@@ -93,7 +93,7 @@ Persist an arc only if it has either a plausible future callback condition or cl
 - `rivalry_escalation`
 - `lineup_mistake_repeat`
 
-When schema fields do not exist for arc metadata, use structured text in the persistent storyline summary:
+When persistent tool fields do not exist for arc metadata, use structured text in the persistent storyline summary:
 
 ```text
 Arc type: trade_regret

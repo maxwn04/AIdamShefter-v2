@@ -1,9 +1,9 @@
 # Long-Running Storyline Memory: Architecture
 
-> Part 1 implemented: memory now lives in `reporter_memory/`, datalayer memory
-> shims and `sleeperdl` memory commands were removed, and schema `2.1` scopes
-> existing storylines/history/facts by league and season. The v3 event/search
-> architecture below remains future work.
+> Parts 1-4 implemented: memory now lives in `reporter_memory/`, datalayer
+> memory shims and `sleeperdl` memory commands were removed, schema `3` adds
+> event/entity/link/trigger/FTS tables, and reporter v2 persists brief facts
+> after submitted runs. The search/tool surface below remains future work.
 
 ## Purpose
 
