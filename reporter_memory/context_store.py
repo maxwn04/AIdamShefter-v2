@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "3"
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS context_meta (
@@ -35,16 +35,24 @@ CREATE TABLE IF NOT EXISTS storylines (
     summary TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'active',
     priority INTEGER NOT NULL DEFAULT 2,
+    arc_type TEXT,
+    importance INTEGER NOT NULL DEFAULT 4,
+    origin_week INTEGER,
+    future_callback_condition TEXT,
     tags TEXT,
     team_ids TEXT,
     week_created INTEGER NOT NULL,
     week_last_updated INTEGER NOT NULL,
+    last_accessed_week INTEGER,
+    last_accessed_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     PRIMARY KEY (league_id, season, id)
 );
 CREATE INDEX IF NOT EXISTS idx_storylines_league
     ON storylines(league_id, season, status);
+CREATE INDEX IF NOT EXISTS idx_storylines_importance
+    ON storylines(league_id, season, importance);
 
 CREATE TABLE IF NOT EXISTS team_context (
     league_id TEXT NOT NULL,
@@ -97,6 +105,110 @@ CREATE TABLE IF NOT EXISTS persisted_facts (
 );
 CREATE INDEX IF NOT EXISTS idx_facts_storyline
     ON persisted_facts(league_id, season, storyline_id);
+
+CREATE TABLE IF NOT EXISTS story_events (
+    id TEXT NOT NULL,
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    week INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    importance INTEGER NOT NULL DEFAULT 1,
+    confidence TEXT NOT NULL DEFAULT 'needs_verification',
+    source_refs_json TEXT,
+    numbers_json TEXT,
+    transaction_id TEXT,
+    matchup_id TEXT,
+    last_accessed_week INTEGER,
+    last_accessed_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (league_id, season, id)
+);
+CREATE INDEX IF NOT EXISTS idx_story_events_week
+    ON story_events(league_id, season, week, event_type);
+CREATE INDEX IF NOT EXISTS idx_story_events_transaction
+    ON story_events(league_id, season, transaction_id);
+CREATE INDEX IF NOT EXISTS idx_story_events_matchup
+    ON story_events(league_id, season, matchup_id);
+
+CREATE TABLE IF NOT EXISTS story_event_entities (
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    display_name TEXT,
+    role TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (league_id, season, event_id, entity_type, entity_id, role)
+);
+CREATE INDEX IF NOT EXISTS idx_story_event_entities_lookup
+    ON story_event_entities(league_id, season, entity_type, entity_id);
+
+CREATE TABLE IF NOT EXISTS storyline_event_links (
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    storyline_id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    link_type TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (league_id, season, storyline_id, event_id, link_type)
+);
+CREATE INDEX IF NOT EXISTS idx_storyline_event_links_event
+    ON storyline_event_links(league_id, season, event_id);
+
+CREATE TABLE IF NOT EXISTS storyline_triggers (
+    id TEXT NOT NULL,
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    storyline_id TEXT,
+    event_id TEXT,
+    trigger_type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    target_week INTEGER,
+    condition_json TEXT,
+    fire_policy TEXT NOT NULL DEFAULT 'one_shot',
+    fired_week INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (league_id, season, id)
+);
+CREATE INDEX IF NOT EXISTS idx_storyline_triggers_status
+    ON storyline_triggers(league_id, season, status, target_week);
+CREATE INDEX IF NOT EXISTS idx_storyline_triggers_storyline
+    ON storyline_triggers(league_id, season, storyline_id);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS story_memory_fts USING fts5(
+    owner_type UNINDEXED,
+    owner_id UNINDEXED,
+    league_id UNINDEXED,
+    season UNINDEXED,
+    headline,
+    summary,
+    tags,
+    entity_text,
+    trigger_text
+);
+
+CREATE TABLE IF NOT EXISTS memory_accesses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    league_id TEXT NOT NULL,
+    season TEXT NOT NULL,
+    week INTEGER NOT NULL,
+    owner_type TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    usage TEXT NOT NULL,
+    linked_storyline_id TEXT,
+    fact_links_json TEXT,
+    reason TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_memory_accesses_owner
+    ON memory_accesses(league_id, season, owner_type, owner_id);
+CREATE INDEX IF NOT EXISTS idx_memory_accesses_usage
+    ON memory_accesses(league_id, season, usage, week);
 """
 
 
@@ -143,12 +255,55 @@ class ContextStore:
         row = cur.fetchone()
         current = row["value"] if row else "0"
 
+        if current == SCHEMA_VERSION:
+            return
+
+        if current == "2.1":
+            self._migrate_21_to_3()
+            return
+
         if current != SCHEMA_VERSION:
             raise RuntimeError(
                 "Unsupported reporter memory schema version "
                 f"{current!r}; expected {SCHEMA_VERSION!r}. "
-                "Delete or recreate the context database."
+                "Only schema '2.1' can be migrated automatically."
             )
+
+    def _migrate_21_to_3(self) -> None:
+        """Migrate schema 2.1 to schema 3 in place."""
+        self._add_storyline_column_if_missing("arc_type", "TEXT")
+        self._add_storyline_column_if_missing("importance", "INTEGER")
+        self._add_storyline_column_if_missing("origin_week", "INTEGER")
+        self._add_storyline_column_if_missing("future_callback_condition", "TEXT")
+        self._add_storyline_column_if_missing("last_accessed_week", "INTEGER")
+        self._add_storyline_column_if_missing("last_accessed_at", "TEXT")
+
+        self._conn.execute(
+            """UPDATE storylines
+               SET importance = COALESCE(importance, 6 - priority),
+                   origin_week = COALESCE(origin_week, week_created)"""
+        )
+        self._conn.executescript(_DDL)
+        self._rebuild_story_memory_fts()
+        self._conn.execute(
+            """INSERT INTO context_meta (key, value) VALUES ('schema_version', ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (SCHEMA_VERSION,),
+        )
+        self._conn.commit()
+
+    def _add_storyline_column_if_missing(
+        self, column_name: str, column_definition: str
+    ) -> None:
+        if column_name in self._column_names("storylines"):
+            return
+        self._conn.execute(
+            f"ALTER TABLE storylines ADD COLUMN {column_name} {column_definition}"
+        )
+
+    def _column_names(self, table_name: str) -> set[str]:
+        cur = self._conn.execute(f"PRAGMA table_info({table_name})")
+        return {row["name"] for row in cur.fetchall()}
 
     # ------------------------------------------------------------------
     # Read
@@ -237,7 +392,9 @@ class ContextStore:
             week: Current week number.
         """
         existing = self._conn.execute(
-            """SELECT id FROM storylines
+            """SELECT id, arc_type, importance, origin_week,
+                      future_callback_condition, last_accessed_week, last_accessed_at
+               FROM storylines
                WHERE league_id = ? AND season = ? AND id = ?""",
             (self.league_id, self.season, storyline["id"]),
         ).fetchone()
@@ -245,6 +402,26 @@ class ContextStore:
             self._append_storyline_history(storyline["id"], week=week)
 
         now = _now_iso()
+        priority = storyline.get("priority", 2)
+        importance = storyline.get(
+            "importance", existing["importance"] if existing else 6 - priority
+        )
+        origin_week = storyline.get(
+            "origin_week", existing["origin_week"] if existing else week
+        )
+        arc_type = storyline.get("arc_type", existing["arc_type"] if existing else None)
+        future_callback_condition = storyline.get(
+            "future_callback_condition",
+            existing["future_callback_condition"] if existing else None,
+        )
+        last_accessed_week = storyline.get(
+            "last_accessed_week",
+            existing["last_accessed_week"] if existing else None,
+        )
+        last_accessed_at = storyline.get(
+            "last_accessed_at",
+            existing["last_accessed_at"] if existing else None,
+        )
         tags = json.dumps(storyline.get("tags", [])) if storyline.get("tags") else None
         team_ids = (
             json.dumps(storyline.get("team_ids", []))
@@ -255,16 +432,33 @@ class ContextStore:
         self._conn.execute(
             """INSERT INTO storylines
                    (id, league_id, season, headline, summary, status, priority,
-                    tags, team_ids, week_created, week_last_updated, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    arc_type, importance, origin_week, future_callback_condition,
+                    tags, team_ids, week_created, week_last_updated,
+                    last_accessed_week, last_accessed_at, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(league_id, season, id) DO UPDATE SET
                    headline = excluded.headline,
                    summary = excluded.summary,
                    status = excluded.status,
                    priority = excluded.priority,
+                   arc_type = COALESCE(excluded.arc_type, storylines.arc_type),
+                   importance = COALESCE(excluded.importance, storylines.importance),
+                   origin_week = COALESCE(excluded.origin_week, storylines.origin_week),
+                   future_callback_condition = COALESCE(
+                       excluded.future_callback_condition,
+                       storylines.future_callback_condition
+                   ),
                    tags = excluded.tags,
                    team_ids = excluded.team_ids,
                    week_last_updated = excluded.week_last_updated,
+                   last_accessed_week = COALESCE(
+                       excluded.last_accessed_week,
+                       storylines.last_accessed_week
+                   ),
+                   last_accessed_at = COALESCE(
+                       excluded.last_accessed_at,
+                       storylines.last_accessed_at
+                   ),
                    updated_at = excluded.updated_at""",
             (
                 storyline["id"],
@@ -273,15 +467,22 @@ class ContextStore:
                 storyline["headline"],
                 storyline["summary"],
                 storyline.get("status", "active"),
-                storyline.get("priority", 2),
+                priority,
+                arc_type,
+                importance,
+                origin_week,
+                future_callback_condition,
                 tags,
                 team_ids,
                 week,  # week_created (ignored on update due to ON CONFLICT)
                 week,  # week_last_updated
+                last_accessed_week,
+                last_accessed_at,
                 now,  # created_at (ignored on update)
                 now,  # updated_at
             ),
         )
+        self._sync_storyline_fts(storyline["id"])
         self._conn.commit()
 
     def resolve_storyline(self, storyline_id: str) -> None:
@@ -392,7 +593,9 @@ class ContextStore:
         """Lightweight active/stale storyline list for curator input."""
         cur = self._conn.execute(
             """SELECT id, headline, summary, status, tags, team_ids,
-                      priority, week_created, week_last_updated
+                      priority, arc_type, importance, origin_week,
+                      future_callback_condition, week_created, week_last_updated,
+                      last_accessed_week, last_accessed_at
                FROM storylines
                WHERE league_id = ? AND season = ? AND status IN ('active', 'stale')
                ORDER BY priority, week_last_updated DESC""",
@@ -400,10 +603,7 @@ class ContextStore:
         )
         rows = []
         for row in cur.fetchall():
-            d = dict(row)
-            d["tags"] = json.loads(d["tags"]) if d.get("tags") else []
-            d["team_ids"] = json.loads(d["team_ids"]) if d.get("team_ids") else []
-            rows.append(d)
+            rows.append(self._storyline_row_to_dict(row))
         return rows
 
     def get_storyline_history(self, storyline_id: str) -> list[dict[str, Any]]:
@@ -492,6 +692,233 @@ class ContextStore:
         self._conn.commit()
         return inserted
 
+    # ------------------------------------------------------------------
+    # Story Events, Triggers, Accesses, and FTS
+    # ------------------------------------------------------------------
+
+    def upsert_story_event(self, event: dict[str, Any]) -> None:
+        """Create or update source-backed event evidence."""
+        source_refs = event.get("source_refs", event.get("source_refs_json", []))
+        confidence = event.get("confidence", "needs_verification")
+        if confidence == "verified" and not source_refs:
+            raise ValueError("verified story events require at least one source ref")
+
+        now = _now_iso()
+        self._conn.execute(
+            """INSERT INTO story_events
+                   (id, league_id, season, week, event_type, headline, summary,
+                    importance, confidence, source_refs_json, numbers_json,
+                    transaction_id, matchup_id, last_accessed_week, last_accessed_at,
+                    created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(league_id, season, id) DO UPDATE SET
+                   week = excluded.week,
+                   event_type = excluded.event_type,
+                   headline = excluded.headline,
+                   summary = excluded.summary,
+                   importance = excluded.importance,
+                   confidence = excluded.confidence,
+                   source_refs_json = excluded.source_refs_json,
+                   numbers_json = excluded.numbers_json,
+                   transaction_id = excluded.transaction_id,
+                   matchup_id = excluded.matchup_id,
+                   last_accessed_week = COALESCE(
+                       excluded.last_accessed_week,
+                       story_events.last_accessed_week
+                   ),
+                   last_accessed_at = COALESCE(
+                       excluded.last_accessed_at,
+                       story_events.last_accessed_at
+                   ),
+                   updated_at = excluded.updated_at""",
+            (
+                event["id"],
+                self.league_id,
+                self.season,
+                event["week"],
+                event["event_type"],
+                event["headline"],
+                event["summary"],
+                event.get("importance", 1),
+                confidence,
+                self._json_text(source_refs, []),
+                self._json_text(event.get("numbers", event.get("numbers_json", {})), {}),
+                event.get("transaction_id"),
+                event.get("matchup_id"),
+                event.get("last_accessed_week"),
+                event.get("last_accessed_at"),
+                now,
+                now,
+            ),
+        )
+        self._sync_event_fts(event["id"])
+        self._conn.commit()
+
+    def replace_story_event_entities(
+        self, event_id: str, entities: list[dict[str, Any]]
+    ) -> None:
+        """Replace normalized entity links for one story event."""
+        self._conn.execute(
+            """DELETE FROM story_event_entities
+               WHERE league_id = ? AND season = ? AND event_id = ?""",
+            (self.league_id, self.season, event_id),
+        )
+
+        now = _now_iso()
+        for entity in entities:
+            entity_type = entity.get("entity_type", entity.get("type"))
+            if not entity_type:
+                raise ValueError("story event entities require entity_type")
+            display_name = entity.get("display_name", entity.get("name"))
+            entity_id = entity.get("entity_id", entity.get("id", display_name))
+            if not entity_id:
+                raise ValueError("story event entities require entity_id or display_name")
+
+            self._conn.execute(
+                """INSERT INTO story_event_entities
+                       (league_id, season, event_id, entity_type, entity_id,
+                        display_name, role, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    self.league_id,
+                    self.season,
+                    event_id,
+                    entity_type,
+                    str(entity_id),
+                    display_name,
+                    entity.get("role", ""),
+                    now,
+                ),
+            )
+
+        self._sync_event_fts(event_id)
+        self._conn.commit()
+
+    def link_storyline_event(
+        self, storyline_id: str, event_id: str, link_type: str
+    ) -> None:
+        """Link a narrative storyline card to source-backed event evidence."""
+        self._conn.execute(
+            """INSERT OR IGNORE INTO storyline_event_links
+                   (league_id, season, storyline_id, event_id, link_type, created_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (self.league_id, self.season, storyline_id, event_id, link_type, _now_iso()),
+        )
+        self._conn.commit()
+
+    def upsert_storyline_trigger(self, trigger: dict[str, Any]) -> None:
+        """Create or update a dormant callback trigger."""
+        now = _now_iso()
+        condition = trigger.get("condition", trigger.get("condition_json", {}))
+        self._conn.execute(
+            """INSERT INTO storyline_triggers
+                   (id, league_id, season, storyline_id, event_id, trigger_type,
+                    status, target_week, condition_json, fire_policy, fired_week,
+                    created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(league_id, season, id) DO UPDATE SET
+                   storyline_id = excluded.storyline_id,
+                   event_id = excluded.event_id,
+                   trigger_type = excluded.trigger_type,
+                   status = excluded.status,
+                   target_week = excluded.target_week,
+                   condition_json = excluded.condition_json,
+                   fire_policy = excluded.fire_policy,
+                   fired_week = excluded.fired_week,
+                   updated_at = excluded.updated_at""",
+            (
+                trigger["id"],
+                self.league_id,
+                self.season,
+                trigger.get("storyline_id"),
+                trigger.get("event_id"),
+                trigger["trigger_type"],
+                trigger.get("status", "open"),
+                trigger.get("target_week"),
+                self._json_text(condition, {}),
+                trigger.get("fire_policy", "one_shot"),
+                trigger.get("fired_week"),
+                now,
+                now,
+            ),
+        )
+        self._sync_trigger_fts(trigger["id"])
+        self._conn.commit()
+
+    def record_memory_access(
+        self,
+        *,
+        owner_type: str,
+        owner_id: str,
+        week: int,
+        usage: str,
+        linked_storyline_id: str | None = None,
+        fact_links: list[str] | None = None,
+        reason: str | None = None,
+    ) -> int:
+        """Record retrieval/usage feedback for a memory candidate."""
+        now = _now_iso()
+        cur = self._conn.execute(
+            """INSERT INTO memory_accesses
+                   (league_id, season, week, owner_type, owner_id, usage,
+                    linked_storyline_id, fact_links_json, reason, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                self.league_id,
+                self.season,
+                week,
+                owner_type,
+                owner_id,
+                usage,
+                linked_storyline_id,
+                self._json_text(fact_links or [], []),
+                reason,
+                now,
+            ),
+        )
+
+        if owner_type == "storyline":
+            self._conn.execute(
+                """UPDATE storylines
+                   SET last_accessed_week = ?, last_accessed_at = ?
+                   WHERE league_id = ? AND season = ? AND id = ?""",
+                (week, now, self.league_id, self.season, owner_id),
+            )
+        elif owner_type in {"event", "story_event"}:
+            self._conn.execute(
+                """UPDATE story_events
+                   SET last_accessed_week = ?, last_accessed_at = ?
+                   WHERE league_id = ? AND season = ? AND id = ?""",
+                (week, now, self.league_id, self.season, owner_id),
+            )
+
+        self._conn.commit()
+        return int(cur.lastrowid)
+
+    def rebuild_story_memory_fts(self) -> None:
+        """Rebuild FTS rows for all storylines, events, and triggers in scope."""
+        self._rebuild_story_memory_fts()
+        self._conn.commit()
+
+    def _rebuild_story_memory_fts(self) -> None:
+        self._conn.execute(
+            """DELETE FROM story_memory_fts
+               WHERE league_id = ? AND season = ?""",
+            (self.league_id, self.season),
+        )
+
+        storyline_ids = self._scoped_ids("storylines")
+        for storyline_id in storyline_ids:
+            self._sync_storyline_fts(storyline_id)
+
+        event_ids = self._scoped_ids("story_events")
+        for event_id in event_ids:
+            self._sync_event_fts(event_id)
+
+        trigger_ids = self._scoped_ids("storyline_triggers")
+        for trigger_id in trigger_ids:
+            self._sync_trigger_fts(trigger_id)
+
     def close(self) -> None:
         """Close the database connection."""
         self._conn.close()
@@ -511,4 +938,164 @@ class ContextStore:
             d["team_ids"] = json.loads(d["team_ids"])
         else:
             d["team_ids"] = []
+        d.setdefault("arc_type", None)
+        if d.get("importance") is None:
+            d["importance"] = 6 - d.get("priority", 2)
+        if d.get("origin_week") is None:
+            d["origin_week"] = d.get("week_created")
+        d.setdefault("future_callback_condition", None)
+        d.setdefault("last_accessed_week", None)
+        d.setdefault("last_accessed_at", None)
         return d
+
+    def _sync_storyline_fts(self, storyline_id: str) -> None:
+        self._delete_fts_row("storyline", storyline_id)
+        row = self._conn.execute(
+            """SELECT * FROM storylines
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, storyline_id),
+        ).fetchone()
+        if not row:
+            return
+
+        storyline = self._storyline_row_to_dict(row)
+        self._insert_fts_row(
+            owner_type="storyline",
+            owner_id=storyline_id,
+            headline=storyline["headline"],
+            summary=storyline["summary"],
+            tags=" ".join(storyline["tags"] + [storyline.get("arc_type") or ""]),
+            entity_text=" ".join(str(team_id) for team_id in storyline["team_ids"]),
+            trigger_text=storyline.get("future_callback_condition") or "",
+        )
+
+    def _sync_event_fts(self, event_id: str) -> None:
+        self._delete_fts_row("event", event_id)
+        row = self._conn.execute(
+            """SELECT * FROM story_events
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, event_id),
+        ).fetchone()
+        if not row:
+            return
+
+        entity_rows = self._conn.execute(
+            """SELECT entity_type, entity_id, display_name, role
+               FROM story_event_entities
+               WHERE league_id = ? AND season = ? AND event_id = ?
+               ORDER BY entity_type, role, entity_id""",
+            (self.league_id, self.season, event_id),
+        ).fetchall()
+        entity_text = " ".join(
+            " ".join(
+                str(value)
+                for value in [
+                    entity["entity_type"],
+                    entity["entity_id"],
+                    entity["display_name"],
+                    entity["role"],
+                ]
+                if value
+            )
+            for entity in entity_rows
+        )
+        self._insert_fts_row(
+            owner_type="event",
+            owner_id=event_id,
+            headline=row["headline"],
+            summary=row["summary"],
+            tags=" ".join([row["event_type"], row["confidence"]]),
+            entity_text=entity_text,
+            trigger_text="",
+        )
+
+    def _sync_trigger_fts(self, trigger_id: str) -> None:
+        self._delete_fts_row("trigger", trigger_id)
+        row = self._conn.execute(
+            """SELECT * FROM storyline_triggers
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, trigger_id),
+        ).fetchone()
+        if not row:
+            return
+
+        trigger_text = " ".join(
+            str(value)
+            for value in [
+                row["trigger_type"],
+                row["status"],
+                row["target_week"],
+                row["condition_json"],
+                row["fire_policy"],
+                row["fired_week"],
+            ]
+            if value is not None
+        )
+        entity_text = " ".join(
+            str(value)
+            for value in [row["storyline_id"], row["event_id"]]
+            if value
+        )
+        self._insert_fts_row(
+            owner_type="trigger",
+            owner_id=trigger_id,
+            headline=row["trigger_type"],
+            summary=row["condition_json"] or "",
+            tags=row["status"],
+            entity_text=entity_text,
+            trigger_text=trigger_text,
+        )
+
+    def _delete_fts_row(self, owner_type: str, owner_id: str) -> None:
+        self._conn.execute(
+            """DELETE FROM story_memory_fts
+               WHERE owner_type = ? AND owner_id = ?
+               AND league_id = ? AND season = ?""",
+            (owner_type, owner_id, self.league_id, self.season),
+        )
+
+    def _insert_fts_row(
+        self,
+        *,
+        owner_type: str,
+        owner_id: str,
+        headline: str,
+        summary: str,
+        tags: str,
+        entity_text: str,
+        trigger_text: str,
+    ) -> None:
+        self._conn.execute(
+            """INSERT INTO story_memory_fts
+                   (owner_type, owner_id, league_id, season, headline, summary,
+                    tags, entity_text, trigger_text)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                owner_type,
+                owner_id,
+                self.league_id,
+                self.season,
+                headline,
+                summary,
+                tags,
+                entity_text,
+                trigger_text,
+            ),
+        )
+
+    def _scoped_ids(self, table_name: str) -> list[str]:
+        cur = self._conn.execute(
+            f"""SELECT id FROM {table_name}
+                WHERE league_id = ? AND season = ?
+                ORDER BY id""",
+            (self.league_id, self.season),
+        )
+        return [row["id"] for row in cur.fetchall()]
+
+    @staticmethod
+    def _json_text(value: Any, default: Any) -> str:
+        if value is None:
+            value = default
+        if isinstance(value, str):
+            return value
+        return json.dumps(value)

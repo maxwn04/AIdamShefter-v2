@@ -5,9 +5,8 @@
 Improve `reporter-v2` memory behavior on top of the current `reporter_memory`
 storage layer.
 
-This pass uses the current persistent context tools and schema `2.1`, but
-changes the agent's workflow so it treats persistent memory as research leads,
-not truth.
+This pass uses the current persistent context tools and storage layer, but changes
+the agent's workflow so it treats persistent memory as research leads, not truth.
 
 ## Core Decisions
 

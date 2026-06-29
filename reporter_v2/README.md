@@ -135,10 +135,10 @@ By default, outputs are written to `.output/`:
 Persistent narrative context is stored in `.data/context.db` unless overridden
 with `REPORTER_DATA_DIR` or `--data-dir`.
 
-The memory database uses `reporter_memory` schema `2.1`. Storyline IDs, history,
-and persisted facts are scoped by league and season. Old context DB schemas are
-not migrated; delete or recreate `.data/context.db` if you see an unsupported
-schema-version error.
+The memory database uses `reporter_memory` schema `3`. Storyline IDs, history,
+persisted facts, events, triggers, and access records are scoped by league and
+season. Schema `2.1` databases are migrated in place; older schemas are not
+supported.
 
 There is no `sleeperdl context` or `sleeperdl memory` surface. Reporter v2 reads
 and writes memory through its persistent tools backed by

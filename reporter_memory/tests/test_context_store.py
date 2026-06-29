@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -13,6 +15,103 @@ from reporter_memory.context_store import ContextStore, SCHEMA_VERSION
 def store(tmp_path: Path) -> ContextStore:
     """Create a ContextStore backed by a temp file."""
     return ContextStore(tmp_path / "context.db", league_id="123", season="2024")
+
+
+def create_schema_21_db(db_path: Path) -> None:
+    conn = sqlite3.connect(str(db_path))
+    conn.executescript(
+        """
+        CREATE TABLE context_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE storylines (
+            id TEXT NOT NULL,
+            league_id TEXT NOT NULL,
+            season TEXT NOT NULL,
+            headline TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            priority INTEGER NOT NULL DEFAULT 2,
+            tags TEXT,
+            team_ids TEXT,
+            week_created INTEGER NOT NULL,
+            week_last_updated INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (league_id, season, id)
+        );
+        CREATE TABLE team_context (
+            league_id TEXT NOT NULL,
+            season TEXT NOT NULL,
+            roster_id INTEGER NOT NULL,
+            narrative TEXT NOT NULL,
+            outlook TEXT,
+            week_last_updated INTEGER NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (league_id, season, roster_id)
+        );
+        CREATE TABLE league_context (
+            league_id TEXT NOT NULL,
+            season TEXT NOT NULL,
+            key TEXT NOT NULL,
+            value TEXT NOT NULL,
+            week_last_updated INTEGER NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (league_id, season, key)
+        );
+        CREATE TABLE storyline_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            storyline_id TEXT NOT NULL,
+            league_id TEXT NOT NULL,
+            season TEXT NOT NULL,
+            headline TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            status TEXT NOT NULL,
+            priority INTEGER NOT NULL,
+            week INTEGER NOT NULL,
+            snapshot_at TEXT NOT NULL
+        );
+        CREATE TABLE persisted_facts (
+            storyline_id TEXT NOT NULL,
+            week_recorded INTEGER NOT NULL,
+            fact_id TEXT NOT NULL,
+            league_id TEXT NOT NULL,
+            season TEXT NOT NULL,
+            claim_text TEXT NOT NULL,
+            data_refs TEXT,
+            numbers TEXT,
+            category TEXT NOT NULL DEFAULT 'general',
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (league_id, season, storyline_id, week_recorded, fact_id)
+        );
+        INSERT INTO context_meta (key, value) VALUES ('schema_version', '2.1');
+        INSERT INTO storylines
+            (id, league_id, season, headline, summary, status, priority,
+             tags, team_ids, week_created, week_last_updated, created_at, updated_at)
+        VALUES
+            ('s1', '123', '2024', 'Old Story', 'Old summary', 'active', 2,
+             '["trade"]', '[3]', 4, 6, 'created', 'updated');
+        INSERT INTO team_context
+            (league_id, season, roster_id, narrative, outlook,
+             week_last_updated, updated_at)
+        VALUES ('123', '2024', 3, 'Old team note', 'contending', 6, 'updated');
+        INSERT INTO league_context
+            (league_id, season, key, value, week_last_updated, updated_at)
+        VALUES ('123', '2024', 'theme', 'Old league note', 6, 'updated');
+        INSERT INTO storyline_history
+            (storyline_id, league_id, season, headline, summary,
+             status, priority, week, snapshot_at)
+        VALUES ('s1', '123', '2024', 'Older Story', 'Older summary',
+                'active', 2, 5, 'snapshot');
+        INSERT INTO persisted_facts
+            (storyline_id, week_recorded, fact_id, league_id, season,
+             claim_text, data_refs, numbers, category, created_at)
+        VALUES ('s1', 6, 'f1', '123', '2024', 'Old fact',
+                '["source"]', '{"points": 10}', 'score', 'created');
+        """
+    )
+    conn.close()
 
 
 class TestSchemaCreation:
@@ -27,6 +126,12 @@ class TestSchemaCreation:
         assert "context_meta" in tables
         assert "storyline_history" in tables
         assert "persisted_facts" in tables
+        assert "story_events" in tables
+        assert "story_event_entities" in tables
+        assert "storyline_event_links" in tables
+        assert "storyline_triggers" in tables
+        assert "story_memory_fts" in tables
+        assert "memory_accesses" in tables
 
     def test_sets_schema_version(self, store: ContextStore):
         cur = store._conn.execute(
@@ -153,6 +258,33 @@ class TestStorylines:
         stories = store.get_active_storylines()
         assert stories[0]["priority"] == 1
         assert stories[1]["priority"] == 3
+
+    def test_v3_storyline_fields_round_trip(self, store: ContextStore):
+        store.upsert_storyline(
+            {
+                "id": "trade_arc",
+                "headline": "The Trade Receipt Comes Due",
+                "summary": "A Week 3 trade now has a playoff callback.",
+                "status": "active",
+                "priority": 1,
+                "importance": 9,
+                "arc_type": "trade_regret",
+                "origin_week": 3,
+                "future_callback_condition": "Player faces former manager.",
+                "tags": ["trade", "receipt"],
+                "team_ids": [1, 4],
+            },
+            week=8,
+        )
+
+        story = store.get_active_storylines()[0]
+
+        assert story["importance"] == 9
+        assert story["arc_type"] == "trade_regret"
+        assert story["origin_week"] == 3
+        assert story["future_callback_condition"] == "Player faces former manager."
+        assert story["last_accessed_week"] is None
+        assert story["last_accessed_at"] is None
 
 
 class TestTeamContext:
@@ -471,6 +603,203 @@ class TestPersistedFacts:
         store_b.close()
 
 
+class TestV3MemoryStructures:
+    def test_story_event_entities_links_triggers_and_accesses(
+        self, store: ContextStore
+    ):
+        store.upsert_storyline(
+            {
+                "id": "story_trade",
+                "headline": "Trade Arc",
+                "summary": "A trade arc worth remembering.",
+                "status": "active",
+            },
+            week=3,
+        )
+        store.upsert_story_event(
+            {
+                "id": "event_trade_1",
+                "week": 3,
+                "event_type": "trade",
+                "headline": "Team A sends Player X away",
+                "summary": "Team A traded Player X to Team B.",
+                "importance": 7,
+                "confidence": "verified",
+                "source_refs": ["transactions:week=3"],
+                "numbers": {"assets": 2},
+                "transaction_id": "txn_123",
+            }
+        )
+        store.replace_story_event_entities(
+            "event_trade_1",
+            [
+                {
+                    "entity_type": "team",
+                    "entity_id": "1",
+                    "display_name": "Team A",
+                    "role": "seller",
+                },
+                {
+                    "entity_type": "player",
+                    "entity_id": "player_x",
+                    "display_name": "Player X",
+                    "role": "asset_sent",
+                },
+            ],
+        )
+        store.link_storyline_event("story_trade", "event_trade_1", "origin")
+        store.upsert_storyline_trigger(
+            {
+                "id": "trigger_trade_callback",
+                "storyline_id": "story_trade",
+                "event_id": "event_trade_1",
+                "trigger_type": "trade_evaluation",
+                "target_week": 9,
+                "condition": {"player_id": "player_x", "former_roster_id": 1},
+                "fire_policy": "one_shot",
+            }
+        )
+        access_id = store.record_memory_access(
+            owner_type="storyline",
+            owner_id="story_trade",
+            week=9,
+            usage="research_context",
+            linked_storyline_id="brief_story",
+            fact_links=["fact_trade"],
+            reason="Relevant trade callback.",
+        )
+
+        event = store._conn.execute(
+            """SELECT * FROM story_events
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (store.league_id, store.season, "event_trade_1"),
+        ).fetchone()
+        assert event["importance"] == 7
+        assert json.loads(event["source_refs_json"]) == ["transactions:week=3"]
+        assert json.loads(event["numbers_json"]) == {"assets": 2}
+
+        entities = store._conn.execute(
+            """SELECT entity_type, entity_id, display_name, role
+               FROM story_event_entities
+               WHERE league_id = ? AND season = ? AND event_id = ?
+               ORDER BY entity_type, entity_id""",
+            (store.league_id, store.season, "event_trade_1"),
+        ).fetchall()
+        assert [dict(row) for row in entities] == [
+            {
+                "entity_type": "player",
+                "entity_id": "player_x",
+                "display_name": "Player X",
+                "role": "asset_sent",
+            },
+            {
+                "entity_type": "team",
+                "entity_id": "1",
+                "display_name": "Team A",
+                "role": "seller",
+            },
+        ]
+
+        link = store._conn.execute(
+            """SELECT link_type FROM storyline_event_links
+               WHERE league_id = ? AND season = ? AND storyline_id = ?
+               AND event_id = ?""",
+            (store.league_id, store.season, "story_trade", "event_trade_1"),
+        ).fetchone()
+        assert link["link_type"] == "origin"
+
+        trigger = store._conn.execute(
+            """SELECT * FROM storyline_triggers
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (store.league_id, store.season, "trigger_trade_callback"),
+        ).fetchone()
+        assert trigger["status"] == "open"
+        assert trigger["target_week"] == 9
+        assert json.loads(trigger["condition_json"]) == {
+            "player_id": "player_x",
+            "former_roster_id": 1,
+        }
+
+        access = store._conn.execute(
+            "SELECT * FROM memory_accesses WHERE id = ?",
+            (access_id,),
+        ).fetchone()
+        assert access["usage"] == "research_context"
+        assert json.loads(access["fact_links_json"]) == ["fact_trade"]
+        assert store.get_active_storylines()[0]["last_accessed_week"] == 9
+
+    def test_verified_story_event_requires_source_refs(self, store: ContextStore):
+        with pytest.raises(ValueError, match="source ref"):
+            store.upsert_story_event(
+                {
+                    "id": "event_no_source",
+                    "week": 1,
+                    "event_type": "trade",
+                    "headline": "Unsupported event",
+                    "summary": "This claims verification without a source.",
+                    "confidence": "verified",
+                }
+            )
+
+    def test_fts_rows_are_replaced_not_duplicated(self, store: ContextStore):
+        store.upsert_storyline(
+            {
+                "id": "story_fts",
+                "headline": "Original Headline",
+                "summary": "Original summary.",
+                "status": "active",
+            },
+            week=1,
+        )
+        store.upsert_storyline(
+            {
+                "id": "story_fts",
+                "headline": "Updated Headline",
+                "summary": "Updated summary.",
+                "status": "active",
+            },
+            week=2,
+        )
+
+        rows = store._conn.execute(
+            """SELECT owner_type, owner_id, headline
+               FROM story_memory_fts
+               WHERE league_id = ? AND season = ?
+               AND owner_type = 'storyline' AND owner_id = 'story_fts'""",
+            (store.league_id, store.season),
+        ).fetchall()
+
+        assert len(rows) == 1
+        assert rows[0]["headline"] == "Updated Headline"
+
+    def test_rebuild_story_memory_fts(self, store: ContextStore):
+        store.upsert_storyline(
+            {
+                "id": "story_rebuild",
+                "headline": "Rebuild Me",
+                "summary": "This should be reindexed.",
+                "status": "active",
+            },
+            week=1,
+        )
+        store._conn.execute(
+            """DELETE FROM story_memory_fts
+               WHERE league_id = ? AND season = ?""",
+            (store.league_id, store.season),
+        )
+        store._conn.commit()
+
+        store.rebuild_story_memory_fts()
+
+        count = store._conn.execute(
+            """SELECT COUNT(*) AS count FROM story_memory_fts
+               WHERE league_id = ? AND season = ?
+               AND owner_type = 'storyline' AND owner_id = 'story_rebuild'""",
+            (store.league_id, store.season),
+        ).fetchone()["count"]
+        assert count == 1
+
+
 class TestEnrichedStorylines:
     def test_includes_history_and_facts(self, store: ContextStore):
         store.upsert_storyline(
@@ -599,10 +928,51 @@ class TestStorylineSummaries:
 
 
 class TestSchemaMigration:
+    def test_migrates_schema_21_to_3(self, tmp_path: Path):
+        db_path = tmp_path / "schema21.db"
+        create_schema_21_db(db_path)
+
+        store = ContextStore(db_path, league_id="123", season="2024")
+
+        version = store._conn.execute(
+            "SELECT value FROM context_meta WHERE key = 'schema_version'"
+        ).fetchone()["value"]
+        tables = {
+            row["name"]
+            for row in store._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        story = store.get_active_storylines()[0]
+
+        assert version == SCHEMA_VERSION
+        assert "story_events" in tables
+        assert "story_event_entities" in tables
+        assert "storyline_event_links" in tables
+        assert "storyline_triggers" in tables
+        assert "story_memory_fts" in tables
+        assert "memory_accesses" in tables
+        assert story["headline"] == "Old Story"
+        assert story["importance"] == 4
+        assert story["origin_week"] == 4
+        assert story["arc_type"] is None
+        assert story["future_callback_condition"] is None
+        assert store.get_team_context(3)["narrative"] == "Old team note"
+        assert store.get_league_context()["theme"] == "Old league note"
+        assert store.get_storyline_history("s1")[0]["headline"] == "Older Story"
+        assert store.get_storyline_facts("s1")[0]["claim_text"] == "Old fact"
+
+        fts_row = store._conn.execute(
+            """SELECT headline FROM story_memory_fts
+               WHERE league_id = ? AND season = ?
+               AND owner_type = 'storyline' AND owner_id = 's1'""",
+            (store.league_id, store.season),
+        ).fetchone()
+        assert fts_row["headline"] == "Old Story"
+        store.close()
+
     def test_legacy_schema_is_rejected(self, tmp_path: Path):
         """Old schema versions are rejected instead of migrated."""
-        import sqlite3
-
         db_path = tmp_path / "legacy.db"
         conn = sqlite3.connect(str(db_path))
         # Create v1 schema manually (without new tables)

@@ -12,7 +12,7 @@ from datalayer.sleeper_data import SleeperLeagueData
 from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 from reporter_v2.config import ReportConfig
 from reporter_v2.runner.runner import CompletionFn, Runner
-from reporter_v2.runner.schemas import ArticleOutput
+from reporter_v2.runner.schemas import ArticleOutput, ReportBrief
 from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
 from reporter_v2.runner.tools.article_tools import register_article_tools
 from reporter_v2.runner.tools.brief_tools import register_brief_tools
@@ -72,7 +72,34 @@ async def generate_article(
     runner.artifacts.brief.meta.week_start = config.time_range.week_start
     runner.artifacts.brief.meta.week_end = config.time_range.week_end
 
-    return await runner.run(_build_system_prompt(), _build_user_message(config))
+    output = await runner.run(_build_system_prompt(), _build_user_message(config))
+    if context_store is not None and output.run_log_summary.get("submitted") is True:
+        _persist_brief_facts(context_store, output.brief, week=week)
+    return output
+
+
+def _persist_brief_facts(
+    context_store: ContextStore,
+    brief: ReportBrief,
+    *,
+    week: int,
+) -> None:
+    """Persist verified brief facts under their final brief storylines."""
+    for storyline in brief.storylines:
+        facts = [brief.get_fact(fact_id) for fact_id in storyline.supporting_fact_ids]
+        payload = [
+            {
+                "id": fact.id,
+                "claim_text": fact.claim_text,
+                "data_refs": fact.data_refs,
+                "numbers": fact.numbers,
+                "category": fact.category,
+            }
+            for fact in facts
+            if fact is not None
+        ]
+        if payload:
+            context_store.persist_facts(payload, storyline.id, week=week)
 
 
 def _build_system_prompt() -> str:

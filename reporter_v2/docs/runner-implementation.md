@@ -55,7 +55,7 @@ reporter_v2/
 
 reporter_memory/
   __init__.py
-  context_store.py      # ContextStore, schema 2.1, scoped memory tables
+  context_store.py      # ContextStore, schema 3, scoped memory tables
   context_tools.py      # legacy-style memory tool specs/handlers
   tests/
     test_context_store.py

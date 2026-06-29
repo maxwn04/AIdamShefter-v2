@@ -7,7 +7,7 @@ in-memory SQLite, while narrative context is persisted in `.data/context.db`.
 
 ## Package Contents
 
-- `context_store.py` — `ContextStore` and schema version `2.1`.
+- `context_store.py` — `ContextStore` and schema version `3`.
 - `context_tools.py` — legacy-style memory tool specs and handlers.
 - `tests/` — store and scoping regression tests.
 
@@ -17,8 +17,9 @@ Storyline identity is scoped by `(league_id, season, id)`. History and persisted
 facts are also scoped by league and season, so the same storyline ID can safely
 exist in different leagues or seasons.
 
-Old context DB schemas are not migrated. Delete or recreate `.data/context.db`
-if the store reports an unsupported schema version.
+Schema `2.1` context databases are migrated in place. Older schemas are not
+supported and should be deleted or recreated if the store reports an unsupported
+schema version.
 
 ## Usage
 

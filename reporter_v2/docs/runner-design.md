@@ -104,8 +104,9 @@ tools get `reporter_memory.ContextStore`.
 | **Persistent context** | `save_persistent_storyline`, `save_team_context`, `save_league_note`, `load_persistent_storylines`, `load_team_context`, `load_league_notes` |
 
 Persistent context is implemented in `reporter_memory/`, not `datalayer/`.
-Schema `2.1` scopes storylines, history, and persisted facts by league and
-season. Old `.data/context.db` files should be recreated instead of migrated.
+Schema `3` scopes storylines, history, persisted facts, events, triggers, and
+access records by league and season. Schema `2.1` databases are migrated in
+place; older schemas remain unsupported.
 
 ## Example Flow
 

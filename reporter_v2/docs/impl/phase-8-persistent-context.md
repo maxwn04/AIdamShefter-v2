@@ -16,9 +16,10 @@ context, league notes) via `reporter_memory.ContextStore`.
 V2 adds **read tools** that v1 didn't have as explicit tools (v1 injected context
 into the prompt). V2 makes them tool-callable so the model can load them on demand.
 
-The backing store lives in `reporter_memory/` and uses schema `2.1`. Storyline
-identity, storyline history, and persisted facts are scoped by
-`(league_id, season, id)`. Legacy `.data/context.db` files are not migrated.
+The backing store lives in `reporter_memory/` and uses schema `3`. Storyline
+identity, storyline history, persisted facts, events, triggers, and access
+records are scoped by league and season. Schema `2.1` databases are migrated in
+place; older schemas remain unsupported.
 
 ## `reporter_v2/runner/tools/persistent_tools.py`
 
