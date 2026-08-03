@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -39,10 +40,19 @@ _RETRYABLE_MESSAGE_FRAGMENTS = (
     "timed out",
     "connection reset",
     "connection aborted",
+    "unable to get json response",
+    "expecting value",
+    "jsondecodeerror",
+    "empty response",
     "503",
     "502",
     "504",
     "429",
+)
+
+_RETRY_AFTER_RE = re.compile(
+    r"try again in\s+(\d+(?:\.\d+)?)\s*(ms|s|sec|secs|second|seconds)?",
+    re.IGNORECASE,
 )
 
 
@@ -73,10 +83,57 @@ def retry_delay_seconds(
     *,
     base_delay: float,
     max_delay: float,
+    error: BaseException | None = None,
 ) -> float:
-    """Exponential backoff with full jitter for retry attempt N (0-indexed)."""
+    """Exponential backoff with full jitter for retry attempt N (0-indexed).
+
+    When the provider suggests a wait ("Please try again in 3.188s"), honor that
+    floor so TPM rate limits are not immediately re-hit.
+    """
     ceiling = min(max_delay, base_delay * (2**attempt))
-    return random.uniform(0, ceiling)
+    delay = random.uniform(0, ceiling)
+    suggested = suggested_retry_delay_seconds(error) if error is not None else None
+    if suggested is not None:
+        delay = max(delay, min(max_delay, suggested + random.uniform(0.05, 0.35)))
+    return delay
+
+
+def suggested_retry_delay_seconds(exc: BaseException | None) -> float | None:
+    """Parse provider-suggested retry delays from rate-limit errors."""
+    if exc is None:
+        return None
+
+    header_delay = _retry_after_header_seconds(exc)
+    if header_delay is not None:
+        return header_delay
+
+    match = _RETRY_AFTER_RE.search(str(exc))
+    if match is None:
+        return None
+    value = float(match.group(1))
+    unit = (match.group(2) or "s").lower()
+    if unit == "ms":
+        return value / 1000.0
+    return value
+
+
+def _retry_after_header_seconds(exc: BaseException) -> float | None:
+    response = getattr(exc, "response", None)
+    if response is None:
+        return None
+    headers = getattr(response, "headers", None)
+    if headers is None:
+        return None
+    try:
+        raw = headers.get("retry-after")  # type: ignore[call-arg]
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 async def complete_with_retry(
@@ -134,6 +191,7 @@ async def complete_with_retry(
                     attempt,
                     base_delay=retry_base_delay,
                     max_delay=retry_max_delay,
+                    error=exc,
                 )
                 logger.warning(
                     "Retryable error on model %s (attempt %d/%d): %s; "
@@ -168,4 +226,35 @@ def make_litellm_completion() -> CompletionFn:
     """Return the default LiteLLM async completion function."""
     import litellm
 
-    return litellm.acompletion
+    async def complete(**kwargs: Any) -> Any:
+        model = kwargs.get("model")
+        if kwargs.get("tools") and _requires_none_reasoning_with_tools(model):
+            kwargs.setdefault("reasoning_effort", "none")
+        return await litellm.acompletion(**kwargs)
+
+    return complete
+
+
+def _requires_none_reasoning_with_tools(model: str | None) -> bool:
+    """Some OpenAI reasoning models reject tools unless reasoning_effort is none."""
+    if not model:
+        return False
+
+    lowered = model.lower()
+    if "luna" in lowered or "gpt-5.6" in lowered:
+        return True
+
+    try:
+        import litellm
+
+        info = litellm.model_cost.get(model) or {}
+        if not info:
+            bare = model.split("/", 1)[-1]
+            info = litellm.model_cost.get(bare) or {}
+        return bool(
+            info.get("supports_reasoning")
+            and info.get("supports_none_reasoning_effort")
+            and info.get("supports_function_calling")
+        )
+    except Exception:
+        return False

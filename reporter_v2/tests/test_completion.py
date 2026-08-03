@@ -48,6 +48,28 @@ def test_is_retryable_detects_rate_limit_by_type_and_status() -> None:
     assert not is_retryable_error(ValueError("bad request"))
 
 
+def test_is_retryable_detects_empty_provider_json_response() -> None:
+    class APIError(Exception):
+        pass
+
+    assert is_retryable_error(
+        APIError(
+            "DeepseekException - Unable to get json response - "
+            "Expecting value: line 1 column 1 (char 0), Original Response: "
+        )
+    )
+    assert not is_retryable_error(APIError("invalid api key"))
+
+
+def test_requires_none_reasoning_with_tools_for_luna() -> None:
+    from reporter_v2.runner.completion import _requires_none_reasoning_with_tools
+
+    assert _requires_none_reasoning_with_tools("gpt-5.6-luna")
+    assert _requires_none_reasoning_with_tools("openai/gpt-5.6-luna")
+    assert not _requires_none_reasoning_with_tools("deepseek/deepseek-v4-pro")
+    assert not _requires_none_reasoning_with_tools(None)
+
+
 def test_retry_delay_is_bounded(monkeypatch) -> None:
     monkeypatch.setattr(
         "reporter_v2.runner.completion.random.uniform",
@@ -55,6 +77,33 @@ def test_retry_delay_is_bounded(monkeypatch) -> None:
     )
     assert retry_delay_seconds(0, base_delay=1.0, max_delay=30.0) == 1.0
     assert retry_delay_seconds(5, base_delay=1.0, max_delay=30.0) == 30.0
+
+
+def test_retry_delay_honors_provider_suggested_wait(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "reporter_v2.runner.completion.random.uniform",
+        lambda low, high: low if high >= 3 else high,
+    )
+    delay = retry_delay_seconds(
+        0,
+        base_delay=1.0,
+        max_delay=30.0,
+        error=RateLimitError("Please try again in 3.188s."),
+    )
+    assert delay >= 3.188
+    assert delay <= 30.0
+
+
+def test_suggested_retry_delay_parses_message() -> None:
+    from reporter_v2.runner.completion import suggested_retry_delay_seconds
+
+    assert suggested_retry_delay_seconds(
+        RateLimitError("Please try again in 3.188s.")
+    ) == 3.188
+    assert suggested_retry_delay_seconds(
+        RateLimitError("Please try again in 250ms")
+    ) == 0.25
+    assert suggested_retry_delay_seconds(ValueError("nope")) is None
 
 
 def test_complete_with_retry_retries_same_model_then_succeeds(monkeypatch) -> None:

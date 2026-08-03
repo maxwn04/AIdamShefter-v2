@@ -32,6 +32,7 @@ def registered_registry(
     *,
     week: int = 8,
     resolve_roster_fn: Callable[[str], dict[str, Any]] | None = None,
+    allow_memory_writes: bool = True,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     register_persistent_tools(
@@ -39,6 +40,7 @@ def registered_registry(
         store,
         week=week,
         resolve_roster_fn=resolve_roster_fn,
+        allow_memory_writes=allow_memory_writes,
     )
     return registry
 
@@ -505,3 +507,82 @@ def test_record_memory_verification_allows_rejection_without_facts(
     )
     assert result["ok"] is True
     assert result["status"] == "rejected"
+
+
+def test_eval_mode_blocks_memory_writes_but_allows_reads(store: ContextStore) -> None:
+    def resolve_roster(roster_key: str) -> dict[str, Any]:
+        return {"found": roster_key == "Team Taco", "roster_id": 3}
+
+    writable = registered_registry(store, week=8, resolve_roster_fn=resolve_roster)
+    save_handler = writable.get_handler("save_persistent_storyline")
+    assert save_handler is not None
+    decode(
+        save_handler(
+            id="story_seed",
+            headline="Seed Arc",
+            summary="Existing memory for eval reads.",
+            status="active",
+            priority=1,
+            tags=["seed"],
+            team_keys=["Team Taco"],
+        )
+    )
+
+    before = len(store.get_storylines())
+    registry = registered_registry(
+        store,
+        week=9,
+        resolve_roster_fn=resolve_roster,
+        allow_memory_writes=False,
+    )
+    blocked_save = registry.get_handler("save_persistent_storyline")
+    blocked_event = registry.get_handler("save_memory_event")
+    blocked_upsert = registry.get_handler("upsert_storyline_memory_card")
+    load_handler = registry.get_handler("load_persistent_storylines")
+    search_handler = registry.get_handler("search_story_memory")
+    assert blocked_save is not None
+    assert blocked_event is not None
+    assert blocked_upsert is not None
+    assert load_handler is not None
+    assert search_handler is not None
+
+    save_result = decode(
+        blocked_save(
+            id="story_eval_should_not_persist",
+            headline="Should Not Persist",
+            summary="Eval mode must not write this.",
+            status="active",
+            priority=1,
+            tags=["eval"],
+            team_keys=["Team Taco"],
+        )
+    )
+    event_result = decode(
+        blocked_event(
+            id="event_eval_should_not_persist",
+            event_type="trade",
+            week=9,
+            headline="Blocked Event",
+            summary="Should not hit the DB.",
+        )
+    )
+    upsert_result = decode(
+        blocked_upsert(
+            id="story_eval_upsert_blocked",
+            headline="Blocked Upsert",
+            summary="Should not hit the DB.",
+            status="active",
+        )
+    )
+    loaded = decode(load_handler())
+    searched = decode(search_handler(week=9, query="Seed"))
+
+    assert save_result["ok"] is True
+    assert save_result["saved"] is False
+    assert save_result["eval_mode"] is True
+    assert event_result["eval_mode"] is True
+    assert upsert_result["eval_mode"] is True
+    assert len(store.get_storylines()) == before
+    assert any(item["id"] == "story_seed" for item in loaded)
+    assert searched["ok"] is True
+    assert searched["count"] >= 1

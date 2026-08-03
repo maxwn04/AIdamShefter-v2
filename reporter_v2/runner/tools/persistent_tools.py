@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from reporter_v2.runner.models import ToolDef
 from reporter_v2.runner.tools.memory_tools import (
     MEMORY_TOOL_SPECS,
+    memory_write_blocked_result,
     register_memory_tools,
 )
 from reporter_v2.runner.tools.registry import ToolRegistry
@@ -156,6 +157,8 @@ def register_persistent_tools(
     context_store: ContextStore,
     week: int,
     resolve_roster_fn: Callable[[str], dict[str, Any]] | None = None,
+    *,
+    allow_memory_writes: bool = True,
 ) -> None:
     """Register legacy load/save tools and the agent memory tool surface."""
 
@@ -169,6 +172,8 @@ def register_persistent_tools(
         tags: list[str] | None = None,
         team_keys: list[str] | None = None,
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("save_persistent_storyline")
         # Legacy wrapper over the richer storyline memory card tool.
         handler = registry.get_handler("upsert_storyline_memory_card")
         assert handler is not None
@@ -188,6 +193,8 @@ def register_persistent_tools(
         narrative: str,
         outlook: str | None = None,
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("save_team_context")
         roster_id = _resolve_roster_id(roster_key, resolve_roster_fn)
         if roster_id is None:
             return _json(
@@ -214,6 +221,8 @@ def register_persistent_tools(
         )
 
     def save_league_note(*, key: str, value: str) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("save_league_note")
         context_store.upsert_league_context(key, value, week=week)
         return _json({"ok": True, "saved": True, "key": key})
 
@@ -247,6 +256,7 @@ def register_persistent_tools(
         context_store,
         week=week,
         resolve_roster_fn=resolve_roster_fn,
+        allow_memory_writes=allow_memory_writes,
     )
 
 
