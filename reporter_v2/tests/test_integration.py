@@ -483,3 +483,29 @@ def test_generate_article_does_not_persist_facts_without_submit(
         assert context_store.get_storyline_facts("story_taco") == []
     finally:
         context_store.close()
+
+
+def test_generate_article_eval_mode_skips_post_run_fact_persistence(
+    tmp_path: Path,
+) -> None:
+    context_store = ContextStore(
+        tmp_path / "context.db",
+        league_id="league_123",
+        season="2024",
+    )
+    try:
+        output = run(
+            generate_article(
+                FakeSleeperLeagueData(),
+                ReportConfig(time_range=TimeRange.single_week(8)),
+                context_store=context_store,
+                complete=make_persistence_completion(),
+                allow_memory_writes=False,
+            )
+        )
+
+        assert output.run_log_summary["submitted"] is True
+        assert context_store.get_storyline_facts("story_taco") == []
+        assert context_store.get_storylines() == []
+    finally:
+        context_store.close()

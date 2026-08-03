@@ -151,6 +151,14 @@ Examples:
         help="Do not load or write persistent context.",
     )
     parser.add_argument(
+        "--eval",
+        action="store_true",
+        help=(
+            "Eval mode: load/search storyline memory for continuity, but do not "
+            "write or mutate persistent memory. Useful for fair model comparisons."
+        ),
+    )
+    parser.add_argument(
         "--max-turns",
         type=int,
         default=None,
@@ -184,6 +192,10 @@ async def run(args: argparse.Namespace) -> None:
     )
     output_dir = args.output_dir or Path(os.getenv("REPORTER_OUTPUT_DIR", ".output"))
     data_dir = args.data_dir or Path(os.getenv("REPORTER_DATA_DIR", ".data"))
+    eval_mode = bool(getattr(args, "eval", False))
+    if eval_mode and args.no_context:
+        raise SystemExit("Cannot combine --eval with --no-context.")
+    allow_memory_writes = not eval_mode
 
     print()
     print("=" * 60)
@@ -223,6 +235,8 @@ async def run(args: argparse.Namespace) -> None:
     print(f"Max retries per model: {max_retries}")
     print(f"Max turns: {max_turns}")
     print(f"Procedure mode: {procedure_history_mode.value}")
+    if eval_mode:
+        print("Eval mode: memory reads enabled, memory writes disabled")
     if context_store is not None:
         print(f"Context DB: {data_dir / 'context.db'}")
     print(f"Stream log: {log_path}")
@@ -240,6 +254,7 @@ async def run(args: argparse.Namespace) -> None:
         max_turns=max_turns,
         procedure_history_mode=procedure_history_mode,
         log_path=log_path,
+        allow_memory_writes=allow_memory_writes,
     )
 
     print("--- Generated Article ---")

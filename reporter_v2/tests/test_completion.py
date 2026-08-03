@@ -48,6 +48,19 @@ def test_is_retryable_detects_rate_limit_by_type_and_status() -> None:
     assert not is_retryable_error(ValueError("bad request"))
 
 
+def test_is_retryable_detects_empty_provider_json_response() -> None:
+    class APIError(Exception):
+        pass
+
+    assert is_retryable_error(
+        APIError(
+            "DeepseekException - Unable to get json response - "
+            "Expecting value: line 1 column 1 (char 0), Original Response: "
+        )
+    )
+    assert not is_retryable_error(APIError("invalid api key"))
+
+
 def test_retry_delay_is_bounded(monkeypatch) -> None:
     monkeypatch.setattr(
         "reporter_v2.runner.completion.random.uniform",

@@ -36,6 +36,7 @@ async def generate_report_async(
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
     procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
+    allow_memory_writes: bool = True,
 ) -> ArticleOutput:
     """Generate a fantasy football report asynchronously."""
     data = _ensure_data(data)
@@ -61,6 +62,7 @@ async def generate_report_async(
         data_dir=data_dir,
         log_path=log_path,
         procedure_history_mode=procedure_history_mode,
+        allow_memory_writes=allow_memory_writes,
     )
 
 
@@ -83,6 +85,7 @@ async def generate_with_config_async(
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
     procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
+    allow_memory_writes: bool = True,
 ) -> ArticleOutput:
     """Generate a report using a pre-built ReportConfig."""
     data = _ensure_data(data)
@@ -96,6 +99,7 @@ async def generate_with_config_async(
         max_retries=max_retries,
         log_path=log_path,
         procedure_history_mode=procedure_history_mode,
+        allow_memory_writes=allow_memory_writes,
     )
 
 

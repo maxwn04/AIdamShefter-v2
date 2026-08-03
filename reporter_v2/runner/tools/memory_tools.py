@@ -350,11 +350,29 @@ MEMORY_TOOLS = [
 MEMORY_TOOL_SPECS: list[ToolDef] = MEMORY_TOOLS
 
 
+def memory_write_blocked_result(tool_name: str) -> str:
+    """JSON result returned when eval mode disables memory writes."""
+    return json.dumps(
+        {
+            "ok": True,
+            "saved": False,
+            "persisted": False,
+            "recorded": False,
+            "eval_mode": True,
+            "message": (
+                f"{tool_name} skipped: memory writes disabled in eval mode"
+            ),
+        }
+    )
+
+
 def register_memory_tools(
     registry: ToolRegistry,
     context_store: ContextStore,
     week: int,
     resolve_roster_fn: Callable[[str], dict[str, Any]] | None = None,
+    *,
+    allow_memory_writes: bool = True,
 ) -> None:
     """Register search and write/usage memory tools."""
     week_default = week
@@ -412,6 +430,8 @@ def register_memory_tools(
         transaction_id: str | None = None,
         matchup_id: str | None = None,
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("save_memory_event")
         try:
             context_store.upsert_story_event(
                 {
@@ -452,6 +472,8 @@ def register_memory_tools(
         evidence_event_ids: list[str] | None = None,
         trigger_specs: list[dict[str, Any]] | None = None,
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("upsert_storyline_memory_card")
         team_ids, unresolved_team_keys = _resolve_team_keys(
             team_keys or [], resolve_roster_fn
         )
@@ -534,6 +556,8 @@ def register_memory_tools(
         fire_policy: str = "one_shot",
         status: str = "open",
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("save_storyline_trigger")
         trigger_id = id or f"trigger_{uuid.uuid4().hex[:12]}"
         context_store.upsert_storyline_trigger(
             {
@@ -567,6 +591,8 @@ def register_memory_tools(
         fact_links: list[str] | None = None,
         reason: str | None = None,
     ) -> str:
+        if not allow_memory_writes:
+            return memory_write_blocked_result("mark_memory_used")
         used_week = week if week is not None else week_default
         normalized_type = (
             "event" if owner_type == "story_event" else owner_type
@@ -714,6 +740,25 @@ def register_memory_tools(
                             "error": f"Unknown brief callback_id: {callback_id}",
                         }
                     )
+
+        if not allow_memory_writes:
+            return _json(
+                {
+                    "ok": True,
+                    "recorded": False,
+                    "persisted": False,
+                    "eval_mode": True,
+                    "candidate_id": candidate_id,
+                    "owner_type": normalized_type,
+                    "status": status,
+                    "fact_links": normalized_links,
+                    "callback_id": callback_id,
+                    "message": (
+                        "record_memory_verification validated but skipped "
+                        "persistent access write in eval mode"
+                    ),
+                }
+            )
 
         used_week = week if week is not None else week_default
         access_reason = reason

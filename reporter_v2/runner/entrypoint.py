@@ -40,10 +40,11 @@ async def generate_article(
     procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
+    allow_memory_writes: bool = True,
 ) -> ArticleOutput:
     """Generate an article with the single-loop v2 runner."""
     week = config.time_range.week_end
-    if context_store is not None:
+    if context_store is not None and allow_memory_writes:
         context_store.mark_stale(week)
 
     registry = ToolRegistry()
@@ -57,6 +58,7 @@ async def generate_article(
             context_store,
             week=week,
             resolve_roster_fn=_make_roster_resolver(data),
+            allow_memory_writes=allow_memory_writes,
         )
 
     if log_path is not None:
@@ -82,7 +84,11 @@ async def generate_article(
     runner.artifacts.brief.meta.week_end = config.time_range.week_end
 
     output = await runner.run(_build_system_prompt(), _build_user_message(config))
-    if context_store is not None and output.run_log_summary.get("submitted") is True:
+    if (
+        allow_memory_writes
+        and context_store is not None
+        and output.run_log_summary.get("submitted") is True
+    ):
         _persist_brief_facts(context_store, output.brief, week=week)
     return output
 
