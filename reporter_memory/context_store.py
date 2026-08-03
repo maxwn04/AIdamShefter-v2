@@ -895,6 +895,219 @@ class ContextStore:
         self._conn.commit()
         return int(cur.lastrowid)
 
+    def get_story_event(self, event_id: str) -> dict[str, Any] | None:
+        """Return one story event with parsed JSON fields, or None."""
+        row = self._conn.execute(
+            """SELECT * FROM story_events
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, event_id),
+        ).fetchone()
+        if not row:
+            return None
+        return self._event_row_to_dict(row)
+
+    def get_story_event_entities(self, event_id: str) -> list[dict[str, Any]]:
+        """Return normalized entity links for one story event."""
+        cur = self._conn.execute(
+            """SELECT entity_type, entity_id, display_name, role
+               FROM story_event_entities
+               WHERE league_id = ? AND season = ? AND event_id = ?
+               ORDER BY entity_type, role, entity_id""",
+            (self.league_id, self.season, event_id),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    def get_storyline_events(self, storyline_id: str) -> list[dict[str, Any]]:
+        """Return events linked to a storyline, including link_type."""
+        cur = self._conn.execute(
+            """SELECT e.*, l.link_type
+               FROM storyline_event_links l
+               JOIN story_events e
+                 ON e.league_id = l.league_id
+                AND e.season = l.season
+                AND e.id = l.event_id
+               WHERE l.league_id = ? AND l.season = ? AND l.storyline_id = ?
+               ORDER BY e.week ASC, e.id ASC""",
+            (self.league_id, self.season, storyline_id),
+        )
+        results = []
+        for row in cur.fetchall():
+            event = self._event_row_to_dict(row)
+            event["link_type"] = row["link_type"]
+            event["entities"] = self.get_story_event_entities(event["id"])
+            results.append(event)
+        return results
+
+    def get_storyline_triggers(
+        self,
+        storyline_id: str | None = None,
+        *,
+        status: str | None = "open",
+    ) -> list[dict[str, Any]]:
+        """Return triggers, optionally filtered by storyline and status."""
+        clauses = ["league_id = ?", "season = ?"]
+        params: list[Any] = [self.league_id, self.season]
+        if storyline_id is not None:
+            clauses.append("storyline_id = ?")
+            params.append(storyline_id)
+        if status is not None:
+            clauses.append("status = ?")
+            params.append(status)
+        cur = self._conn.execute(
+            f"""SELECT * FROM storyline_triggers
+                WHERE {' AND '.join(clauses)}
+                ORDER BY target_week ASC NULLS LAST, id ASC""",
+            params,
+        )
+        return [self._trigger_row_to_dict(row) for row in cur.fetchall()]
+
+    def get_trigger(self, trigger_id: str) -> dict[str, Any] | None:
+        """Return one trigger by id, or None."""
+        row = self._conn.execute(
+            """SELECT * FROM storyline_triggers
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, trigger_id),
+        ).fetchone()
+        if not row:
+            return None
+        return self._trigger_row_to_dict(row)
+
+    def update_trigger_status(
+        self,
+        trigger_id: str,
+        *,
+        status: str,
+        fired_week: int | None = None,
+    ) -> bool:
+        """Update trigger status; returns True if a row was updated."""
+        cur = self._conn.execute(
+            """UPDATE storyline_triggers
+               SET status = ?,
+                   fired_week = COALESCE(?, fired_week),
+                   updated_at = ?
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (
+                status,
+                fired_week,
+                _now_iso(),
+                self.league_id,
+                self.season,
+                trigger_id,
+            ),
+        )
+        self._conn.commit()
+        if cur.rowcount:
+            self._sync_trigger_fts(trigger_id)
+            self._conn.commit()
+        return cur.rowcount > 0
+
+    def storyline_ids_for_event(self, event_id: str) -> list[str]:
+        """Return storyline IDs linked to an event."""
+        cur = self._conn.execute(
+            """SELECT storyline_id FROM storyline_event_links
+               WHERE league_id = ? AND season = ? AND event_id = ?
+               ORDER BY storyline_id""",
+            (self.league_id, self.season, event_id),
+        )
+        return [row["storyline_id"] for row in cur.fetchall()]
+
+    def find_event_entities(
+        self, entity_type: str, entity_id: str
+    ) -> list[dict[str, Any]]:
+        """Return entity rows for events matching one entity key."""
+        cur = self._conn.execute(
+            """SELECT event_id, entity_type, entity_id, display_name, role
+               FROM story_event_entities
+               WHERE league_id = ? AND season = ?
+                 AND entity_type = ? AND entity_id = ?""",
+            (self.league_id, self.season, entity_type, str(entity_id)),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+    def find_event_ids_by_transaction_ids(
+        self, transaction_ids: set[str] | list[str]
+    ) -> list[str]:
+        """Return event IDs with matching transaction_id values."""
+        ids = [str(value) for value in transaction_ids]
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        cur = self._conn.execute(
+            f"""SELECT id FROM story_events
+                WHERE league_id = ? AND season = ?
+                  AND transaction_id IN ({placeholders})
+                ORDER BY id""",
+            [self.league_id, self.season, *ids],
+        )
+        return [row["id"] for row in cur.fetchall()]
+
+    def find_event_ids_by_matchup_ids(
+        self, matchup_ids: set[str] | list[str]
+    ) -> list[str]:
+        """Return event IDs with matching matchup_id values."""
+        ids = [str(value) for value in matchup_ids]
+        if not ids:
+            return []
+        placeholders = ",".join("?" for _ in ids)
+        cur = self._conn.execute(
+            f"""SELECT id FROM story_events
+                WHERE league_id = ? AND season = ?
+                  AND matchup_id IN ({placeholders})
+                ORDER BY id""",
+            [self.league_id, self.season, *ids],
+        )
+        return [row["id"] for row in cur.fetchall()]
+
+    def find_storyline_ids_by_team_id(self, team_id: int) -> list[str]:
+        """Return storyline IDs whose team_ids JSON includes team_id."""
+        cur = self._conn.execute(
+            """SELECT id, team_ids FROM storylines
+               WHERE league_id = ? AND season = ?
+               ORDER BY id""",
+            (self.league_id, self.season),
+        )
+        matches: list[str] = []
+        for row in cur.fetchall():
+            team_ids = json.loads(row["team_ids"]) if row["team_ids"] else []
+            if team_id in team_ids:
+                matches.append(row["id"])
+        return matches
+
+    def get_storyline(self, storyline_id: str) -> dict[str, Any] | None:
+        """Return one storyline dict, or None."""
+        row = self._conn.execute(
+            """SELECT * FROM storylines
+               WHERE league_id = ? AND season = ? AND id = ?""",
+            (self.league_id, self.season, storyline_id),
+        ).fetchone()
+        if not row:
+            return None
+        return self._storyline_row_to_dict(row)
+
+    def search_memory_fts(
+        self, match_query: str, *, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """Run an FTS5 MATCH against story_memory_fts.
+
+        Returns rows with owner_type, owner_id, and bm25 rank (lower is better).
+        """
+        if not match_query.strip():
+            return []
+        try:
+            cur = self._conn.execute(
+                """SELECT owner_type, owner_id,
+                          bm25(story_memory_fts) AS rank
+                   FROM story_memory_fts
+                   WHERE story_memory_fts MATCH ?
+                     AND league_id = ? AND season = ?
+                   ORDER BY rank
+                   LIMIT ?""",
+                (match_query, self.league_id, self.season, limit),
+            )
+        except sqlite3.OperationalError:
+            return []
+        return [dict(row) for row in cur.fetchall()]
+
     def rebuild_story_memory_fts(self) -> None:
         """Rebuild FTS rows for all storylines, events, and triggers in scope."""
         self._rebuild_story_memory_fts()
@@ -926,6 +1139,26 @@ class ContextStore:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _event_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        d = dict(row)
+        d["source_refs"] = (
+            json.loads(d["source_refs_json"]) if d.get("source_refs_json") else []
+        )
+        d["numbers"] = json.loads(d["numbers_json"]) if d.get("numbers_json") else {}
+        d.pop("source_refs_json", None)
+        d.pop("numbers_json", None)
+        return d
+
+    @staticmethod
+    def _trigger_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+        d = dict(row)
+        d["condition"] = (
+            json.loads(d["condition_json"]) if d.get("condition_json") else {}
+        )
+        d.pop("condition_json", None)
+        return d
 
     @staticmethod
     def _storyline_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:

@@ -1,9 +1,12 @@
 # Long-Running Storyline Memory: Architecture
 
-> Parts 1-4 implemented: memory now lives in `reporter_memory/`, datalayer
-> memory shims and `sleeperdl` memory commands were removed, schema `3` adds
-> event/entity/link/trigger/FTS tables, and reporter v2 persists brief facts
-> after submitted runs. The search/tool surface below remains future work.
+> Parts 1-5 implemented: memory lives in `reporter_memory/` (`context_store.py`
+> for SQL/CRUD, `search.py` for ranking/candidate expansion), schema `3` adds
+> event/entity/link/trigger/FTS tables, reporter v2 persists brief facts after
+> submitted runs, and agent tools cover search plus write/usage
+> (`search_story_memory`, `get_memory_candidate`, `save_memory_event`,
+> `upsert_storyline_memory_card`, `save_storyline_trigger`, `mark_memory_used`).
+> Verification planner tools and embeddings remain future work.
 
 ## Purpose
 

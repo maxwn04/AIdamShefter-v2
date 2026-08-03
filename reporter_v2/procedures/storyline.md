@@ -75,10 +75,12 @@ For power rankings, build one section per rank or rank tier. For team deep dives
 
 If persistent context tools are available, save narrative state before drafting:
 
-- Use `save_persistent_storyline` for arcs likely to matter in future weeks.
+- Prefer `upsert_storyline_memory_card` for durable arcs (with evidence events and trigger specs when available). `save_persistent_storyline` remains a thinner compatibility wrapper.
+- Use `save_memory_event` for source-backed evidence and `save_storyline_trigger` for dormant callbacks.
 - Use `save_team_context` for researched teams whose trajectory changed.
 - Use `save_league_note` for league-wide context such as season themes, trade activity, or rivalries.
 - Use `save_memory_callback` for verified callbacks that belong in the brief, if the callback was not already saved during research.
+- Use `mark_memory_used` when a retrieved candidate is drafted, used as research context, or discarded.
 
 Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:
 

@@ -52,7 +52,8 @@ datalayer/          # Sleeper API data layer
   cli/              # sleeperdl CLI
 
 reporter_memory/    # Persistent narrative memory for reporter-generated context
-  context_store.py  # ContextStore, schema 3, league/season-scoped memory
+  context_store.py  # ContextStore schema/SQL CRUD (schema 3)
+  search.py         # Search, ranking, and candidate expansion
   context_tools.py  # Legacy-style memory tool handlers for integrations
 
 reporter_v2/        # Supported AI reporter agent
