@@ -1,4 +1,15 @@
-"""Entrypoint for reporter v2 article generation."""
+"""Composition root for reporter v2 article generation.
+
+Owns product wiring that the Runner must not know about:
+- tool registration (brief, article, procedure, datalayer, memory)
+- CompletionClient construction from settings / injectable fakes
+- brief meta seeding from league data + ReportConfig
+- system/user prompt construction
+- post-run memory persistence
+
+The Runner only receives a registry, client, RunnerConfig, and optional
+pre-seeded ArtifactStore.
+"""
 
 from __future__ import annotations
 
@@ -18,8 +29,8 @@ from reporter_v2.runner.completion import (
     make_completion_client,
 )
 from reporter_v2.runner.runner import Runner
-from reporter_v2.runner.schemas import ArticleOutput, ReportBrief
-from reporter_v2.runner.state import RunnerConfig
+from reporter_v2.runner.schemas import ArticleOutput, BriefMeta, ReportBrief
+from reporter_v2.runner.state import ArtifactStore, RunnerConfig
 from reporter_v2.runner.tools.article_tools import register_article_tools
 from reporter_v2.runner.tools.brief_tools import register_brief_tools
 from reporter_v2.runner.tools.datalayer_tools import register_datalayer_tools
@@ -43,11 +54,74 @@ async def generate_article(
     complete: CompletionFn | None = None,
     allow_memory_writes: bool = True,
 ) -> ArticleOutput:
-    """Generate an article with the single-loop v2 runner."""
+    """Generate an article with the single-loop v2 runner.
+
+    Args:
+        data: Loaded league data facade.
+        config: Article intent (weeks, voice, tone, bias, instructions).
+        context_store: Optional persistent memory; enables memory tools.
+        client: Pre-built completion client. Mutually exclusive with complete=.
+        completion: Settings used when constructing a client (or wrapping complete=).
+        runner_config: Loop policy owned by Runner (max_turns, procedure mode).
+        log_path: Optional streaming run-log path.
+        complete: Injectable completion fn for tests. Mutually exclusive with client=.
+        allow_memory_writes: When False (eval mode), skip memory mutations.
+    """
     week = config.time_range.week_end
     if context_store is not None and allow_memory_writes:
         context_store.mark_stale(week)
 
+    registry = _build_registry(
+        data,
+        context_store=context_store,
+        week=week,
+        allow_memory_writes=allow_memory_writes,
+    )
+    resolved_client = _resolve_client(
+        client=client,
+        completion=completion,
+        complete=complete,
+    )
+
+    if log_path is not None:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    artifacts = ArtifactStore(
+        brief=ReportBrief(
+            meta=BriefMeta(
+                league_id=str(data.league_id),
+                league_name=_get_league_name(data),
+                week_start=config.time_range.week_start,
+                week_end=config.time_range.week_end,
+            )
+        )
+    )
+
+    runner = Runner(
+        registry,
+        client=resolved_client,
+        config=runner_config or RunnerConfig(),
+        log_path=log_path,
+        artifacts=artifacts,
+    )
+
+    output = await runner.run(_build_system_prompt(), _build_user_message(config))
+    if (
+        allow_memory_writes
+        and context_store is not None
+        and output.run_log_summary.get("submitted") is True
+    ):
+        _persist_brief_facts(context_store, output.brief, week=week)
+    return output
+
+
+def _build_registry(
+    data: SleeperLeagueData,
+    *,
+    context_store: ContextStore | None,
+    week: int,
+    allow_memory_writes: bool,
+) -> ToolRegistry:
     registry = ToolRegistry()
     register_brief_tools(registry)
     register_article_tools(registry)
@@ -61,36 +135,24 @@ async def generate_article(
             resolve_roster_fn=_make_roster_resolver(data),
             allow_memory_writes=allow_memory_writes,
         )
+    return registry
 
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+def _resolve_client(
+    *,
+    client: CompletionClient | None,
+    completion: CompletionSettings | None,
+    complete: CompletionFn | None,
+) -> CompletionClient:
+    if client is not None and complete is not None:
+        raise ValueError("Pass client= or complete=, not both.")
+    if client is not None:
+        return client
 
     settings = completion or CompletionSettings()
-    if client is None:
-        if complete is not None:
-            client = CompletionClient(complete, settings)
-        else:
-            client = make_completion_client(settings)
-
-    runner = Runner(
-        registry,
-        client=client,
-        config=runner_config or RunnerConfig(),
-        log_path=log_path,
-    )
-    runner.artifacts.brief.meta.league_id = str(data.league_id)
-    runner.artifacts.brief.meta.league_name = _get_league_name(data)
-    runner.artifacts.brief.meta.week_start = config.time_range.week_start
-    runner.artifacts.brief.meta.week_end = config.time_range.week_end
-
-    output = await runner.run(_build_system_prompt(), _build_user_message(config))
-    if (
-        allow_memory_writes
-        and context_store is not None
-        and output.run_log_summary.get("submitted") is True
-    ):
-        _persist_brief_facts(context_store, output.brief, week=week)
-    return output
+    if complete is not None:
+        return CompletionClient(complete, settings)
+    return make_completion_client(settings)
 
 
 def _persist_brief_facts(

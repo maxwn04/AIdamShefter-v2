@@ -1,4 +1,10 @@
-"""Core v2 runner loop."""
+"""Core v2 runner loop.
+
+The Runner is the agent engine: it owns the message loop, tool execution,
+procedure-message compaction, and ArticleOutput assembly. It does not know
+about Sleeper, ReportConfig, memory, or which tools are registered — callers
+(typically generate_article) wire those in.
+"""
 
 from __future__ import annotations
 
@@ -8,12 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from reporter_v2.runner.completion import (
-    CompletionClient,
-    CompletionFn,
-    CompletionSettings,
-    make_completion_client,
-)
+from reporter_v2.runner.completion import CompletionClient, CompletionFn, CompletionSettings
 from reporter_v2.runner.models import (
     ChatMessage,
     ToolCall,
@@ -47,16 +48,21 @@ class Runner:
         complete: CompletionFn | None = None,
         config: RunnerConfig | None = None,
         log_path: Path | None = None,
+        artifacts: ArtifactStore | None = None,
     ) -> None:
-        self.registry = registry
-        self.config = config or RunnerConfig()
+        if client is not None and complete is not None:
+            raise ValueError("Pass client= or complete=, not both.")
         if client is not None:
             self._client = client
         elif complete is not None:
+            # Test convenience: wrap a raw completion fn without litellm.
             self._client = CompletionClient(complete, CompletionSettings())
         else:
-            self._client = make_completion_client(CompletionSettings())
-        self.artifacts = ArtifactStore()
+            raise TypeError("Runner requires client= (or complete= for tests).")
+
+        self.registry = registry
+        self.config = config or RunnerConfig()
+        self.artifacts = artifacts or ArtifactStore()
         self.procedures = ProcedureState()
         self.log = RunLog()
         self.tool_context = ToolContext(
@@ -70,6 +76,10 @@ class Runner:
 
         if log_path is not None:
             self.log.start_streaming(log_path)
+
+    @property
+    def client(self) -> CompletionClient:
+        return self._client
 
     async def run(self, system_prompt: str, user_message: str) -> ArticleOutput:
         messages: list[ChatMessage] = [
