@@ -11,7 +11,8 @@ from typing import Any
 from reporter_memory.context_store import ContextStore
 from reporter_v2.config import ReportConfig, TimeRange
 from reporter_v2.runner.completion import CompletionSettings
-from reporter_v2.runner.article_generator import _persist_brief_facts, generate_article
+from reporter_v2.runner.memory_lifecycle import persist_brief_facts
+from reporter_v2.runner.article_generator import generate_article
 from reporter_v2.runner.models import ToolCall
 from reporter_v2.runner.schemas import Fact, ReportBrief, Storyline
 
@@ -453,7 +454,7 @@ def test_persist_brief_facts_skips_missing_supporting_fact_ids(
         ],
     )
     try:
-        _persist_brief_facts(context_store, brief, week=8)
+        persist_brief_facts(context_store, brief, week=8)
 
         facts = context_store.get_storyline_facts("story_partial")
 

@@ -5,7 +5,7 @@ Owns product wiring that the Runner must not know about:
 - CompletionClient construction from settings / injectable fakes
 - brief meta seeding from league data + ReportConfig
 - system/user prompt construction
-- post-run memory persistence
+- memory run lifecycle (mark_stale / persist-on-submit via memory_lifecycle)
 
 The Runner only receives a registry, client, RunnerConfig, and optional
 pre-seeded ArtifactStore.
@@ -27,6 +27,10 @@ from reporter_v2.runner.completion import (
     CompletionFn,
     CompletionSettings,
     make_completion_client,
+)
+from reporter_v2.runner.memory_lifecycle import (
+    finalize_memory_run,
+    prepare_memory_run,
 )
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.schemas import ArticleOutput, BriefMeta, ReportBrief
@@ -65,11 +69,15 @@ async def generate_article(
         runner_config: Loop policy owned by Runner (max_turns, procedure mode).
         log_path: Optional streaming run-log path.
         complete: Injectable completion fn for tests. Mutually exclusive with client=.
-        allow_memory_writes: When False (eval mode), skip memory mutations.
+        allow_memory_writes: When False (eval mode), skip memory mutations
+            (lifecycle + in-run memory tools).
     """
     week = config.time_range.week_end
-    if context_store is not None and allow_memory_writes:
-        context_store.mark_stale(week)
+    prepare_memory_run(
+        context_store,
+        week=week,
+        allow_writes=allow_memory_writes,
+    )
 
     registry = _build_registry(
         data,
@@ -106,12 +114,12 @@ async def generate_article(
     )
 
     output = await runner.run(_build_system_prompt(), _build_user_message(config))
-    if (
-        allow_memory_writes
-        and context_store is not None
-        and output.run_log_summary.get("submitted") is True
-    ):
-        _persist_brief_facts(context_store, output.brief, week=week)
+    finalize_memory_run(
+        context_store,
+        output,
+        week=week,
+        allow_writes=allow_memory_writes,
+    )
     return output
 
 
@@ -153,30 +161,6 @@ def _resolve_client(
     if complete is not None:
         return CompletionClient(complete, settings)
     return make_completion_client(settings)
-
-
-def _persist_brief_facts(
-    context_store: ContextStore,
-    brief: ReportBrief,
-    *,
-    week: int,
-) -> None:
-    """Persist verified brief facts under their final brief storylines."""
-    for storyline in brief.storylines:
-        facts = [brief.get_fact(fact_id) for fact_id in storyline.supporting_fact_ids]
-        payload = [
-            {
-                "id": fact.id,
-                "claim_text": fact.claim_text,
-                "data_refs": fact.data_refs,
-                "numbers": fact.numbers,
-                "category": fact.category,
-            }
-            for fact in facts
-            if fact is not None
-        ]
-        if payload:
-            context_store.persist_facts(payload, storyline.id, week=week)
 
 
 def _build_system_prompt() -> str:
