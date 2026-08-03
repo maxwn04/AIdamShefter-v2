@@ -13,7 +13,7 @@ from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControl
 from reporter_v2.runner.completion import CompletionSettings
 from reporter_v2.runner.entrypoint import generate_article
 from reporter_v2.runner.schemas import ArticleOutput
-from reporter_v2.runner.state import ProcedureHistoryMode
+from reporter_v2.runner.state import RunnerConfig
 
 
 async def generate_report_async(
@@ -34,7 +34,7 @@ async def generate_report_async(
     context_store: ContextStore | None = None,
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
-    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
+    runner_config: RunnerConfig | None = None,
     allow_memory_writes: bool = True,
 ) -> ArticleOutput:
     """Generate a fantasy football report asynchronously."""
@@ -58,7 +58,7 @@ async def generate_report_async(
         context_store=context_store,
         data_dir=data_dir,
         log_path=log_path,
-        procedure_history_mode=procedure_history_mode,
+        runner_config=runner_config,
         allow_memory_writes=allow_memory_writes,
     )
 
@@ -79,7 +79,7 @@ async def generate_with_config_async(
     context_store: ContextStore | None = None,
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
-    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
+    runner_config: RunnerConfig | None = None,
     allow_memory_writes: bool = True,
 ) -> ArticleOutput:
     """Generate a report using a pre-built ReportConfig."""
@@ -92,7 +92,7 @@ async def generate_with_config_async(
         context_store=context_store,
         completion=settings,
         log_path=log_path,
-        procedure_history_mode=procedure_history_mode,
+        runner_config=runner_config,
         allow_memory_writes=allow_memory_writes,
     )
 

@@ -17,7 +17,7 @@ from reporter_memory.context_store import ContextStore
 from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControls
 from reporter_v2.runner.completion import CompletionSettings, RetryPolicy
 from reporter_v2.runner.entrypoint import generate_article
-from reporter_v2.runner.state import ProcedureHistoryMode
+from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
 
 
 def parse_args() -> argparse.Namespace:
@@ -182,9 +182,11 @@ async def run(args: argparse.Namespace) -> None:
     load_dotenv()
     prompt = args.prompt or _prompt_for_request()
     completion = _resolve_completion_settings(args)
-    max_turns = _resolve_max_turns(args.max_turns)
-    procedure_history_mode = _resolve_procedure_history_mode(
-        getattr(args, "procedure_mode", None)
+    runner_config = RunnerConfig(
+        max_turns=_resolve_max_turns(args.max_turns),
+        procedure_history_mode=_resolve_procedure_history_mode(
+            getattr(args, "procedure_mode", None)
+        ),
     )
     output_dir = args.output_dir or Path(os.getenv("REPORTER_OUTPUT_DIR", ".output"))
     data_dir = args.data_dir or Path(os.getenv("REPORTER_DATA_DIR", ".data"))
@@ -229,8 +231,8 @@ async def run(args: argparse.Namespace) -> None:
     if completion.fallback_models:
         print(f"Fallback models: {', '.join(completion.fallback_models)}")
     print(f"Max retries per model: {completion.retry.max_retries}")
-    print(f"Max turns: {max_turns}")
-    print(f"Procedure mode: {procedure_history_mode.value}")
+    print(f"Max turns: {runner_config.max_turns}")
+    print(f"Procedure mode: {runner_config.procedure_history_mode.value}")
     if eval_mode:
         print("Eval mode: memory reads enabled, memory writes disabled")
     if context_store is not None:
@@ -245,8 +247,7 @@ async def run(args: argparse.Namespace) -> None:
         report_config,
         context_store=context_store,
         completion=completion,
-        max_turns=max_turns,
-        procedure_history_mode=procedure_history_mode,
+        runner_config=runner_config,
         log_path=log_path,
         allow_memory_writes=allow_memory_writes,
     )

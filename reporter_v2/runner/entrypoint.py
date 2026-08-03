@@ -19,7 +19,7 @@ from reporter_v2.runner.completion import (
 )
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.schemas import ArticleOutput, ReportBrief
-from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
+from reporter_v2.runner.state import RunnerConfig
 from reporter_v2.runner.tools.article_tools import register_article_tools
 from reporter_v2.runner.tools.brief_tools import register_brief_tools
 from reporter_v2.runner.tools.datalayer_tools import register_datalayer_tools
@@ -38,8 +38,7 @@ async def generate_article(
     context_store: ContextStore | None = None,
     client: CompletionClient | None = None,
     completion: CompletionSettings | None = None,
-    max_turns: int = 60,
-    procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
+    runner_config: RunnerConfig | None = None,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
     allow_memory_writes: bool = True,
@@ -76,10 +75,7 @@ async def generate_article(
     runner = Runner(
         registry,
         client=client,
-        config=RunnerConfig(
-            max_turns=max_turns,
-            procedure_history_mode=procedure_history_mode,
-        ),
+        config=runner_config or RunnerConfig(),
         log_path=log_path,
     )
     runner.artifacts.brief.meta.league_id = str(data.league_id)
