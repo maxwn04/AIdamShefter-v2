@@ -1,4 +1,8 @@
-"""Persistent context tools for reporter v2."""
+"""Legacy persistent context load/save tools for reporter v2.
+
+Search and richer write/usage tools live in memory_tools.py. This module keeps
+the original load/save surface and registers both sets together.
+"""
 
 from __future__ import annotations
 
@@ -7,13 +11,17 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from reporter_v2.runner.models import ToolDef
+from reporter_v2.runner.tools.memory_tools import (
+    MEMORY_TOOL_SPECS,
+    register_memory_tools,
+)
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from reporter_memory.context_store import ContextStore
 
 
-PERSISTENT_TOOLS = [
+LEGACY_PERSISTENT_TOOLS = [
     {
         "type": "function",
         "function": {
@@ -139,6 +147,7 @@ PERSISTENT_TOOLS = [
 ]
 
 
+PERSISTENT_TOOLS = LEGACY_PERSISTENT_TOOLS + MEMORY_TOOL_SPECS
 PERSISTENT_TOOL_SPECS: list[ToolDef] = PERSISTENT_TOOLS
 
 
@@ -148,7 +157,7 @@ def register_persistent_tools(
     week: int,
     resolve_roster_fn: Callable[[str], dict[str, Any]] | None = None,
 ) -> None:
-    """Register persistent context tools against a ContextStore."""
+    """Register legacy load/save tools and the agent memory tool surface."""
 
     def save_persistent_storyline(
         *,
@@ -160,31 +169,18 @@ def register_persistent_tools(
         tags: list[str] | None = None,
         team_keys: list[str] | None = None,
     ) -> str:
-        team_ids, unresolved_team_keys = _resolve_team_keys(
-            team_keys or [], resolve_roster_fn
+        # Legacy wrapper over the richer storyline memory card tool.
+        handler = registry.get_handler("upsert_storyline_memory_card")
+        assert handler is not None
+        return handler(
+            id=id,
+            headline=headline,
+            summary=summary,
+            status=status,
+            priority=priority,
+            tags=tags,
+            team_keys=team_keys,
         )
-        context_store.upsert_storyline(
-            {
-                "id": id,
-                "headline": headline,
-                "summary": summary,
-                "status": status,
-                "priority": priority,
-                "tags": tags or [],
-                "team_ids": team_ids,
-            },
-            week=week,
-        )
-        payload: dict[str, Any] = {
-            "ok": True,
-            "saved": True,
-            "id": id,
-            "status": status,
-            "team_ids": team_ids,
-        }
-        if unresolved_team_keys:
-            payload["unresolved_team_keys"] = unresolved_team_keys
-        return _json(payload)
 
     def save_team_context(
         *,
@@ -242,24 +238,16 @@ def register_persistent_tools(
         "load_team_context": load_team_context,
         "load_league_notes": load_league_notes,
     }
-    for spec in PERSISTENT_TOOL_SPECS:
+    for spec in LEGACY_PERSISTENT_TOOLS:
         name = spec["function"]["name"]
         registry.register(name, handlers[name], spec)
 
-
-def _resolve_team_keys(
-    team_keys: list[str],
-    resolve_roster_fn: Callable[[str], dict[str, Any]] | None,
-) -> tuple[list[int], list[str]]:
-    team_ids: list[int] = []
-    unresolved_team_keys: list[str] = []
-    for key in team_keys:
-        roster_id = _resolve_roster_id(key, resolve_roster_fn)
-        if roster_id is None:
-            unresolved_team_keys.append(key)
-        else:
-            team_ids.append(roster_id)
-    return team_ids, unresolved_team_keys
+    register_memory_tools(
+        registry,
+        context_store,
+        week=week,
+        resolve_roster_fn=resolve_roster_fn,
+    )
 
 
 def _resolve_roster_id(

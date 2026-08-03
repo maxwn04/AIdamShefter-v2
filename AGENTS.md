@@ -77,7 +77,8 @@ reporter/
 └── ...                            # Deprecated v1 reporter source
 
 reporter_memory/
-├── context_store.py              # Persistent memory store
+├── context_store.py              # Persistent memory SQL/CRUD store
+├── search.py                     # Agent-facing search, ranking, candidate expansion
 ├── context_tools.py              # Legacy-style memory tool definitions/handlers
 └── tests/                        # Reporter memory tests
 

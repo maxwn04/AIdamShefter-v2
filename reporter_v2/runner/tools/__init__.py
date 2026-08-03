@@ -26,6 +26,10 @@ from reporter_v2.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_SPECS,
     register_datalayer_tools,
 )
+from reporter_v2.runner.tools.memory_tools import (
+    MEMORY_TOOL_SPECS,
+    register_memory_tools,
+)
 from reporter_v2.runner.tools.persistent_tools import (
     PERSISTENT_TOOL_SPECS,
     register_persistent_tools,
@@ -41,6 +45,7 @@ __all__ = [
     "ARTICLE_TOOL_SPECS",
     "BRIEF_TOOL_SPECS",
     "DATALAYER_TOOL_SPECS",
+    "MEMORY_TOOL_SPECS",
     "PERSISTENT_TOOL_SPECS",
     "PROCEDURE_TOOL_SPECS",
     "ToolContext",
@@ -53,6 +58,7 @@ __all__ = [
     "register_brief_tools",
     "rewrite_section",
     "register_datalayer_tools",
+    "register_memory_tools",
     "register_persistent_tools",
     "register_procedure_tools",
     "save_fact",

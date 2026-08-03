@@ -22,10 +22,11 @@ You are gathering verified fantasy football facts for the article brief. Use dat
 4. Run the memory scout loop when the request or data suggests long-running context:
    - Extract the current-week fact map: scores, margins, standings movement, playoff stakes, current matchups, top players, transactions, focus teams, and requested framing.
    - Generate narrative hypotheses from the current week. Ask what changed meaning, reversed, paid off, collapsed, became funny, or now has stakes.
-   - Search or load persistent memory for possible callbacks, then inspect only candidates that look promising.
+   - Prefer `search_story_memory` with current entities/events, then `get_memory_candidate` for promising leads. Use `load_persistent_storylines` only for a broad dump.
    - Verify the old event with datalayer tools or a verified memory receipt, and verify the current event with current-run datalayer facts.
    - Save old-event and current-event facts with `save_fact`, then use `save_memory_callback` if available.
    - Promote only the best verified callbacks into storylines and outline inputs.
+   - Persist durable evidence with `save_memory_event`, `upsert_storyline_memory_card`, and `save_storyline_trigger` when an arc should matter later. Mark usage with `mark_memory_used`.
 5. Call targeted tools for the strongest leads:
    - `team_game(roster_key, week=N)` for player-level detail in a specific matchup.
    - `team_dossier(roster_key, week=N)` for recent form, record, and broader context.

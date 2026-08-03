@@ -7,9 +7,10 @@ in-memory SQLite, while narrative context is persisted in `.data/context.db`.
 
 ## Package Contents
 
-- `context_store.py` — `ContextStore` and schema version `3`.
+- `context_store.py` — `ContextStore` schema/SQL CRUD (schema version `3`).
+- `search.py` — agent-facing search, ranking, and candidate expansion.
 - `context_tools.py` — legacy-style memory tool specs and handlers.
-- `tests/` — store and scoping regression tests.
+- `tests/` — store and search regression tests.
 
 ## Schema Behavior
 
@@ -24,7 +25,7 @@ schema version.
 ## Usage
 
 ```python
-from reporter_memory import ContextStore
+from reporter_memory import ContextStore, search_story_memory
 
 store = ContextStore(".data/context.db", league_id="123", season="2026")
 store.upsert_storyline(
@@ -39,8 +40,17 @@ store.upsert_storyline(
     },
     week=8,
 )
+
+leads = search_story_memory(
+    store,
+    week=8,
+    query="playoff surge",
+    current_entities=[{"entity_type": "team", "entity_id": "1"}],
+)
 ```
 
-Reporter v2 registers model-facing persistent tools from
-`reporter_v2/runner/tools/persistent_tools.py`; direct use of `ContextStore` is
-mainly for scripts, tests, and skills that operate outside the v2 runner.
+Reporter v2 registers model-facing tools from
+`reporter_v2/runner/tools/memory_tools.py` (search/write) and
+`reporter_v2/runner/tools/persistent_tools.py` (legacy load/save). Direct use of
+`ContextStore` / `search_story_memory` is mainly for scripts, tests, and skills
+that operate outside the v2 runner.
