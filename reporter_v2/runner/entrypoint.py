@@ -11,7 +11,12 @@ from sqlalchemy import text
 from datalayer.sleeper_data import SleeperLeagueData
 from datalayer.sleeper_data.queries._resolvers import resolve_roster_id
 from reporter_v2.config import ReportConfig
-from reporter_v2.runner.completion import CompletionFn
+from reporter_v2.runner.completion import (
+    CompletionClient,
+    CompletionFn,
+    CompletionSettings,
+    make_completion_client,
+)
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.schemas import ArticleOutput, ReportBrief
 from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
@@ -31,12 +36,9 @@ async def generate_article(
     config: ReportConfig,
     *,
     context_store: ContextStore | None = None,
-    model: str | None = None,
-    fallback_models: list[str] | None = None,
+    client: CompletionClient | None = None,
+    completion: CompletionSettings | None = None,
     max_turns: int = 60,
-    max_retries: int = 3,
-    retry_base_delay: float = 1.0,
-    retry_max_delay: float = 30.0,
     procedure_history_mode: ProcedureHistoryMode | str = ProcedureHistoryMode.REPLACE,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
@@ -64,16 +66,18 @@ async def generate_article(
     if log_path is not None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
+    settings = completion or CompletionSettings()
+    if client is None:
+        if complete is not None:
+            client = CompletionClient(complete, settings)
+        else:
+            client = make_completion_client(settings)
+
     runner = Runner(
         registry,
-        complete=complete,
+        client=client,
         config=RunnerConfig(
-            model=model,
-            fallback_models=list(fallback_models or []),
             max_turns=max_turns,
-            max_retries=max_retries,
-            retry_base_delay=retry_base_delay,
-            retry_max_delay=retry_max_delay,
             procedure_history_mode=procedure_history_mode,
         ),
         log_path=log_path,

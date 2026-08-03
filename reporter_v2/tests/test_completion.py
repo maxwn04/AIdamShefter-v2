@@ -7,12 +7,14 @@ from typing import Any
 import pytest
 
 from reporter_v2.runner.completion import (
+    CompletionClient,
+    CompletionSettings,
+    RetryPolicy,
     complete_with_retry,
     is_retryable_error,
     retry_delay_seconds,
 )
 from reporter_v2.runner.runner import Runner
-from reporter_v2.runner.state import RunnerConfig
 from reporter_v2.runner.tools.registry import ToolRegistry
 from reporter_v2.tests.test_runner import make_response, run
 
@@ -68,6 +70,24 @@ def test_requires_none_reasoning_with_tools_for_luna() -> None:
     assert _requires_none_reasoning_with_tools("openai/gpt-5.6-luna")
     assert not _requires_none_reasoning_with_tools("deepseek/deepseek-v4-pro")
     assert not _requires_none_reasoning_with_tools(None)
+
+
+def test_retry_policy_validation() -> None:
+    with pytest.raises(ValueError, match="max_retries"):
+        RetryPolicy(max_retries=-1)
+    with pytest.raises(ValueError, match="base_delay"):
+        RetryPolicy(base_delay=0)
+    with pytest.raises(ValueError, match="max_delay"):
+        RetryPolicy(base_delay=2.0, max_delay=1.0)
+
+
+def test_completion_settings_model_chain_dedupes() -> None:
+    settings = CompletionSettings(
+        model="primary",
+        fallback_models=("fallback", "primary", "", "other"),
+    )
+    assert settings.model_chain() == ("primary", "fallback", "other")
+    assert CompletionSettings().model_chain() == ()
 
 
 def test_retry_delay_is_bounded(monkeypatch) -> None:
@@ -129,10 +149,10 @@ def test_complete_with_retry_retries_same_model_then_succeeds(monkeypatch) -> No
     result = run(
         complete_with_retry(
             complete,
-            model="primary",
-            max_retries=3,
-            retry_base_delay=1.0,
-            retry_max_delay=30.0,
+            settings=CompletionSettings(
+                model="primary",
+                retry=RetryPolicy(max_retries=3, base_delay=1.0, max_delay=30.0),
+            ),
             messages=[],
         )
     )
@@ -165,11 +185,11 @@ def test_complete_with_retry_falls_back_after_retries(monkeypatch) -> None:
     result = run(
         complete_with_retry(
             complete,
-            model="primary",
-            fallback_models=["fallback"],
-            max_retries=3,
-            retry_base_delay=0.01,
-            retry_max_delay=0.01,
+            settings=CompletionSettings(
+                model="primary",
+                fallback_models=("fallback",),
+                retry=RetryPolicy(max_retries=3, base_delay=0.01, max_delay=0.01),
+            ),
             messages=[],
         )
     )
@@ -186,9 +206,11 @@ def test_complete_with_retry_raises_non_retryable_immediately() -> None:
         run(
             complete_with_retry(
                 complete,
-                model="primary",
-                fallback_models=["fallback"],
-                max_retries=3,
+                settings=CompletionSettings(
+                    model="primary",
+                    fallback_models=("fallback",),
+                    retry=RetryPolicy(max_retries=3),
+                ),
                 messages=[],
             )
         )
@@ -215,14 +237,44 @@ def test_complete_with_retry_raises_after_all_models_exhausted(monkeypatch) -> N
         run(
             complete_with_retry(
                 complete,
-                model="primary",
-                fallback_models=["fallback"],
-                max_retries=1,
-                retry_base_delay=0.01,
-                retry_max_delay=0.01,
+                settings=CompletionSettings(
+                    model="primary",
+                    fallback_models=("fallback",),
+                    retry=RetryPolicy(max_retries=1, base_delay=0.01, max_delay=0.01),
+                ),
                 messages=[],
             )
         )
+
+
+def test_completion_client_complete_uses_owned_settings(monkeypatch) -> None:
+    async def fake_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr("reporter_v2.runner.completion.asyncio.sleep", fake_sleep)
+
+    complete = SequenceCompletion(
+        [
+            RateLimitError("primary down"),
+            make_response(text="from fallback"),
+        ]
+    )
+    client = CompletionClient(
+        complete,
+        CompletionSettings(
+            model="gpt-primary",
+            fallback_models=("gpt-fallback",),
+            retry=RetryPolicy(max_retries=0),
+        ),
+    )
+
+    result = run(client.complete(messages=[]))
+
+    assert result.choices[0].message.content == "from fallback"
+    assert [req["model"] for req in complete.requests] == [
+        "gpt-primary",
+        "gpt-fallback",
+    ]
 
 
 def test_runner_uses_fallback_model_on_rate_limits(monkeypatch) -> None:
@@ -239,11 +291,13 @@ def test_runner_uses_fallback_model_on_rate_limits(monkeypatch) -> None:
     )
     runner = Runner(
         ToolRegistry(),
-        complete=complete,
-        config=RunnerConfig(
-            model="gpt-primary",
-            fallback_models=["gpt-fallback"],
-            max_retries=0,
+        client=CompletionClient(
+            complete,
+            CompletionSettings(
+                model="gpt-primary",
+                fallback_models=("gpt-fallback",),
+                retry=RetryPolicy(max_retries=0),
+            ),
         ),
     )
 

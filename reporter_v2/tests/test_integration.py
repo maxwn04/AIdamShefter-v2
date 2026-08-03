@@ -10,6 +10,7 @@ from typing import Any
 
 from reporter_memory.context_store import ContextStore
 from reporter_v2.config import ReportConfig, TimeRange
+from reporter_v2.runner.completion import CompletionSettings
 from reporter_v2.runner.entrypoint import _persist_brief_facts, generate_article
 from reporter_v2.runner.models import ToolCall
 from reporter_v2.runner.schemas import Fact, ReportBrief, Storyline
@@ -277,7 +278,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                 time_range=TimeRange.single_week(8),
                 custom_instructions="weekly recap",
             ),
-            model="test-model",
+            completion=CompletionSettings(model="test-model"),
             complete=complete,
         )
     )

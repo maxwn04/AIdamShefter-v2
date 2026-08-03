@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from reporter_v2.app.runner import (
     _make_sleeper_data,
+    _resolve_completion_settings,
     _resolve_fallback_models,
     _resolve_max_retries,
     _resolve_procedure_history_mode,
 )
+from reporter_v2.runner.completion import RetryPolicy
 from reporter_v2.runner.state import ProcedureHistoryMode
 
 
@@ -79,6 +83,40 @@ def test_resolve_max_retries_rejects_negative(monkeypatch) -> None:
     monkeypatch.setenv("REPORTER_V2_MAX_RETRIES", "-1")
     with pytest.raises(ValueError, match="REPORTER_V2_MAX_RETRIES"):
         _resolve_max_retries(None)
+
+
+def test_resolve_completion_settings_from_cli_and_env(monkeypatch) -> None:
+    monkeypatch.delenv("REPORTER_V2_MODEL", raising=False)
+    monkeypatch.delenv("REPORTER_MODEL", raising=False)
+    monkeypatch.setenv("REPORTER_V2_FALLBACK_MODELS", "fallback-a, fallback-b")
+    monkeypatch.setenv("REPORTER_V2_MAX_RETRIES", "5")
+
+    settings = _resolve_completion_settings(
+        SimpleNamespace(model="primary", fallback_models=None, max_retries=None)
+    )
+
+    assert settings.model == "primary"
+    assert settings.fallback_models == ("fallback-a", "fallback-b")
+    assert settings.retry.max_retries == 5
+    assert settings.retry.base_delay == RetryPolicy().base_delay
+
+
+def test_resolve_completion_settings_cli_overrides_env(monkeypatch) -> None:
+    monkeypatch.setenv("REPORTER_V2_MODEL", "from-env")
+    monkeypatch.setenv("REPORTER_FALLBACK_MODELS", "env-fallback")
+    monkeypatch.setenv("REPORTER_V2_MAX_RETRIES", "9")
+
+    settings = _resolve_completion_settings(
+        SimpleNamespace(
+            model="from-cli",
+            fallback_models=["cli-fallback"],
+            max_retries=2,
+        )
+    )
+
+    assert settings.model == "from-cli"
+    assert settings.fallback_models == ("cli-fallback",)
+    assert settings.retry.max_retries == 2
 
 
 def test_make_sleeper_data_uses_cli_week_override_without_env_league(
