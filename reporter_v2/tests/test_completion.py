@@ -10,7 +10,6 @@ from reporter_v2.runner.completion import (
     CompletionClient,
     CompletionSettings,
     RetryPolicy,
-    complete_with_retry,
     is_retryable_error,
     retry_delay_seconds,
 )
@@ -42,6 +41,23 @@ class SequenceCompletion:
         if isinstance(outcome, BaseException):
             raise outcome
         return outcome
+
+
+def make_client(
+    complete: SequenceCompletion,
+    *,
+    model: str | None = None,
+    fallback_models: tuple[str, ...] = (),
+    retry: RetryPolicy | None = None,
+) -> CompletionClient:
+    return CompletionClient(
+        complete,
+        CompletionSettings(
+            model=model,
+            fallback_models=fallback_models,
+            retry=retry or RetryPolicy(),
+        ),
+    )
 
 
 def test_is_retryable_detects_rate_limit_by_type_and_status() -> None:
@@ -126,7 +142,7 @@ def test_suggested_retry_delay_parses_message() -> None:
     assert suggested_retry_delay_seconds(ValueError("nope")) is None
 
 
-def test_complete_with_retry_retries_same_model_then_succeeds(monkeypatch) -> None:
+def test_client_retries_same_model_then_succeeds(monkeypatch) -> None:
     sleeps: list[float] = []
 
     async def fake_sleep(delay: float) -> None:
@@ -145,17 +161,13 @@ def test_complete_with_retry_retries_same_model_then_succeeds(monkeypatch) -> No
             make_response(text="ok"),
         ]
     )
-
-    result = run(
-        complete_with_retry(
-            complete,
-            settings=CompletionSettings(
-                model="primary",
-                retry=RetryPolicy(max_retries=3, base_delay=1.0, max_delay=30.0),
-            ),
-            messages=[],
-        )
+    client = make_client(
+        complete,
+        model="primary",
+        retry=RetryPolicy(max_retries=3, base_delay=1.0, max_delay=30.0),
     )
+
+    result = run(client.complete(messages=[]))
 
     assert result.choices[0].message.content == "ok"
     assert [req["model"] for req in complete.requests] == [
@@ -166,7 +178,7 @@ def test_complete_with_retry_retries_same_model_then_succeeds(monkeypatch) -> No
     assert sleeps == [1.0, 2.0]
 
 
-def test_complete_with_retry_falls_back_after_retries(monkeypatch) -> None:
+def test_client_falls_back_after_retries(monkeypatch) -> None:
     async def fake_sleep(_delay: float) -> None:
         return None
 
@@ -181,44 +193,36 @@ def test_complete_with_retry_falls_back_after_retries(monkeypatch) -> None:
             make_response(text="fallback-ok"),
         ]
     )
-
-    result = run(
-        complete_with_retry(
-            complete,
-            settings=CompletionSettings(
-                model="primary",
-                fallback_models=("fallback",),
-                retry=RetryPolicy(max_retries=3, base_delay=0.01, max_delay=0.01),
-            ),
-            messages=[],
-        )
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=3, base_delay=0.01, max_delay=0.01),
     )
+
+    result = run(client.complete(messages=[]))
 
     assert result.choices[0].message.content == "fallback-ok"
     models = [req["model"] for req in complete.requests]
     assert models == ["primary", "primary", "primary", "primary", "fallback"]
 
 
-def test_complete_with_retry_raises_non_retryable_immediately() -> None:
+def test_client_raises_non_retryable_immediately() -> None:
     complete = SequenceCompletion([ValueError("invalid request")])
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=3),
+    )
 
     with pytest.raises(ValueError, match="invalid request"):
-        run(
-            complete_with_retry(
-                complete,
-                settings=CompletionSettings(
-                    model="primary",
-                    fallback_models=("fallback",),
-                    retry=RetryPolicy(max_retries=3),
-                ),
-                messages=[],
-            )
-        )
+        run(client.complete(messages=[]))
 
     assert [req["model"] for req in complete.requests] == ["primary"]
 
 
-def test_complete_with_retry_raises_after_all_models_exhausted(monkeypatch) -> None:
+def test_client_raises_after_all_models_exhausted(monkeypatch) -> None:
     async def fake_sleep(_delay: float) -> None:
         return None
 
@@ -232,49 +236,15 @@ def test_complete_with_retry_raises_after_all_models_exhausted(monkeypatch) -> N
             RateLimitError("b2"),
         ]
     )
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=1, base_delay=0.01, max_delay=0.01),
+    )
 
     with pytest.raises(RateLimitError, match="b2"):
-        run(
-            complete_with_retry(
-                complete,
-                settings=CompletionSettings(
-                    model="primary",
-                    fallback_models=("fallback",),
-                    retry=RetryPolicy(max_retries=1, base_delay=0.01, max_delay=0.01),
-                ),
-                messages=[],
-            )
-        )
-
-
-def test_completion_client_complete_uses_owned_settings(monkeypatch) -> None:
-    async def fake_sleep(_delay: float) -> None:
-        return None
-
-    monkeypatch.setattr("reporter_v2.runner.completion.asyncio.sleep", fake_sleep)
-
-    complete = SequenceCompletion(
-        [
-            RateLimitError("primary down"),
-            make_response(text="from fallback"),
-        ]
-    )
-    client = CompletionClient(
-        complete,
-        CompletionSettings(
-            model="gpt-primary",
-            fallback_models=("gpt-fallback",),
-            retry=RetryPolicy(max_retries=0),
-        ),
-    )
-
-    result = run(client.complete(messages=[]))
-
-    assert result.choices[0].message.content == "from fallback"
-    assert [req["model"] for req in complete.requests] == [
-        "gpt-primary",
-        "gpt-fallback",
-    ]
+        run(client.complete(messages=[]))
 
 
 def test_runner_uses_fallback_model_on_rate_limits(monkeypatch) -> None:
@@ -291,13 +261,11 @@ def test_runner_uses_fallback_model_on_rate_limits(monkeypatch) -> None:
     )
     runner = Runner(
         ToolRegistry(),
-        client=CompletionClient(
+        client=make_client(
             complete,
-            CompletionSettings(
-                model="gpt-primary",
-                fallback_models=("gpt-fallback",),
-                retry=RetryPolicy(max_retries=0),
-            ),
+            model="gpt-primary",
+            fallback_models=("gpt-fallback",),
+            retry=RetryPolicy(max_retries=0),
         ),
     )
 

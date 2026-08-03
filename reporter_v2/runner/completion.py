@@ -122,14 +122,77 @@ class CompletionClient:
         tools: list[Any] | None = None,
         **kwargs: Any,
     ) -> Any:
-        """Retry + model fallback using owned settings; kwargs are request-only."""
-        return await complete_with_retry(
-            self._complete,
-            settings=self._settings,
-            messages=messages,
-            tools=tools,
-            **kwargs,
-        )
+        """Retry + model fallback using owned settings; kwargs are request-only.
+
+        For each model in ``settings.model_chain()``:
+        1. Attempt the call.
+        2. On a retryable error, wait with exponential backoff and retry up to
+           ``settings.retry.max_retries`` additional times on the same model.
+        3. If that model is exhausted, move to the next fallback model.
+        4. Non-retryable errors are raised immediately.
+        """
+        models = self._settings.model_chain()
+        if not models:
+            # Preserve callers that inject fakes without configuring a model.
+            return await self._complete(
+                model=self._settings.model,
+                messages=messages,
+                tools=tools,
+                **kwargs,
+            )
+
+        retry = self._settings.retry
+        last_error: BaseException | None = None
+        for model_index, candidate in enumerate(models):
+            for attempt in range(retry.max_retries + 1):
+                try:
+                    return await self._complete(
+                        model=candidate,
+                        messages=messages,
+                        tools=tools,
+                        **kwargs,
+                    )
+                except Exception as exc:
+                    if not is_retryable_error(exc):
+                        raise
+
+                    last_error = exc
+                    is_last_attempt = attempt >= retry.max_retries
+                    is_last_model = model_index >= len(models) - 1
+
+                    if is_last_attempt and is_last_model:
+                        break
+
+                    if is_last_attempt:
+                        logger.warning(
+                            "Model %s exhausted after %d retries (%s); "
+                            "falling back to %s",
+                            candidate,
+                            retry.max_retries,
+                            exc,
+                            models[model_index + 1],
+                        )
+                        break
+
+                    delay = retry_delay_seconds(
+                        attempt,
+                        base_delay=retry.base_delay,
+                        max_delay=retry.max_delay,
+                        error=exc,
+                    )
+                    logger.warning(
+                        "Retryable error on model %s (attempt %d/%d): %s; "
+                        "retrying in %.2fs",
+                        candidate,
+                        attempt + 1,
+                        retry.max_retries + 1,
+                        exc,
+                        delay,
+                    )
+                    await asyncio.sleep(delay)
+
+        assert last_error is not None
+        raise last_error
 
 
 def make_completion_client(settings: CompletionSettings) -> CompletionClient:
@@ -215,75 +278,6 @@ def _retry_after_header_seconds(exc: BaseException) -> float | None:
         return float(raw)
     except (TypeError, ValueError):
         return None
-
-
-async def complete_with_retry(
-    complete: CompletionFn,
-    *,
-    settings: CompletionSettings,
-    **kwargs: Any,
-) -> Any:
-    """Call ``complete`` with exponential retries, then model fallbacks.
-
-    For each model in ``settings.model_chain()``:
-    1. Attempt the call.
-    2. On a retryable error, wait with exponential backoff and retry up to
-       ``settings.retry.max_retries`` additional times on the same model.
-    3. If that model is exhausted, move to the next fallback model.
-    4. Non-retryable errors are raised immediately.
-    """
-    models = settings.model_chain()
-    if not models:
-        # Preserve callers that inject fakes without configuring a model.
-        return await complete(model=settings.model, **kwargs)
-
-    retry = settings.retry
-    last_error: BaseException | None = None
-    for model_index, candidate in enumerate(models):
-        for attempt in range(retry.max_retries + 1):
-            try:
-                return await complete(model=candidate, **kwargs)
-            except Exception as exc:
-                if not is_retryable_error(exc):
-                    raise
-
-                last_error = exc
-                is_last_attempt = attempt >= retry.max_retries
-                is_last_model = model_index >= len(models) - 1
-
-                if is_last_attempt and is_last_model:
-                    break
-
-                if is_last_attempt:
-                    logger.warning(
-                        "Model %s exhausted after %d retries (%s); "
-                        "falling back to %s",
-                        candidate,
-                        retry.max_retries,
-                        exc,
-                        models[model_index + 1],
-                    )
-                    break
-
-                delay = retry_delay_seconds(
-                    attempt,
-                    base_delay=retry.base_delay,
-                    max_delay=retry.max_delay,
-                    error=exc,
-                )
-                logger.warning(
-                    "Retryable error on model %s (attempt %d/%d): %s; "
-                    "retrying in %.2fs",
-                    candidate,
-                    attempt + 1,
-                    retry.max_retries + 1,
-                    exc,
-                    delay,
-                )
-                await asyncio.sleep(delay)
-
-    assert last_error is not None
-    raise last_error
 
 
 def make_litellm_completion() -> CompletionFn:
