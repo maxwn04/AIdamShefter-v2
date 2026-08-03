@@ -12,7 +12,7 @@ dependencies = [
     "requests",
     "python-dotenv",
     "pydantic>=2.0",
-    "litellm>=1.40",
+    "litellm>=1.95",
     "openai-agents>=0.1.0",
     "sqlalchemy>=2.0",
 ]
