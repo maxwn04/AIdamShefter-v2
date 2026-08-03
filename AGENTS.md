@@ -8,7 +8,6 @@ AIdamShefter-v2 is an AI-powered fantasy football reporter. It has three major s
 2. **Reporter Memory** (`reporter_memory/`) — Persistent reporter-generated narrative memory: storylines, team context, league notes, history, persisted facts, events, triggers, and access history. Current schema is `3`; memory rows are scoped by league and season.
 3. **Reporter V2** (`reporter_v2/`) — A single-loop agent that uses datalayer tools and reporter memory to research league data, then writes data-grounded articles with configurable voice, bias, and style.
 
-`reporter/` is deprecated v1 source retained for historical reference.
 `sleeperdl context` and `sleeperdl memory` are removed; memory access belongs to
 `reporter_memory` and reporter v2 persistent tools.
 
@@ -73,9 +72,6 @@ datalayer/
 │   └── integration/              # Full load, CLI, week override tests
 └── docs/                         # Design docs
 
-reporter/
-└── ...                            # Deprecated v1 reporter source
-
 reporter_memory/
 ├── schema.py                     # SCHEMA_VERSION + DDL
 ├── context_store.py              # ContextStore facade (store mixins)
@@ -107,7 +103,7 @@ reporter_v2/
 - **Facade pattern**: `SleeperLeagueData` is the single public entry point for all datalayer queries
 - **Normalize layer**: Each entity type has its own normalizer module — raw JSON in, dataclass out
 - **Query functions**: Pure functions that take a `sqlite3.Connection` and return dicts. Name resolution handled by `_resolvers.py`
-- **Tool definitions**: OpenAI function-calling format in `datalayer/tools.py`, adapted for Agents SDK in `reporter/tools/`
+- **Tool definitions**: OpenAI function-calling format in `datalayer/tools.py`; reporter v2 registers model-facing tools under `reporter_v2/runner/tools/`
 
 ### Error Handling
 

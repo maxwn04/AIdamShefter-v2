@@ -64,13 +64,6 @@ reporter_v2/        # Supported AI reporter agent
   prompts/          # System prompt
   procedures/       # Procedure files loaded by the runner
   tests/            # Reporter v2 tests
-
-reporter/           # Deprecated v1 reporter source retained for historical reference
-  agent/            # ReporterAgent, ResearchAgent, DraftAgent, ClarificationAgent
-  app/              # CLI runner and config
-  tools/            # Tool adapters for OpenAI Agents SDK
-  prompts/          # Prompt templates (system, research, draft, bias)
-  tests/            # Reporter tests
 ```
 
 ## Memory Refactor Notes
@@ -79,7 +72,6 @@ reporter/           # Deprecated v1 reporter source retained for historical refe
 - `.data/context.db` uses reporter memory schema `3`.
 - Storyline IDs are scoped by `(league_id, season, id)`.
 - `sleeperdl context` and `sleeperdl memory` have been removed.
-- The installed reporter CLI is `reporter-v2`; v1 scripts are no longer
-  installed.
+- The installed reporter CLI is `reporter-v2`.
 
 See `AGENTS.md` and the docs under `reporter_v2/docs/` for architecture details.

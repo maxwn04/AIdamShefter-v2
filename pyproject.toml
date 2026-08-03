@@ -13,7 +13,6 @@ dependencies = [
     "python-dotenv",
     "pydantic>=2.0",
     "litellm>=1.95",
-    "openai-agents>=0.1.0",
     "sqlalchemy>=2.0",
 ]
 
@@ -29,7 +28,7 @@ reporter-v2 = "reporter_v2.app.runner:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["datalayer*", "reporter*", "reporter_memory*"]
+include = ["datalayer*", "reporter_v2*", "reporter_memory*"]
 
 [tool.setuptools.package-data]
 reporter_v2 = ["procedures/*.md", "prompts/*.md"]

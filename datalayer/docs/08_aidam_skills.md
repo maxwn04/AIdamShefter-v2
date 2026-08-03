@@ -8,7 +8,6 @@ memory refactor.
 - `sleeperdl` remains the CLI for Sleeper data snapshots and factual queries.
 - `reporter_memory` owns persistent narrative memory in `.data/context.db`.
 - `reporter_v2` is the supported reporter runtime.
-- `reporter` v1 is deprecated and retained only as historical source.
 
 Do not use `sleeperdl context` or `sleeperdl memory`; those datalayer commands
 were removed when memory moved to `reporter_memory/`.
