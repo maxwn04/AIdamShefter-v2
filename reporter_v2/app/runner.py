@@ -15,6 +15,7 @@ from sqlalchemy import text
 from datalayer.sleeper_data import SleeperConfig, SleeperLeagueData
 from reporter_memory.context_store import ContextStore
 from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControls
+from reporter_v2.runner.completion import CompletionSettings, RetryPolicy
 from reporter_v2.runner.entrypoint import generate_article
 from reporter_v2.runner.state import ProcedureHistoryMode
 
@@ -180,12 +181,7 @@ async def run(args: argparse.Namespace) -> None:
     """Run reporter v2 from parsed CLI args."""
     load_dotenv()
     prompt = args.prompt or _prompt_for_request()
-    selected_model = _resolve_model(args.model)
-    fallback_models = _resolve_fallback_models(
-        getattr(args, "fallback_models", None),
-        selected_model,
-    )
-    max_retries = _resolve_max_retries(getattr(args, "max_retries", None))
+    completion = _resolve_completion_settings(args)
     max_turns = _resolve_max_turns(args.max_turns)
     procedure_history_mode = _resolve_procedure_history_mode(
         getattr(args, "procedure_mode", None)
@@ -229,10 +225,10 @@ async def run(args: argparse.Namespace) -> None:
     print(f"Weeks: {time_range.week_start}-{time_range.week_end}")
     if data.week_override is not None:
         print(f"Sleeper week override: {data.week_override}")
-    print(f"Model: {selected_model}")
-    if fallback_models:
-        print(f"Fallback models: {', '.join(fallback_models)}")
-    print(f"Max retries per model: {max_retries}")
+    print(f"Model: {completion.model}")
+    if completion.fallback_models:
+        print(f"Fallback models: {', '.join(completion.fallback_models)}")
+    print(f"Max retries per model: {completion.retry.max_retries}")
     print(f"Max turns: {max_turns}")
     print(f"Procedure mode: {procedure_history_mode.value}")
     if eval_mode:
@@ -248,9 +244,7 @@ async def run(args: argparse.Namespace) -> None:
         data,
         report_config,
         context_store=context_store,
-        model=selected_model,
-        fallback_models=fallback_models,
-        max_retries=max_retries,
+        completion=completion,
         max_turns=max_turns,
         procedure_history_mode=procedure_history_mode,
         log_path=log_path,
@@ -310,6 +304,20 @@ def _prompt_for_request() -> str:
     return prompt
 
 
+def _resolve_completion_settings(args: argparse.Namespace) -> CompletionSettings:
+    model = _resolve_model(args.model)
+    fallback_models = _resolve_fallback_models(
+        getattr(args, "fallback_models", None),
+        model,
+    )
+    max_retries = _resolve_max_retries(getattr(args, "max_retries", None))
+    return CompletionSettings(
+        model=model,
+        fallback_models=tuple(fallback_models),
+        retry=RetryPolicy(max_retries=max_retries),
+    )
+
+
 def _resolve_model(model_arg: str | None) -> str:
     return (
         model_arg
@@ -351,7 +359,7 @@ def _resolve_max_retries(max_retries_arg: int | None) -> int:
 
     raw_value = os.getenv("REPORTER_V2_MAX_RETRIES")
     if raw_value is None or raw_value == "":
-        return 3
+        return RetryPolicy().max_retries
 
     try:
         max_retries = int(raw_value)

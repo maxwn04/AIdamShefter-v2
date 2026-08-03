@@ -10,6 +10,7 @@ from sqlalchemy import text
 from datalayer.sleeper_data import SleeperLeagueData
 from reporter_memory.context_store import ContextStore
 from reporter_v2.config import BiasProfile, ReportConfig, TimeRange, ToneControls
+from reporter_v2.runner.completion import CompletionSettings
 from reporter_v2.runner.entrypoint import generate_article
 from reporter_v2.runner.schemas import ArticleOutput
 from reporter_v2.runner.state import ProcedureHistoryMode
@@ -20,9 +21,7 @@ async def generate_report_async(
     *,
     week: int | None = None,
     data: SleeperLeagueData | None = None,
-    model: str | None = "gpt-5-mini",
-    fallback_models: list[str] | None = None,
-    max_retries: int = 3,
+    completion: CompletionSettings | None = None,
     voice: str = "sports columnist",
     snark_level: int = 1,
     hype_level: int = 1,
@@ -55,9 +54,7 @@ async def generate_report_async(
     return await generate_with_config_async(
         config,
         data=data,
-        model=model,
-        fallback_models=fallback_models,
-        max_retries=max_retries,
+        completion=completion,
         context_store=context_store,
         data_dir=data_dir,
         log_path=log_path,
@@ -78,9 +75,7 @@ async def generate_with_config_async(
     config: ReportConfig,
     *,
     data: SleeperLeagueData | None = None,
-    model: str | None = "gpt-5-mini",
-    fallback_models: list[str] | None = None,
-    max_retries: int = 3,
+    completion: CompletionSettings | None = None,
     context_store: ContextStore | None = None,
     data_dir: Path | str = Path(".data"),
     log_path: Path | None = None,
@@ -90,13 +85,12 @@ async def generate_with_config_async(
     """Generate a report using a pre-built ReportConfig."""
     data = _ensure_data(data)
     context_store = context_store or _make_context_store(data, Path(data_dir))
+    settings = completion or CompletionSettings(model="gpt-5-mini")
     return await generate_article(
         data,
         config,
         context_store=context_store,
-        model=model,
-        fallback_models=fallback_models,
-        max_retries=max_retries,
+        completion=settings,
         log_path=log_path,
         procedure_history_mode=procedure_history_mode,
         allow_memory_writes=allow_memory_writes,
@@ -115,7 +109,7 @@ async def weekly_recap_async(
     week: int,
     *,
     data: SleeperLeagueData | None = None,
-    model: str | None = "gpt-5-mini",
+    completion: CompletionSettings | None = None,
     snark_level: int = 1,
     hype_level: int = 2,
     **kwargs,
@@ -131,7 +125,7 @@ async def weekly_recap_async(
         "and important transactions.",
         week=week,
         data=data,
-        model=model,
+        completion=completion,
         **kwargs,
     )
 
@@ -148,7 +142,7 @@ async def snarky_recap_async(
     week: int,
     *,
     data: SleeperLeagueData | None = None,
-    model: str | None = "gpt-5-mini",
+    completion: CompletionSettings | None = None,
     disfavored_teams: list[str] | None = None,
     **kwargs,
 ) -> ArticleOutput:
@@ -170,7 +164,7 @@ async def snarky_recap_async(
         request,
         week=week,
         data=data,
-        model=model,
+        completion=completion,
         **kwargs,
     )
 

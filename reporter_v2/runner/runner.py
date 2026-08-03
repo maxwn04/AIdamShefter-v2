@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from reporter_v2.runner.completion import (
+    CompletionClient,
     CompletionFn,
-    complete_with_retry,
-    make_litellm_completion,
+    CompletionSettings,
+    make_completion_client,
 )
 from reporter_v2.runner.models import (
     ChatMessage,
@@ -42,13 +43,19 @@ class Runner:
         self,
         registry: ToolRegistry,
         *,
+        client: CompletionClient | None = None,
         complete: CompletionFn | None = None,
         config: RunnerConfig | None = None,
         log_path: Path | None = None,
     ) -> None:
         self.registry = registry
-        self._complete = complete or make_litellm_completion()
         self.config = config or RunnerConfig()
+        if client is not None:
+            self._client = client
+        elif complete is not None:
+            self._client = CompletionClient(complete, CompletionSettings())
+        else:
+            self._client = make_completion_client(CompletionSettings())
         self.artifacts = ArtifactStore()
         self.procedures = ProcedureState()
         self.log = RunLog()
@@ -74,13 +81,7 @@ class Runner:
         try:
             while turn < self.config.max_turns and not self._submitted:
                 turn += 1
-                response = await complete_with_retry(
-                    self._complete,
-                    model=self.config.model,
-                    fallback_models=self.config.fallback_models,
-                    max_retries=self.config.max_retries,
-                    retry_base_delay=self.config.retry_base_delay,
-                    retry_max_delay=self.config.retry_max_delay,
+                response = await self._client.complete(
                     messages=list(messages),
                     tools=self.registry.tool_specs,
                 )

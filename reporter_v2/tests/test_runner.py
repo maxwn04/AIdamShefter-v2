@@ -8,6 +8,7 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
+from reporter_v2.runner.completion import CompletionClient, CompletionSettings
 from reporter_v2.runner.models import ToolCall
 from reporter_v2.runner.runner import Runner
 from reporter_v2.runner.state import ProcedureHistoryMode, RunnerConfig
@@ -138,8 +139,10 @@ def test_runner_passes_explicit_model_override() -> None:
     complete = FakeCompletion([make_response(text="Done.")])
     runner = Runner(
         ToolRegistry(),
-        complete=complete,
-        config=RunnerConfig(model="claude-sonnet-4-6"),
+        client=CompletionClient(
+            complete,
+            CompletionSettings(model="claude-sonnet-4-6"),
+        ),
     )
 
     run(runner.run("system", "user"))

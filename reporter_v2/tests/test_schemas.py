@@ -196,5 +196,4 @@ class TestRunnerState:
         config = RunnerConfig()
 
         assert config.max_turns == 60
-        assert config.model is None
         assert config.procedure_history_mode == ProcedureHistoryMode.REPLACE
