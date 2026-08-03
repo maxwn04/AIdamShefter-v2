@@ -7,9 +7,22 @@ in-memory SQLite, while narrative context is persisted in `.data/context.db`.
 
 ## Package Contents
 
-- `context_store.py` — `ContextStore` schema/SQL CRUD (schema version `3`).
-- `search.py` — agent-facing search, ranking, candidate expansion, and
-  verification planning.
+- `schema.py` — `SCHEMA_VERSION` and SQLite DDL (schema `3`).
+- `context_store.py` — `ContextStore` facade composing store mixins.
+- `store/` — persistence internals:
+  - `base.py` — connection + migration
+  - `serializers.py` — row/JSON helpers
+  - `storylines.py` — storylines, team/league context, history, facts
+  - `events.py` — events, entities, storyline-event links
+  - `triggers.py` — callback triggers
+  - `access.py` — memory access recording
+  - `fts.py` — FTS5 sync/search/rebuild
+- `search/` — agent-facing retrieval:
+  - `pipeline.py` — `search_story_memory` orchestrator
+  - `candidates.py` — `get_memory_candidate`
+  - `discovery.py` — trigger/entity/team/FTS matchers
+  - `ranking.py` — candidate merge, hydrate, scoring
+  - `verification.py` — verification planning + fact-link helpers
 - `context_tools.py` — legacy-style memory tool specs and handlers.
 - `tests/` — store and search regression tests.
 
