@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 
 from reporter_memory.context_store import ContextStore
-from reporter_memory.search import get_memory_candidate, search_story_memory
+from reporter_memory.search import (
+    get_memory_candidate,
+    plan_memory_verification,
+    search_story_memory,
+)
 
 
 @pytest.fixture
@@ -156,6 +160,30 @@ def test_get_memory_candidate_expands_storyline(store: ContextStore) -> None:
     assert candidate["triggers"][0]["id"] == "trigger_trade_callback"
     assert candidate["persisted_facts"][0]["fact_id"] == "fact_trade"
     assert "transactions:week=3" in candidate["source_refs"]
+
+
+def test_plan_memory_verification_for_trade_arc(store: ContextStore) -> None:
+    _seed_trade_arc(store)
+
+    plan = plan_memory_verification(
+        store,
+        candidate_id="story_trade",
+        owner_type="storyline",
+        current_week=9,
+        intended_callback_claim="Player X is a trade regret.",
+    )
+
+    assert plan is not None
+    assert plan["found"] is True
+    assert plan["origin_week"] == 3
+    assert plan["event_type"] == "trade"
+    assert plan["trigger_type"] == "trade_evaluation"
+    assert plan["required_fact_roles"] == ["origin_receipt", "current_payoff"]
+    assert "transactions(week_from=3, week_to=3)" in plan["suggested_datalayer_calls"]
+    assert any(
+        "player_weekly_log(player_key=Player X" in call
+        for call in plan["suggested_datalayer_calls"]
+    )
 
 
 def test_search_scoped_by_league(tmp_path) -> None:

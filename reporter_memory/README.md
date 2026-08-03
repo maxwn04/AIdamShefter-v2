@@ -8,7 +8,8 @@ in-memory SQLite, while narrative context is persisted in `.data/context.db`.
 ## Package Contents
 
 - `context_store.py` — `ContextStore` schema/SQL CRUD (schema version `3`).
-- `search.py` — agent-facing search, ranking, and candidate expansion.
+- `search.py` — agent-facing search, ranking, candidate expansion, and
+  verification planning.
 - `context_tools.py` — legacy-style memory tool specs and handlers.
 - `tests/` — store and search regression tests.
 
@@ -50,7 +51,7 @@ leads = search_story_memory(
 ```
 
 Reporter v2 registers model-facing tools from
-`reporter_v2/runner/tools/memory_tools.py` (search/write) and
+`reporter_v2/runner/tools/memory_tools.py` (search/write/verification) and
 `reporter_v2/runner/tools/persistent_tools.py` (legacy load/save). Direct use of
 `ContextStore` / `search_story_memory` is mainly for scripts, tests, and skills
 that operate outside the v2 runner.

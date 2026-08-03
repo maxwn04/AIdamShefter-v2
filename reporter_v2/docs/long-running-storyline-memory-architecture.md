@@ -1,12 +1,14 @@
 # Long-Running Storyline Memory: Architecture
 
-> Parts 1-5 implemented: memory lives in `reporter_memory/` (`context_store.py`
-> for SQL/CRUD, `search.py` for ranking/candidate expansion), schema `3` adds
-> event/entity/link/trigger/FTS tables, reporter v2 persists brief facts after
-> submitted runs, and agent tools cover search plus write/usage
+> Parts 1-6 implemented: memory lives in `reporter_memory/` (`context_store.py`
+> for SQL/CRUD, `search.py` for ranking/candidate expansion/verification planning),
+> schema `3` adds event/entity/link/trigger/FTS tables, reporter v2 persists brief
+> facts after submitted runs, and agent tools cover search, write/usage, verified
+> brief callbacks, and verification planning/recording
 > (`search_story_memory`, `get_memory_candidate`, `save_memory_event`,
-> `upsert_storyline_memory_card`, `save_storyline_trigger`, `mark_memory_used`).
-> Verification planner tools and embeddings remain future work.
+> `upsert_storyline_memory_card`, `save_storyline_trigger`, `mark_memory_used`,
+> `save_memory_callback`, `plan_memory_verification`,
+> `record_memory_verification`). Embeddings remain future work.
 
 ## Purpose
 
