@@ -5,10 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from reporter_v2.runner.completion import (
+    CompletionFn,
+    complete_with_retry,
+    make_litellm_completion,
+)
 from reporter_v2.runner.models import (
     ChatMessage,
     ToolCall,
@@ -28,8 +32,7 @@ from reporter_v2.runner.state import (
 from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
-
-CompletionFn = Callable[..., Awaitable[Any]]
+__all__ = ["CompletionFn", "Runner"]
 
 
 class Runner:
@@ -44,7 +47,7 @@ class Runner:
         log_path: Path | None = None,
     ) -> None:
         self.registry = registry
-        self._complete = complete or _default_completion()
+        self._complete = complete or make_litellm_completion()
         self.config = config or RunnerConfig()
         self.artifacts = ArtifactStore()
         self.procedures = ProcedureState()
@@ -71,8 +74,13 @@ class Runner:
         try:
             while turn < self.config.max_turns and not self._submitted:
                 turn += 1
-                response = await self._complete(
+                response = await complete_with_retry(
+                    self._complete,
                     model=self.config.model,
+                    fallback_models=self.config.fallback_models,
+                    max_retries=self.config.max_retries,
+                    retry_base_delay=self.config.retry_base_delay,
+                    retry_max_delay=self.config.retry_max_delay,
                     messages=list(messages),
                     tools=self.registry.tool_specs,
                 )
@@ -215,9 +223,3 @@ class Runner:
         if isinstance(data, list):
             return f"{len(data)} items"
         return result[:80] + "..."
-
-
-def _default_completion() -> CompletionFn:
-    import litellm
-
-    return litellm.acompletion

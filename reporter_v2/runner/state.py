@@ -26,4 +26,8 @@ class ProcedureState(BaseModel):
 class RunnerConfig(BaseModel):
     max_turns: int = 60
     model: str | None = None
+    fallback_models: list[str] = Field(default_factory=list)
+    max_retries: int = 3
+    retry_base_delay: float = 1.0
+    retry_max_delay: float = 30.0
     procedure_history_mode: ProcedureHistoryMode = ProcedureHistoryMode.REPLACE

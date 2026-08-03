@@ -62,6 +62,26 @@ Examples:
             "then gpt-5-mini."
         ),
     )
+    parser.add_argument(
+        "--fallback-model",
+        action="append",
+        default=None,
+        dest="fallback_models",
+        help=(
+            "Fallback LiteLLM model ID if the primary model keeps failing. "
+            "Repeat for multiple fallbacks. Defaults to REPORTER_V2_FALLBACK_MODELS "
+            "or REPORTER_FALLBACK_MODELS (comma-separated)."
+        ),
+    )
+    parser.add_argument(
+        "--max-retries",
+        type=int,
+        default=None,
+        help=(
+            "Retries per model on rate limits / transient errors before falling "
+            "back. Defaults to REPORTER_V2_MAX_RETRIES or 3."
+        ),
+    )
     parser.add_argument("--voice", default="sports columnist")
     parser.add_argument("--snark", type=int, default=1, choices=range(0, 4))
     parser.add_argument("--hype", type=int, default=1, choices=range(0, 4))
@@ -153,6 +173,11 @@ async def run(args: argparse.Namespace) -> None:
     load_dotenv()
     prompt = args.prompt or _prompt_for_request()
     selected_model = _resolve_model(args.model)
+    fallback_models = _resolve_fallback_models(
+        getattr(args, "fallback_models", None),
+        selected_model,
+    )
+    max_retries = _resolve_max_retries(getattr(args, "max_retries", None))
     max_turns = _resolve_max_turns(args.max_turns)
     procedure_history_mode = _resolve_procedure_history_mode(
         getattr(args, "procedure_mode", None)
@@ -193,6 +218,9 @@ async def run(args: argparse.Namespace) -> None:
     if data.week_override is not None:
         print(f"Sleeper week override: {data.week_override}")
     print(f"Model: {selected_model}")
+    if fallback_models:
+        print(f"Fallback models: {', '.join(fallback_models)}")
+    print(f"Max retries per model: {max_retries}")
     print(f"Max turns: {max_turns}")
     print(f"Procedure mode: {procedure_history_mode.value}")
     if context_store is not None:
@@ -207,6 +235,8 @@ async def run(args: argparse.Namespace) -> None:
         report_config,
         context_store=context_store,
         model=selected_model,
+        fallback_models=fallback_models,
+        max_retries=max_retries,
         max_turns=max_turns,
         procedure_history_mode=procedure_history_mode,
         log_path=log_path,
@@ -272,6 +302,49 @@ def _resolve_model(model_arg: str | None) -> str:
         or os.getenv("REPORTER_MODEL")
         or "gpt-5-mini"
     )
+
+
+def _resolve_fallback_models(
+    fallback_args: list[str] | None,
+    primary_model: str,
+) -> list[str]:
+    if fallback_args:
+        candidates = fallback_args
+    else:
+        raw_value = (
+            os.getenv("REPORTER_V2_FALLBACK_MODELS")
+            or os.getenv("REPORTER_FALLBACK_MODELS")
+            or ""
+        )
+        candidates = [part.strip() for part in raw_value.split(",") if part.strip()]
+
+    seen = {primary_model}
+    models: list[str] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        models.append(candidate)
+    return models
+
+
+def _resolve_max_retries(max_retries_arg: int | None) -> int:
+    if max_retries_arg is not None:
+        if max_retries_arg < 0:
+            raise ValueError("--max-retries must be at least 0.")
+        return max_retries_arg
+
+    raw_value = os.getenv("REPORTER_V2_MAX_RETRIES")
+    if raw_value is None or raw_value == "":
+        return 3
+
+    try:
+        max_retries = int(raw_value)
+    except ValueError as exc:
+        raise ValueError("REPORTER_V2_MAX_RETRIES must be an integer.") from exc
+    if max_retries < 0:
+        raise ValueError("REPORTER_V2_MAX_RETRIES must be at least 0.")
+    return max_retries
 
 
 def _resolve_max_turns(max_turns_arg: int | None) -> int:
