@@ -17,6 +17,7 @@ Workflow:
 - Use article tools to write, read, rewrite, order, and submit sections.
 - Use datalayer tools for Sleeper league facts.
 - Use persistent tools, when available, to read and save cross-week narrative context.
+- Use `plan_memory_verification()` / `record_memory_verification()` when available to plan and record callback evidence checks.
 - Use `save_memory_callback()`, when available, to save verified callbacks into the brief after both old and current facts are saved.
 
 Available procedure names:

@@ -23,8 +23,9 @@ You are gathering verified fantasy football facts for the article brief. Use dat
    - Extract the current-week fact map: scores, margins, standings movement, playoff stakes, current matchups, top players, transactions, focus teams, and requested framing.
    - Generate narrative hypotheses from the current week. Ask what changed meaning, reversed, paid off, collapsed, became funny, or now has stakes.
    - Prefer `search_story_memory` with current entities/events, then `get_memory_candidate` for promising leads. Use `load_persistent_storylines` only for a broad dump.
+   - Call `plan_memory_verification` on promising candidates to get required fact roles and suggested datalayer calls.
    - Verify the old event with datalayer tools or a verified memory receipt, and verify the current event with current-run datalayer facts.
-   - Save old-event and current-event facts with `save_fact`, then use `save_memory_callback` if available.
+   - Save old-event and current-event facts with `save_fact`, then use `record_memory_verification` and `save_memory_callback` if available.
    - Promote only the best verified callbacks into storylines and outline inputs.
    - Persist durable evidence with `save_memory_event`, `upsert_storyline_memory_card`, and `save_storyline_trigger` when an arc should matter later. Mark usage with `mark_memory_used`.
 5. Call targeted tools for the strongest leads:

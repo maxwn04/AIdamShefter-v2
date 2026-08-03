@@ -80,6 +80,7 @@ If persistent context tools are available, save narrative state before drafting:
 - Use `save_team_context` for researched teams whose trajectory changed.
 - Use `save_league_note` for league-wide context such as season themes, trade activity, or rivalries.
 - Use `save_memory_callback` for verified callbacks that belong in the brief, if the callback was not already saved during research.
+- Use `plan_memory_verification` / `record_memory_verification` when researching whether a retrieved lead is draftable.
 - Use `mark_memory_used` when a retrieved candidate is drafted, used as research context, or discarded.
 
 Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:

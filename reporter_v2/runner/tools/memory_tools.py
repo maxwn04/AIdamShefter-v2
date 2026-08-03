@@ -7,8 +7,15 @@ import uuid
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from reporter_memory.search import get_memory_candidate, search_story_memory
+from reporter_memory.search import (
+    get_memory_candidate,
+    normalize_verification_fact_links,
+    plan_memory_verification,
+    search_story_memory,
+    validate_verified_fact_links,
+)
 from reporter_v2.runner.models import ToolDef
+from reporter_v2.runner.tools.context import ToolContext
 from reporter_v2.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
@@ -238,6 +245,102 @@ MEMORY_TOOLS = [
                     "reason": {"type": "string"},
                 },
                 "required": ["candidate_id", "usage"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "plan_memory_verification",
+            "description": (
+                "Plan how to verify a memory candidate callback. Returns required "
+                "fact roles and suggested datalayer calls. Does not verify claims."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "candidate_id": {
+                        "type": "string",
+                        "description": "Memory owner ID from search_story_memory.",
+                    },
+                    "owner_type": {
+                        "type": "string",
+                        "enum": ["storyline", "event", "trigger", "story_event"],
+                        "default": "storyline",
+                    },
+                    "current_week": {
+                        "type": "integer",
+                        "description": "Current article week. Defaults to run week.",
+                    },
+                    "callback_id": {
+                        "type": "string",
+                        "description": "Optional brief callback ID being planned.",
+                    },
+                    "intended_callback_claim": {
+                        "type": "string",
+                        "description": "Optional claim the agent hopes to verify.",
+                    },
+                },
+                "required": ["candidate_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "record_memory_verification",
+            "description": (
+                "Record verification outcome for a memory candidate. status="
+                "verified requires origin_receipt and current_payoff fact links "
+                "that already exist in the brief."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "candidate_id": {"type": "string"},
+                    "owner_type": {
+                        "type": "string",
+                        "enum": ["storyline", "event", "trigger", "story_event"],
+                        "default": "storyline",
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "verified",
+                            "rejected",
+                            "needs_more_evidence",
+                        ],
+                    },
+                    "fact_links": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "role": {
+                                    "type": "string",
+                                    "description": (
+                                        "Fact role such as origin_receipt or "
+                                        "current_payoff."
+                                    ),
+                                },
+                                "fact_id": {"type": "string"},
+                            },
+                            "required": ["fact_id"],
+                        },
+                        "description": (
+                            "Linked brief fact IDs. Prefer objects with role + "
+                            "fact_id. Strings are accepted as unscoped fact IDs."
+                        ),
+                    },
+                    "reason": {"type": "string"},
+                    "week": {"type": "integer"},
+                    "callback_id": {
+                        "type": "string",
+                        "description": "Optional brief memory callback ID.",
+                    },
+                    "linked_storyline_id": {"type": "string"},
+                },
+                "required": ["candidate_id", "status"],
             },
         },
     },
@@ -505,6 +608,149 @@ def register_memory_tools(
             }
         )
 
+    def plan_memory_verification_tool(
+        *,
+        candidate_id: str,
+        owner_type: str = "storyline",
+        current_week: int | None = None,
+        callback_id: str | None = None,
+        intended_callback_claim: str | None = None,
+    ) -> str:
+        plan = plan_memory_verification(
+            context_store,
+            candidate_id=candidate_id,
+            owner_type=owner_type,
+            current_week=current_week if current_week is not None else week_default,
+            callback_id=callback_id,
+            intended_callback_claim=intended_callback_claim,
+        )
+        if plan is None:
+            return _json(
+                {
+                    "ok": False,
+                    "found": False,
+                    "error": f"No candidate for {owner_type}:{candidate_id}",
+                }
+            )
+        return _json({"ok": True, **plan})
+
+    def record_memory_verification(
+        ctx: ToolContext,
+        *,
+        candidate_id: str,
+        status: str,
+        owner_type: str = "storyline",
+        fact_links: list[Any] | None = None,
+        reason: str | None = None,
+        week: int | None = None,
+        callback_id: str | None = None,
+        linked_storyline_id: str | None = None,
+    ) -> str:
+        if status not in {"verified", "rejected", "needs_more_evidence"}:
+            return _json(
+                {
+                    "ok": False,
+                    "recorded": False,
+                    "error": (
+                        "status must be verified, rejected, or needs_more_evidence"
+                    ),
+                }
+            )
+
+        normalized_type = (
+            "event" if owner_type == "story_event" else owner_type
+        )
+        candidate = get_memory_candidate(
+            context_store, normalized_type, candidate_id
+        )
+        if candidate is None:
+            return _json(
+                {
+                    "ok": False,
+                    "recorded": False,
+                    "error": f"No candidate for {owner_type}:{candidate_id}",
+                }
+            )
+
+        normalized_links = normalize_verification_fact_links(fact_links)
+        if status == "verified":
+            missing_roles = validate_verified_fact_links(normalized_links)
+            if missing_roles:
+                return _json(
+                    {
+                        "ok": False,
+                        "recorded": False,
+                        "error": (
+                            "verified callbacks require origin_receipt and "
+                            "current_payoff fact links"
+                        ),
+                        "missing_roles": missing_roles,
+                    }
+                )
+
+            brief = ctx.artifacts.brief
+            missing_fact_ids = [
+                link["fact_id"]
+                for link in normalized_links
+                if brief.get_fact(link["fact_id"]) is None
+            ]
+            if missing_fact_ids:
+                return _json(
+                    {
+                        "ok": False,
+                        "recorded": False,
+                        "error": "verification fact_links must exist in the brief",
+                        "missing_fact_ids": missing_fact_ids,
+                    }
+                )
+
+            if callback_id:
+                callback = brief.get_memory_callback(callback_id)
+                if callback is None:
+                    return _json(
+                        {
+                            "ok": False,
+                            "recorded": False,
+                            "error": f"Unknown brief callback_id: {callback_id}",
+                        }
+                    )
+
+        used_week = week if week is not None else week_default
+        access_reason = reason
+        if callback_id:
+            suffix = f"callback_id={callback_id}"
+            access_reason = f"{reason}; {suffix}" if reason else suffix
+
+        access_id = context_store.record_memory_access(
+            owner_type=normalized_type,
+            owner_id=candidate_id,
+            week=used_week,
+            usage=f"verification_{status}",
+            linked_storyline_id=linked_storyline_id,
+            fact_links=[
+                (
+                    f"{link['role']}:{link['fact_id']}"
+                    if link["role"]
+                    else link["fact_id"]
+                )
+                for link in normalized_links
+            ],
+            reason=access_reason,
+        )
+
+        return _json(
+            {
+                "ok": True,
+                "recorded": True,
+                "access_id": access_id,
+                "candidate_id": candidate_id,
+                "owner_type": normalized_type,
+                "status": status,
+                "fact_links": normalized_links,
+                "callback_id": callback_id,
+            }
+        )
+
     handlers = {
         "search_story_memory": search_story_memory_tool,
         "get_memory_candidate": get_memory_candidate_tool,
@@ -512,9 +758,15 @@ def register_memory_tools(
         "upsert_storyline_memory_card": upsert_storyline_memory_card,
         "save_storyline_trigger": save_storyline_trigger,
         "mark_memory_used": mark_memory_used,
+        "plan_memory_verification": plan_memory_verification_tool,
     }
     for spec in MEMORY_TOOL_SPECS:
         name = spec["function"]["name"]
+        if name == "record_memory_verification":
+            registry.register_context_tool(
+                name, record_memory_verification, spec
+            )
+            continue
         registry.register(name, handlers[name], spec)
 
 

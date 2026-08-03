@@ -64,6 +64,8 @@ def test_registers_persistent_tools(store: ContextStore) -> None:
     assert "upsert_storyline_memory_card" in registry.tool_names
     assert "save_storyline_trigger" in registry.tool_names
     assert "mark_memory_used" in registry.tool_names
+    assert "plan_memory_verification" in registry.tool_names
+    assert "record_memory_verification" in registry.tool_names
     assert registry.tool_specs == PERSISTENT_TOOL_SPECS
 
 
@@ -309,3 +311,197 @@ def test_mark_memory_used_updates_one_shot_trigger(store: ContextStore) -> None:
     assert trigger is not None
     assert trigger["status"] == "fired"
     assert trigger["fired_week"] == 9
+
+
+def _seed_trade_arc(store: ContextStore) -> None:
+    store.upsert_storyline(
+        {
+            "id": "story_trade",
+            "headline": "Trade Arc",
+            "summary": "Team A sent Player X away and may regret it.",
+            "status": "active",
+            "importance": 8,
+            "arc_type": "trade_regret",
+            "tags": ["trade", "regret"],
+            "team_ids": [1],
+        },
+        week=3,
+    )
+    store.upsert_story_event(
+        {
+            "id": "event_trade_1",
+            "week": 3,
+            "event_type": "trade",
+            "headline": "Team A sends Player X away",
+            "summary": "Team A traded Player X to Team B.",
+            "importance": 7,
+            "confidence": "verified",
+            "source_refs": ["transactions:week=3"],
+            "transaction_id": "txn_123",
+        }
+    )
+    store.replace_story_event_entities(
+        "event_trade_1",
+        [
+            {
+                "entity_type": "team",
+                "entity_id": "1",
+                "display_name": "Team A",
+                "role": "seller",
+            },
+            {
+                "entity_type": "player",
+                "entity_id": "player_x",
+                "display_name": "Player X",
+                "role": "asset_sent",
+            },
+        ],
+    )
+    store.link_storyline_event("story_trade", "event_trade_1", "origin")
+    store.upsert_storyline_trigger(
+        {
+            "id": "trigger_trade_callback",
+            "storyline_id": "story_trade",
+            "event_id": "event_trade_1",
+            "trigger_type": "trade_evaluation",
+            "target_week": 9,
+            "condition": {"player_id": "player_x", "former_roster_id": 1},
+            "fire_policy": "one_shot",
+        }
+    )
+
+
+def test_plan_memory_verification_returns_hints(store: ContextStore) -> None:
+    _seed_trade_arc(store)
+    registry = registered_registry(store, week=9)
+    handler = registry.get_handler("plan_memory_verification")
+    assert handler is not None
+
+    result = decode(
+        handler(
+            candidate_id="story_trade",
+            owner_type="storyline",
+            intended_callback_claim="Player X is punishing Team A.",
+        )
+    )
+
+    assert result["ok"] is True
+    assert result["found"] is True
+    assert result["origin_week"] == 3
+    assert result["trigger_type"] == "trade_evaluation"
+    assert result["required_fact_roles"] == [
+        "origin_receipt",
+        "current_payoff",
+    ]
+    assert any(
+        call.startswith("transactions(week_from=3")
+        for call in result["suggested_datalayer_calls"]
+    )
+    assert any(
+        "team_game(roster_key=Team A, week=9)" in call
+        for call in result["suggested_datalayer_calls"]
+    )
+
+
+def test_record_memory_verification_requires_roles_and_facts(
+    store: ContextStore,
+) -> None:
+    from reporter_v2.runner.run_log import RunLog
+    from reporter_v2.runner.state import ArtifactStore, ProcedureState
+    from reporter_v2.runner.tools.brief_tools import save_fact
+    from reporter_v2.runner.tools.context import ToolContext
+
+    _seed_trade_arc(store)
+    registry = registered_registry(store, week=9)
+    ctx = ToolContext(
+        artifacts=ArtifactStore(),
+        procedures=ProcedureState(),
+        log=RunLog(),
+        turn=1,
+    )
+    registry.set_context(ctx)
+    handler = registry.get_handler("record_memory_verification")
+    assert handler is not None
+
+    missing_roles = decode(
+        handler(
+            candidate_id="story_trade",
+            status="verified",
+            fact_links=[{"role": "origin_receipt", "fact_id": "fact_old"}],
+        )
+    )
+    assert missing_roles["ok"] is False
+    assert "origin_receipt" not in missing_roles["missing_roles"]
+    assert "current_payoff" in missing_roles["missing_roles"]
+
+    missing_facts = decode(
+        handler(
+            candidate_id="story_trade",
+            status="verified",
+            fact_links=[
+                {"role": "origin_receipt", "fact_id": "fact_old"},
+                {"role": "current_payoff", "fact_id": "fact_now"},
+            ],
+        )
+    )
+    assert missing_facts["ok"] is False
+    assert set(missing_facts["missing_fact_ids"]) == {"fact_old", "fact_now"}
+
+    save_fact(
+        ctx,
+        id="fact_old",
+        claim_text="Team A traded Player X in week 3.",
+        data_refs=["transactions:week=3"],
+    )
+    save_fact(
+        ctx,
+        id="fact_now",
+        claim_text="Player X scored 28 against Team A in week 9.",
+        data_refs=["team_game:Team A:week=9"],
+    )
+
+    result = decode(
+        handler(
+            candidate_id="story_trade",
+            status="verified",
+            fact_links=[
+                {"role": "origin_receipt", "fact_id": "fact_old"},
+                {"role": "current_payoff", "fact_id": "fact_now"},
+            ],
+            reason="Both receipt and payoff confirmed.",
+        )
+    )
+    assert result["ok"] is True
+    assert result["recorded"] is True
+    assert result["status"] == "verified"
+    assert result["access_id"] >= 1
+
+
+def test_record_memory_verification_allows_rejection_without_facts(
+    store: ContextStore,
+) -> None:
+    from reporter_v2.runner.run_log import RunLog
+    from reporter_v2.runner.state import ArtifactStore, ProcedureState
+    from reporter_v2.runner.tools.context import ToolContext
+
+    _seed_trade_arc(store)
+    registry = registered_registry(store, week=9)
+    registry.set_context(
+        ToolContext(
+            artifacts=ArtifactStore(),
+            procedures=ProcedureState(),
+            log=RunLog(),
+        )
+    )
+    handler = registry.get_handler("record_memory_verification")
+    assert handler is not None
+
+    result = decode(
+        handler(
+            candidate_id="story_trade",
+            status="rejected",
+            reason="Payoff is too weak.",
+        )
+    )
+    assert result["ok"] is True
+    assert result["status"] == "rejected"
