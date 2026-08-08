@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Mapping, Optional
 
-from ..schema.models import PlayoffMatchup
+from ..schema import PlayoffMatchup
 
 
 def _extract_from_ref(

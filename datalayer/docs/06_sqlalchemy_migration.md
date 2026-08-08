@@ -1,5 +1,11 @@
 # 06 — SQLAlchemy Core Migration
 
+> **Status: COMPLETE (historical).** The datalayer uses SQLAlchemy Core today:
+> `create_engine`, shared `schema.metadata`, per-table `Table` modules under
+> `sleeper_data/schema/`, and `text()` queries via a SQLAlchemy `Connection`.
+> `ddl.py` has been removed. Persistence / Alembic remain future work — see
+> `datalayer/AGENTS.md` for the current architecture.
+
 ## Motivation
 
 The datalayer currently uses raw `sqlite3` for all database operations: connection management, DDL, bulk inserts, and queries. This works well for the current in-memory, load-once architecture, but two upcoming changes make it worth revisiting:

@@ -51,55 +51,58 @@ def sleeper_config() -> SleeperConfig:
 
 @pytest.fixture
 def monkeypatch_sleeper_api(monkeypatch, sleeper_fixtures):
-    import datalayer.sleeper_data.sleeper_league_data as sld
+    # API symbols are imported into load.py (the load pipeline).
+    import datalayer.sleeper_data.load as load_mod
 
-    monkeypatch.setattr(sld, "get_league", lambda league_id, client=None: sleeper_fixtures["league"])
     monkeypatch.setattr(
-        sld,
+        load_mod, "get_league", lambda league_id, client=None: sleeper_fixtures["league"]
+    )
+    monkeypatch.setattr(
+        load_mod,
         "get_league_users",
         lambda league_id, client=None: sleeper_fixtures["users"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_league_rosters",
         lambda league_id, client=None: sleeper_fixtures["rosters"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_state",
         lambda sport, client=None: sleeper_fixtures["state"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_matchups",
         lambda league_id, week, client=None: sleeper_fixtures["matchups_by_week"].get(
             week, []
         ),
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "api_get_transactions",
-        lambda league_id, week, client=None: sleeper_fixtures["transactions_by_week"].get(
-            week, []
-        ),
+        lambda league_id, week, client=None: sleeper_fixtures[
+            "transactions_by_week"
+        ].get(week, []),
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_players",
         lambda sport, client=None: sleeper_fixtures["players"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_traded_picks",
         lambda league_id, client=None: sleeper_fixtures["traded_picks"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_winners_bracket",
         lambda league_id, client=None: sleeper_fixtures["winners_bracket"],
     )
     monkeypatch.setattr(
-        sld,
+        load_mod,
         "get_losers_bracket",
         lambda league_id, client=None: sleeper_fixtures["losers_bracket"],
     )

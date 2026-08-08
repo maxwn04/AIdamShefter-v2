@@ -21,7 +21,8 @@ and `sleeperdl memory` have been removed.
 
 ## Schema
 
-The current memory schema version is `2.1`.
+Canonical memory schema docs live in `reporter_memory/`. Current schema version
+is `3` (`reporter_memory.schema.SCHEMA_VERSION`).
 
 The store supports multiple leagues and seasons in the same SQLite file. Storyline
 identity is scoped by `(league_id, season, id)`, and all storyline history and

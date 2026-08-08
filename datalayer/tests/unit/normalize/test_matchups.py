@@ -1,5 +1,5 @@
 from datalayer.sleeper_data.normalize.matchups import derive_games, normalize_matchups
-from datalayer.sleeper_data.schema.models import MatchupRow
+from datalayer.sleeper_data.schema import MatchupRow
 
 
 def test_derive_games_pairs_two_rows():

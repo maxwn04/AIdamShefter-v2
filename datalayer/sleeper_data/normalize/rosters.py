@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Mapping
 
-from ..schema.models import Roster, RosterPlayer, TeamProfile
+from ..schema import Roster, RosterPlayer, TeamProfile
 
 
 def _json_dumps(value: Any) -> str | None:

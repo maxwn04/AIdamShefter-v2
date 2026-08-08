@@ -1,3 +1,5 @@
+> **Note:** Historical design doc. Paths like `ddl.py`, `defaults.py`, or monolith `schema/models.py` may be stale. See `datalayer/AGENTS.md` and `docs/architecture.md` for the current layout (one module per table under `schema/`, queries split by domain, load orchestration in `load.py`).
+
 Below is a full, self‑contained design doc for **Option A** (single `transaction_moves` table with explicit pick metadata).
 
 ---
