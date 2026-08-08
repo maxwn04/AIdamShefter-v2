@@ -6,7 +6,7 @@ from typing import Any
 
 from sqlalchemy import text
 
-from ..schema.models import DraftPick, Roster
+from ..schema import DraftPick, Roster
 
 
 def seed_draft_picks(

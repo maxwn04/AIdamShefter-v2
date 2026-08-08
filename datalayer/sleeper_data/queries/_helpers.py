@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Mapping
 
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 
 # Position order for sorting (standard fantasy football order)
 POSITION_ORDER = {"QB": 0, "RB": 1, "WR": 2, "TE": 3, "K": 4, "DEF": 5}
@@ -14,13 +15,17 @@ POSITIONS = ["qb", "rb", "wr", "te", "k", "def"]
 _TEAM_PROFILE_EXCLUDE = {"avatar_url"}
 
 
-def fetch_all(conn, sql: str, params: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+def fetch_all(
+    conn: Connection, sql: str, params: Mapping[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """Execute SQL and return all rows as list of dicts."""
     result = conn.execute(text(sql), params or {})
     return [dict(row) for row in result.mappings().all()]
 
 
-def fetch_one(conn, sql: str, params: Mapping[str, Any] | None = None) -> dict[str, Any] | None:
+def fetch_one(
+    conn: Connection, sql: str, params: Mapping[str, Any] | None = None
+) -> dict[str, Any] | None:
     """Execute SQL and return first row as dict, or None."""
     result = conn.execute(text(sql), params or {})
     row = result.mappings().first()

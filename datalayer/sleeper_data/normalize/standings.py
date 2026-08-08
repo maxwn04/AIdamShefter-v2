@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Iterable, Mapping
 
-from ..schema.models import StandingsWeek
+from ..schema import StandingsWeek
 
 
 def _points_from_settings(settings: Mapping[str, int | float | None], *, prefix: str) -> float:

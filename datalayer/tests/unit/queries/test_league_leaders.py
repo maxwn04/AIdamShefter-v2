@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from datalayer.sleeper_data.queries.league import get_season_leaders
-from datalayer.sleeper_data.schema.models import (
+from datalayer.sleeper_data.schema import (
     League,
     Player,
     PlayerPerformance,

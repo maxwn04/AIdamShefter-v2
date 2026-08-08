@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Iterable, Mapping
 
-from ..schema.models import Game, MatchupRow, PlayerPerformance
+from ..schema import Game, MatchupRow, PlayerPerformance
 
 
 def _normalize_player_ids(value: Any) -> list[str]:

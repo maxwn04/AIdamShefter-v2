@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine
 
 from datalayer.sleeper_data.queries.player import get_player_weekly_log
-from datalayer.sleeper_data.schema.models import (
+from datalayer.sleeper_data.schema import (
     League,
     Player,
     PlayerPerformance,

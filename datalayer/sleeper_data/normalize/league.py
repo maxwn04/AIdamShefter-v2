@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-from ..schema.models import League
+from ..schema import League
 
 
 def _json_dumps(value: Any) -> str | None:

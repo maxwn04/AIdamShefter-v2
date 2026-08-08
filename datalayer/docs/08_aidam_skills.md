@@ -36,7 +36,7 @@ Default DB path:
 
 Schema:
 
-- Current schema version: `2.1`.
+- Current schema version: `3` (see `reporter_memory.schema.SCHEMA_VERSION`).
 - Storyline identity is scoped by `(league_id, season, id)`.
 - Storyline history and persisted facts are scoped by league and season.
 - Legacy DB schemas are not migrated; delete or recreate old context DBs.

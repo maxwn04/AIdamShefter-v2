@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-from ..schema.models import Player
+from ..schema import Player
 
 
 def _json_dumps(value: Any) -> str | None:

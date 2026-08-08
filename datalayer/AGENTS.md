@@ -128,17 +128,33 @@ Most queries return dicts with a `found` key. List-returning queries return `lis
 
 Not-found responses return `{"found": false, ...}` with context about what was searched.
 
+## Layer Contracts
+
+| Layer | Responsibility | Depends on | Must not |
+|---|---|---|---|
+| `sleeper_api/` | HTTP fetch + JSON cache | — | schema, store, queries |
+| `normalize/` | Raw JSON → row dataclasses | `schema` | SQL, tools |
+| `schema/` | One module per table (DTO + Core `Table`) | SQLAlchemy Core | fetch, queries |
+| `store/` | `create_tables`, `bulk_insert` | `schema.metadata` | API, normalize, tools |
+| `load.py` | Orchestrate fetch → normalize → store | api, normalize, store | curated queries, tools |
+| `queries/` | Curated SQL → dict outputs | Connection + schema | API, normalize, tools |
+| `SleeperLeagueData` | Public API + connection lifecycle | load, queries | raw business SQL |
+| `tools.py` / CLI | Agent/operator surface | facade only | SQL, normalize, store |
+
 ## Load Flow (what `data.load()` does)
 
-1. Creates in-memory SQLite (`check_same_thread=False` for async)
+Implemented in `sleeper_data/load.py` (`load_league`):
+
+1. Creates in-memory SQLite engine (`check_same_thread=False` for async)
 2. Fetches league metadata, users, rosters, NFL state → normalizes → inserts
 3. Seeds draft picks (roster × 3 seasons × rounds), applies traded picks
 4. Fetches all players → inserts
 5. For each week 1..effective_week: matchups → MatchupRows + PlayerPerformances + Games; transactions → TransactionMoves
 6. Derives standings from roster metadata
 7. Stores SeasonContext (computed_week, override_week, effective_week)
+8. Facade opens a long-lived query connection
 
-## SQLite Schema (13 tables)
+## SQLite Schema (15 tables)
 
 | Table | Model | Key Columns |
 |---|---|---|
@@ -156,8 +172,9 @@ Not-found responses return `{"found": false, ...}` with context about what was s
 | `standings` | StandingsWeek | league_id, season, week, roster_id, wins, losses, rank, streak_type/len |
 | `transactions` | Transaction | league_id, season, week, transaction_id, type, status |
 | `transaction_moves` | TransactionMove | transaction_id, roster_id, player_id, asset_type, direction, pick metadata |
+| `playoff_matchups` | PlayoffMatchup | league_id, season, bracket_type, matchup_id, roster/outcome fields |
 
-All models defined in `sleeper_data/schema/models.py`. DDL with indexes in `schema/ddl.py`.
+Schema layout: one module per table under `sleeper_data/schema/` (co-located row dataclass + SQLAlchemy Core `Table`). Import from `datalayer.sleeper_data.schema`. Shared `metadata` lives in `schema/_base.py`.
 
 ## Name Resolution
 

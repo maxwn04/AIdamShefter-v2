@@ -55,12 +55,11 @@ reporter-v2 "power rankings with analysis" --week 8          # Any article type
 datalayer/
 ├── sleeper_data/
 │   ├── sleeper_league_data.py    # Facade: SleeperLeagueData (main entry point)
+│   ├── load.py                   # Fetch → normalize → store orchestration
 │   ├── config.py                 # SleeperConfig, load_config()
 │   ├── sleeper_api/              # HTTP fetch layer (client.py, endpoints.py)
 │   ├── normalize/                # Raw JSON → dataclasses (one module per entity)
-│   ├── schema/
-│   │   ├── models.py             # 15 dataclass models (single source of truth)
-│   │   └── ddl.py                # DDL generation, DDL_REGISTRY
+│   ├── schema/                   # One module per table (row DTO + Core Table)
 │   ├── store/sqlite_store.py     # create_tables(), bulk_insert()
 │   └── queries/                  # Query functions + resolvers + sql_tool
 ├── tools.py                      # SLEEPER_TOOLS (OpenAI function-calling format)
@@ -93,16 +92,17 @@ reporter_v2/
 ### Python Style
 
 - **Python 3.11+** — use modern syntax (`X | Y` unions, `match` statements where appropriate)
-- **Dataclasses over dicts** — all domain models are `@dataclass` in `schema/models.py`
+- **Dataclasses over dicts** — domain row models are `@dataclass` in `schema/<table>.py`
 - **Type hints everywhere** — function signatures, return types, variables where non-obvious
 - **Naming**: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE` for constants
-- **Imports**: stdlib → third-party → local, separated by blank lines. Use absolute imports from package root (`from datalayer.sleeper_data.schema.models import Player`)
+- **Imports**: stdlib → third-party → local, separated by blank lines. Prefer `from datalayer.sleeper_data.schema import Player`
 
 ### Patterns
 
 - **Facade pattern**: `SleeperLeagueData` is the single public entry point for all datalayer queries
+- **Load pipeline**: `load.load_league` owns fetch → normalize → store; facade owns connection lifecycle
 - **Normalize layer**: Each entity type has its own normalizer module — raw JSON in, dataclass out
-- **Query functions**: Pure functions that take a `sqlite3.Connection` and return dicts. Name resolution handled by `_resolvers.py`
+- **Query functions**: Pure functions that take a SQLAlchemy `Connection` and return dicts. Name resolution handled by `_resolvers.py`
 - **Tool definitions**: OpenAI function-calling format in `datalayer/tools.py`; reporter v2 registers model-facing tools under `reporter_v2/runner/tools/`
 
 ### Error Handling
@@ -122,7 +122,7 @@ reporter_v2/
 ## Design Principles
 
 - **Fresh load every run**: No persistence; Sleeper API is source of truth
-- **Dataclasses as schema**: `schema/models.py` is the single source of truth for entity shape
+- **One module per table**: `schema/<table>.py` owns the row DTO and SQLAlchemy Core `Table`
 - **Query-time joins**: Names resolved at query time, not denormalized into storage
 - **Brief-first writing**: Research produces a verified artifact before any drafting happens
 - **Bias = framing only**: Bias changes word choice and emphasis, never facts or numbers

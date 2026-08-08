@@ -1,3 +1,5 @@
+> **Note:** Historical design doc. Paths like `ddl.py`, `defaults.py`, or monolith `schema/models.py` may be stale. See `datalayer/AGENTS.md` and `docs/architecture.md` for the current layout (one module per table under `schema/`, queries split by domain, load orchestration in `load.py`).
+
 Below is a self‑contained design doc tailored to your current codebase and conventions. It assumes **Ask mode** (no edits), so this is documentation only.
 
 ---

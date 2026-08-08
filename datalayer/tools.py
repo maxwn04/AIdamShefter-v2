@@ -23,7 +23,10 @@ Usage with OpenAI Agents SDK:
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
+
+if TYPE_CHECKING:
+    from datalayer.sleeper_data import SleeperLeagueData
 
 # Tool definitions in OpenAI function calling format
 SLEEPER_TOOLS = [
@@ -444,8 +447,3 @@ def create_tool_handlers(data: "SleeperLeagueData") -> dict[str, Callable[..., A
         "team_playoff_path": lambda roster_key: data.get_team_playoff_path(roster_key),
         "run_sql": lambda query, limit=200: data.run_sql(query, limit=limit),
     }
-
-
-# Type import for type hints only
-if False:  # TYPE_CHECKING equivalent without import
-    from datalayer.sleeper_data import SleeperLeagueData

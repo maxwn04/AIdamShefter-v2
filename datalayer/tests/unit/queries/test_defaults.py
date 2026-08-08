@@ -1,6 +1,6 @@
 from datalayer.sleeper_data.queries import get_team_game_with_players
 from datalayer.sleeper_data.queries._resolvers import resolve_player_id
-from datalayer.sleeper_data.schema.models import (
+from datalayer.sleeper_data.schema import (
     Game,
     League,
     MatchupRow,
