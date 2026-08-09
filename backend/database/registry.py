@@ -6,7 +6,8 @@ resource managers or services.
 """
 
 from backend.database.base import Base
+from backend.database.models import core as core_models
 
 metadata = Base.metadata
 
-__all__ = ["metadata"]
+__all__ = ["core_models", "metadata"]
