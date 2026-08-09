@@ -4,7 +4,7 @@
 
 **Scope:** Product structure, backend boundaries, persistence, and execution
 
-**Database target:** PostgreSQL, with optional frozen SQLite run snapshots
+**Database target:** PostgreSQL, with frozen SQLite generation snapshots
 
 ## Summary
 
@@ -30,13 +30,18 @@ frontend/
 
 The backend uses one primary PostgreSQL database, one migration history, and
 clear resource and service boundaries. A generated, cutoff-safe SQLite database
-may still be used as a read-only input to an individual reporter run. It is a
+may still be used as a read-only input to an individual generation. It is a
 reproducibility artifact and safety boundary, not a second source of truth.
 
 This change intentionally preserves the reporter's current strengths: the
 single-loop runner, brief-first research, persistent narrative continuity,
 curated data tools, and guarded SQL exploration. The goal is to place those
 capabilities inside a durable product rather than redesign the agent loop.
+
+The hardened database contract, namespace designs, implementation order, and
+decision record live under [`docs/database/`](database/overview.md). Those
+documents are authoritative for table-level implementation; this document owns
+the broader application structure and responsibility boundaries.
 
 ## Motivation
 
@@ -49,14 +54,15 @@ Sleeper data is loaded into a new in-memory SQLite database for each execution.
 Reporter memory is stored in a separate SQLite file, while articles, briefs,
 and run logs are written as files named primarily by week. There is no durable
 identity connecting an article to its exact data snapshot, memory state, model
-calls, tool evidence, and cost.
+calls, tool evidence, and token usage.
 
 This makes it unnecessarily difficult to answer questions such as:
 
-- Which run created or changed this storyline?
+- Which generation created or changed this storyline?
 - Which facts and tool results support this article?
 - What model actually handled each turn after retries or fallbacks?
-- How much did the generation cost?
+- How many tokens did the generation use, and what would those tokens cost under
+  a selected current or projected price configuration?
 - Are two articles comparable, or did they use different data or memory?
 - What could the reporter have known at a particular historical point?
 
@@ -65,8 +71,8 @@ This makes it unnecessarily difficult to answer questions such as:
 A dynasty league is a continuous product concept, while Sleeper represents its
 seasons with different league IDs. Team identity can also outlive a particular
 season roster ID, manager, or display name. AIdam therefore needs durable
-competition, season, and franchise identities of its own, with mappings to
-provider identifiers.
+competition, season, and franchise identities of its own, mapped to the
+corresponding Sleeper league and roster IDs.
 
 ### Backtesting needs explicit temporal boundaries
 
@@ -75,16 +81,18 @@ known at that time. Current roster membership, player status, league settings,
 and pick ownership may reveal information from later in the season. Memory has
 the same problem when its latest state is read during an older-week replay.
 
-Every run needs immutable input metadata, including a domain cutoff, a
-knowledge cutoff, a factual data snapshot, and a memory checkpoint or branch.
+Every generation needs immutable input metadata, including a domain cutoff, a
+knowledge cutoff, a factual data snapshot, and either an exact canonical memory
+revision or an immutable evaluation-workspace artifact.
 The reporter should execute against a physically constrained data view so that
 curated tools and free-form SQL cannot reveal future data.
 
 ### The product needs more than a CLI
 
-The desired UI needs to trigger and configure runs, inspect memory, audit tool
+The desired UI needs to trigger and configure generations, inspect memory, audit tool
 behavior, render prior articles, compare outputs, and analyze quality against
-cost. Those capabilities need durable run and resource APIs rather than a
+token usage/projected cost. Those capabilities need durable generation and
+resource APIs rather than a
 collection of output files.
 
 ## Architectural Goals
@@ -94,7 +102,7 @@ collection of output files.
    workflows, transport, and reporter execution.
 3. Make every generation reproducible and auditable.
 4. Support dynasty identity across seasons and provider league IDs.
-5. Support current runs, retrospective analysis, historically faithful replay,
+5. Support current generations, retrospective analysis, historically faithful replay,
    and controlled model comparisons.
 6. Keep the application easy to run locally while leaving a straightforward
    path to managed cloud infrastructure.
@@ -109,6 +117,35 @@ collection of output files.
 - Migrating ephemeral or easily regenerated local data into the new schema.
 - Building a general-purpose event-sourcing framework.
 
+## Replacement and Compatibility Policy
+
+This rearchitecture is an intentional **rip-and-replace** of the current local
+storage implementations. Existing Sleeper snapshots, reporter-memory SQLite
+files, generated output files, schema versions, and persistence APIs do not
+create compatibility requirements for the new database.
+
+Database and application design work should therefore optimize for a clean,
+coherent target architecture rather than preserving existing rows or storage
+shapes. In particular, implementation work should not add:
+
+- compatibility shims for the current SQLite schemas;
+- dual reads or dual writes between old and new stores;
+- migrations that import existing local context or output files;
+- legacy identifiers solely to preserve regenerated data;
+- transitional abstractions whose only purpose is maintaining the old storage
+  APIs.
+
+The behaviors that already work well remain requirements: grounded factual
+queries, narrative continuity, brief-first generation, guarded SQL, and the
+reporter tool contracts. Existing fixtures and tests may be adapted to validate
+those behaviors against the new architecture, but the persisted data itself can
+be discarded and regenerated.
+
+This freedom applies while constructing the new baseline. Once the new schema
+is adopted as the product database, subsequent changes must use normal
+forward-only migration discipline and preserve data created under that new
+baseline.
+
 ## System Shape
 
 ```mermaid
@@ -121,7 +158,7 @@ flowchart LR
     Services --> External["Sleeper and model APIs"]
     Services --> SnapshotBuilder["Snapshot builder"]
     PrimaryDB --> SnapshotBuilder
-    SnapshotBuilder --> FrozenDB["Frozen SQLite run snapshot"]
+    SnapshotBuilder --> FrozenDB["Frozen SQLite generation snapshot"]
     FrozenDB --> Reporter["Reporter service"]
     Reporter --> Managers
 ```
@@ -142,7 +179,12 @@ backend/
 │   ├── base.py
 │   ├── engine.py
 │   ├── sessions.py
-│   └── registry.py
+│   ├── registry.py
+│   └── models/
+│       ├── core/
+│       ├── sleeper/
+│       ├── memory/
+│       └── reporting/
 │
 ├── migrations/
 │   ├── env.py
@@ -152,38 +194,30 @@ backend/
 ├── resources/
 │   ├── context.py
 │   ├── competitions/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   └── manager.py
 │   ├── sleeper_observations/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   └── manager.py
 │   ├── player_catalog/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   └── manager.py
 │   ├── league_state/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   ├── manager.py
 │   │   └── shared.py
 │   ├── data_snapshots/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   └── manager.py
 │   ├── memory/
-│   │   ├── models.py
 │   │   ├── objects.py
 │   │   ├── manager.py
 │   │   └── shared.py
-│   ├── runs/
-│   │   ├── models.py
+│   ├── generations/
 │   │   ├── objects.py
 │   │   ├── manager.py
 │   │   └── shared.py
-│   ├── experiments/
-│   │   ├── models.py
+│   ├── evaluation_workspaces/
 │   │   ├── objects.py
 │   │   └── manager.py
 │   └── audit/
@@ -202,12 +236,10 @@ backend/
 │   ├── memory/
 │   │   ├── memory_service.py
 │   │   └── search/
-│   ├── runs/
+│   ├── generations/
 │   │   ├── generation_service.py
-│   │   ├── run_observer.py
-│   │   └── pricing.py
-│   ├── experiments/
-│   │   └── comparison_service.py
+│   │   ├── evaluation_service.py
+│   │   └── progress.py
 │   └── reporter/
 │       ├── config.py
 │       ├── generator.py
@@ -223,10 +255,9 @@ backend/
 │   │   └── services.py
 │   ├── schemas/
 │   └── routes/
-│       ├── runs.py
+│       ├── generations.py
 │       ├── memory.py
-│       ├── data.py
-│       └── experiments.py
+│       └── data.py
 │
 ├── worker/
 │   ├── main.py
@@ -244,10 +275,9 @@ frontend/
 │   ├── api/
 │   ├── components/
 │   ├── features/
-│   │   ├── runs/
+│   │   ├── generations/
 │   │   ├── memory/
-│   │   ├── comparisons/
-│   │   └── experiments/
+│   │   └── comparisons/
 │   └── pages/
 └── tests/
 ```
@@ -262,12 +292,12 @@ application capability and may contain several internal submodules.
 Persistent resources follow four layers:
 
 ```text
-SQLAlchemy model -> resource object -> manager -> service
+centralized SQLAlchemy model -> resource object -> manager -> service
 ```
 
 ### SQLAlchemy Models
 
-`resources/<resource>/models.py` describes the persistence representation:
+`database/models/<namespace>/*.py` describes the persistence representation:
 
 - tables and columns;
 - relationships and foreign keys;
@@ -277,6 +307,12 @@ SQLAlchemy model -> resource object -> manager -> service
 
 ORM objects are storage types. They must not be returned to routes, workers,
 reporter tools, or services.
+
+All ORM models are collected under `database/models/` so the relational graph,
+schema ownership, and Alembic target metadata can be inspected in one place.
+Namespace subpackages preserve logical ownership without scattering table
+definitions across manager packages. ORM modules never import resource objects,
+managers, services, or API schemas.
 
 ### Resource Objects
 
@@ -290,7 +326,7 @@ session lifetimes, and changes made solely for storage optimization.
 
 API schemas remain separate when an HTTP request or response requires different
 validation or presentation. Pure workflow values that are not persisted, such
-as a run manifest or snapshot specification, belong in the relevant service.
+as a generation manifest or snapshot specification, belong in the relevant service.
 
 ### Resource Managers
 
@@ -309,7 +345,7 @@ Managers must not perform Sleeper requests, model calls, or long-running work.
 They return resource objects rather than ORM rows.
 
 A manager normally owns an aggregate rather than one table. For example, the
-run resource may include its model calls, tool calls, artifacts, and lifecycle
+generation resource may include its AI calls, tool calls, artifacts, and lifecycle
 events. Revision and child rows that have no useful independent lifecycle do
 not need separate public managers.
 
@@ -321,8 +357,8 @@ open or commit it, perform no authorization, and are not called by routes,
 workers, or services.
 
 For example, finalizing a submitted article and applying its memory mutations
-may need one transaction. A run manager can own that transaction and call
-narrow helpers from the run and memory resources. The service passes a result
+may need one transaction. A generation manager can own that transaction and call
+narrow helpers from the generation and memory resources. The service passes a result
 bundle, not a database session.
 
 ## Service Responsibilities
@@ -335,7 +371,6 @@ bundle, not a database session.
 - generation and backtest workflows;
 - snapshot selection and construction;
 - memory lifecycle policy;
-- model pricing and experiment policy;
 - the reporter agent and its internal execution machinery.
 
 Services receive managers and external clients through explicit constructor or
@@ -343,7 +378,7 @@ function dependencies. They do not import ORM models, construct raw SQLAlchemy
 sessions, or return ORM rows.
 
 Protocols are used for meaningful substitution boundaries, such as Sleeper and
-model clients, artifact storage, clocks, or price sources. They are not required
+model clients, artifact storage, or clocks. They are not required
 for every manager when one concrete implementation and ordinary constructor
 injection are sufficient.
 
@@ -383,7 +418,7 @@ The responsibilities are split as follows:
 
 Every manager receives an already-resolved context describing the actor,
 resource scope, and relevant correlation identifiers. Initially, actors may be
-the local user, a system job, or a generation run. Competition-scoped managers
+the local user, a system process, or a generation. Competition-scoped managers
 must apply that scope to their reads and writes. Truly global operations, such
 as player-catalog ingestion, require an explicit global scope with a reason.
 
@@ -391,19 +426,17 @@ The initial local product does not need enterprise RBAC. The manager context is
 still valuable for league isolation, generation provenance, worker attribution,
 and a future hosted authorization seam.
 
-Backtest cutoffs, data snapshot IDs, and memory checkpoint IDs are not generic
-authorization context. They change generation semantics and therefore remain
-explicit fields in the run manifest and relevant service APIs.
+Backtest cutoffs, data snapshot IDs, canonical memory revision IDs, and evaluation
+workspace artifact IDs are not generic authorization context. They change
+generation semantics and therefore remain explicit fields in the generation
+manifest and relevant service APIs.
 
 ## Worker Responsibilities
 
-The worker owns job execution mechanics:
-
-- claiming queued work;
-- status heartbeats;
-- retry scheduling;
-- interruption and recovery behavior;
-- calling the appropriate service.
+The initial worker is a thin process boundary that calls the generation service
+and updates generation status/progress. It does not implement database leases,
+heartbeats, automatic resume, or a durable scheduler. A stale running generation
+is marked failed and can be rerun explicitly.
 
 It does not own generation policy, memory policy, data normalization, or
 resource SQL. Like an API route, it constructs an explicit actor and scope at
@@ -411,21 +444,22 @@ the process boundary and calls services or managers.
 
 ## Database Responsibilities
 
-`database/` contains shared persistence mechanics only:
+`database/` contains the complete persistence representation:
 
 - the common SQLAlchemy declarative base;
 - constraint and index naming conventions;
 - engine construction from configuration;
 - read and write session factories;
 - common database types when genuinely shared;
-- registration of resource models for migrations.
+- all schema-qualified ORM models grouped by database namespace;
+- registration of those models for migrations.
 
-It does not contain application resource definitions, business operations, a
-generic CRUD repository, or cross-domain helper functions.
+It does not contain caller-facing resource objects, manager/business operations,
+a generic CRUD repository, or service workflows.
 
 The backend uses one physical PostgreSQL database because the product's most
 valuable audit paths cross its logical domains. A single database makes it
-possible to connect an article to its run, model costs, tool evidence, memory
+possible to connect an article to its generation, model/token usage, tool evidence, memory
 mutations, and factual observations without distributed consistency or service
 integration overhead.
 
@@ -434,15 +468,17 @@ database domains are:
 
 ### League identity
 
-Durable AIdam identities for competitions, seasons, franchises, managers, and
-their provider mappings. This domain lets a dynasty continue across Sleeper
-league IDs and separates franchise identity from a season roster or manager.
+Durable AIdam identities for competitions, ordered seasons, franchises, and
+season rosters. This is the minimum bridge that lets a dynasty continue across
+Sleeper league IDs. Manager identity, churn history, provider registries, and
+reconciliation workflows are deferred.
 
 ### Sleeper observations and league facts
 
-Append-only records of source fetches, normalized canonical facts, mutable state
-observations, and rebuildable projections. Raw or changed provider responses
-retain hashes and provenance so refreshes are explainable and idempotent.
+Append-only API request/payload history plus a latest normalized view aligned
+with the existing datalayer. Raw responses retain hashes and provenance so
+request-level refreshes are explainable, idempotent, and usable for historical
+snapshot reconstruction.
 
 The player catalog is global and can retain flexible provider metadata while
 promoting frequently queried attributes into structured fields. League-specific
@@ -451,23 +487,29 @@ season.
 
 ### Reporter memory
 
-Stable storyline identities with immutable revisions, facts, evidence events,
-triggers, access history, branches, and checkpoints. Memory can be scoped to a
-competition or franchise while individual facts and events can refer to a
-particular season and week.
+Stable storyline, fact, event, trigger, and context identities have complete
+versions on one strictly ordered canonical revision history. Introduced/retired
+revision bounds select the exact versions visible to a generation. There are no
+canonical snapshots, branches, sibling states, merges, or access-history tables.
 
-Memory records retain both domain time and observation time, along with the run
-or human actor that created the change.
+Memory records retain both domain time and observation time, along with the
+generation that created the change. A future manual editor can submit a distinct
+generation kind instead of introducing a second provenance system.
 
 ### Reporting and execution
 
-Durable generation jobs and runs, model calls, tool calls, artifacts, articles,
-briefs, token usage, costs, comparisons, ratings, and lifecycle events. Every
-article is addressed by a run identity rather than a week-based filename.
+Durable generations, actual AI-call logs, full tool calls, token usage, and
+generic versioned artifacts. Every article is addressed by a generation rather
+than a week-based filename.
 
-The reporting domain records both requested and actual model behavior, including
-retries and fallbacks. Historical costs are persisted using the price information
-available at execution time rather than recalculated from current pricing.
+Reporting also owns one optional active evaluation workspace per competition.
+Rolling simulations advance deterministic memory artifacts rather than writing
+alternative versions into canonical memory. Discard has no canonical effect;
+promotion is allowed only as a fast-forward from the still-current base revision.
+
+Retries and fallbacks are separate AI-call rows so token/model analytics remain
+accurate. Dollar costs are calculated from stored tokens and a selected current
+or projected price configuration rather than persisted historically.
 
 ## Database Construction
 
@@ -476,35 +518,40 @@ resource schemas are finalized.
 
 ### Shared Base and Naming
 
-All ORM resources use one SQLAlchemy declarative base and one naming convention
+All centralized ORM models use one SQLAlchemy declarative base and one naming convention
 for primary keys, foreign keys, unique constraints, checks, and indexes. This
 keeps Alembic output deterministic and makes constraints operable in production.
 
 ### Real Constraints
 
-The persistent product database should use explicit primary keys, foreign keys,
-uniqueness constraints, and indexes. The current in-memory assumption that only
-one league or one snapshot exists must not carry into the product database.
+The persistent product database uses explicit primary keys, foreign keys,
+essential uniqueness, scope-safe composite keys, concurrency uniqueness, and
+sealed-history immutability. Product-semantic ranges, enums, JSON shapes, and
+lifecycle policy belong to Pydantic resource objects and manager/service
+transactions. The current in-memory assumption that only one league or one
+snapshot exists must not carry into the product database.
 
 ### Stable Internal Identities
 
-Product-level UUIDs should identify competitions, seasons, franchises, runs,
-storylines, snapshots, and other durable resources. Sleeper IDs are external
-identifiers associated with those resources rather than the product's universal
-identity scheme.
+Product-level UUIDs should identify competitions, seasons, franchises,
+generations, storylines, canonical memory revisions, data snapshots, evaluation
+workspaces, and other durable resources. Sleeper IDs are external identifiers
+associated with those resources rather than the product's universal identity
+scheme.
 
 ### Source Provenance
 
 Ingestion must retain enough information to explain where canonical data came
 from and when it was observed. Full provider endpoints can be fetched repeatedly;
-payload and row hashes make normalization idempotent without requiring a complex
-incremental API.
+payload hashes plus one authoritative normalized head per request scope make
+normalization idempotent and safe from out-of-order completion without requiring
+a complex incremental API.
 
 ### Immutable Revisions and Artifacts
 
 History-sensitive data should be appended as revisions rather than overwritten
-without provenance. Articles, briefs, prompt bundles, and other generation
-artifacts are immutable versions associated with a run.
+without provenance. Articles and any persisted intermediate generation artifacts
+are immutable versions associated with a generation.
 
 ### Two Time Dimensions
 
@@ -516,12 +563,11 @@ Temporal records that participate in replay should distinguish:
 This is sufficient for point-in-time reads without introducing a generic event
 store.
 
-### Run Manifest
+### Generation Input Manifest
 
-Every generation records an immutable manifest containing its competition and
-season, article coverage, domain and knowledge cutoffs, factual snapshot,
-memory branch or checkpoint, configuration, prompt and procedure versions,
-model request, and code version.
+Every generation row stores typed input snapshot/cutoff columns plus an immutable
+JSONB manifest containing its resolved configuration, prompt and procedure
+versions, model/fallback policy, tool schema, and code version.
 
 The manifest is the foundation for comparison and reproducibility.
 
@@ -542,14 +588,14 @@ content-addressed artifacts.
 ### Resource-Safe Read Models
 
 Cross-domain UI projections are exposed through context-aware read-only managers,
-not raw SQL called from routes. Run detail, cost dashboards, article comparisons,
-and memory audit views may join across logical database domains while still
-returning stable resource objects.
+not raw SQL called from routes. Generation detail, token/projected-cost dashboards,
+article comparisons, and memory audit views may join across logical database
+domains while still returning stable resource objects.
 
 ## Migrations
 
 `migrations/` owns the single ordered history for the entire primary database.
-It imports all resource ORM models through `database/registry.py` and uses the
+It imports all centralized ORM models through `database/registry.py` and uses the
 shared metadata as its target.
 
 The application must not use `metadata.create_all()` as a production migration
@@ -563,7 +609,8 @@ independent migration systems.
 
 Because existing data is ephemeral and reproducible, the new database can begin
 with a clean baseline. Migration complexity should optimize for the future
-product rather than preserve the existing local SQLite schemas.
+product rather than preserve the existing local SQLite schemas. No migration or
+import path from the old context database is required.
 
 ## Frozen Run Snapshots
 
@@ -572,7 +619,7 @@ seasons and time periods. Pointing the reporter's guarded SQL tool directly at
 that database would create a future-data leakage path.
 
 Before a generation starts, the snapshot service builds or selects a frozen,
-cutoff-safe read model containing only the facts visible to that run. A SQLite
+cutoff-safe read model containing only the facts visible to that generation. A SQLite
 file is a useful implementation because it preserves the existing datalayer
 query behavior and physically prevents the reporter from accessing excluded
 rows.
@@ -582,7 +629,7 @@ and starter/bench roles. Transactions and archived observations supplement that
 view. Fields that cannot be reconstructed exactly should retain provenance and
 an explicit confidence or reconstruction classification.
 
-The snapshot is linked to the run manifest and may be content-addressed for
+The snapshot is linked to the generation manifest and may be content-addressed for
 reuse. It is read-only and disposable or reproducible; PostgreSQL remains the
 source of truth.
 
@@ -596,8 +643,8 @@ api -> resource managers for narrow resource operations
 services -> resource managers and resource objects
 services -> external-client protocols
 resource managers -> database infrastructure
-resource managers -> their own models and objects
-database registry -> resource models
+resource managers -> centralized database models and their own objects
+database registry -> centralized database models
 migrations -> database registry
 composition -> concrete services, managers, and clients
 ```
@@ -625,7 +672,7 @@ Tests should follow the designed boundary:
   patching internal helpers.
 - API tests use dependency overrides and focus on authentication, validation,
   and response translation.
-- Worker tests inject fake services and verify job lifecycle and retry behavior.
+- Worker tests inject fake services and verify generation status/progress behavior.
 - Snapshot tests use real SQLite fixtures and verify that future facts are
   physically absent.
 - Scope tests prove competition isolation and deliberate global access.
@@ -641,18 +688,19 @@ reporter behavior.
 1. Create the `backend/` and `frontend/` roots and shared backend configuration.
 2. Establish database infrastructure, PostgreSQL, Alembic, and the clean
    migration baseline.
-3. Create competition identity and durable run resource boundaries.
+3. Create the minimal competition/season/franchise/season-roster identity and
+   generation resource boundaries.
 4. Move the existing reporter into `services/reporter/` without redesigning its
    loop.
-5. Route generation through a run service and persist articles, briefs, model
-   calls, tool calls, and costs.
-6. Replace the current context store with revisioned memory resources and
-   manager APIs.
-7. Add persistent Sleeper observations, canonical reconciliation, and frozen
-   run snapshot construction.
-8. Add read-only API routes and the initial run and memory UI.
-9. Add durable job execution, live progress, article comparison, experiments,
-   and rolling backtests.
+5. Route generation through a service and persist AI calls, token usage, full
+   tool calls, and generic versioned artifacts.
+6. Replace the current context store with linear canonical memory revisions and
+   introduced/retired version visibility.
+7. Add persistent Sleeper API requests, the normalized current view, and frozen
+   data-snapshot construction.
+8. Add read-only API routes and the initial generation and memory UI.
+9. Add the single evaluation-workspace lifecycle; defer parallel variants,
+   generalized scoring, and richer experiment infrastructure until demonstrated.
 
 The existing SQLite context database and output files do not constrain the new
 schema. Useful behavior and test fixtures should be preserved; ephemeral data
@@ -664,15 +712,20 @@ can be regenerated.
 - Use `backend/` and `frontend/` as the two primary source roots.
 - Use `services/` rather than `modules/` for application capabilities.
 - Use one PostgreSQL database and one Alembic migration history.
-- Keep database mechanics separate from persistent resource definitions.
+- Centralize all ORM/table definitions under namespace folders in
+  `backend/database/models/`.
 - Organize persistent boundaries as model, object, manager, and optional shared
   transaction helpers.
 - Authenticate at API/process boundaries and enforce resource scope in managers.
 - Keep transactions short and owned by managers.
-- Store full run provenance, model/tool telemetry, artifacts, and historical
-  cost.
-- Version memory and mutable factual observations instead of silently
-  overwriting history.
-- Give every run an immutable manifest and frozen factual input.
-- Retain SQLite only as a cutoff-safe run snapshot and testing format, not as
+- Store full generation provenance, AI/tool telemetry, versioned artifacts, and
+  token usage; calculate prices outside persistence.
+- Keep raw Sleeper request history while allowing a simple normalized current
+  view.
+- Keep canonical memory linear; use introduced/retired revision visibility and
+  reporting-owned artifacts for one isolated rolling evaluation.
+- Allow only fast-forward workspace promotion—never memory merge or rebase.
+- Give every generation an immutable JSONB input manifest and frozen factual
+  input.
+- Retain SQLite only as a cutoff-safe generation snapshot and testing format, not as
   the primary product store.

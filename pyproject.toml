@@ -7,13 +7,15 @@ name = "sleeper-fantasy-reporter"
 version = "0.1.0"
 description = "AI-powered fantasy football reporter with Sleeper data layer"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "requests",
     "python-dotenv",
     "pydantic>=2.0",
     "litellm>=1.95",
     "sqlalchemy>=2.0",
+    "alembic>=1.17",
+    "psycopg[binary]>=3.2",
 ]
 
 [project.optional-dependencies]
@@ -28,12 +30,12 @@ reporter-v2 = "reporter_v2.app.runner:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["datalayer*", "reporter_v2*", "reporter_memory*"]
+include = ["backend*", "datalayer*", "reporter_v2*", "reporter_memory*"]
 
 [tool.setuptools.package-data]
 reporter_v2 = ["procedures/*.md", "prompts/*.md"]
 
 [tool.pytest.ini_options]
-testpaths = ["datalayer/tests", "reporter_memory/tests", "reporter_v2/tests"]
+testpaths = ["backend/tests", "datalayer/tests", "reporter_memory/tests", "reporter_v2/tests"]
 addopts = "-ra"
 pythonpath = ["."]
