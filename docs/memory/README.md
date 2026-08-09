@@ -96,12 +96,24 @@ storylines involving this franchise.”
   version boundaries, and reference rules.
 - [`application-contracts.md`](application-contracts.md) — Pydantic content
   models, validation ownership, and mutation APIs.
+- [`service-architecture.md`](service-architecture.md) — application components,
+  public service contracts, dependency direction, and transaction boundaries.
 - [`retrieval.md`](retrieval.md) — persistent search documents, full-text search,
   vector search, filtering, and hydration.
 - [`lifecycle.md`](lifecycle.md) — end-to-end generation, search, mutation, and
   projection-maintenance pipeline.
 - [`transition.md`](transition.md) — concrete changes from the implemented
   baseline and recommended implementation order.
+- [`status.md`](status.md) — implementation state, milestones, and remaining
+  decisions.
+- [`log.md`](log.md) — append-only memory-service decision record.
+
+The owning design document is authoritative for its subject: application content
+shapes live in `application-contracts.md`, service boundaries in
+`service-architecture.md`, and search mechanics in `retrieval.md`. `status.md` is
+tracking only. When a later decision-log entry supersedes earlier prose, update
+the owning document in the same change so domain rules are not maintained in two
+implementations or two competing specifications.
 
 ## Non-Goals
 

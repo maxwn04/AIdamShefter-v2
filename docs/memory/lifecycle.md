@@ -53,11 +53,13 @@ tool work finish before the canonical memory transaction begins.
 Application code:
 
 1. parses each proposed content object into its Pydantic type;
-2. verifies expected item versions;
-3. batch-loads referenced item and version IDs;
-4. validates target kind and competition scope;
-5. validates event/trigger discriminators, roles, and evidence policy;
-6. constructs deterministic resulting content and search documents.
+2. loads competition, season, cutoffs, and the base revision from the producing
+   generation rather than accepting caller-supplied copies;
+3. validates same-bundle keys, references, and contradictions;
+4. removes identical replacements and already-represented transitions;
+5. batch-loads referenced item and version IDs;
+6. validates persisted target kind and competition scope;
+7. constructs search documents through the one authoritative builder registry.
 
 Invalid proposals return actionable application errors. They do not rely on raw
 database constraint failures for semantic feedback.
@@ -78,7 +80,8 @@ In one short transaction, the manager:
 
 If no accepted memory change remains, the transaction creates no revision. If
 canonical memory advanced after the generation started, the mutation fails
-without producing a sibling state or partial projection.
+without producing a sibling state or partial projection. Retrying a generation
+that already produced its revision returns that existing committed result.
 
 ### 7. Add optional embeddings
 

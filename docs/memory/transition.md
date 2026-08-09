@@ -33,7 +33,8 @@ retrieval projection.
 - add a content-schema version to immutable typed content;
 - add Pydantic-backed subjects, evidence, thematic references, event payloads,
   and trigger conditions to their owning typed version tables;
-- make manager methods accept complete kind-specific content objects;
+- make public service methods accept complete kind-specific content objects and
+  keep their persistence translation inside the memory manager;
 - move target-kind, role, scope, and payload validation into the application
   mutation boundary;
 - replace type-specific search paths with one search-document manager.
@@ -66,10 +67,12 @@ work should proceed in this order:
    versions.
 3. **Change typed storage.** Add the new typed fields and content-schema version
    while retaining the linear revision envelope.
-4. **Implement complete mutation APIs.** Add transactional reference validation,
-   full replacement, and typed errors.
-5. **Add the search projection.** Build it synchronously for accepted canonical
-   versions and provide a deterministic rebuild command/service operation.
+4. **Implement complete mutation APIs.** Add the public mutation service,
+   manager-owned transactional reference validation, full replacement, and typed
+   errors.
+5. **Add the search projection.** Implement one authoritative search-document
+   dispatcher used by both synchronous canonical writes and deterministic
+   rebuilds.
 6. **Switch reporter retrieval.** Search projection first, then hydrate canonical
    typed aggregates and exact evidence.
 7. **Remove generic graph writes and tables.** Delete the old entity/relationship
@@ -100,9 +103,10 @@ historically safe:
 
 - Pydantic unit tests for each content and reference discriminator;
 - manager tests for complete replacement and application error behavior;
-- transaction tests for stale writers and atomic projection insertion;
+- transaction tests for stale writers, idempotent retries, no-op normalization,
+  and atomic projection insertion;
 - historical-visibility tests for exact revision pinning;
-- search-builder golden tests and deterministic rebuild tests;
+- search-builder golden tests proving mutation and rebuild use identical output;
 - retrieval tests for entity, evidence, full-text, and later vector candidates;
 - hydration tests proving search documents are never returned as canonical
   memory;
@@ -112,5 +116,4 @@ historically safe:
 
 - final role enums and reference cardinalities;
 - which event payload types are required in the first implementation;
-- projection rebuild command/API ownership;
 - embedding provider, model, and retention policy;

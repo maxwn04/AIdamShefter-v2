@@ -7,6 +7,8 @@
 Callers should know the complete legal shape of a mutation without understanding
 ORM association rows. Routes, tools, services, and the reporter operate on typed
 resource objects; only the memory manager translates those objects into storage.
+The caller-facing capability boundaries and orchestration ownership are defined
+in [`service-architecture.md`](service-architecture.md).
 
 The examples below are illustrative Pydantic-style contracts, not final code.
 
@@ -34,6 +36,15 @@ EntityRef = Annotated[
     Field(discriminator="kind"),
 ]
 ```
+
+Retrieval filters use the corresponding role-free `EntityKey` union. Roles and
+display-name snapshots describe how authored memory uses an entity; asking for
+memory about an entity should not require the caller to invent either value.
+
+`display_name` is an optional immutable label snapshot for this memory version,
+not a pointer to a current name. Search-document rebuilds may use the stored
+snapshot but never resolve a newer external label. The stable ID remains
+authoritative.
 
 Each owning content type narrows the roles it accepts. A trade event may accept
 `sender`, `receiver`, and `asset`; a fact may accept `subject`; a storyline may
@@ -167,36 +178,68 @@ The note's scope and key are loaded from its stable typed identity.
 
 ## Mutation Contract
 
-Public mutations create or replace complete typed content:
+The public service accepts one general bundle of discriminated create and
+replace operations:
 
 ```python
-create_storyline(content: StorylineContent, ...)
+class CreateItem(BaseModel):
+    item_id: UUID = Field(default_factory=uuid4)
+    version_id: UUID = Field(default_factory=uuid4)
+    client_key: str
+    content: MemoryContent
 
-replace_storyline(
-    item_id: UUID,
-    expected_item_revision: int,
-    content: StorylineContent,
-    ...,
-)
+
+class ReplaceItem(BaseModel):
+    item_id: UUID
+    content: MemoryContent
+    change_reason: str | None = None
+
+
+class MemoryMutationBundle(BaseModel):
+    producing_generation_id: UUID
+    operations: list[CreateItem | ReplaceItem]
 ```
+
+`MemoryContent` is the discriminated union of the five complete content types.
+There are no separate `create_storyline`, `replace_fact`, or similar service
+methods. Small kind-specific constructors may improve call-site typing, but they
+only construct these general operations and do not add service layers.
+
+Create IDs are generated when the immutable operation is constructed. A later
+operation in the same bundle can therefore reference the exact version or stable
+item of an earlier create without introducing a parallel client-key reference
+vocabulary. The service rejects duplicate generated IDs and duplicate client
+keys before persistence.
 
 A patch-oriented UI may edit individual fields locally, but the manager validates
 and persists one complete replacement. This prevents a caller from accidentally
 creating a partial version whose omitted relationships have ambiguous meaning.
 
-Before opening the canonical write transaction, the service performs all model
-or external work. Inside the short transaction, the manager:
+The manager derives competition, season, week, knowledge cutoff, and the pinned
+base revision from the producing generation inside the mutation operation. The
+base revision is the only optimistic concurrency token; the version visible for
+a replacement item is determined under that locked base.
 
-1. validates Pydantic content and schema version;
-2. loads every referenced item/version in one scoped batch;
-3. requires the expected kinds and same competition;
-4. validates references created in the same mutation bundle;
-5. locks and verifies the current canonical revision;
-6. writes the complete replacement and its search projection atomically.
+Before opening the canonical write transaction, all model or external work is
+complete. Validation ownership is split once:
+
+1. Pydantic resource objects validate content shape, schema version,
+   discriminators, and pure per-object invariants.
+2. The service validates same-bundle client keys and references, rejects
+   contradictions, and returns `NoChange` for an empty bundle.
+3. Inside the short transaction, the manager loads the generation and persisted
+   references, checks kinds and competition, resolves identical-content no-ops,
+   locks the current canonical revision, and writes complete replacements with
+   search documents atomically.
 
 Failures return typed application errors such as target-not-found,
-wrong-target-kind, cross-competition-reference, stale-item-version, or
-stale-canonical-revision. Callers do not interpret database constraint names.
+wrong-target-kind, cross-competition-reference, or stale-canonical-revision.
+The manager translates expected constraint failures while it still has database
+context; callers do not interpret constraint names.
+
+An empty bundle, identical replacement, or already-represented transition is a
+`NoChange` result and creates no revision. Retrying a producing generation that
+already committed returns its existing committed result.
 
 ## Schema Evolution
 

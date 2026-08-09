@@ -62,23 +62,24 @@ preemptively duplicating every field.
 
 ## Search-Document Building
 
-Each canonical kind has a deterministic builder:
+One authoritative dispatcher accepts the discriminated canonical content union:
 
 ```python
-build_storyline_document(content: StorylineContent) -> SearchDocument
-build_fact_document(content: FactContent) -> SearchDocument
-build_event_document(content: EventContent) -> SearchDocument
-build_trigger_document(content: TriggerContent) -> SearchDocument
-build_context_note_document(content: ContextNoteContent) -> SearchDocument
+build_search_document(version: TypedMemoryVersion) -> SearchDocument
 ```
 
-Builders flatten type-specific structure into a common shape and render useful
-search text from:
+It delegates to private per-kind functions that flatten type-specific structure
+into a common shape and render useful search text from:
 
 - headline, summary, claim, narrative, and outlook;
 - tags, event type, arc type, and status;
 - participant display names and stable keys;
 - concise evidence and relationship labels.
+
+Mutation and rebuild call this exact dispatcher; there is no rebuild-specific
+copy. Display names come only from immutable label snapshots stored on the typed
+version. Builders never resolve current external names. When a label snapshot is
+absent, they index the stable entity key.
 
 The initial lexical/entity document is inserted in the same canonical mutation
 transaction as its source version. A successfully visible memory version is
@@ -167,6 +168,12 @@ A projection rebuild:
 
 Rebuilding changes retrieval behavior, not canonical history, and therefore does
 not create memory revisions.
+
+If current projection rows are missing or stale, ordinary retrieval keeps using
+the last valid builder version when possible. Otherwise it degrades internally
+to exact entity/reference signals and a bounded scan of visible canonical
+versions while surfacing the repair need through search-index status. Reporter
+callers do not handle a projection-administration error.
 
 Hydrated immutable typed versions may be cached by exact `version_id`. A pinned
 revision determines which IDs are visible; the cached aggregate itself never

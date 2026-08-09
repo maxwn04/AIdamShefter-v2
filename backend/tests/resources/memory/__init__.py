@@ -1,0 +1,1 @@
+"""Canonical memory resource tests."""
