@@ -15,7 +15,7 @@ database tests, and operational runbooks only
 | Platform structure and centralized ORM location | Hardened | `../platform-architecture.md` |
 | Cross-namespace contract | Hardened | `overview.md` |
 | Minimal core identity | Hardened | `core.md` |
-| Request-oriented Sleeper persistence | Hardened | `sleeper.md` |
+| Request-oriented Sleeper persistence | Hardened; service alignment in `0007` | `sleeper.md` |
 | Linear canonical memory and isolated evaluation workspace | Hardened | `memory.md` |
 | Generation-centered reporting | Hardened | `reporting.md` |
 | Supabase/PostgreSQL infrastructure | Hardened | `infrastructure.md` |
@@ -65,8 +65,9 @@ These are deployment facts rather than schema blockers:
 
 ## Next Milestone
 
-Complete, verify, and publish the approved database-only stack with `gh stack`;
-do not begin managers or services in this stack.
+The database-only stack is complete. Migration `0007` is the narrow schema
+alignment required by the approved datalayer service contract; resource
+managers and services land in the separate datalayer PR stack.
 
 ## Implementation Coordination
 

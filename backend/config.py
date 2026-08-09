@@ -83,3 +83,38 @@ class DatabaseSettings:
             require_tls=self.require_tls if require_tls is None else require_tls,
             statement_timeout_ms=self.statement_timeout_ms,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DatalayerSettings:
+    """Filesystem, source, and build policy owned by datalayer composition."""
+
+    data_root: Path
+    inline_payload_threshold_bytes: int
+    sleeper_base_url: str
+    sleeper_timeout_seconds: int
+    snapshot_wait_seconds: int
+    snapshot_stale_seconds: int
+
+    @classmethod
+    def from_environment(cls) -> "DatalayerSettings":
+        return cls(
+            data_root=Path(
+                os.getenv("AIDAM_DATALAYER_ROOT", ".data/datalayer")
+            ).expanduser(),
+            inline_payload_threshold_bytes=_positive_int(
+                "AIDAM_DATALAYER_INLINE_PAYLOAD_BYTES", 8 * 1024 * 1024
+            ),
+            sleeper_base_url=os.getenv(
+                "AIDAM_SLEEPER_BASE_URL", "https://api.sleeper.app/v1"
+            ).rstrip("/"),
+            sleeper_timeout_seconds=_positive_int(
+                "AIDAM_SLEEPER_TIMEOUT_SECONDS", 10
+            ),
+            snapshot_wait_seconds=_positive_int(
+                "AIDAM_SNAPSHOT_WAIT_SECONDS", 30
+            ),
+            snapshot_stale_seconds=_positive_int(
+                "AIDAM_SNAPSHOT_STALE_SECONDS", 900
+            ),
+        )

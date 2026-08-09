@@ -355,11 +355,10 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
                 "id": snapshot_id,
                 "competition_id": first_scope["competition"],
                 "primary_competition_season_id": first_scope["season"],
-                "mode": "test",
-                "knowledge_cutoff_at": datetime.now(timezone.utc),
+                "build_key": f"test:{snapshot_id}",
+                "observed_through": datetime.now(timezone.utc),
                 "status": "building",
-                "materializer_version": "test",
-                "sqlite_schema_version": "test",
+                "snapshot_projection_version": "test",
                 "code_version": "test",
                 "completeness_warnings": [],
             },
@@ -370,6 +369,7 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
                 "data_snapshot_id": snapshot_id,
                 "api_request_id": first_request["request"],
                 "scope_key": first_request["scope_key"],
+                "response_sha256": first_request["hash"],
                 "selection_role": "test",
             },
         )
@@ -380,6 +380,7 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
             data_snapshot_id=snapshot_id,
             api_request_id=second_request["request"],
             scope_key=second_request["scope_key"],
+            response_sha256=second_request["hash"],
             selection_role="test",
         ),
     )
@@ -401,9 +402,101 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
         database_engine,
         sa.update(DataSnapshot)
         .where(DataSnapshot.id == snapshot_id)
-        .values(materializer_version="rewritten"),
+        .values(snapshot_projection_version="rewritten"),
+    )
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(DataSnapshot)
+            .where(DataSnapshot.id == snapshot_id)
+            .values(status="expired")
+        )
+    _assert_database_error(
+        database_engine,
+        sa.update(DataSnapshot)
+        .where(DataSnapshot.id == snapshot_id)
+        .values(status="ready"),
     )
     _assert_database_error(
         database_engine,
         sa.delete(DataSnapshot).where(DataSnapshot.id == snapshot_id),
+    )
+
+
+def test_only_active_snapshots_reserve_a_build_key(database_engine: Engine) -> None:
+    scope = _insert_competition_scope(database_engine)
+    build_key = f"snapshot:{uuid4()}"
+
+    def values(status: str) -> dict[str, object]:
+        return {
+            "id": uuid4(),
+            "competition_id": scope["competition"],
+            "primary_competition_season_id": scope["season"],
+            "build_key": build_key,
+            "observed_through": datetime.now(timezone.utc),
+            "status": status,
+            "snapshot_projection_version": "test",
+            "code_version": "test",
+            "completeness_warnings": [],
+        }
+
+    active = values("building")
+    with database_engine.begin() as connection:
+        connection.execute(sa.insert(DataSnapshot), values("failed"))
+        connection.execute(sa.insert(DataSnapshot), active)
+
+    _assert_database_error(
+        database_engine,
+        sa.insert(DataSnapshot).values(**values("ready")),
+    )
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(DataSnapshot)
+            .where(DataSnapshot.id == active["id"])
+            .values(status="failed")
+        )
+        ready = values("ready")
+        connection.execute(sa.insert(DataSnapshot), ready)
+        connection.execute(
+            sa.update(DataSnapshot)
+            .where(DataSnapshot.id == ready["id"])
+            .values(status="expired")
+        )
+        connection.execute(sa.insert(DataSnapshot), values("building"))
+
+
+def test_snapshot_membership_pins_the_request_response_hash(
+    database_engine: Engine,
+) -> None:
+    scope = _insert_competition_scope(database_engine)
+    request = _insert_request(
+        database_engine,
+        scope,
+        scope_key=f"league:{scope['season']}",
+    )
+    snapshot_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(DataSnapshot),
+            {
+                "id": snapshot_id,
+                "competition_id": scope["competition"],
+                "primary_competition_season_id": scope["season"],
+                "build_key": f"test:{snapshot_id}",
+                "observed_through": datetime.now(timezone.utc),
+                "status": "building",
+                "snapshot_projection_version": "test",
+                "code_version": "test",
+                "completeness_warnings": [],
+            },
+        )
+
+    _assert_database_error(
+        database_engine,
+        sa.insert(DataSnapshotRequest).values(
+            data_snapshot_id=snapshot_id,
+            api_request_id=request["request"],
+            scope_key=request["scope_key"],
+            response_sha256="0" * 64,
+            selection_role="league",
+        ),
     )

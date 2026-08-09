@@ -685,3 +685,31 @@ article generations; rebuilding it never creates a memory revision.
   payloads become more specific.
 - Vector embeddings may later be keyed by exact version, builder, model, and
   content hash without changing canonical memory.
+
+### DB-032 — Align frozen snapshot identity with factual service inputs
+
+**Date:** 2026-08-09
+**Status:** Settled; supersedes mode-based snapshot identity in DB-024
+**Source:** Datalayer service design and implementation audit
+
+A frozen data snapshot is identified by its competition season,
+`through_week`, `observed_through`, exact selected request-set hash, and one
+snapshot-projection version. Live, historical, and retrospective are generation
+intent rather than factual snapshot modes.
+
+Only active `building` and `ready` rows reserve the canonical build key. Failed
+and expired attempts remain auditable but release it for a replacement build.
+Every request membership row pins the response SHA-256 in addition to the
+request ID and scope. Ready snapshot meaning and membership are sealed; the
+only allowed retention transition is `ready` to terminal `expired`.
+
+**Consequences:**
+
+- Snapshot `mode` is removed.
+- Materializer and SQLite-schema versions become one
+  `snapshot_projection_version` owned by compatibility policy.
+- Snapshot rows gain sanitized failure metadata and exact membership hashes.
+- Active-key partial uniqueness supplies build concurrency without making a
+  failed attempt poison semantic identity.
+- Generation rows retain their own intent and knowledge policy while pinning
+  the exact ready factual snapshot used for execution.
