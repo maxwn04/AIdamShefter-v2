@@ -313,8 +313,8 @@ the manager persists its output and retrieval never rebuilds documents.
 - Builder inputs come only from immutable version content. Stored display-name
   snapshots may be indexed; current external names are never resolved during a
   rebuild.
-- The builder version and canonical content hash fully identify deterministic
-  output.
+- The builder version and projection-input hash, including immutable content,
+  context-note identity, season, and week, fully identify deterministic output.
 - Golden tests invoke the same dispatcher through mutation and rebuild paths.
 
 ### MEM-016 — Derive mutation context and use one concurrency token
@@ -359,9 +359,8 @@ an actual scoped capability because it carries an enforced revision invariant.
 - The initial implementation does not add one forwarding class per port.
 - Search-index maintenance uses explicit `search_index_status` and
   `rebuild_search_index` names rather than generic projection verbs.
-- Ordinary retrieval masks missing/stale index rows with the last valid builder
-  version or a bounded canonical fallback. `ProjectionUnavailable` is not a
-  caller-facing error.
+- Ordinary retrieval masks missing or stale index rows with a bounded canonical
+  fallback. `ProjectionUnavailable` is not a caller-facing error.
 
 ### MEM-018 — Implement the service as a six-layer GitHub PR stack
 

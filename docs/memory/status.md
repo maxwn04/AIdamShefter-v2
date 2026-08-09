@@ -17,9 +17,9 @@ are not preserved
 | Service boundaries and public contracts | Designed | `service-architecture.md` |
 | Resource objects and schema converters | Implemented | `backend/resources/memory/objects.py` |
 | Stable application errors | Implemented | `backend/resources/memory/errors.py` |
-| Memory resource manager and canonical reads | Pending | `backend/resources/memory/manager.py` |
+| Memory resource manager and canonical reads | Implemented | `backend/resources/memory/manager.py` |
 | Complete-bundle mutation transaction | Pending | Generation-derived context plus `MemoryManager` transaction |
-| Authoritative search-document builder | Pending | `backend/resources/memory/search_documents.py` |
+| Authoritative search-document builder | Implemented | `backend/resources/memory/search_documents.py` |
 | Revision-pinned retrieval and hydration | Pending | `MemoryService.at_revision` plus internal retrieval pipeline |
 | Service facade and consumer protocols | Pending | `backend/services/memory/` |
 | Basic canonical viewing and item history | Pending | `MemoryInspector` capability on `MemoryService` |
@@ -69,8 +69,8 @@ are not preserved
 | Slice | State | Completion signal |
 | --- | --- | --- |
 | 1. Contracts, errors, and schema converters | Complete | All initial typed payloads decode and validate with unit coverage |
-| 2. Canonical reads and hydration manager | In progress | Revision-pinned item/version/history queries pass PostgreSQL tests |
-| 3. Search-document builder | In progress | One dispatcher produces identical mutation/rebuild output for every kind |
+| 2. Canonical reads and hydration manager | Complete | Revision-pinned item/version/history queries pass PostgreSQL tests |
+| 3. Search-document builder | Complete | One dispatcher produces identical mutation/rebuild output for every kind |
 | 4. Canonical mutation transaction | Not started | Atomic create/replace, no-op/retry, stale-writer, reference, and projection tests pass |
 | 5. Pinned retrieval pipeline | Not started | Entity, evidence, related-item, lexical, and historical-leakage tests pass |
 | 6. Basic viewing, promotion integration, reporter/generation, and rebuild CLI | Not started | Narrow capabilities work without UI-specific business logic |
@@ -103,9 +103,9 @@ decision-log entry before expanding the baseline.
 
 ## Next Milestone
 
-Complete slice 2 revision-pinned canonical reads and slice 3 deterministic
-search-document construction, including real PostgreSQL manager coverage. Then
-implement canonical mutation before adding public adapters.
+Implement slice 4 canonical mutation with one generation-derived transaction,
+including no-op, retry, concurrency, reference, and atomic projection coverage.
+Then add the already-designed pinned retrieval service without public adapters.
 
 ## PR Stack Coordination
 
@@ -116,7 +116,7 @@ integrated by `root` after the owning agent reports completion.
 | Stack layer | Branch | Owner | State | Assigned paths |
 | --- | --- | --- | --- | --- |
 | 1. Design and resource contracts | `codex/memory-service-contracts` | `contracts_agent` | Complete | `docs/memory/`; `backend/resources/memory/objects.py`; `errors.py`; resource contract tests |
-| 2. Canonical persistence and search documents | `codex/memory-service-persistence` | `persistence_agent` | In progress | `backend/resources/memory/manager.py`; `search_documents.py`; persistence/builder tests |
+| 2. Canonical persistence and search documents | `codex/memory-service-persistence` | `persistence_agent` | Complete | `backend/resources/memory/manager.py`; `search_documents.py`; persistence/builder tests |
 | 3. Canonical mutation | `codex/memory-service-mutations` | Unassigned | Pending | mutation methods and transaction tests; no public adapters |
 | 4. Pinned retrieval and inspection | `codex/memory-service-retrieval` | `service_agent` | In progress | `backend/services/memory/`; retrieval/inspection tests |
 | 5. Composition and adapters | `codex/memory-service-integration` | `root` | Pending | composition, reporter tools, minimal API/CLI adapters, legacy-path removal, integration tests |

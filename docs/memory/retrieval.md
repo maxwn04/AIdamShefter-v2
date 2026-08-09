@@ -169,11 +169,11 @@ A projection rebuild:
 Rebuilding changes retrieval behavior, not canonical history, and therefore does
 not create memory revisions.
 
-If current projection rows are missing or stale, ordinary retrieval keeps using
-the last valid builder version when possible. Otherwise it degrades internally
-to exact entity/reference signals and a bounded scan of visible canonical
-versions while surfacing the repair need through search-index status. Reporter
-callers do not handle a projection-administration error.
+If current projection rows are missing, stale, or use mixed builder versions,
+ordinary retrieval degrades internally to exact entity/reference signals and a
+bounded scan of visible canonical versions. Mixed-version index state is never
+used for ranking. Search-index status surfaces the repair need; reporter callers
+do not handle a projection-administration error.
 
 Hydrated immutable typed versions may be cached by exact `version_id`. A pinned
 revision determines which IDs are visible; the cached aggregate itself never

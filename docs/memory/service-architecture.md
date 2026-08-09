@@ -515,9 +515,9 @@ rows in bounded transactions and avoid deleting a valid old projection before
 its replacement is ready.
 
 Ordinary retrieval does not expose a repairable search-index failure to callers.
-It continues with the last valid builder version when present, otherwise falls
-back to exact entity/reference signals and a bounded scan of visible canonical
-versions. The service records degraded operation for the status/rebuild path.
+When visible rows are missing or use mixed builder versions, it falls back to
+exact entity/reference signals and a bounded scan of visible canonical versions.
+The service records degraded operation for the status/rebuild path.
 
 ## Error Contract
 
