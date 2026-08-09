@@ -85,10 +85,33 @@ class MemoryVersion(Base):
             name="fk_memory_versions_season_same_competition",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["creating_generation_id", "competition_id"],
+            ["reporting.generations.id", "reporting.generations.competition_id"],
+            name="fk_memory_versions_generation_same_competition",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["creating_tool_call_id", "creating_generation_id"],
+            ["reporting.tool_calls.id", "reporting.tool_calls.generation_id"],
+            name="fk_memory_versions_tool_call_same_generation",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         Index("ix_memory_versions_item_revision", "item_id", "revision_number"),
         Index("ix_memory_versions_introduced_revision", "introduced_revision_id"),
         Index("ix_memory_versions_retired_revision", "retired_revision_id"),
-        Index("ix_memory_versions_creating_generation", "creating_generation_id"),
+        Index(
+            "ix_memory_versions_creating_generation",
+            "creating_generation_id",
+            "competition_id",
+        ),
+        Index(
+            "ix_memory_versions_creating_tool_call",
+            "creating_tool_call_id",
+            "creating_generation_id",
+        ),
         Index(
             "ix_memory_versions_competition_season_week",
             "competition_id",
@@ -128,7 +151,6 @@ class MemoryVersion(Base):
     occurred_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # Cross-namespace FKs to reporting are added in revision 0006.
     creating_generation_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     creating_tool_call_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
@@ -181,16 +203,46 @@ class StorylineVersion(Base):
 class FactVersion(Base):
     __tablename__ = "fact_versions"
     __table_args__ = (
-        Index("ix_fact_versions_primary_tool_call", "primary_tool_call_id"),
+        ForeignKeyConstraint(
+            ["version_id", "competition_id"],
+            ["memory.memory_versions.id", "memory.memory_versions.competition_id"],
+            name="fk_fact_versions_version_same_competition",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["primary_tool_call_id", "primary_tool_call_generation_id"],
+            ["reporting.tool_calls.id", "reporting.tool_calls.generation_id"],
+            name="fk_fact_versions_tool_call_same_generation",
+            ondelete="RESTRICT",
+            match="FULL",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["primary_tool_call_generation_id", "competition_id"],
+            ["reporting.generations.id", "reporting.generations.competition_id"],
+            name="fk_fact_versions_tool_generation_same_competition",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        Index(
+            "ix_fact_versions_primary_tool_call",
+            "primary_tool_call_id",
+            "primary_tool_call_generation_id",
+        ),
+        Index(
+            "ix_fact_versions_tool_generation_competition",
+            "primary_tool_call_generation_id",
+            "competition_id",
+        ),
         Index("ix_fact_versions_primary_api_request", "primary_api_request_id"),
         {"schema": "memory"},
     )
 
     version_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("memory.memory_versions.id", ondelete="RESTRICT"),
         primary_key=True,
     )
+    competition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     claim: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(Text, nullable=False)
     structured_numbers: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
@@ -207,8 +259,10 @@ class FactVersion(Base):
         default=list,
         server_default=text("'{}'::uuid[]"),
     )
-    # Reporting provenance and cross-namespace receipt scope land in revision 0006.
     primary_tool_call_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    primary_tool_call_generation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
     primary_api_request_id: Mapped[UUID | None] = mapped_column(
@@ -225,16 +279,46 @@ class FactVersion(Base):
 class EventVersion(Base):
     __tablename__ = "event_versions"
     __table_args__ = (
-        Index("ix_event_versions_primary_tool_call", "primary_tool_call_id"),
+        ForeignKeyConstraint(
+            ["version_id", "competition_id"],
+            ["memory.memory_versions.id", "memory.memory_versions.competition_id"],
+            name="fk_event_versions_version_same_competition",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["primary_tool_call_id", "primary_tool_call_generation_id"],
+            ["reporting.tool_calls.id", "reporting.tool_calls.generation_id"],
+            name="fk_event_versions_tool_call_same_generation",
+            ondelete="RESTRICT",
+            match="FULL",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["primary_tool_call_generation_id", "competition_id"],
+            ["reporting.generations.id", "reporting.generations.competition_id"],
+            name="fk_event_versions_tool_generation_same_competition",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        Index(
+            "ix_event_versions_primary_tool_call",
+            "primary_tool_call_id",
+            "primary_tool_call_generation_id",
+        ),
+        Index(
+            "ix_event_versions_tool_generation_competition",
+            "primary_tool_call_generation_id",
+            "competition_id",
+        ),
         Index("ix_event_versions_primary_api_request", "primary_api_request_id"),
         {"schema": "memory"},
     )
 
     version_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True),
-        ForeignKey("memory.memory_versions.id", ondelete="RESTRICT"),
         primary_key=True,
     )
+    competition_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     headline: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
@@ -250,8 +334,10 @@ class EventVersion(Base):
     additional_source_hints: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(
         JSONB, nullable=True
     )
-    # Reporting provenance and cross-namespace receipt scope land in revision 0006.
     primary_tool_call_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    primary_tool_call_generation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
     primary_api_request_id: Mapped[UUID | None] = mapped_column(

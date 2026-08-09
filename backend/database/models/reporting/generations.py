@@ -29,6 +29,12 @@ class Generation(Base):
             "id", "competition_id", name="uq_generations_id_competition"
         ),
         UniqueConstraint(
+            "id",
+            "evaluation_workspace_id",
+            "competition_id",
+            name="uq_generations_id_workspace_competition",
+        ),
+        UniqueConstraint(
             "evaluation_workspace_id",
             "workspace_sequence_number",
             name="uq_generations_workspace_sequence",
@@ -46,6 +52,15 @@ class Generation(Base):
             ["data_snapshot_id", "competition_id"],
             ["sleeper.data_snapshots.id", "sleeper.data_snapshots.competition_id"],
             name="fk_generations_snapshot_same_competition",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["data_snapshot_id", "competition_season_id"],
+            [
+                "sleeper.data_snapshots.id",
+                "sleeper.data_snapshots.primary_competition_season_id",
+            ],
+            name="fk_generations_snapshot_same_season",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -69,20 +84,63 @@ class Generation(Base):
             name="fk_generations_rerun_same_competition",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["input_memory_artifact_version_id", "input_memory_artifact_generation_id"],
+            ["reporting.artifact_versions.id", "reporting.artifact_versions.generation_id"],
+            name="fk_generations_input_artifact_same_generation",
+            ondelete="RESTRICT",
+            match="FULL",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            [
+                "input_memory_artifact_generation_id",
+                "evaluation_workspace_id",
+                "competition_id",
+            ],
+            [
+                "reporting.generations.id",
+                "reporting.generations.evaluation_workspace_id",
+                "reporting.generations.competition_id",
+            ],
+            name="fk_generations_input_artifact_workspace_scope",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         CheckConstraint(
             "(evaluation_workspace_id IS NULL AND workspace_sequence_number IS NULL) OR "
             "(evaluation_workspace_id IS NOT NULL AND workspace_sequence_number IS NOT NULL)",
             name="workspace_shape",
         ),
         CheckConstraint(
-            "num_nonnulls(input_memory_revision_id, input_memory_artifact_version_id) <= 1",
+            "num_nonnulls(input_memory_revision_id, input_memory_artifact_version_id) <= 1 "
+            "AND ((input_memory_artifact_version_id IS NULL AND "
+            "input_memory_artifact_generation_id IS NULL) OR "
+            "(input_memory_artifact_version_id IS NOT NULL AND "
+            "input_memory_artifact_generation_id IS NOT NULL AND "
+            "evaluation_workspace_id IS NOT NULL))",
             name="unambiguous_memory_input",
         ),
         Index("ix_generations_competition_created", "competition_id", text("created_at DESC")),
         Index("ix_generations_status_progress", "status", "progress_updated_at"),
         Index("ix_generations_competition_season", "competition_season_id"),
-        Index("ix_generations_data_snapshot", "data_snapshot_id"),
+        Index(
+            "ix_generations_data_snapshot",
+            "data_snapshot_id",
+            "competition_season_id",
+        ),
         Index("ix_generations_memory_revision", "input_memory_revision_id"),
+        Index(
+            "ix_generations_input_artifact",
+            "input_memory_artifact_version_id",
+            "input_memory_artifact_generation_id",
+        ),
+        Index(
+            "ix_generations_input_artifact_workspace",
+            "input_memory_artifact_generation_id",
+            "evaluation_workspace_id",
+            "competition_id",
+        ),
         Index(
             "ix_generations_workspace_sequence",
             "evaluation_workspace_id",
@@ -105,8 +163,10 @@ class Generation(Base):
     input_memory_revision_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
-    # Artifact/workspace scope FKs are added with the cyclic integrations in 0006.
     input_memory_artifact_version_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    input_memory_artifact_generation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
     evaluation_workspace_id: Mapped[UUID | None] = mapped_column(
@@ -175,6 +235,28 @@ class EvaluationWorkspace(Base):
             name="fk_evaluation_workspaces_promoted_same_competition",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            [
+                "current_memory_artifact_version_id",
+                "current_memory_artifact_generation_id",
+            ],
+            ["reporting.artifact_versions.id", "reporting.artifact_versions.generation_id"],
+            name="fk_evaluation_workspaces_current_artifact_same_generation",
+            ondelete="RESTRICT",
+            match="FULL",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
+            ["current_memory_artifact_generation_id", "id", "competition_id"],
+            [
+                "reporting.generations.id",
+                "reporting.generations.evaluation_workspace_id",
+                "reporting.generations.competition_id",
+            ],
+            name="fk_evaluation_workspaces_current_artifact_workspace_scope",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         Index(
             "uq_evaluation_workspaces_one_active",
             "competition_id",
@@ -187,6 +269,17 @@ class EvaluationWorkspace(Base):
             "status",
         ),
         Index("ix_evaluation_workspaces_base_revision", "base_memory_revision_id"),
+        Index(
+            "ix_evaluation_workspaces_current_artifact",
+            "current_memory_artifact_version_id",
+            "current_memory_artifact_generation_id",
+        ),
+        Index(
+            "ix_evaluation_workspaces_current_artifact_workspace",
+            "current_memory_artifact_generation_id",
+            "id",
+            "competition_id",
+        ),
         {"schema": "reporting"},
     )
 
@@ -201,8 +294,10 @@ class EvaluationWorkspace(Base):
     base_memory_revision_id: Mapped[UUID] = mapped_column(
         PGUUID(as_uuid=True), nullable=False
     )
-    # Artifact/workspace scope FKs are added with the cyclic integrations in 0006.
     current_memory_artifact_version_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    current_memory_artifact_generation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)

@@ -502,7 +502,7 @@ simulated generations and never writes alternative rows into canonical memory.
 ## Current Implementation Decisions
 
 The current baseline is defined by DB-001 through DB-006, DB-010 through DB-011,
-DB-016 through DB-026, and DB-028. Within that set, later entries explicitly take
+DB-016 through DB-026, and DB-028 through DB-030. Within that set, later entries explicitly take
 precedence. DB-017 supersedes the larger identity/provider designs, DB-020
 supersedes branch/commit memory, DB-021 supersedes workflow/pricing-heavy
 reporting, DB-024 narrows the former evidence design and hardens factual snapshot
@@ -619,3 +619,28 @@ scope column.
   their only purpose is preventing cross-competition references.
 - The scope column is relational integrity, not a second domain identity or an
   authorization mechanism.
+
+### DB-030 — Use one narrow trigger for nullable global API receipt scope
+
+**Date:** 2026-08-09
+**Status:** Settled
+**Source:** Cross-namespace implementation and independent review
+
+Fact and event receipts may reference either a competition-season API request
+or a genuinely global API request whose season scope is null. Use ordinary
+composite foreign keys for every scope relationship that can represent its
+contract directly. For this one nullable-global relationship, retain the simple
+request foreign key and use an insert trigger to reject only a non-global
+request from another competition.
+
+A nullable companion season does not remove the need for this guard:
+PostgreSQL `MATCH FULL` rejects the required `(request_id, NULL)` tuple for a
+global request, while `MATCH SIMPLE` skips that composite check and would let a
+competition-scoped request masquerade as global.
+
+**Consequences:**
+
+- Global receipts remain reusable across competitions as approved.
+- Competition-scoped receipts cannot leak across competitions.
+- The trigger is a relational scope guard, not a product-semantic state machine,
+  and therefore stays within DB-028.
