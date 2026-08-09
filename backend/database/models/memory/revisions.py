@@ -53,6 +53,13 @@ class MemoryRevision(Base):
             name="fk_memory_revisions_season_same_competition",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["producing_generation_id", "competition_id"],
+            ["reporting.generations.id", "reporting.generations.competition_id"],
+            name="fk_memory_revisions_generation_same_competition",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
         Index(
             "ix_memory_revisions_competition_sequence_desc",
             "competition_id",
@@ -71,6 +78,7 @@ class MemoryRevision(Base):
         Index(
             "ix_memory_revisions_producing_generation",
             "producing_generation_id",
+            "competition_id",
         ),
         {"schema": "memory"},
     )
@@ -87,7 +95,6 @@ class MemoryRevision(Base):
     previous_revision_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
-    # Cross-namespace FK to reporting.generations is added in revision 0006.
     producing_generation_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )

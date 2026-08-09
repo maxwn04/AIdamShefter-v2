@@ -292,6 +292,7 @@ def test_normalized_scope_keys_and_roster_ownership_are_unique(
             sa.insert(RosterManager),
             {
                 "season_roster_id": scope["roster"],
+                "competition_season_id": scope["season"],
                 "sleeper_user_id": first_user,
                 "role": "owner",
                 "source_order": 0,
@@ -303,6 +304,7 @@ def test_normalized_scope_keys_and_roster_ownership_are_unique(
         database_engine,
         sa.insert(RosterManager).values(
             season_roster_id=scope["roster"],
+            competition_season_id=scope["season"],
             sleeper_user_id=second_user,
             role="owner",
             source_order=1,

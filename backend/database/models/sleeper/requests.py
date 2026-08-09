@@ -118,9 +118,21 @@ class ApiRequest(Base):
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
+            ["refresh_run_id"],
+            ["sleeper.refresh_runs.id"],
+            name="fk_api_requests_refresh_run",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["payload_id", "response_sha256"],
             ["sleeper.api_payloads.id", "sleeper.api_payloads.sha256_hash"],
             name="fk_api_requests_verified_payload",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["payload_id"],
+            ["sleeper.api_payloads.id"],
+            name="fk_api_requests_payload",
             ondelete="RESTRICT",
         ),
         Index("ix_api_requests_refresh_run", "refresh_run_id"),

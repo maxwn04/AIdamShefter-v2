@@ -30,7 +30,17 @@ from backend.database.base import Base
 class League(Base):
     __tablename__ = "leagues"
     __table_args__ = (
-        Index("ix_leagues_source_request", "source_api_request_id"),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_leagues_source_request_scope",
+            ondelete="RESTRICT",
+        ),
+        Index(
+            "ix_leagues_source_request",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -40,7 +50,7 @@ class League(Base):
         primary_key=True,
     )
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
     name: Mapped[str] = mapped_column(Text)
     status: Mapped[str | None] = mapped_column(Text)
@@ -82,7 +92,18 @@ class User(Base):
 class LeagueUser(Base):
     __tablename__ = "league_users"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_league_users_source_request_scope",
+            ondelete="RESTRICT",
+        ),
         Index("ix_league_users_user", "sleeper_user_id"),
+        Index(
+            "ix_league_users_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -101,7 +122,7 @@ class LeagueUser(Base):
     is_commissioner: Mapped[bool] = mapped_column(server_default=text("false"))
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
@@ -140,14 +161,30 @@ class Roster(Base):
             name="fk_rosters_season_roster_scope",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_rosters_source_request_scope",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "season_roster_id",
+            "competition_season_id",
+            name="uq_rosters_id_competition_season",
+        ),
         Index("ix_rosters_competition_season", "competition_season_id"),
+        Index(
+            "ix_rosters_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
     season_roster_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     competition_season_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
     settings_json: Mapped[dict[str, Any]] = mapped_column("settings", JSONB)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB)
@@ -165,6 +202,18 @@ class Roster(Base):
 class RosterManager(Base):
     __tablename__ = "roster_managers"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["season_roster_id", "competition_season_id"],
+            ["sleeper.rosters.season_roster_id", "sleeper.rosters.competition_season_id"],
+            name="fk_roster_managers_roster_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_roster_managers_source_request_scope",
+            ondelete="RESTRICT",
+        ),
         Index(
             "uq_roster_managers_one_owner",
             "season_roster_id",
@@ -172,14 +221,24 @@ class RosterManager(Base):
             postgresql_where=text("role = 'owner'"),
         ),
         Index("ix_roster_managers_user", "sleeper_user_id"),
+        Index(
+            "ix_roster_managers_roster_scope",
+            "season_roster_id",
+            "competition_season_id",
+        ),
+        Index(
+            "ix_roster_managers_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
     season_roster_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("sleeper.rosters.season_roster_id", ondelete="RESTRICT"),
         primary_key=True,
     )
+    competition_season_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     sleeper_user_id: Mapped[str] = mapped_column(
         Text,
         ForeignKey("sleeper.users.sleeper_user_id", ondelete="RESTRICT"),
@@ -188,22 +247,44 @@ class RosterManager(Base):
     role: Mapped[str] = mapped_column(Text)
     source_order: Mapped[int] = mapped_column(SmallInteger)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
 class RosterPlayer(Base):
     __tablename__ = "roster_players"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["season_roster_id", "competition_season_id"],
+            ["sleeper.rosters.season_roster_id", "sleeper.rosters.competition_season_id"],
+            name="fk_roster_players_roster_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_roster_players_source_request_scope",
+            ondelete="RESTRICT",
+        ),
         Index("ix_roster_players_player", "sleeper_player_id"),
+        Index(
+            "ix_roster_players_roster_scope",
+            "season_roster_id",
+            "competition_season_id",
+        ),
+        Index(
+            "ix_roster_players_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
     season_roster_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("sleeper.rosters.season_roster_id", ondelete="RESTRICT"),
         primary_key=True,
     )
+    competition_season_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     sleeper_player_id: Mapped[str] = mapped_column(
         Text,
         ForeignKey("sleeper.players.sleeper_player_id", ondelete="RESTRICT"),
@@ -211,7 +292,7 @@ class RosterPlayer(Base):
     )
     role: Mapped[str] = mapped_column(Text)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
@@ -224,6 +305,12 @@ class Matchup(Base):
             name="fk_matchups_season_roster_scope",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_matchups_source_request_scope",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "competition_season_id",
             "week",
@@ -231,6 +318,11 @@ class Matchup(Base):
             name="uq_matchups_season_week_roster",
         ),
         Index("ix_matchups_season_week_matchup", "competition_season_id", "week", "sleeper_matchup_id"),
+        Index(
+            "ix_matchups_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -243,7 +335,7 @@ class Matchup(Base):
     sleeper_matchup_id: Mapped[int | None] = mapped_column(Integer)
     points: Mapped[Decimal] = mapped_column(Numeric(12, 4))
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
@@ -254,6 +346,12 @@ class PlayerPerformance(Base):
             ["season_roster_id", "competition_season_id"],
             ["core.season_rosters.id", "core.season_rosters.competition_season_id"],
             name="fk_player_performances_roster_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_player_performances_source_request_scope",
             ondelete="RESTRICT",
         ),
         UniqueConstraint(
@@ -274,6 +372,11 @@ class PlayerPerformance(Base):
             "season_roster_id",
             "week",
         ),
+        Index(
+            "ix_player_performances_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -290,13 +393,19 @@ class PlayerPerformance(Base):
     points: Mapped[Decimal] = mapped_column(Numeric(12, 4))
     role: Mapped[str] = mapped_column(Text)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
 class Transaction(Base):
     __tablename__ = "transactions"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_transactions_source_request_scope",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "competition_season_id",
             "sleeper_transaction_id",
@@ -313,6 +422,11 @@ class Transaction(Base):
             "status",
         ),
         Index("ix_transactions_sleeper_id", "sleeper_transaction_id"),
+        Index(
+            "ix_transactions_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -331,7 +445,7 @@ class Transaction(Base):
     settings_json: Mapped[dict[str, Any]] = mapped_column("settings", JSONB)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSONB)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
 
 
@@ -342,6 +456,19 @@ class DraftPick(Base):
             ["original_franchise_id", "competition_id"],
             ["core.franchises.id", "core.franchises.competition_id"],
             name="fk_draft_picks_original_franchise_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "source_api_request_competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_draft_picks_source_request_scope",
+            ondelete="RESTRICT",
+            match="FULL",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_competition_season_id", "competition_id"],
+            ["core.competition_seasons.id", "core.competition_seasons.competition_id"],
+            name="fk_draft_picks_source_request_same_competition",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -364,6 +491,16 @@ class DraftPick(Base):
             "draft_season_year",
             "current_franchise_id",
         ),
+        Index(
+            "ix_draft_picks_source_request_scope",
+            "source_api_request_id",
+            "source_api_request_competition_season_id",
+        ),
+        Index(
+            "ix_draft_picks_source_request_competition",
+            "source_api_request_competition_season_id",
+            "competition_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -380,7 +517,10 @@ class DraftPick(Base):
     sleeper_pick_id: Mapped[str | None] = mapped_column(Text)
     source: Mapped[str] = mapped_column(Text)
     source_api_request_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
+    )
+    source_api_request_competition_season_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True)
     )
 
 
@@ -391,6 +531,12 @@ class TransactionMove(Base):
             ["transaction_id", "competition_season_id"],
             ["sleeper.transactions.id", "sleeper.transactions.competition_season_id"],
             name="fk_transaction_moves_transaction_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["competition_season_id", "competition_id"],
+            ["core.competition_seasons.id", "core.competition_seasons.competition_id"],
+            name="fk_transaction_moves_season_same_competition",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -405,11 +551,22 @@ class TransactionMove(Base):
             name="fk_transaction_moves_to_roster_scope",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["draft_pick_id", "competition_id"],
+            ["sleeper.draft_picks.id", "sleeper.draft_picks.competition_id"],
+            name="fk_transaction_moves_draft_pick_same_competition",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "transaction_id", "move_index", name="uq_transaction_moves_index"
         ),
         Index("ix_transaction_moves_player", "sleeper_player_id"),
-        Index("ix_transaction_moves_pick", "draft_pick_id"),
+        Index("ix_transaction_moves_pick", "draft_pick_id", "competition_id"),
+        Index(
+            "ix_transaction_moves_season_competition",
+            "competition_season_id",
+            "competition_id",
+        ),
         Index("ix_transaction_moves_from_roster", "from_season_roster_id"),
         Index("ix_transaction_moves_to_roster", "to_season_roster_id"),
         {"schema": "sleeper"},
@@ -420,6 +577,7 @@ class TransactionMove(Base):
     )
     transaction_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     competition_season_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    competition_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     move_index: Mapped[int] = mapped_column(Integer)
     move_kind: Mapped[str] = mapped_column(Text)
     from_season_roster_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -428,7 +586,7 @@ class TransactionMove(Base):
         Text, ForeignKey("sleeper.players.sleeper_player_id", ondelete="RESTRICT")
     )
     draft_pick_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.draft_picks.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )
     budget_amount: Mapped[int | None] = mapped_column(BigInteger)
 
@@ -440,6 +598,12 @@ class PlayoffMatchup(Base):
             ["t1_season_roster_id", "competition_season_id"],
             ["core.season_rosters.id", "core.season_rosters.competition_season_id"],
             name="fk_playoff_matchups_t1_roster_scope",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["source_api_request_id", "competition_season_id"],
+            ["sleeper.api_requests.id", "sleeper.api_requests.competition_season_id"],
+            name="fk_playoff_matchups_source_request_scope",
             ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
@@ -473,6 +637,11 @@ class PlayoffMatchup(Base):
             "round",
         ),
         Index("ix_playoff_matchups_winner", "winner_season_roster_id"),
+        Index(
+            "ix_playoff_matchups_source_request_scope",
+            "source_api_request_id",
+            "competition_season_id",
+        ),
         {"schema": "sleeper"},
     )
 
@@ -495,5 +664,5 @@ class PlayoffMatchup(Base):
     loser_season_roster_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     placement: Mapped[int | None] = mapped_column(SmallInteger)
     source_api_request_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("sleeper.api_requests.id", ondelete="RESTRICT")
+        UUID(as_uuid=True)
     )

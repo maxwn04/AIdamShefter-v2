@@ -80,7 +80,7 @@ agent takes over the same scope.
 | 3. Sleeper persistence | `sleeper_agent` | Complete | `backend/database/models/sleeper/`; Sleeper migration; Sleeper constraint tests |
 | 4. Memory state | `core_agent` | Complete | `backend/database/models/memory/`; memory migration; memory constraint tests |
 | 5. Reporting history | `sleeper_agent` | Complete | `backend/database/models/reporting/`; reporting migration; reporting constraint tests |
-| 6. Cross-namespace integrity | `root` | Pending | integration migration; immutability/scope/leakage tests |
+| 6. Cross-namespace integrity | `core_agent` | Complete | integration migration; immutability/scope/leakage tests |
 | 7. Supabase hardening | `foundation_agent` | Complete | CI and deployment/restore/role/TLS runbooks |
 
 Coordination notes:
@@ -88,7 +88,9 @@ Coordination notes:
 - DB-028 is the active validation boundary: namespace implementations must
   remove semantic checks and retain only relational, concurrency, unambiguous
   storage-shape, and sealed-history guarantees.
-- Revision IDs are reserved in stack order as `0001` through `0007`.
+- Revision IDs are assigned in stack order as `0001` through `0006`. Layer 7
+  contains operational hardening only, so it intentionally has no empty marker
+  revision.
 - Namespace agents do not edit another namespace or reintroduce deferred tables.
 - Shared registry and test-harness changes are integrated by `root` after agents
   report their namespace outputs.
@@ -109,9 +111,9 @@ Coordination notes:
   `0005`, and DB-028-focused scope, concurrency, provenance, and immutable-history
   tests. The full live PostgreSQL database suite passes (53 tests), reporting
   migration/metadata drift is empty, and offline upgrade/downgrade DDL compiles.
-  Layer `0006` must add the deferred artifact/workspace pointer scope rules,
+  Layer `0006` supplies the deferred artifact/workspace pointer scope rules,
   memory-to-reporting provenance FKs, and cross-namespace final-history guards;
-  `root` must also import reporting models into the shared metadata registry.
+  reporting models are present in the shared metadata registry.
 - `foundation_agent` layer 7: added a role-only hosted bootstrap, manual
   preview/staging verification workflow, mandatory verify-full operator checks,
   credential-free schema reporting, guarded logical backup/restore-drill
@@ -123,3 +125,14 @@ Coordination notes:
   sealed-history guards in revision `0004`, and added relational/storage-shape/
   immutability tests. Offline stack upgrade/downgrade passes and live PostgreSQL
   memory tests pass 8/8; reporting provenance remains reserved for `0006`.
+- `core_agent` layer 6: added revision `0006` with scoped relational provenance
+  across Sleeper, memory, and reporting; artifact/workspace ownership keys;
+  non-global API receipt competition guards; and nullable-composite FK hole
+  closures. Generation snapshots are pinned to the exact competition season.
+  The full live PostgreSQL suite passes 66/66, explicit head/base lifecycle
+  passes, and Alembic reports zero metadata drift.
+- `foundation_agent` audit remediation: runtime health/hosted checks no longer
+  read protected Alembic history, while migrator checks still require head;
+  database CI now watches all layer-7 assets; relocated backups verify the exact
+  supplied application/Alembic archives; and revision `0001` freezes its schema
+  set. Shell/Python syntax, static assertions, and basedpyright pass.
