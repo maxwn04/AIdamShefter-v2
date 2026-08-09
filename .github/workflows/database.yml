@@ -1,0 +1,57 @@
+name: Database
+
+on:
+  pull_request:
+    paths:
+      - "backend/database/**"
+      - "backend/migrations/**"
+      - "backend/tests/database/**"
+      - "infra/database/**"
+      - "infra/postgres/**"
+      - "docs/database/runbooks/**"
+      - ".github/workflows/database-hosted-verify.yml"
+      - "compose.database.yml"
+      - "pyproject.toml"
+  push:
+    branches: [main]
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Start PostgreSQL
+        run: docker compose -f compose.database.yml up --detach --wait
+      - name: Install project
+        run: python -m pip install --editable '.[dev]'
+      - name: Verify one migration head
+        env:
+          AIDAM_MIGRATION_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:54329/aidam
+          AIDAM_MIGRATION_REQUIRE_TLS: "false"
+        run: test "$(alembic -c backend/migrations/alembic.ini heads | wc -l)" -eq 1
+      - name: Record PostgreSQL version
+        env:
+          PGPASSWORD: postgres
+        run: psql --host localhost --port 54329 --username postgres --dbname aidam --command "SELECT version()"
+      - name: Verify migration lifecycle and metadata drift
+        env:
+          AIDAM_MIGRATION_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:54329/aidam
+          AIDAM_MIGRATION_REQUIRE_TLS: "false"
+        run: |
+          alembic -c backend/migrations/alembic.ini upgrade head
+          alembic -c backend/migrations/alembic.ini current --check-heads
+          alembic -c backend/migrations/alembic.ini downgrade base
+          alembic -c backend/migrations/alembic.ini upgrade head
+          alembic -c backend/migrations/alembic.ini check
+      - name: Run PostgreSQL database tests
+        env:
+          AIDAM_TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:54329/aidam
+        run: pytest backend/tests/database
+      - name: PostgreSQL logs
+        if: failure()
+        run: docker compose -f compose.database.yml logs postgres
