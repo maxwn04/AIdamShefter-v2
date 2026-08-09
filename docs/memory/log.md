@@ -496,6 +496,38 @@ the resulting visible-state hash before advancing the current pointer.
 - Any encoding drift, projection failure, or hash mismatch rolls back the whole
   canonical mutation.
 
+### MEM-024 — Keep retrieval policy cohesive and pagination revision-safe
+
+**Date:** 2026-08-09
+**Status:** Settled
+**Source:** Independent deep-module and caller-complexity review
+
+`MemoryService` is the single owner of retrieval weighting, reason vocabulary,
+deduplication, hydration order, and the final result limit. `MemoryManager`
+returns bounded raw candidate signals, reserving capacity independently for
+lexical, entity, evidence-version, and related-item matches. Primary and bounded
+fallback discovery feed the same service policy.
+
+`MemoryService` also creates the immutable pinned reader. The reader retains one
+validated revision, delegates ranked retrieval to the service, and performs
+exact visible-item/version reads through the captured narrow manager. It is a
+scope capability, not a retrieval coordinator.
+
+**Consequences:**
+
+- No `RetrievalCoordinator`, forwarding-only admin class, or duplicate retrieval
+  protocol/module is introduced.
+- Search-index status/rebuild and canonical mutation are structural ports
+  satisfied directly by the deep manager; inspection remains a narrow service
+  view limited to viewing, history, and revisions.
+- Exact evidence and related-item signals work in both primary and degraded
+  paths without kind-specific service methods.
+- Result contracts expose typed matched entities and stable reasons, not search
+  key strings or internal score-component maps.
+- Opaque item cursors contain the resolved revision; later pages cannot drift to
+  a newer current state, and invalid cursor/query inputs use stable memory
+  errors.
+
 ## Pending Decisions
 
 - Default retrieval and evidence-expansion limits.

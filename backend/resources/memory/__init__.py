@@ -2,6 +2,8 @@
 
 from backend.resources.memory.errors import (
     InvalidMemoryContent,
+    InvalidMemoryCursor,
+    InvalidMemoryQuery,
     InvalidMemoryReference,
     MemoryError,
     MemoryNotFound,
@@ -11,6 +13,8 @@ from backend.resources.memory.errors import (
 
 __all__ = [
     "InvalidMemoryContent",
+    "InvalidMemoryCursor",
+    "InvalidMemoryQuery",
     "InvalidMemoryReference",
     "MemoryError",
     "MemoryNotFound",

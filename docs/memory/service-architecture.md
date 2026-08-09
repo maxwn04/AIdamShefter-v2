@@ -1,6 +1,6 @@
 # Memory Service Architecture
 
-**Status:** Accepted application design; implementation pending
+**Status:** Accepted application design; baseline implemented through pinned retrieval
 
 **Scope:** Application components, caller-facing contracts, dependency direction,
 and transaction boundaries for canonical reporter memory
@@ -41,11 +41,12 @@ flowchart LR
     CLI["Maintenance CLI"] --> Admin["Search-index admin consumer port"]
     Generation["Generation service"] --> Facade["MemoryService"]
     Inspector --> Facade
-    Admin --> Facade
+    Admin --> Manager
 
     Facade -- "at_revision(id) creates" --> Pinned["PinnedMemoryReader"]
     Tools["Reporter memory tools"] --> Pinned
-    Pinned -- "delegates with fixed scope" --> Facade
+    Pinned -- "retrieval with fixed scope" --> Facade
+    Pinned -- "exact reads with fixed scope" --> Manager
 
     Facade --> Retrieval["Internal retrieval pipeline"]
     Facade --> Manager["MemoryManager"]
@@ -72,8 +73,10 @@ classes. The baseline needs only two coordinating application objects:
 - `MemoryService`, which exposes the supported operations and owns orchestration;
 - `MemoryManager`, which owns persistence and ordinary memory transactions.
 
-`PinnedMemoryReader` is a small immutable wrapper containing a `MemoryService`
-read delegate and one validated `MemoryRevisionRef`. Retrieval, mutation,
+`PinnedMemoryReader` is a small immutable wrapper created by `MemoryService`
+with one validated `MemoryRevisionRef` and the narrow read manager. Retrieval,
+which owns ranking and fallback policy, delegates to the service; exact visible
+item/version reads use the same fixed revision through the manager. Mutation,
 inspection, and projection behavior may begin as methods or internal functions.
 They should become separate coordinator classes only if they later acquire
 independent dependencies or substantial state.
@@ -112,6 +115,8 @@ class MemoryRevisionRef:
 class MemoryQuery(BaseModel):
     text: str | None = None
     entities: tuple[EntityKey, ...] = ()
+    evidence_version_ids: frozenset[UUID] = frozenset()
+    related_item_ids: frozenset[UUID] = frozenset()
     kinds: set[MemoryKind] = Field(default_factory=set)
     statuses: set[MemoryStatus] = Field(default_factory=set)
     season_id: UUID | None = None
@@ -131,7 +136,7 @@ A retrieved entry contains:
 - the exact stable item and immutable version identifiers;
 - the decoded kind-specific current resource object;
 - requested exact evidence and visible stable-item expansions;
-- named match reasons and rank components;
+- stable match reasons, a score, and typed matched entity keys;
 - the pinned revision used for visibility.
 
 Search-document text and ORM rows are never part of this result.
@@ -140,8 +145,6 @@ Search-document text and ORM rows are never part of this result.
 
 ```python
 class MemoryReader(Protocol):
-    def current_revision(self, competition_id: UUID) -> MemoryRevisionRef: ...
-
     def pin_current(self, competition_id: UUID) -> PinnedMemoryReader: ...
 
     def at_revision(self, revision_id: UUID) -> PinnedMemoryReader: ...
@@ -170,12 +173,16 @@ class PinnedMemoryReader(Protocol):
 lightweight capability-bound reader in one service operation. `at_revision`
 does the same for an exact persisted revision ID. The internal retrieval
 pipeline does not create the reader. Calls on the reader delegate back to
-`MemoryService` with the fixed revision reference:
+`MemoryService` for ranked retrieval and use the captured narrow manager for
+exact reads, always with the fixed revision reference:
 
 ```python
 class _PinnedMemoryReader:
     def retrieve(self, query: MemoryQuery) -> RetrievedMemory:
         return self._memory_service._retrieve_at(self._revision, query)
+
+    def get_item(self, item_id: UUID) -> HydratedMemoryVersion:
+        return self._manager.get_visible_item(self._revision, item_id)
 ```
 
 The wrapper is not an open database session. The reporter receives it so its
@@ -270,6 +277,9 @@ requires them.
 filters. If no revision is supplied, the service resolves current state once and
 returns that `MemoryRevisionRef` on `MemoryPage`; the caller does not need to
 coordinate current-revision lookup with pagination.
+Opaque item cursors carry that resolved revision, so later pages remain on it
+even if current state advances. Malformed, cross-scope, or unavailable cursor
+targets produce the stable `InvalidMemoryCursor` boundary error.
 
 ### Search-index administration contract
 
@@ -286,6 +296,9 @@ revisions and versions. `search_index_status` reports only actionable basics
 such as builder version and missing or stale document counts.
 `rebuild_search_index` deterministically recreates those documents from canonical
 versions.
+
+`MemoryManager` satisfies this structural maintenance port directly; there is no
+two-method forwarding admin class.
 
 Search-index administration never creates a canonical memory revision. The normal
 mutation path synchronously inserts lexical/entity search documents; it does not
@@ -369,16 +382,17 @@ states.
 
 ### 3. Memory service and pinned read view
 
-`backend/services/memory/service.py` is the composition root visible to other
-backend capabilities. One concrete `MemoryService` implements the initial
-reader, writer, inspector, and search-index-administration operations, while each
-consumer is typed against only the narrow protocol it needs.
+`backend/services/memory/service.py` is the read composition root visible to
+other backend capabilities. One concrete `MemoryService` implements reader and
+inspector operations. `MemoryManager` directly satisfies the structural writer
+and search-index-administration ports so those deep operations are not wrapped
+by forwarding service methods. Each consumer is typed against only the narrow
+protocol it needs.
 
 The facade owns:
 
 - revision validation and creation of `PinnedMemoryReader` values;
-- coordination of retrieval, mutation, basic inspection, and rebuild operations;
-- normalization of bundle-level no-ops and stable service outcomes;
+- coordination of retrieval and basic inspection;
 - explicit resource context and correlation propagation;
 - operation-level observability;
 - exposing narrow consumer ports for composition to inject.
@@ -386,22 +400,23 @@ The facade owns:
 The facade does not contain SQL and does not make memory a global service
 locator.
 
-The pinned reader has no policy of its own beyond retaining its validated scope.
-It delegates retrieval and direct visible-item reads to the same service. It
-exists because preventing scope drift during reporter execution is a real safety
-boundary, not because retrieval needs another orchestration layer.
+The pinned reader has no ranking policy of its own beyond retaining its validated
+scope. It delegates retrieval to the service and direct visible-item reads to
+the narrow manager captured when the service creates it. It exists because
+preventing scope drift during reporter execution is a real safety boundary, not
+because retrieval needs another orchestration layer.
 
 ### 4. Mutation path
 
-The baseline mutation path may live directly in `MemoryService.apply`. It owns
-workflow policy around a submitted bundle:
+The baseline mutation path lives directly in the deep `MemoryManager.apply`
+operation, which satisfies the structural writer port. It owns workflow policy
+around a submitted bundle:
 
 - decode and validate complete typed operations;
 - validate unique client keys and generated IDs, including same-batch references;
 - return `NoChange` for an empty plan;
 - reject only internally contradictory plans before opening a transaction;
-- call the manager once to apply the complete bundle;
-- propagate the manager's typed persisted-reference and stale-write outcomes.
+- return typed persisted-reference, no-op, retry, and stale-write outcomes.
 
 Within the manager-owned transaction, the implementation locks the current
 revision, requires it to equal the producing generation's input revision,
@@ -419,12 +434,13 @@ acquires substantial independent policy or dependencies.
 
 ### 5. Internal retrieval pipeline
 
-`backend/services/memory/search.py` owns internal candidate policy rather than
-canonical state:
+The private functions and values in `backend/services/memory/service.py` own
+internal candidate policy rather than canonical state:
 
 - translate a `MemoryQuery` into exact filters and signal queries;
 - search, deduplicate, rank, hydrate, expand, and cap results;
-- retain named candidate and score-component values.
+- retain raw persistence signals internally and expose only stable match reasons,
+  typed matched entities, and the final score.
 
 Candidate discovery and hydration are separate steps. The manager applies
 competition and pinned-revision visibility before a candidate is eligible.
@@ -530,6 +546,8 @@ Stable error categories are part of the service boundary:
 | `MemoryScopeViolation` | A target belongs to another competition or is outside caller scope |
 | `InvalidMemoryContent` | Typed content, role, discriminator, or reference policy is invalid |
 | `InvalidMemoryReference` | Referenced target is missing, duplicated, or the wrong kind |
+| `InvalidMemoryCursor` | Pagination state is malformed, unavailable, or outside its requested scope |
+| `InvalidMemoryQuery` | A read parameter violates a stable query boundary |
 | `StaleCanonicalRevision` | The competition advanced beyond the submitted base revision |
 
 Adapters translate these errors for their transports. Callers never inspect
@@ -545,13 +563,13 @@ backend/
 │   ├── objects.py
 │   ├── errors.py
 │   ├── content_codec.py
+│   ├── cursors.py
 │   ├── manager.py
 │   └── search_documents.py
 ├── services/memory/
 │   ├── __init__.py
 │   ├── contracts.py
-│   ├── service.py
-│   └── search.py
+│   └── service.py
 ├── api/routes/memory.py
 └── services/reporter/tools/memory.py
 ```

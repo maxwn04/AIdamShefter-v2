@@ -46,6 +46,18 @@ class InvalidMemoryReference(MemoryError):
     code = "invalid_memory_reference"
 
 
+class InvalidMemoryCursor(MemoryError):
+    """A pagination cursor is malformed for the requested memory collection."""
+
+    code = "invalid_memory_cursor"
+
+
+class InvalidMemoryQuery(MemoryError):
+    """A memory read query violates a stable boundary constraint."""
+
+    code = "invalid_memory_query"
+
+
 class StaleCanonicalRevision(MemoryError):
     """Canonical memory advanced beyond a generation's pinned input revision."""
 

@@ -111,17 +111,17 @@ Candidate discovery combines independent signals:
 5. optional vector similarity;
 6. status, salience, event fit, and light recency policy.
 
-The system should retain named score components or use rank fusion rather than
-pretending raw full-text and vector scores have the same scale.
+The service owns one deterministic weighting policy. Persistence returns raw
+match signals and reserves bounded candidate capacity for each independent
+signal; it does not assign application weights or apply the final result limit.
 
 Search returns compact leads:
 
 ```json
 {
   "version_id": "...",
-  "kind": "storyline",
   "score": 0.87,
-  "matched_entities": ["franchise:..."],
+  "matched_entities": [{"kind": "franchise", "id": "..."}],
   "match_reasons": ["entity_overlap", "lexical_match"]
 }
 ```
@@ -171,7 +171,9 @@ not create memory revisions.
 
 If current projection rows are missing, stale, or use mixed builder versions,
 ordinary retrieval degrades internally to exact entity/reference signals and a
-bounded scan of visible canonical versions. Mixed-version index state is never
+bounded scan of visible canonical versions. Primary and fallback paths produce
+the same stable reason vocabulary and lexical-presence signal; the service owns
+ranking in both cases. Mixed-version index state is never
 used for ranking. Search-index status surfaces the repair need; reporter callers
 do not handle a projection-administration error.
 

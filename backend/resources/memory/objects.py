@@ -604,6 +604,8 @@ DEFAULT_EXPANSION = ExpansionPolicy()
 class MemoryQuery(MemoryObject):
     text: NonEmptyStr | None = None
     entities: tuple[EntityKey, ...] = ()
+    evidence_version_ids: frozenset[UUID] = frozenset()
+    related_item_ids: frozenset[UUID] = frozenset()
     kinds: frozenset[MemoryKind] = frozenset()
     statuses: frozenset[MemoryStatus] = frozenset()
     season_id: UUID | None = None
@@ -666,10 +668,7 @@ class RetrievedMemoryEntry(MemoryObject):
     memory: HydratedMemoryVersion
     score: float
     match_reasons: tuple[NonEmptyStr, ...] = ()
-    rank_components: FrozenJsonObject = Field(
-        default_factory=lambda: FrozenJsonObject({})
-    )
-    matched_entities: tuple[NonEmptyStr, ...] = ()
+    matched_entities: tuple[EntityKey, ...] = ()
 
 
 class RetrievedMemory(MemoryObject):

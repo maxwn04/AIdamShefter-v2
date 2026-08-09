@@ -34,6 +34,8 @@ from backend.database.sessions import (
 from backend.resources.memory.errors import (
     CanonicalStateHashMismatch,
     InvalidMemoryContent,
+    InvalidMemoryCursor,
+    InvalidMemoryQuery,
     InvalidMemoryReference,
     MemoryNotFound,
     MemoryScopeViolation,
@@ -45,6 +47,12 @@ from backend.resources.memory.content_codec import (
     encode_stored_content,
     typed_content_model,
     typed_content_models,
+)
+from backend.resources.memory.cursors import (
+    decode_item_cursor,
+    decode_revision_cursor,
+    encode_item_cursor,
+    encode_revision_cursor,
 )
 from backend.resources.memory.objects import (
     CreateItem,
@@ -81,13 +89,15 @@ from backend.resources.memory.search_documents import (
 
 @dataclass(frozen=True, slots=True)
 class MemoryCandidate:
-    """One compact projection match returned to retrieval policy."""
+    """Raw persistence signals consumed by service-owned retrieval policy."""
 
     version_id: UUID
-    kind: str
-    match_reasons: tuple[str, ...]
-    rank_components: Mapping[str, float]
+    lexical_match: bool
     matched_entities: tuple[str, ...]
+    matched_evidence_version_ids: tuple[UUID, ...]
+    matched_related_item_ids: tuple[UUID, ...]
+    salience: int | None
+    recorded_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,6 +125,12 @@ _EXPECTED_IDENTITY_CONSTRAINTS = frozenset(
         "uq_context_notes_franchise_key",
     }
 )
+
+_MIN_CANDIDATES_PER_SIGNAL = 20
+_MAX_CANDIDATES_PER_SIGNAL = 200
+_CANDIDATES_PER_RESULT = 2
+_MAX_FALLBACK_VISIBLE_SCAN = 5_000
+_MAX_FALLBACK_CANDIDATES = 800
 
 
 class MemoryManager:
@@ -406,7 +422,16 @@ class MemoryManager:
                 sa.or_(*(_status_matches(status.value) for status in query.statuses))
             )
         if query.cursor is not None:
-            statement = statement.where(MemoryItem.id > _uuid_cursor(query.cursor))
+            cursor = decode_item_cursor(query.cursor)
+            if cursor.revision_id != revision.id:
+                raise InvalidMemoryCursor(
+                    "memory item cursor belongs to a different revision",
+                    details={
+                        "cursor_revision_id": str(cursor.revision_id),
+                        "revision_id": str(revision.id),
+                    },
+                )
+            statement = statement.where(MemoryItem.id > cursor.item_id)
         statement = statement.order_by(MemoryItem.id).limit(query.limit + 1)
 
         with read_only_session(self._session_factory) as session:
@@ -423,7 +448,11 @@ class MemoryManager:
                 page_ids,
                 DEFAULT_EXPANSION,
             )
-        next_cursor = str(page_rows[-1][0]) if len(rows) > query.limit else None
+        next_cursor = (
+            encode_item_cursor(revision.id, page_rows[-1][0])
+            if len(rows) > query.limit
+            else None
+        )
         return MemoryPage(
             revision=revision,
             items=tuple(hydrated[version_id] for version_id in page_ids),
@@ -463,13 +492,25 @@ class MemoryManager:
         limit: int,
     ) -> RevisionPage:
         if not 1 <= limit <= 100:
-            raise ValueError("revision page limit must be between 1 and 100")
+            raise InvalidMemoryQuery(
+                "revision page limit must be between 1 and 100",
+                details={"limit": limit},
+            )
         statement = sa.select(MemoryRevision).where(
             MemoryRevision.competition_id == competition_id
         )
         if cursor is not None:
+            decoded_cursor = decode_revision_cursor(cursor)
+            if decoded_cursor.competition_id != competition_id:
+                raise InvalidMemoryCursor(
+                    "memory revision cursor belongs to a different competition",
+                    details={
+                        "cursor_competition_id": str(decoded_cursor.competition_id),
+                        "competition_id": str(competition_id),
+                    },
+                )
             statement = statement.where(
-                MemoryRevision.sequence_number < _sequence_cursor(cursor)
+                MemoryRevision.sequence_number < decoded_cursor.sequence_number
             )
         statement = statement.order_by(MemoryRevision.sequence_number.desc()).limit(
             limit + 1
@@ -478,7 +519,12 @@ class MemoryManager:
             rows = list(session.scalars(statement))
         page_rows = rows[:limit]
         next_cursor = (
-            str(page_rows[-1].sequence_number) if len(rows) > limit else None
+            encode_revision_cursor(
+                competition_id,
+                page_rows[-1].sequence_number,
+            )
+            if len(rows) > limit
+            else None
         )
         return RevisionPage(
             competition_id=competition_id,
@@ -494,7 +540,8 @@ class MemoryManager:
         """Find compact candidates only when the current projection is complete."""
 
         visible = _visible_versions(revision).with_only_columns(
-            MemoryVersion.id
+            MemoryVersion.id,
+            MemoryVersion.recorded_at,
         ).subquery()
         with read_only_session(self._session_factory) as session:
             projection_incomplete = session.scalar(
@@ -522,6 +569,10 @@ class MemoryManager:
             entity_keys = tuple(
                 sorted({entity_search_key(entity) for entity in query.entities})
             )
+            evidence_version_ids = tuple(
+                sorted(query.evidence_version_ids, key=str)
+            )
+            related_item_ids = tuple(sorted(query.related_item_ids, key=str))
             text_query = (
                 sa.func.plainto_tsquery("english", query.text)
                 if query.text is not None
@@ -535,8 +586,37 @@ class MemoryManager:
                 if text_query is not None
                 else sa.literal(0.0)
             ).label("lexical_rank")
+            lexical_match = (
+                MemorySearchDocument.search_vector.op("@@")(text_query)
+                if text_query is not None
+                else sa.false()
+            ).label("lexical_match")
+            entity_match = (
+                MemorySearchDocument.entity_keys.overlap(entity_keys)
+                if entity_keys
+                else sa.false()
+            ).label("entity_match")
+            evidence_match = (
+                MemorySearchDocument.evidence_version_ids.overlap(
+                    evidence_version_ids
+                )
+                if evidence_version_ids
+                else sa.false()
+            ).label("evidence_match")
+            related_match = (
+                MemorySearchDocument.related_item_ids.overlap(related_item_ids)
+                if related_item_ids
+                else sa.false()
+            ).label("related_match")
             statement = (
-                sa.select(MemorySearchDocument, lexical_rank)
+                sa.select(
+                    MemorySearchDocument,
+                    lexical_match,
+                    entity_match,
+                    evidence_match,
+                    related_match,
+                    visible.c.recorded_at,
+                )
                 .join(visible, visible.c.id == MemorySearchDocument.version_id)
                 .where(
                     MemorySearchDocument.builder_version
@@ -561,37 +641,84 @@ class MemoryManager:
                 )
             if query.week is not None:
                 statement = statement.where(MemorySearchDocument.week == query.week)
-            signals: list[sa.ColumnElement[bool]] = []
+            signal_queries: list[
+                tuple[sa.ColumnElement[bool], tuple[sa.ColumnElement[Any], ...]]
+            ] = []
             if text_query is not None:
-                signals.append(
-                    MemorySearchDocument.search_vector.op("@@")(text_query)
+                signal_queries.append(
+                    (
+                        MemorySearchDocument.search_vector.op("@@")(text_query),
+                        (lexical_rank.desc(), visible.c.recorded_at.desc()),
+                    )
                 )
             if entity_keys:
-                signals.append(MemorySearchDocument.entity_keys.overlap(entity_keys))
-            if signals:
-                statement = statement.where(sa.or_(*signals))
-            statement = statement.order_by(
-                lexical_rank.desc(),
-                MemorySearchDocument.salience.desc().nullslast(),
-                MemorySearchDocument.version_id,
-            ).limit(min(query.limit * 4, 400))
-            rows = session.execute(statement).all()
+                signal_queries.append(
+                    (entity_match, (visible.c.recorded_at.desc(),))
+                )
+            if evidence_version_ids:
+                signal_queries.append(
+                    (evidence_match, (visible.c.recorded_at.desc(),))
+                )
+            if related_item_ids:
+                signal_queries.append(
+                    (related_match, (visible.c.recorded_at.desc(),))
+                )
+
+            if signal_queries:
+                per_signal_limit = min(
+                    max(
+                        query.limit * _CANDIDATES_PER_RESULT,
+                        _MIN_CANDIDATES_PER_SIGNAL,
+                    ),
+                    _MAX_CANDIDATES_PER_SIGNAL,
+                )
+                candidate_ids: set[UUID] = set()
+                for condition, ordering in signal_queries:
+                    candidate_ids.update(
+                        session.scalars(
+                            statement.where(condition)
+                            .with_only_columns(MemorySearchDocument.version_id)
+                            .order_by(*ordering, MemorySearchDocument.version_id)
+                            .limit(per_signal_limit)
+                        )
+                    )
+                if not candidate_ids:
+                    return ()
+                statement = statement.where(
+                    MemorySearchDocument.version_id.in_(candidate_ids)
+                )
+            else:
+                statement = statement.order_by(
+                    visible.c.recorded_at.desc(),
+                    MemorySearchDocument.version_id,
+                ).limit(_MAX_CANDIDATES_PER_SIGNAL)
+            rows = session.execute(
+                statement.order_by(MemorySearchDocument.version_id)
+            ).all()
 
         return tuple(
             _candidate_from_document(
                 document,
-                float(lexical_score),
+                bool(lexical_matched),
                 entity_keys,
-                has_text=query.text is not None,
+                evidence_version_ids,
+                related_item_ids,
+                recorded_at,
             )
-            for document, lexical_score in rows
+            for (
+                document,
+                lexical_matched,
+                _entity_match,
+                _evidence_match,
+                _related_match,
+                recorded_at,
+            ) in rows
         )
 
     def scan_visible_candidates(
         self,
         revision: MemoryRevisionRef,
         query: MemoryQuery,
-        limit: int,
     ) -> Sequence[MemoryCandidate]:
         """Bounded canonical fallback used only while the projection needs repair."""
 
@@ -609,9 +736,13 @@ class MemoryManager:
             )
         if query.week is not None:
             statement = statement.where(MemoryVersion.week == query.week)
+        if query.statuses:
+            statement = statement.where(
+                sa.or_(*(_status_matches(status.value) for status in query.statuses))
+            )
         statement = statement.order_by(
             MemoryVersion.recorded_at.desc(), MemoryVersion.id
-        ).limit(500)
+        ).limit(_MAX_FALLBACK_VISIBLE_SCAN)
 
         with read_only_session(self._session_factory) as session:
             version_ids = list(
@@ -622,30 +753,68 @@ class MemoryManager:
         entity_keys = tuple(
             sorted({entity_search_key(entity) for entity in query.entities})
         )
-        candidates: list[MemoryCandidate] = []
+        evidence_version_ids = tuple(sorted(query.evidence_version_ids, key=str))
+        related_item_ids = tuple(sorted(query.related_item_ids, key=str))
+        candidates: dict[UUID, MemoryCandidate] = {}
+        selected_per_signal = {
+            "lexical": 0,
+            "entity": 0,
+            "evidence": 0,
+            "related": 0,
+        }
+        has_retrieval_signal = bool(
+            query.text is not None
+            or entity_keys
+            or evidence_version_ids
+            or related_item_ids
+        )
         for version_id in version_ids:
-            document = build_search_document(versions[version_id])
-            if query.statuses and document.status not in {
-                status.value for status in query.statuses
-            }:
-                continue
+            version = versions[version_id]
+            document = build_search_document(version)
             lexical_match = _fallback_text_matches(query.text, document.document_text)
             entity_match = bool(set(entity_keys) & set(document.entity_keys))
-            if (query.text is not None or entity_keys) and not (
-                lexical_match or entity_match
+            evidence_match = bool(
+                set(evidence_version_ids) & set(document.evidence_version_ids)
+            )
+            related_match = bool(
+                set(related_item_ids) & set(document.related_item_ids)
+            )
+            if (
+                query.text is not None
+                or entity_keys
+                or evidence_version_ids
+                or related_item_ids
+            ) and not (
+                lexical_match or entity_match or evidence_match or related_match
             ):
                 continue
-            candidates.append(
-                _candidate_from_document(
-                    document,
-                    0.5 if lexical_match else 0.0,
-                    entity_keys,
-                    has_text=query.text is not None,
+            matched_signals = tuple(
+                name
+                for name, matched in (
+                    ("lexical", lexical_match),
+                    ("entity", entity_match),
+                    ("evidence", evidence_match),
+                    ("related", related_match),
                 )
+                if matched
             )
-            if len(candidates) >= limit:
-                break
-        return tuple(candidates)
+            selected = not has_retrieval_signal and (
+                len(candidates) < _MAX_FALLBACK_CANDIDATES
+            )
+            for signal in matched_signals:
+                if selected_per_signal[signal] < _MAX_CANDIDATES_PER_SIGNAL:
+                    selected_per_signal[signal] += 1
+                    selected = True
+            if selected:
+                candidates[version_id] = _candidate_from_document(
+                    document,
+                    lexical_match,
+                    entity_keys,
+                    evidence_version_ids,
+                    related_item_ids,
+                    version.recorded_at,
+                )
+        return tuple(candidates.values())
 
     def search_index_status(self, competition_id: UUID) -> SearchIndexStatus:
         with read_only_session(self._session_factory) as session:
@@ -1948,52 +2117,37 @@ def _status_matches(status: str) -> sa.ColumnElement[bool]:
     )
 
 
-def _uuid_cursor(cursor: str) -> UUID:
-    try:
-        return UUID(cursor)
-    except ValueError as error:
-        raise ValueError("invalid memory item cursor") from error
-
-
-def _sequence_cursor(cursor: str) -> int:
-    try:
-        sequence = int(cursor)
-    except ValueError as error:
-        raise ValueError("invalid memory revision cursor") from error
-    if sequence < 0:
-        raise ValueError("invalid memory revision cursor")
-    return sequence
-
-
 def _candidate_from_document(
     document: MemorySearchDocument | SearchDocument,
-    lexical_score: float,
+    lexical_match: bool,
     query_entity_keys: Sequence[str],
-    *,
-    has_text: bool,
+    query_evidence_version_ids: Sequence[UUID],
+    query_related_item_ids: Sequence[UUID],
+    recorded_at: datetime,
 ) -> MemoryCandidate:
     matched_entities = tuple(
         sorted(set(query_entity_keys) & set(document.entity_keys))
     )
-    reasons: list[str] = []
-    components: dict[str, float] = {}
-    if lexical_score > 0:
-        reasons.append("lexical_match")
-        components["lexical"] = lexical_score
-    if matched_entities:
-        reasons.append("entity_overlap")
-        components["entity"] = 1.0
-    if document.salience is not None:
-        components["salience"] = document.salience / 25
-    if not reasons and not has_text and not query_entity_keys:
-        reasons.append("filter_match")
-        components["baseline"] = 0.0
+    matched_evidence = tuple(
+        sorted(
+            set(query_evidence_version_ids) & set(document.evidence_version_ids),
+            key=str,
+        )
+    )
+    matched_related = tuple(
+        sorted(
+            set(query_related_item_ids) & set(document.related_item_ids),
+            key=str,
+        )
+    )
     return MemoryCandidate(
         version_id=document.version_id,
-        kind=document.kind,
-        match_reasons=tuple(reasons),
-        rank_components=components,
+        lexical_match=lexical_match,
         matched_entities=matched_entities,
+        matched_evidence_version_ids=matched_evidence,
+        matched_related_item_ids=matched_related,
+        salience=document.salience,
+        recorded_at=recorded_at,
     )
 
 

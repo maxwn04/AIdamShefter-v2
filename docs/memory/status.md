@@ -21,10 +21,11 @@ are not preserved
 | Memory resource manager and canonical reads | Implemented | `backend/resources/memory/manager.py` |
 | Complete-bundle mutation transaction | Implemented | Generation-derived context plus `MemoryManager.apply` |
 | Authoritative search-document builder | Implemented | `backend/resources/memory/search_documents.py` |
-| Revision-pinned retrieval and hydration | Pending | `MemoryService.at_revision` plus internal retrieval pipeline |
-| Service facade and consumer protocols | Pending | `backend/services/memory/` |
-| Basic canonical viewing and item history | Pending | `MemoryInspector` capability on `MemoryService` |
-| Search-index status and rebuild CLI | Pending | `MemorySearchIndexAdmin` consumer port on `MemoryService` |
+| Revision-pinned retrieval and hydration | Implemented | `MemoryService.at_revision` plus service-owned retrieval policy |
+| Service facade and consumer protocols | Implemented | `backend/services/memory/` |
+| Basic canonical viewing and item history | Implemented | `MemoryInspector` capability on `MemoryService` |
+| Search-index status and rebuild contract | Implemented | `MemorySearchIndexAdmin` port satisfied directly by `MemoryManager` |
+| Search-index maintenance CLI | Pending | Thin adapter over the existing admin port |
 | Evaluation-workspace promotion integration | Pending | Evaluation-workspace manager-owned cross-resource transaction |
 | Reporter/generation adapters | Pending | Reporter service memory tools |
 | UI-specific memory API | Deferred | Shape after initial memory UX is designed |
@@ -44,6 +45,12 @@ are not preserved
 - Generation-time reads use a capability-bound pinned reader.
 - `MemoryService` creates the pinned reader; its methods delegate to the same
   internal retrieval pipeline with a fixed scope.
+- Persistence returns bounded raw candidate signals; `MemoryService` alone owns
+  ranking weights, reason vocabulary, deduplication, and the final result limit.
+- Exact evidence-version and related stable-item queries use the same primary
+  and bounded canonical-fallback paths.
+- Opaque item cursors retain their resolved revision across pages; malformed or
+  cross-scope cursors return stable memory errors.
 - The reporter proposes memory changes but cannot commit canonical state.
 - A mutation bundle names its producing generation; the memory manager derives
   competition, cutoffs, season, and its one base-revision concurrency token.
@@ -80,8 +87,8 @@ are not preserved
 | 2. Canonical reads and hydration manager | Complete | Revision-pinned item/version/history queries pass PostgreSQL tests |
 | 3. Search-document builder | Complete | One dispatcher produces identical mutation/rebuild output for every kind |
 | 4. Canonical mutation transaction | Complete | Atomic create/replace, no-op/retry, stale-writer, reference, and projection tests pass |
-| 5. Pinned retrieval pipeline | Not started | Entity, evidence, related-item, lexical, and historical-leakage tests pass |
-| 6. Basic viewing, promotion integration, reporter/generation, and rebuild CLI | Not started | Narrow capabilities work without UI-specific business logic |
+| 5. Pinned retrieval pipeline | Complete | Entity, evidence, related-item, lexical, cursor, fallback, and historical-leakage tests pass |
+| 6. Composition, reporter/generation adapters, promotion, and rebuild CLI | Not started | Narrow adapters work without UI-specific business logic |
 | 7. Legacy removal | Not started | No active imports or writes depend on `reporter_memory` |
 
 ## Remaining Decisions
@@ -111,9 +118,10 @@ decision-log entry before expanding the baseline.
 
 ## Next Milestone
 
-Refine and land slice 5 pinned retrieval and inspection without public adapters.
-Keep ranking and fallback policy inside the service while the pinned reader
-enforces one fixed competition/revision scope.
+Compose the implemented reader, writer, inspector, and search-index-admin ports
+into the FastAPI/reporting application. Add only the minimal reporter tools and
+maintenance adapter needed for behavior parity; keep UI-specific inspection and
+promotion on their separately reviewed boundaries.
 
 ## PR Stack Coordination
 
@@ -126,7 +134,7 @@ integrated by `root` after the owning agent reports completion.
 | 1. Design and resource contracts | `codex/memory-service-contracts` | `contracts_agent` | Complete | `docs/memory/`; `backend/resources/memory/objects.py`; `errors.py`; resource contract tests |
 | 2. Canonical persistence and search documents | `codex/memory-service-persistence` | `persistence_agent` | Complete | `backend/resources/memory/manager.py`; `search_documents.py`; persistence/builder tests |
 | 3. Canonical mutation | `codex/memory-service-mutations` | `persistence_agent` | Complete | mutation methods and transaction tests; no public adapters |
-| 4. Pinned retrieval and inspection | `codex/memory-service-retrieval` | `service_agent` | In progress | `backend/services/memory/`; retrieval/inspection tests |
+| 4. Pinned retrieval and inspection | `codex/memory-service-retrieval` | `retrieval_implementation` | Complete | `backend/services/memory/`; retrieval/inspection tests |
 | 5. Composition and adapters | `codex/memory-service-integration` | `root` | Pending | composition, reporter tools, minimal API/CLI adapters, legacy-path removal, integration tests |
 | 6. Workspace promotion | `codex/memory-workspace-promotion` | Unassigned | Pending | reporting-owned promotion workflow and private memory command |
 

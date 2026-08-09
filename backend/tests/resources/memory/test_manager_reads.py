@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -20,16 +21,27 @@ from backend.database.models.memory import (
 from backend.database.models.reporting import Generation
 from backend.database.sessions import create_session_factory
 from backend.resources.memory.errors import (
+    InvalidMemoryCursor,
     MemoryScopeViolation,
     SearchProjectionUnavailable,
 )
 from backend.resources.memory.manager import MemoryManager
+from backend.resources.memory.cursors import (
+    decode_item_cursor,
+    decode_revision_cursor,
+    encode_revision_cursor,
+)
 from backend.resources.memory.objects import (
     ExpansionPolicy,
+    FranchiseKey,
     MemoryKind,
     MemoryListQuery,
     MemoryQuery,
     MemoryStatus,
+)
+from backend.resources.memory.search_documents import (
+    SEARCH_DOCUMENT_BUILDER_VERSION,
+    entity_search_key,
 )
 from backend.tests.database.conftest import (  # noqa: F401
     database_engine,
@@ -281,7 +293,12 @@ def _seed_memory(engine: Engine) -> _SeededMemory:
                             "role": "payoff",
                         }
                     ],
-                    "related_storylines": [],
+                    "related_storylines": [
+                        {
+                            "item_id": str(storyline_item_id),
+                            "role": "continuation",
+                        }
+                    ],
                     "resolution_summary": "The late-season slide ended the run.",
                 },
             ],
@@ -404,7 +421,53 @@ def test_history_and_pages_return_typed_canonical_resources(
         seeded.current_storyline_version_id
     ]
     assert [revision.sequence_number for revision in revisions.revisions] == [2, 1]
-    assert revisions.next_cursor == "1"
+    assert revisions.next_cursor is not None
+    assert decode_revision_cursor(revisions.next_cursor).sequence_number == 1
+
+
+def test_item_and_revision_cursors_are_opaque_scoped_and_revision_safe(
+    database_engine: Engine,
+) -> None:
+    seeded = _seed_memory(database_engine)
+    manager = _manager(database_engine)
+    current = manager.current_revision(seeded.competition_id)
+    other_revision = manager.current_revision(seeded.other_competition_id)
+
+    page = manager.list_visible_items(
+        current,
+        MemoryListQuery(competition_id=seeded.competition_id, limit=1),
+    )
+    assert page.next_cursor is not None
+    decoded_item = decode_item_cursor(page.next_cursor)
+    assert decoded_item.revision_id == current.id
+    with pytest.raises(InvalidMemoryCursor):
+        manager.list_visible_items(
+            other_revision,
+            MemoryListQuery(
+                competition_id=seeded.other_competition_id,
+                cursor=page.next_cursor,
+            ),
+        )
+    with pytest.raises(InvalidMemoryCursor):
+        manager.list_visible_items(
+            current,
+            MemoryListQuery(
+                competition_id=seeded.competition_id,
+                cursor="not-a-cursor",
+            ),
+        )
+
+    revision_cursor = encode_revision_cursor(seeded.competition_id, 2)
+    revisions = manager.list_revisions(seeded.competition_id, revision_cursor, 1)
+    assert revisions.revisions[0].sequence_number == 1
+    with pytest.raises(InvalidMemoryCursor):
+        manager.list_revisions(
+            seeded.other_competition_id,
+            revision_cursor,
+            1,
+        )
+    with pytest.raises(InvalidMemoryCursor):
+        manager.list_revisions(seeded.competition_id, "not-a-cursor", 1)
 
 
 def test_projection_rebuild_restores_search_without_changing_canonical_state(
@@ -417,7 +480,7 @@ def test_projection_rebuild_restores_search_without_changing_canonical_state(
 
     with pytest.raises(SearchProjectionUnavailable):
         manager.find_candidates(current, query)
-    fallback = manager.scan_visible_candidates(current, query, 5)
+    fallback = manager.scan_visible_candidates(current, query)
     rebuilt = manager.rebuild_search_index(seeded.competition_id, batch_size=2)
     candidates = manager.find_candidates(current, query)
     with database_engine.begin() as connection:
@@ -429,10 +492,22 @@ def test_projection_rebuild_restores_search_without_changing_canonical_state(
     stale_status = manager.search_index_status(seeded.competition_id)
     with pytest.raises(SearchProjectionUnavailable):
         manager.find_candidates(current, query)
-    mixed_fallback = manager.scan_visible_candidates(current, query, 5)
+    mixed_fallback = manager.scan_visible_candidates(current, query)
     manager.rebuild_search_index(seeded.competition_id, batch_size=2)
     repaired_candidates = manager.find_candidates(current, query)
     repaired_status = manager.search_index_status(seeded.competition_id)
+    exact_evidence = manager.find_candidates(
+        current,
+        MemoryQuery(evidence_version_ids={seeded.fact_version_id}),
+    )
+    exact_related = manager.find_candidates(
+        current,
+        MemoryQuery(related_item_ids={seeded.storyline_item_id}),
+    )
+    historical = manager.find_candidates(
+        manager.get_revision(seeded.middle_revision_id),
+        query,
+    )
 
     assert [candidate.version_id for candidate in fallback] == [
         seeded.current_storyline_version_id
@@ -447,7 +522,131 @@ def test_projection_rebuild_restores_search_without_changing_canonical_state(
     assert [candidate.version_id for candidate in repaired_candidates] == [
         seeded.current_storyline_version_id
     ]
+    assert [candidate.version_id for candidate in exact_evidence] == [
+        seeded.current_storyline_version_id
+    ]
+    assert exact_evidence[0].matched_evidence_version_ids == (
+        seeded.fact_version_id,
+    )
+    assert [candidate.version_id for candidate in exact_related] == [
+        seeded.current_storyline_version_id
+    ]
+    assert exact_related[0].matched_related_item_ids == (
+        seeded.storyline_item_id,
+    )
+    assert historical == ()
     assert rebuilt.rebuilt_document_count == 3
     assert repaired_status.missing_document_count == 0
     assert repaired_status.stale_document_count == 0
     assert manager.current_revision(seeded.competition_id) == current
+
+
+def test_candidate_pool_reserves_capacity_for_each_independent_signal(
+    database_engine: Engine,
+) -> None:
+    seeded = _seed_memory(database_engine)
+    manager = _manager(database_engine)
+    manager.rebuild_search_index(seeded.competition_id)
+    entity = FranchiseKey(id=uuid4())
+    entity_version_id = uuid4()
+    lexical_version_ids = [uuid4() for _ in range(25)]
+    version_ids = [*lexical_version_ids, entity_version_id]
+    item_ids = [uuid4() for _ in version_ids]
+
+    with database_engine.begin() as connection:
+        generation_id = connection.scalar(
+            sa.select(MemoryRevision.producing_generation_id).where(
+                MemoryRevision.id == seeded.current_revision_id
+            )
+        )
+        assert generation_id is not None
+        connection.execute(
+            sa.insert(MemoryItem),
+            [
+                {
+                    "id": item_id,
+                    "competition_id": seeded.competition_id,
+                    "kind": "fact",
+                    "agent_key": f"pool-{index}",
+                }
+                for index, item_id in enumerate(item_ids)
+            ],
+        )
+        newest = datetime(2026, 8, 9, tzinfo=UTC)
+        connection.execute(
+            sa.insert(MemoryVersion),
+            [
+                {
+                    "id": version_id,
+                    "item_id": item_id,
+                    "competition_id": seeded.competition_id,
+                    "revision_number": 1,
+                    "introduced_revision_id": seeded.current_revision_id,
+                    "competition_season_id": seeded.season_id,
+                    "week": 8,
+                    "creating_generation_id": generation_id,
+                    "recorded_at": newest - timedelta(seconds=index),
+                }
+                for index, (item_id, version_id) in enumerate(
+                    zip(item_ids, version_ids, strict=True)
+                )
+            ],
+        )
+        connection.execute(
+            sa.insert(MemorySearchDocument),
+            [
+                {
+                    "version_id": version_id,
+                    "item_id": item_id,
+                    "competition_id": seeded.competition_id,
+                    "kind": "fact",
+                    "status": "active",
+                    "competition_season_id": seeded.season_id,
+                    "week": 8,
+                    "entity_keys": [],
+                    "evidence_version_ids": [],
+                    "related_item_ids": [],
+                    "tags": [],
+                    "document_text": f"crowded lexical result {index}",
+                    "builder_version": SEARCH_DOCUMENT_BUILDER_VERSION,
+                    "content_hash": f"lexical-{index}",
+                }
+                for index, (item_id, version_id) in enumerate(
+                    zip(item_ids[:-1], lexical_version_ids, strict=True)
+                )
+            ]
+            + [
+                {
+                    "version_id": entity_version_id,
+                    "item_id": item_ids[-1],
+                    "competition_id": seeded.competition_id,
+                    "kind": "fact",
+                    "status": "active",
+                    "competition_season_id": seeded.season_id,
+                    "week": 8,
+                    "entity_keys": [entity_search_key(entity)],
+                    "evidence_version_ids": [],
+                    "related_item_ids": [],
+                    "tags": [],
+                    "document_text": "entity only",
+                    "builder_version": SEARCH_DOCUMENT_BUILDER_VERSION,
+                    "content_hash": "entity",
+                }
+            ],
+        )
+
+    query = MemoryQuery(text="crowded", entities=(entity,), limit=1)
+    candidates = manager.find_candidates(
+        manager.current_revision(seeded.competition_id),
+        query,
+    )
+
+    assert entity_version_id in {candidate.version_id for candidate in candidates}
+    assert len(candidates) > query.limit
+
+    filter_query = MemoryQuery(kinds={MemoryKind.FACT}, limit=1)
+    filter_candidates = manager.find_candidates(
+        manager.current_revision(seeded.competition_id),
+        filter_query,
+    )
+    assert len(filter_candidates) > filter_query.limit
