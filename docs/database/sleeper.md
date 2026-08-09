@@ -281,12 +281,19 @@ The latest derived pick-ownership view used by current tools:
 - competition ID, draft season year, round, original franchise, and current
   franchise;
 - optional qualified Sleeper pick ID;
-- source (`seeded` or `traded_pick`);
+- source describing whether the row was seeded, observed from traded-picks,
+  reset by an authoritative empty response, or created only to link a
+  transaction move;
 - source API request where observed.
 
 Unique `(competition_id, draft_season_year, round, original_franchise_id)`.
 This preserves the current feature without introducing a generalized asset or
 ownership-history subsystem.
+
+Only the authoritative traded-picks scope changes current ownership. A
+transaction may create a missing natural pick identity so its move can retain a
+foreign key, but replaying historical transaction weeks never overwrites the
+newer current-ownership observation.
 
 ### `sleeper.playoff_matchups`
 

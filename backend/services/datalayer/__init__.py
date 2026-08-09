@@ -16,7 +16,7 @@ from .local_files import (
     StoredLocalArtifact,
     VerifiedLocalArtifact,
 )
-from .sleeper.scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 __all__ = [
     "ApplyDisposition",

@@ -99,6 +99,7 @@ and should be added for a demonstrated product query rather than preemptively.
 
 ```text
 backend/
+├── sleeper.py
 ├── services/
 │   └── datalayer/
 │       ├── __init__.py
@@ -110,7 +111,7 @@ backend/
 │       ├── sleeper/
 │       │   ├── client.py
 │       │   ├── responses.py
-│       │   ├── scope.py
+│       │   ├── dispatch.py
 │       │   └── endpoints/
 │       │       ├── league.py
 │       │       ├── rosters.py
@@ -282,7 +283,9 @@ actually exists.
 ### Deterministic endpoint scope
 
 `EndpointKind` is a closed application enum and `ScopeKey` is a validated value
-defined in `scope.py` and constructed by the owning endpoint-family module.
+defined once in `backend/sleeper.py`. That neutral module also derives the
+canonical kind/scope/week/bracket agreement enforced by the persistence
+boundary; endpoint-family modules construct requests from the same vocabulary.
 Examples include:
 
 ```text
@@ -324,12 +327,14 @@ The SQLite artifact omits snapshot-row UUID and creation time so equivalent
 builds can produce equivalent bytes. Those instance/audit fields remain in
 PostgreSQL.
 
-### Identity mapping port
+### Identity mapping boundary
 
 Normalization cannot invent durable competition, franchise, or season-roster
-IDs. The refresh service receives a narrow identity lookup dependency that can
-resolve a Sleeper league/roster to existing core identities. New-season setup
-and ambiguous franchise mapping remain owned by `services/league`.
+IDs. The deep `SleeperDataManager` resolves a season's Sleeper league and roster
+IDs to existing core identities before the service plans requests. A separate
+one-method identity adapter would only forward into the same aggregate.
+New-season setup and ambiguous franchise mapping remain owned by the platform
+competition workflow.
 
 If a roster response introduces an unmapped Sleeper roster, the request remains
 audited but normalization for that scope is blocked with a structured mapping

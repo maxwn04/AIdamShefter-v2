@@ -1,4 +1,4 @@
-"""Exact JSON parsing and canonical bytes for Sleeper payload identity."""
+"""Exact JSON values shared by source, persistence, and snapshot boundaries."""
 
 from decimal import Decimal
 import json
@@ -18,7 +18,13 @@ JsonValue = TypeAliasType(
 
 
 def parse_json_bytes(content: bytes) -> JsonValue:
-    """Parse JSON without allowing a fractional value through binary float."""
+    """Parse UTF-8 JSON without passing fractional values through binary float."""
+
+    return parse_json_text(content.decode("utf-8"))
+
+
+def parse_json_text(content: str) -> JsonValue:
+    """Parse JSON text without passing fractional values through binary float."""
 
     return json.loads(
         content,
@@ -31,7 +37,13 @@ def parse_json_bytes(content: bytes) -> JsonValue:
 def canonical_json_bytes(value: JsonValue) -> bytes:
     """Return stable UTF-8 JSON bytes with exact numeric rendering."""
 
-    return _encode(value).encode("utf-8")
+    return canonical_json_text(value).encode("utf-8")
+
+
+def canonical_json_text(value: JsonValue) -> str:
+    """Return stable JSON text suitable for an explicit PostgreSQL JSONB cast."""
+
+    return _encode(value)
 
 
 def _encode(value: JsonValue) -> str:
@@ -50,7 +62,7 @@ def _encode(value: JsonValue) -> str:
             return "0"
         return format(value.normalize(), "f")
     if isinstance(value, float):
-        raise TypeError("binary floats are not accepted at the Sleeper boundary")
+        raise TypeError("binary floats are not accepted at an exact JSON boundary")
     if isinstance(value, str):
         return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     if isinstance(value, list):

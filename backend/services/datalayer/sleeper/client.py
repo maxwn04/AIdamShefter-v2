@@ -7,7 +7,7 @@ from time import perf_counter
 
 import requests
 
-from ..canonical_json import canonical_json_bytes, parse_json_bytes
+from backend.json import canonical_json_bytes, parse_json_bytes
 from .responses import (
     EndpointRequest,
     FailedSourceAttempt,
@@ -100,7 +100,7 @@ class SleeperSourceClient:
             http_status=response.status_code,
             latency_ms=latency_ms,
             payload=payload,
-            raw_sha256=hashlib.sha256(canonical).hexdigest(),
+            response_sha256=hashlib.sha256(canonical).hexdigest(),
             byte_length=len(canonical),
             media_type="application/json",
         )

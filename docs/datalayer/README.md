@@ -144,7 +144,7 @@ The exact contracts are specified in
 
 The baseline intentionally pays for only these deep boundaries:
 
-- refresh service for external fetch/retry/orchestration;
+- refresh service for external fetch and dependency-aware orchestration;
 - snapshot service for selection, atomic reuse/build, and artifact sealing;
 - `SleeperDataManager` for the complete ingestion persistence transaction;
 - `DataSnapshotManager` for canonical snapshot lifecycle;

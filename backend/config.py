@@ -95,9 +95,13 @@ class DatalayerSettings:
     sleeper_timeout_seconds: int
     snapshot_wait_seconds: int
     snapshot_stale_seconds: int
+    code_version: str
 
     @classmethod
     def from_environment(cls) -> "DatalayerSettings":
+        code_version = os.getenv("AIDAM_CODE_VERSION", "dev").strip()
+        if not code_version:
+            raise ValueError("AIDAM_CODE_VERSION must not be empty")
         return cls(
             data_root=Path(
                 os.getenv("AIDAM_DATALAYER_ROOT", ".data/datalayer")
@@ -117,4 +121,5 @@ class DatalayerSettings:
             snapshot_stale_seconds=_positive_int(
                 "AIDAM_SNAPSHOT_STALE_SECONDS", 900
             ),
+            code_version=code_version,
         )

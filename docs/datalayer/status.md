@@ -12,7 +12,7 @@ top of the backend API and PostgreSQL foundation.
 | Layer | Branch | Scope | Status |
 | --- | --- | --- | --- |
 | 1 | `codex/datalayer-foundation` | Architecture/docs, snapshot schema contract, workflow/source contracts, endpoint records, local file storage | Complete locally |
-| 2 | TBD | PostgreSQL ingestion managers, refresh workflow, composition, API | Pending |
+| 2 | `codex/datalayer-ingestion` | PostgreSQL ingestion managers, refresh workflow, composition, API | Complete locally; live PostgreSQL gate pending |
 | 3 | TBD | Snapshot selection/lifecycle and deterministic SQLite projection | Pending |
 | 4 | TBD | Frozen query runtime, reporter integration, compatibility, cleanup | Pending |
 
@@ -45,6 +45,19 @@ but each layer must remain independently reviewable and tested.
 - The foundation layer is complete and committed locally. `gh stack init` is
   awaiting explicit user approval after the execution policy rejected the
   GitHub stack mutation.
+- Layer 2 now implements the deep `SleeperDataManager`, fixed/dynamic refresh
+  planning, exact request capture, dependency-aware per-scope apply, current and
+  audit reads, synchronous refresh API, refresh/request audit APIs, and concrete
+  process composition.
+- The independent best-principles review found and drove fixes for JSONB replay
+  canonicalization, transaction/pick ownership authority, endpoint/scope
+  poisoning, broad error masking, forward plan dependencies, shallow error
+  aliases, and imprecise observation-only naming.
+- The full repository suite passes with 387 tests. Fifty-two PostgreSQL-only
+  tests are skipped without `AIDAM_TEST_DATABASE_URL`; the expanded manager test
+  covers competition isolation, payload dedup/replay, failed-response
+  preservation, stale/identical heads, authoritative empty roster/weekly/bracket
+  replacement, and transaction/pick ownership when run against real PostgreSQL.
 
 ## Coordination
 

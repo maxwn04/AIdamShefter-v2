@@ -4,10 +4,10 @@ from typing import Any
 
 import requests
 
-from backend.services.datalayer.canonical_json import canonical_json_bytes
+from backend.json import canonical_json_bytes
 from backend.services.datalayer.sleeper.client import SleeperSourceClient
 from backend.services.datalayer.sleeper.responses import EndpointRequest
-from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 
 class StubResponse:

@@ -27,9 +27,9 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Caller->>Service: refresh(RefreshRequest)
+    Service->>Service: build explicit endpoint plan
     Service->>Data: start_refresh(...)
     Data->>DB: insert running refresh
-    Service->>Service: build explicit endpoint plan
     loop each endpoint request
         Service->>Source: execute(request)
         Source-->>Service: SourceAttempt result
@@ -60,18 +60,24 @@ sequenceDiagram
     Service-->>Caller: RefreshOutcome
 ```
 
-Endpoint requests may execute concurrently with bounded concurrency, but each
-attempt is recorded and each normalized scope commits independently. A partial
-failure does not roll back unrelated successful scopes.
+V1 executes the standard plan sequentially so dependency behavior and the audit
+order are obvious. Each attempt is recorded and each normalized scope commits
+independently, so a partial failure does not roll back unrelated successful
+scopes. Bounded fetch concurrency can be added later without changing the
+manager contract, provided apply order and per-scope transactions remain the
+same.
 
 Fetch concurrency does not imply arbitrary apply order. The refresh service
 applies complete records in an explicit dependency order required by the
 relational model:
 
-1. league metadata, league users, and the global player catalog;
-2. rosters, managers, current roster players, and seeded draft-pick coordinates;
-3. weekly matchups/player performances, transactions/moves, traded-pick
-   ownership, and bracket nodes.
+1. league metadata and NFL state observations;
+2. league users and the global player catalog;
+3. rosters, managers, current roster players, and seeded draft-pick coordinates;
+4. traded-pick ownership and both bracket scopes, which do not depend on the
+   normalized roster response because platform roster identities already exist;
+5. weekly matchups/player performances and transactions/moves, after the player
+   catalog is available.
 
 An unmet dependency produces a structured normalization rejection for that
 scope; it is never retried by accidentally holding a database transaction open
@@ -97,8 +103,8 @@ Initial endpoint kinds:
 | `matchups` | season + week | matchups + player performances | Required for every included week |
 | `transactions` | season + week | transactions + moves | Required even when empty |
 | `traded_picks` | competition season | draft-pick current view | Required when draft rounds exist |
-| `winners_bracket` | season + bracket kind | playoff bracket | Conditional |
-| `losers_bracket` | season + bracket kind | playoff bracket | Conditional |
+| `winners_bracket` | season + bracket kind | playoff bracket | Fetched every standard refresh; selected only when snapshot-relevant |
+| `losers_bracket` | season + bracket kind | playoff bracket | Fetched every standard refresh; selected only when snapshot-relevant |
 
 Refresh planning owns what to fetch. Snapshot selection owns which scopes a
 snapshot requires. Persistence projection owns where endpoint records are
@@ -120,7 +126,7 @@ class SuccessfulSourceAttempt(BaseModel, frozen=True):
     http_status: int
     latency_ms: int
     payload: JsonValue
-    raw_sha256: str
+    response_sha256: str
     byte_length: int
     media_type: str
 
@@ -294,19 +300,23 @@ request outcomes inside the manager transaction rather than trusting a caller-
 supplied summary.
 
 `RefreshRun.endpoint_scope` stores the ordered plan as scope key, endpoint kind,
-requiredness, and dependency keys. Finalization groups retry attempts by planned
-scope and uses its latest terminal attempt. A required planned scope with no
-attempt is failed unless the run was cancelled, in which case it is counted as
-not attempted and the aggregate remains `cancelled`. Public outcome counts are
-scope counts; raw request-attempt counts remain audit metadata.
+requiredness, dependency keys, and the resolved effective week. An explicit
+`through_week` starts with the complete base-plus-weekly plan. When the week is
+omitted, the refresh first persists the fixed eight-scope base plan, observes
+fresh NFL state, and expands the plan once with weekly scopes. Finalization
+groups attempts by planned scope and uses its latest terminal attempt. A
+required planned scope with no attempt is failed unless the run was cancelled,
+in which case it is counted as not attempted and the aggregate remains
+`cancelled`. Public outcome counts are scope counts; raw request-attempt counts
+remain audit metadata.
 
 ## Retries
 
-Each HTTP attempt is an `api_requests` row. A bounded retry therefore creates a
-new request with the same scope key and its own timing, status, error, and
-payload reference. The source client executes exactly one attempt; retry policy
-lives in the refresh executor, which records an outcome before deciding whether
-to try again.
+V1 makes exactly one HTTP attempt per planned scope. Each attempt is an
+`api_requests` row, and the source client never retries internally. A future
+bounded retry policy belongs in the refresh service and must record the first
+outcome before making another attempt; each retry would create a new request
+with the same scope key and its own timing, status, error, and payload reference.
 
 Maintenance reprocessing does not create an API request. It updates
 normalization status for the existing request and may advance the scope head

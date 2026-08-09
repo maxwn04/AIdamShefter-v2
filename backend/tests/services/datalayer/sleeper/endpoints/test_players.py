@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from backend.services.datalayer.canonical_json import JsonValue, parse_json_bytes
+from backend.json import JsonValue, parse_json_bytes
 from backend.services.datalayer.errors import EndpointPayloadRejected
 from backend.services.datalayer.sleeper.endpoints.players import (
     build_player_catalog_request,
     normalize_player_catalog,
     validate_player_catalog_completeness,
 )
-from backend.services.datalayer.sleeper.scope import EndpointKind
+from backend.sleeper import EndpointKind
 
 _FIXTURES = Path(__file__).resolve().parents[6] / "datalayer/tests/fixtures/sleeper"
 

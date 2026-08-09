@@ -2,19 +2,11 @@
 
 from dataclasses import dataclass
 
-from .sleeper.scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 
 class DatalayerError(RuntimeError):
     """Base class for failures safe to translate at an application boundary."""
-
-
-class InvalidDatalayerRequest(DatalayerError):
-    """The caller supplied an invalid workflow request."""
-
-
-class DatalayerResourceNotFound(DatalayerError):
-    """A resource does not exist inside the caller's established scope."""
 
 
 @dataclass(frozen=True, slots=True)

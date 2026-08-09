@@ -6,7 +6,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .sleeper.scope import ScopeKey
+from backend.resources.sleeper_data.objects import (
+    ApplyDisposition,
+    NormalizationStatus,
+    RefreshStatus,
+    RequestStatus,
+)
+from backend.sleeper import ScopeKey
 
 
 class _WorkflowValue(BaseModel):
@@ -18,35 +24,6 @@ class RefreshTrigger(StrEnum):
     GENERATION = "generation"
     SCHEDULED = "scheduled"
     BACKFILL = "backfill"
-
-
-class RefreshStatus(StrEnum):
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    PARTIAL = "partial"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
-class RequestStatus(StrEnum):
-    SUCCEEDED = "succeeded"
-    HTTP_ERROR = "http_error"
-    TRANSPORT_ERROR = "transport_error"
-    INVALID_PAYLOAD = "invalid_payload"
-
-
-class NormalizationStatus(StrEnum):
-    PENDING = "pending"
-    SUCCEEDED = "succeeded"
-    REJECTED = "rejected"
-    NOT_APPLICABLE = "not_applicable"
-
-
-class ApplyDisposition(StrEnum):
-    APPLIED = "applied"
-    STALE_IGNORED = "stale_ignored"
-    ALREADY_APPLIED = "already_applied"
-    IDENTICAL_HEAD_ADVANCED = "identical_head_advanced"
 
 
 class RefreshRequest(_WorkflowValue):

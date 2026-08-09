@@ -69,3 +69,32 @@ changed.
   subsequent `gh stack init` request was
   rejected by the execution policy as a potentially mutating GitHub operation;
   no alternate stack initialization was attempted.
+- Created local child branch `codex/datalayer-ingestion` from the committed
+  foundation so implementation could continue without touching GitHub stack
+  metadata. Split Layer 2 into non-overlapping persistence-manager,
+  refresh-orchestration, and API/composition slices; root retains integration,
+  schema follow-ups, and coordination-doc ownership.
+- Implemented the Layer 2 persistence aggregate, refresh workflow, synchronous
+  manual API, refresh/request audit APIs, and runtime composition. Explicit week
+  requests persist their complete plan up front; omitted weeks resolve fresh NFL
+  state and expand weekly scopes once.
+- Moved canonical Sleeper endpoint/scope identity to `backend/sleeper.py` and
+  enforce kind/scope/season/week/bracket agreement at both plan and attempt
+  boundaries. Dependencies must precede their consumers in the persisted plan.
+- The requested independent principles review found two runtime correctness
+  bugs: raw PostgreSQL `jsonb::text` could not satisfy compact canonical hashes,
+  and replayed historical transactions could overwrite authoritative current
+  traded-pick ownership. Inline JSONB is now re-canonicalized before receipt
+  verification, and only traded-picks updates current ownership; transactions
+  create a missing natural identity only for move linkage.
+- Added a typed reference-unavailable error so plausible catalog/core identity
+  reconciliation failures reject only their endpoint scope. Removed a broad
+  normalization catch that could hide programming bugs as source-data failures,
+  duplicate service/resource status enums, empty error aliases, generic
+  observation-only naming, and untyped payload helper casts.
+- Verification after Layer 2 integration: 387 repository tests pass; 52
+  PostgreSQL-dependent tests skip without `AIDAM_TEST_DATABASE_URL`; compileall
+  and `git diff --check` pass. The live manager test was expanded to cover scope
+  isolation, payload dedup/canonical replay, incomplete preservation,
+  stale/identical behavior, authoritative empty replacement across roster,
+  weekly, and bracket scopes, and transaction/pick ownership authority.

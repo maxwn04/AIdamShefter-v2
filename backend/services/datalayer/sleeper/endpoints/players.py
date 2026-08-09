@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Never, cast
 
-from ...canonical_json import JsonValue
+from backend.json import JsonValue
 from ...errors import EndpointPayloadRejected
 from ..responses import CompletenessFinding, EndpointRequest
-from ..scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 
 @dataclass(frozen=True, slots=True)

@@ -5,11 +5,11 @@ from typing import Annotated, Literal, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from ..canonical_json import JsonValue
+from backend.json import JsonValue
 from ..contracts import RequestStatus
-from .scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
-RequestParameter: TypeAlias = None | bool | int | float | str
+RequestParameter: TypeAlias = None | bool | int | str
 
 
 class _SourceValue(BaseModel):
@@ -57,7 +57,7 @@ class SuccessfulSourceAttempt(_TimedAttempt):
     endpoint: EndpointRequest
     http_status: int
     payload: JsonValue
-    raw_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    response_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     byte_length: int = Field(ge=0)
     media_type: str
 

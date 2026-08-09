@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from backend.services.datalayer.contracts import RefreshRequest, RefreshTrigger, SnapshotRequest
-from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 
 def test_scope_key_round_trips_canonical_parts() -> None:

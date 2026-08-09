@@ -5,7 +5,7 @@ from uuid import UUID
 
 import pytest
 
-from backend.services.datalayer.canonical_json import JsonValue, parse_json_bytes
+from backend.json import JsonValue, parse_json_bytes
 from backend.services.datalayer.errors import EndpointPayloadRejected
 from backend.services.datalayer.sleeper.endpoints.league import (
     build_league_request,
@@ -18,7 +18,7 @@ from backend.services.datalayer.sleeper.endpoints.league import (
     validate_league_users_completeness,
     validate_nfl_state_completeness,
 )
-from backend.services.datalayer.sleeper.scope import EndpointKind
+from backend.sleeper import EndpointKind
 
 _FIXTURES = Path(__file__).resolve().parents[6] / "datalayer/tests/fixtures/sleeper"
 _SEASON_ID = UUID("11111111-1111-1111-1111-111111111111")

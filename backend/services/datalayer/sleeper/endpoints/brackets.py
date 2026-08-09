@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from typing import Literal, NoReturn
 from uuid import UUID
 
-from ...canonical_json import JsonValue
+from backend.json import JsonValue
 from ...errors import EndpointPayloadRejected
 from ..responses import CompletenessFinding, EndpointRequest
-from ..scope import EndpointKind, ScopeKey
+from backend.sleeper import EndpointKind, ScopeKey
 
 BracketKind = Literal["winners", "losers"]
 ProgressionOutcome = Literal["w", "l"]

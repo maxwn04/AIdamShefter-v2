@@ -5,7 +5,7 @@ from uuid import UUID
 
 import pytest
 
-from backend.services.datalayer.canonical_json import JsonValue, parse_json_bytes
+from backend.json import JsonValue, parse_json_bytes
 from backend.services.datalayer.errors import EndpointPayloadRejected
 from backend.services.datalayer.sleeper.endpoints.rosters import (
     RosterPlayerRecord,
@@ -17,7 +17,7 @@ from backend.services.datalayer.sleeper.endpoints.rosters import (
     validate_rosters_completeness,
     validate_traded_picks_completeness,
 )
-from backend.services.datalayer.sleeper.scope import EndpointKind
+from backend.sleeper import EndpointKind
 
 FIXTURES = Path(__file__).resolve().parents[6] / "datalayer/tests/fixtures/sleeper"
 COMPETITION_SEASON_ID = UUID("10000000-0000-0000-0000-000000000001")

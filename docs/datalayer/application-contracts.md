@@ -38,10 +38,12 @@ class RefreshRequest(BaseModel, frozen=True):
     trigger: RefreshTrigger
 ```
 
-The service derives `competition_id`, the standard endpoint set, player-catalog
-staleness, and bracket relevance. Ordinary callers cannot partially configure a
-refresh into an invalid data state. A future endpoint-specific maintenance
-command is separate from the product refresh contract.
+The service derives `competition_id` and the standard endpoint set. V1 always
+fetches the player catalog and both bracket endpoints in its fixed base plan;
+snapshot selection, not refresh callers, decides whether a bracket observation
+is relevant to a historical artifact. Ordinary callers cannot partially
+configure a refresh into an invalid data state. A future endpoint-specific
+maintenance command is separate from the product refresh contract.
 
 ### Refresh outcome
 
@@ -142,10 +144,13 @@ The service accepts these constructor dependencies:
 
 - `SleeperSourceClient`;
 - `SleeperDataManager`;
-- read-only core identity lookup port;
-- a clock;
 - configured `LocalDatalayerFileStore` for raw payloads too large for inline
-  PostgreSQL JSONB.
+  PostgreSQL JSONB;
+- inline-payload threshold, code version, and normalizer version policy.
+
+The deep manager resolves season/core identity as part of its aggregate API;
+there is no one-method identity adapter or caller-supplied clock at the service
+boundary.
 
 Endpoint planning and endpoint-family dispatch are ordinary module functions,
 not injected registries or one-method strategy objects.
@@ -166,10 +171,9 @@ The service accepts:
 - `SleeperDataManager` for eligible request reads and payload resolution;
 - `DataSnapshotManager` for atomic build-key ownership, lifecycle, and
   membership;
-- core identity lookup port;
 - the SQLite materializer;
 - configured `LocalDatalayerFileStore`;
-- a clock plus module-level projection/build metadata.
+- module-level projection/build metadata.
 
 The service calls pure request-selection and endpoint-family functions directly;
 they do not become injectable wrapper objects merely to make tests mock them.
@@ -208,7 +212,9 @@ ordinary pagination values for clarity.
 
 ```python
 class SleeperDataManager:
+    def get_season_identity_map(self, season_id: UUID) -> SeasonIdentityMap: ...
     def start_refresh(self, command: StartRefresh) -> RefreshRun: ...
+    def expand_refresh_plan(self, refresh_id: UUID, command: ExpandRefreshPlan) -> RefreshRun: ...
     def record_attempt(self, command: RecordApiAttempt) -> ApiRequest: ...
     def apply_scope(
         self,
@@ -216,7 +222,13 @@ class SleeperDataManager:
         records: EndpointRecords,
     ) -> ApplyResult: ...
     def reject_normalization(self, request_id: UUID, rejection: Rejection) -> ApiRequest: ...
-    def finish_refresh(self, refresh_id: UUID) -> RefreshRun: ...
+    def finish_refresh(
+        self,
+        refresh_id: UUID,
+        *,
+        cancelled: bool = False,
+        failure: RefreshFailure | None = None,
+    ) -> RefreshRun: ...
 
     def get_refresh(self, refresh_id: UUID) -> RefreshRun: ...
     def list_refresh_requests(self, refresh_id: UUID) -> Page[ApiRequest]: ...
@@ -234,9 +246,11 @@ class SleeperDataManager:
 request plus its completeness finding in one transaction. Successful parsed
 responses are validated by the owning endpoint-family module before this call;
 failed source attempts carry the refresh service's standard incomplete finding.
-Large payload bytes are stored before this call; the manager verifies the
-supplied local-file receipt/hash rather than performing filesystem or network
-I/O.
+Large payload bytes are hash-verified and stored by the refresh service through
+the local file store before this call. The manager validates and deduplicates
+the supplied immutable receipt metadata; it performs no filesystem or network
+I/O. When snapshot replay resolves that receipt, the file store verifies the
+actual local bytes again.
 
 `apply_scope()` owns the compare-and-swap request/head/current-view transaction
 across the Sleeper persistence namespace. `finish_refresh()` derives status and

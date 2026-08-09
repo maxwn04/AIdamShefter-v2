@@ -15,7 +15,7 @@ from backend.services.datalayer.sleeper.endpoints.brackets import (
     normalize_bracket,
     validate_bracket_completeness,
 )
-from backend.services.datalayer.sleeper.scope import EndpointKind
+from backend.sleeper import EndpointKind
 
 FIXTURE_ROOT = (
     Path(__file__).resolve().parents[6] / "datalayer" / "tests" / "fixtures" / "sleeper"
