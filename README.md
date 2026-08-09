@@ -31,6 +31,22 @@ reporter-v2 "power rankings with analysis" --week 8    # Any article type
 reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
 ```
 
+## API Server
+
+The product API exposes process health now and provides the versioned route
+boundary for generation, memory, and Sleeper-data APIs as their services land.
+
+```bash
+export AIDAM_DATABASE_URL=postgresql+psycopg://aidam_api:password@localhost/aidam
+export AIDAM_DATABASE_REQUIRE_TLS=false  # isolated local PostgreSQL only
+aidam-api
+```
+
+The server listens on `127.0.0.1:8000` by default. Override that with
+`AIDAM_API_HOST` and `AIDAM_API_PORT`. Liveness is available at
+`/health/live`; readiness at `/health/ready` also verifies the configured
+database name, runtime role, and TLS policy.
+
 ## Tests
 
 ```bash
@@ -38,6 +54,7 @@ pytest                                  # All tests
 pytest datalayer/tests/                 # Datalayer tests only
 pytest reporter_memory/tests/           # Reporter memory tests only
 pytest reporter_v2/tests/               # Reporter v2 tests only
+pytest backend/tests/api/                # API boundary tests only
 pytest datalayer/tests/unit/            # Datalayer unit tests
 pytest datalayer/tests/integration/     # Datalayer integration tests
 ```

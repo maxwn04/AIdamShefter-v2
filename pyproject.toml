@@ -16,17 +16,21 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.17",
     "psycopg[binary]>=3.2",
+    "fastapi>=0.116",
+    "uvicorn[standard]>=0.35",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
+    "httpx>=0.28",
 ]
 
 [project.scripts]
 sleeperdl = "datalayer.cli.main:main"
 reporter-v2 = "reporter_v2.app.runner:main"
+aidam-api = "backend.api.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
