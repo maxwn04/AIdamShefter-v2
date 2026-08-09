@@ -93,8 +93,9 @@ Coordination notes:
 - Shared registry and test-harness changes are integrated by `root` after agents
   report their namespace outputs.
 - `core_agent`: added the four core ORM tables, revision `0002`, and PostgreSQL
-  constraint tests. Metadata and offline upgrade/downgrade DDL pass; live tests
-  are CI-ready and skip locally when `AIDAM_TEST_DATABASE_URL` is unavailable.
+  relational-integrity tests. DB-028 cleanup removed semantic range/nonblank
+  checks. Metadata and offline upgrade/downgrade DDL pass; live tests are
+  CI-ready.
 - `foundation_agent`: added shared Base/types, runtime engine/session/health and
   environment configuration, Alembic environment plus revision `0001`, local
   PostgreSQL role bootstrap/Compose and database CI, and isolated migration,
