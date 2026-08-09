@@ -55,11 +55,13 @@ Application code:
 1. parses each proposed content object into its Pydantic type;
 2. loads competition, season, cutoffs, and the base revision from the producing
    generation rather than accepting caller-supplied copies;
-3. validates same-bundle keys, references, and contradictions;
-4. removes identical replacements and already-represented transitions;
-5. batch-loads referenced item and version IDs;
-6. validates persisted target kind and competition scope;
-7. constructs search documents through the one authoritative builder registry.
+3. normalizes the bundle against that pinned base revision;
+4. validates same-bundle keys, references, receipts, and contradictions;
+5. removes identical replacements and, after a concurrent advance, transitions
+   already represented by the current revision;
+6. batch-loads referenced item and version IDs;
+7. validates persisted target kind and competition scope;
+8. constructs search documents through the one authoritative builder registry.
 
 Invalid proposals return actionable application errors. They do not rely on raw
 database constraint failures for semantic feedback.
@@ -75,13 +77,16 @@ In one short transaction, the manager:
 5. retires replaced visible versions;
 6. inserts complete `memory_versions` and typed content rows;
 7. inserts their lexical/entity search documents;
-8. verifies the resulting-state hash;
+8. decodes the stored rows through the same versioned content codec and verifies
+   their resulting-state hash;
 9. advances the current pointer and lock version.
 
-If no accepted memory change remains, the transaction creates no revision. If
-canonical memory advanced after the generation started, the mutation fails
-without producing a sibling state or partial projection. Retrying a generation
-that already produced its revision returns that existing committed result.
+If no accepted memory change remains at the pinned base, the transaction creates
+no revision and returns that pinned revision. If canonical memory advanced, the
+manager recognizes a transition already represented by current state; any other
+unresolved transition fails without producing a sibling state or partial
+projection. Retrying a generation that already produced its revision returns
+the same payload-independent committed result.
 
 ### 7. Add optional embeddings
 

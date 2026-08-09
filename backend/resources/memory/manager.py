@@ -4,52 +4,72 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from hashlib import sha256
+import json
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased
 
+from backend.database.models.core import CompetitionSeason, Franchise, SeasonRoster
 from backend.database.models.memory import (
     ContextNote,
-    ContextNoteVersion,
     CurrentRevision,
-    EventVersion,
-    FactVersion,
     MemoryItem,
     MemoryRevision,
     MemorySearchDocument,
     MemoryVersion,
-    StorylineVersion,
-    TriggerVersion,
 )
+from backend.database.models.reporting import Generation, ToolCall
+from backend.database.models.sleeper import ApiRequest, LeagueUser, Player, User
 from backend.database.sessions import (
     SessionFactory,
     read_only_session,
     transaction_session,
 )
 from backend.resources.memory.errors import (
+    CanonicalStateHashMismatch,
+    InvalidMemoryContent,
+    InvalidMemoryReference,
     MemoryNotFound,
     MemoryScopeViolation,
     SearchProjectionUnavailable,
+    StaleCanonicalRevision,
+)
+from backend.resources.memory.content_codec import (
+    decode_stored_content,
+    encode_stored_content,
+    typed_content_model,
+    typed_content_models,
 )
 from backend.resources.memory.objects import (
+    CreateItem,
+    ContextNoteIdentity,
     DEFAULT_EXPANSION,
     ExpansionPolicy,
     HydratedMemoryVersion,
     ItemHistory,
+    MemoryContent,
     MemoryListQuery,
     MemoryPage,
     MemoryQuery,
     MemoryRevision as MemoryRevisionResource,
     MemoryRevisionRef,
     MemoryKind,
+    MemoryMutationBundle,
     RebuildResult,
+    ReplaceItem,
+    RevisionCommitted,
     RevisionPage,
     SearchIndexStatus,
     TypedMemoryVersion,
-    decode_memory_content,
+    MutationItemResult,
+    MutationResult,
+    NoChange,
 )
 from backend.resources.memory.search_documents import (
     SEARCH_DOCUMENT_BUILDER_VERSION,
@@ -70,11 +90,215 @@ class MemoryCandidate:
     matched_entities: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class _PreparedVersion:
+    operation_index: int
+    client_key: str | None
+    item_id: UUID
+    version_id: UUID
+    content: MemoryContent
+    context_note_identity: ContextNoteIdentity | None
+    revision_number: int
+    replaced_version_id: UUID | None
+    change_reason: str | None
+
+
+_EXPECTED_IDENTITY_CONSTRAINTS = frozenset(
+    {
+        "pk_memory_items",
+        "pk_memory_versions",
+        "uq_memory_items_id_competition",
+        "uq_memory_versions_id_competition",
+        "uq_memory_versions_item_revision",
+        "uq_context_notes_competition_key",
+        "uq_context_notes_season_key",
+        "uq_context_notes_franchise_key",
+    }
+)
+
+
 class MemoryManager:
     """Deep persistence boundary for the canonical memory aggregate."""
 
     def __init__(self, session_factory: SessionFactory) -> None:
         self._session_factory = session_factory
+
+    def apply(self, bundle: MemoryMutationBundle) -> MutationResult:
+        """Validate and atomically commit one complete canonical mutation bundle."""
+
+        try:
+            with transaction_session(self._session_factory) as session:
+                generation = session.get(Generation, bundle.producing_generation_id)
+                if generation is None:
+                    raise MemoryNotFound(
+                        f"producing generation not found: {bundle.producing_generation_id}"
+                    )
+                existing = _revision_for_generation(session, generation.id)
+                if existing is not None:
+                    return _committed_result(session, existing)
+
+                current = session.scalar(
+                    sa.select(CurrentRevision)
+                    .where(CurrentRevision.competition_id == generation.competition_id)
+                    .with_for_update()
+                )
+                if current is None:
+                    raise MemoryNotFound(
+                        "current memory revision not found for producing generation"
+                    )
+
+                # A concurrent retry may have committed while this transaction waited
+                # for the competition pointer lock.
+                existing = _revision_for_generation(session, generation.id)
+                if existing is not None:
+                    return _committed_result(session, existing)
+
+                current_revision = session.get(
+                    MemoryRevision, current.current_revision_id
+                )
+                if current_revision is None:
+                    raise MemoryNotFound(
+                        f"current memory revision not found: {current.current_revision_id}"
+                    )
+                if generation.input_memory_revision_id is None:
+                    if not bundle.operations:
+                        return NoChange(
+                            revision=_revision_ref(current_revision),
+                            reason="mutation bundle contains no operations",
+                        )
+                    raise InvalidMemoryReference(
+                        "producing generation does not have a canonical memory input",
+                        details={"generation_id": str(generation.id)},
+                    )
+                pinned_base = session.get(
+                    MemoryRevision, generation.input_memory_revision_id
+                )
+                if pinned_base is None:
+                    raise MemoryNotFound(
+                        "generation input memory revision was not found"
+                    )
+                if pinned_base.competition_id != generation.competition_id:
+                    raise MemoryScopeViolation(
+                        "generation input memory revision is outside its competition"
+                    )
+                base_ref = _revision_ref(pinned_base)
+                if not bundle.operations:
+                    return NoChange(
+                        revision=base_ref,
+                        reason="mutation bundle contains no operations",
+                    )
+
+                prepared = _prepare_mutation(
+                    session,
+                    bundle,
+                    generation,
+                    base_ref,
+                )
+                if not prepared:
+                    return NoChange(
+                        revision=base_ref,
+                        reason="mutation bundle does not change canonical memory",
+                    )
+                if current.current_revision_id != generation.input_memory_revision_id:
+                    current_ref = _revision_ref(current_revision)
+                    surviving_indexes = {
+                        item.operation_index for item in prepared
+                    }
+                    surviving_bundle = MemoryMutationBundle(
+                        producing_generation_id=bundle.producing_generation_id,
+                        operations=tuple(
+                            operation
+                            for index, operation in enumerate(bundle.operations)
+                            if index in surviving_indexes
+                        ),
+                    )
+                    current_prepared = _prepare_mutation(
+                        session,
+                        surviving_bundle,
+                        generation,
+                        current_ref,
+                    )
+                    if not current_prepared:
+                        return NoChange(
+                            revision=current_ref,
+                            reason="mutation transitions are already represented",
+                        )
+                    raise StaleCanonicalRevision(
+                        "canonical memory advanced after the generation was pinned",
+                        details={
+                            "generation_id": str(generation.id),
+                            "expected_revision_id": str(
+                                generation.input_memory_revision_id
+                            ),
+                            "current_revision_id": str(current.current_revision_id),
+                        },
+                    )
+
+                revision_id = uuid4()
+                recorded_at = datetime.now(UTC)
+                revision = MemoryRevision(
+                    id=revision_id,
+                    competition_id=generation.competition_id,
+                    sequence_number=pinned_base.sequence_number + 1,
+                    previous_revision_id=pinned_base.id,
+                    producing_generation_id=generation.id,
+                    competition_season_id=generation.competition_season_id,
+                    week=generation.domain_cutoff_week,
+                    knowledge_cutoff_at=generation.knowledge_cutoff_at,
+                    state_content_hash=_resulting_state_hash(
+                        session,
+                        base_ref,
+                        prepared,
+                    ),
+                    created_at=recorded_at,
+                )
+                session.add(revision)
+                session.flush()
+
+                _persist_prepared_versions(
+                    session,
+                    prepared,
+                    generation,
+                    revision_id,
+                    recorded_at,
+                )
+                stored_hash = _stored_state_hash(
+                    session,
+                    MemoryRevisionRef(
+                        id=revision_id,
+                        competition_id=generation.competition_id,
+                        sequence_number=revision.sequence_number,
+                        state_content_hash=revision.state_content_hash,
+                    ),
+                )
+                if stored_hash != revision.state_content_hash:
+                    raise CanonicalStateHashMismatch(
+                        "stored canonical memory does not match its resulting-state hash",
+                    )
+                typed_versions = _typed_prepared_versions(
+                    prepared,
+                    generation,
+                    revision_id,
+                    recorded_at,
+                )
+                _persist_search_documents(
+                    session,
+                    [build_search_document(version) for version in typed_versions],
+                )
+
+                current.current_revision_id = revision_id
+                current.lock_version += 1
+                current.updated_at = recorded_at
+                session.flush()
+
+                return _committed_result(session, revision)
+        except IntegrityError as error:
+            if _integrity_constraint(error) not in _EXPECTED_IDENTITY_CONSTRAINTS:
+                raise
+            raise InvalidMemoryReference(
+                "memory mutation conflicts with a persisted canonical identity",
+                details={"generation_id": str(bundle.producing_generation_id)},
+            ) from error
 
     def current_revision(self, competition_id: UUID) -> MemoryRevisionRef:
         with read_only_session(self._session_factory) as session:
@@ -518,6 +742,896 @@ class MemoryManager:
             _persist_search_documents(session, documents)
 
 
+def _revision_for_generation(
+    session: Session,
+    generation_id: UUID,
+) -> MemoryRevision | None:
+    return session.scalar(
+        sa.select(MemoryRevision).where(
+            MemoryRevision.producing_generation_id == generation_id
+        )
+    )
+
+
+def _committed_result(
+    session: Session,
+    revision: MemoryRevision,
+) -> RevisionCommitted:
+    rows = session.execute(
+        sa.select(MemoryVersion, MemoryItem)
+        .join(MemoryItem, MemoryItem.id == MemoryVersion.item_id)
+        .where(MemoryVersion.introduced_revision_id == revision.id)
+        .order_by(MemoryVersion.item_id, MemoryVersion.id)
+    )
+    return RevisionCommitted(
+        revision=_revision_ref(revision),
+        items=tuple(
+            MutationItemResult(
+                client_key=(item.agent_key if version.revision_number == 1 else None),
+                item_id=version.item_id,
+                version_id=version.id,
+            )
+            for version, item in rows
+        )
+    )
+
+
+def _prepare_mutation(
+    session: Session,
+    bundle: MemoryMutationBundle,
+    generation: Generation,
+    base: MemoryRevisionRef,
+) -> tuple[_PreparedVersion, ...]:
+    creates = [
+        (index, operation)
+        for index, operation in enumerate(bundle.operations)
+        if isinstance(operation, CreateItem)
+    ]
+    replacements = [
+        (index, operation)
+        for index, operation in enumerate(bundle.operations)
+        if isinstance(operation, ReplaceItem)
+    ]
+    _reject_duplicate_values(
+        "client key",
+        [operation.client_key for _, operation in creates],
+    )
+    _reject_duplicate_values(
+        "generated item ID",
+        [operation.item_id for _, operation in creates],
+    )
+    _reject_duplicate_values(
+        "generated version ID",
+        [operation.version_id for _, operation in creates],
+    )
+    _reject_duplicate_values(
+        "replacement target",
+        [operation.item_id for _, operation in replacements],
+    )
+    create_item_ids = {operation.item_id for _, operation in creates}
+    replaced_item_ids = {operation.item_id for _, operation in replacements}
+    overlap = create_item_ids & replaced_item_ids
+    if overlap:
+        _invalid_reference(
+            "an item cannot be created and replaced in the same bundle",
+            next(iter(overlap)),
+        )
+
+    represented_creates = _represented_create_indexes(
+        session,
+        creates,
+        generation.competition_id,
+        base,
+    )
+
+    stored_targets = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(MemoryItem).where(MemoryItem.id.in_(replaced_item_ids))
+        )
+    }
+    for _, operation in replacements:
+        target = stored_targets.get(operation.item_id)
+        if target is None:
+            _invalid_reference("replacement target does not exist", operation.item_id)
+        if target.competition_id != generation.competition_id:
+            raise MemoryScopeViolation(
+                "replacement target is outside the producing competition",
+                details={"item_id": str(operation.item_id)},
+            )
+        if target.kind != operation.content.kind:
+            raise InvalidMemoryContent(
+                "replacement content kind does not match its stable item",
+                details={
+                    "item_id": str(operation.item_id),
+                    "target_kind": target.kind,
+                    "content_kind": operation.content.kind,
+                },
+            )
+
+    visible_rows = session.execute(
+        _visible_versions(base)
+        .with_only_columns(MemoryVersion.item_id, MemoryVersion.id)
+        .where(MemoryVersion.item_id.in_(replaced_item_ids))
+    ).all()
+    visible_by_item = {item_id: version_id for item_id, version_id in visible_rows}
+    for item_id in replaced_item_ids:
+        if item_id not in visible_by_item:
+            _invalid_reference(
+                "replacement target is not visible at the generation input revision",
+                item_id,
+            )
+    current_versions = _load_typed_versions(
+        session,
+        tuple(visible_by_item.values()),
+    )
+
+    prepared: list[_PreparedVersion] = [
+        _PreparedVersion(
+            operation_index=index,
+            client_key=operation.client_key,
+            item_id=operation.item_id,
+            version_id=operation.version_id,
+            content=operation.content,
+            context_note_identity=operation.context_note_identity,
+            revision_number=1,
+            replaced_version_id=None,
+            change_reason=None,
+        )
+        for index, operation in creates
+        if index not in represented_creates
+    ]
+    for index, operation in replacements:
+        previous = current_versions[visible_by_item[operation.item_id]]
+        if _canonical_content(previous.content) == _canonical_content(
+            operation.content
+        ):
+            continue
+        prepared.append(
+            _PreparedVersion(
+                operation_index=index,
+                client_key=None,
+                item_id=operation.item_id,
+                version_id=uuid4(),
+                content=operation.content,
+                context_note_identity=previous.context_note_identity,
+                revision_number=previous.revision_number + 1,
+                replaced_version_id=previous.version_id,
+                change_reason=operation.change_reason,
+            )
+        )
+
+    prepared.sort(key=lambda item: item.operation_index)
+    _validate_memory_references(
+        session,
+        generation.competition_id,
+        base,
+        prepared,
+    )
+    _validate_scoped_resources(session, generation, prepared)
+    _validate_context_note_keys(
+        session,
+        generation.competition_id,
+        base,
+        prepared,
+    )
+    return tuple(prepared)
+
+
+def _represented_create_indexes(
+    session: Session,
+    creates: Sequence[tuple[int, CreateItem]],
+    competition_id: UUID,
+    revision: MemoryRevisionRef,
+) -> set[int]:
+    if not creates:
+        return set()
+    item_ids = {operation.item_id for _, operation in creates}
+    version_ids = {operation.version_id for _, operation in creates}
+    stored_items = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(MemoryItem).where(MemoryItem.id.in_(item_ids))
+        )
+    }
+    stored_versions = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(MemoryVersion).where(MemoryVersion.id.in_(version_ids))
+        )
+    }
+    visible_rows = session.execute(
+        _visible_versions(revision)
+        .with_only_columns(MemoryVersion.item_id, MemoryVersion.id)
+        .where(
+            sa.or_(
+                MemoryVersion.item_id.in_(item_ids),
+                MemoryVersion.id.in_(version_ids),
+            )
+        )
+    ).all()
+    visible_item_ids = {item_id for item_id, _ in visible_rows}
+    visible_version_ids = {version_id for _, version_id in visible_rows}
+    represented: set[int] = set()
+    for index, operation in creates:
+        item = stored_items.get(operation.item_id)
+        version = stored_versions.get(operation.version_id)
+        for stored in (item, version):
+            if stored is not None and stored.competition_id != competition_id:
+                raise MemoryScopeViolation(
+                    "generated memory identity exists in another competition",
+                    details={"reference_id": str(operation.item_id)},
+                )
+        item_visible = operation.item_id in visible_item_ids
+        version_visible = operation.version_id in visible_version_ids
+        if not item_visible and not version_visible:
+            continue
+        if (
+            item is None
+            or version is None
+            or not item_visible
+            or not version_visible
+            or version.item_id != operation.item_id
+            or item.kind != operation.content.kind
+        ):
+            _invalid_reference(
+                "generated memory identity conflicts with canonical state",
+                operation.item_id,
+            )
+        stored_content = _load_typed_versions(session, [version.id])[version.id]
+        if (
+            _canonical_content(stored_content.content)
+            != _canonical_content(operation.content)
+            or stored_content.context_note_identity != operation.context_note_identity
+        ):
+            _invalid_reference(
+                "generated memory identity has different canonical content",
+                operation.item_id,
+            )
+        represented.add(index)
+    return represented
+
+
+def _reject_duplicate_values(label: str, values: Sequence[object]) -> None:
+    seen: set[object] = set()
+    for value in values:
+        if value in seen:
+            raise InvalidMemoryReference(
+                f"duplicate {label} in mutation bundle",
+                details={"value": str(value)},
+            )
+        seen.add(value)
+
+
+def _invalid_reference(message: str, reference_id: UUID) -> None:
+    raise InvalidMemoryReference(
+        message,
+        details={"reference_id": str(reference_id)},
+    )
+
+
+def _validate_memory_references(
+    session: Session,
+    competition_id: UUID,
+    base: MemoryRevisionRef,
+    prepared: Sequence[_PreparedVersion],
+) -> None:
+    new_version_kinds = {
+        item.version_id: MemoryKind(item.content.kind) for item in prepared
+    }
+    new_item_kinds = {item.item_id: MemoryKind(item.content.kind) for item in prepared}
+    exact_references: dict[UUID, MemoryKind] = {}
+    item_references: dict[UUID, MemoryKind] = {}
+    for item in prepared:
+        content = item.content
+        if content.kind == MemoryKind.STORYLINE.value:
+            for reference in content.evidence:
+                _register_expected_kind(
+                    exact_references,
+                    reference.version_id,
+                    MemoryKind(reference.kind),
+                )
+            for reference in content.related_storylines:
+                _register_expected_kind(
+                    item_references,
+                    reference.item_id,
+                    MemoryKind.STORYLINE,
+                )
+        elif content.kind == MemoryKind.FACT.value:
+            for version_id in content.originating_event_version_ids:
+                _register_expected_kind(
+                    exact_references,
+                    version_id,
+                    MemoryKind.EVENT,
+                )
+        elif content.kind == MemoryKind.TRIGGER.value:
+            if content.target_storyline_item_id is not None:
+                _register_expected_kind(
+                    item_references,
+                    content.target_storyline_item_id,
+                    MemoryKind.STORYLINE,
+                )
+            if content.origin_event_item_id is not None:
+                _register_expected_kind(
+                    item_references,
+                    content.origin_event_item_id,
+                    MemoryKind.EVENT,
+                )
+
+    persisted_version_ids = set(exact_references) - set(new_version_kinds)
+    persisted_versions = {
+        row.id: (row, memory_item)
+        for row, memory_item in session.execute(
+            sa.select(MemoryVersion, MemoryItem)
+            .join(MemoryItem, MemoryItem.id == MemoryVersion.item_id)
+            .where(MemoryVersion.id.in_(persisted_version_ids))
+        )
+    }
+    introduced = aliased(MemoryRevision)
+    available_version_ids = set(
+        session.scalars(
+            sa.select(MemoryVersion.id)
+            .join(introduced, introduced.id == MemoryVersion.introduced_revision_id)
+            .where(
+                MemoryVersion.id.in_(persisted_version_ids),
+                introduced.sequence_number <= base.sequence_number,
+            )
+        )
+    )
+    for version_id, expected_kind in exact_references.items():
+        if version_id in new_version_kinds:
+            actual_kind = new_version_kinds[version_id]
+        else:
+            stored = persisted_versions.get(version_id)
+            if stored is None:
+                _invalid_reference("referenced memory version does not exist", version_id)
+            envelope, memory_item = stored
+            if envelope.competition_id != competition_id:
+                raise MemoryScopeViolation(
+                    "referenced memory version is outside the producing competition",
+                    details={"version_id": str(version_id)},
+                )
+            if version_id not in available_version_ids:
+                _invalid_reference(
+                    "referenced memory version was not available at the generation input",
+                    version_id,
+                )
+            actual_kind = MemoryKind(memory_item.kind)
+        if actual_kind is not expected_kind:
+            raise InvalidMemoryReference(
+                "referenced memory version has the wrong kind",
+                details={
+                    "version_id": str(version_id),
+                    "expected_kind": expected_kind.value,
+                    "actual_kind": actual_kind.value,
+                },
+            )
+
+    persisted_item_ids = set(item_references) - set(new_item_kinds)
+    persisted_items = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(MemoryItem).where(MemoryItem.id.in_(persisted_item_ids))
+        )
+    }
+    visible_item_ids = set(
+        session.scalars(
+            _visible_versions(base)
+            .with_only_columns(MemoryVersion.item_id)
+            .where(MemoryVersion.item_id.in_(persisted_item_ids))
+        )
+    )
+    for item_id, expected_kind in item_references.items():
+        if item_id in new_item_kinds:
+            actual_kind = new_item_kinds[item_id]
+        else:
+            stored = persisted_items.get(item_id)
+            if stored is None:
+                _invalid_reference("referenced memory item does not exist", item_id)
+            if stored.competition_id != competition_id:
+                raise MemoryScopeViolation(
+                    "referenced memory item is outside the producing competition",
+                    details={"item_id": str(item_id)},
+                )
+            if item_id not in visible_item_ids:
+                _invalid_reference(
+                    "referenced memory item is not visible at the generation input",
+                    item_id,
+                )
+            actual_kind = MemoryKind(stored.kind)
+        if actual_kind is not expected_kind:
+            raise InvalidMemoryReference(
+                "referenced memory item has the wrong kind",
+                details={
+                    "item_id": str(item_id),
+                    "expected_kind": expected_kind.value,
+                    "actual_kind": actual_kind.value,
+                },
+            )
+
+
+def _register_expected_kind(
+    references: dict[UUID, MemoryKind],
+    reference_id: UUID,
+    expected_kind: MemoryKind,
+) -> None:
+    previous = references.get(reference_id)
+    if previous is not None and previous is not expected_kind:
+        raise InvalidMemoryReference(
+            "memory reference has contradictory kind expectations",
+            details={
+                "reference_id": str(reference_id),
+                "first_kind": previous.value,
+                "second_kind": expected_kind.value,
+            },
+        )
+    references[reference_id] = expected_kind
+
+
+def _validate_scoped_resources(
+    session: Session,
+    generation: Generation,
+    prepared: Sequence[_PreparedVersion],
+) -> None:
+    ids_by_model: dict[type[Any], set[UUID]] = {
+        CompetitionSeason: {generation.competition_season_id},
+        Franchise: set(),
+        SeasonRoster: set(),
+    }
+    player_ids: set[str] = set()
+    user_ids: set[str] = set()
+    tool_call_ids: set[UUID] = set()
+    api_request_ids: set[UUID] = set()
+    for item in prepared:
+        subjects = getattr(item.content, "subjects", ())
+        for subject in subjects:
+            if subject.kind == "franchise":
+                ids_by_model[Franchise].add(subject.id)
+            elif subject.kind == "season_roster":
+                ids_by_model[SeasonRoster].add(subject.id)
+            elif subject.kind == "competition_season":
+                ids_by_model[CompetitionSeason].add(subject.id)
+            elif subject.kind == "player":
+                player_ids.add(subject.id)
+            elif subject.kind == "sleeper_user":
+                user_ids.add(subject.id)
+        if item.content.kind == MemoryKind.EVENT.value:
+            details = item.content.details
+            for name in (
+                "sender_franchise_id",
+                "receiver_franchise_id",
+                "winner_franchise_id",
+                "loser_franchise_id",
+                "franchise_id",
+            ):
+                value = getattr(details, name, None)
+                if value is not None:
+                    ids_by_model[Franchise].add(value)
+            for asset in getattr(details, "assets", ()):
+                player_id = getattr(asset, "player_id", None)
+                if player_id is not None:
+                    player_ids.add(player_id)
+                roster_id = getattr(asset, "original_season_roster_id", None)
+                if roster_id is not None:
+                    ids_by_model[SeasonRoster].add(roster_id)
+            for name in ("added_player_id", "dropped_player_id"):
+                player_id = getattr(details, name, None)
+                if player_id is not None:
+                    player_ids.add(player_id)
+        if item.content.kind == MemoryKind.TRIGGER.value:
+            season_id = item.content.target_competition_season_id
+            if season_id is not None:
+                ids_by_model[CompetitionSeason].add(season_id)
+            subject = getattr(item.content.condition, "subject", None)
+            if subject is not None:
+                if subject.kind == "franchise":
+                    ids_by_model[Franchise].add(subject.id)
+                elif subject.kind == "season_roster":
+                    ids_by_model[SeasonRoster].add(subject.id)
+                elif subject.kind == "competition_season":
+                    ids_by_model[CompetitionSeason].add(subject.id)
+                elif subject.kind == "player":
+                    player_ids.add(subject.id)
+                elif subject.kind == "sleeper_user":
+                    user_ids.add(subject.id)
+        tool_call_id = getattr(item.content, "primary_tool_call_id", None)
+        if tool_call_id is not None:
+            tool_call_ids.add(tool_call_id)
+        api_request_id = getattr(item.content, "primary_api_request_id", None)
+        if api_request_id is not None:
+            api_request_ids.add(api_request_id)
+        identity = item.context_note_identity
+        if identity is not None:
+            if identity.competition_season_id is not None:
+                ids_by_model[CompetitionSeason].add(identity.competition_season_id)
+            if identity.franchise_id is not None:
+                ids_by_model[Franchise].add(identity.franchise_id)
+
+    for model, resource_ids in ids_by_model.items():
+        if not resource_ids:
+            continue
+        stored = {
+            row.id: row
+            for row in session.scalars(sa.select(model).where(model.id.in_(resource_ids)))
+        }
+        for resource_id in resource_ids:
+            row = stored.get(resource_id)
+            if row is None:
+                _invalid_reference("referenced scoped resource does not exist", resource_id)
+            if row.competition_id != generation.competition_id:
+                raise MemoryScopeViolation(
+                    "referenced resource is outside the producing competition",
+                    details={"reference_id": str(resource_id)},
+                )
+    _validate_player_references(session, player_ids)
+    _validate_user_references(
+        session,
+        generation.competition_season_id,
+        user_ids,
+    )
+    _validate_source_receipts(
+        session,
+        generation,
+        tool_call_ids,
+        api_request_ids,
+    )
+    for item in prepared:
+        identity = item.context_note_identity
+        if (
+            identity is not None
+            and identity.competition_season_id is not None
+            and identity.competition_season_id != generation.competition_season_id
+        ):
+            raise InvalidMemoryReference(
+                "context-note season must match the producing generation season",
+                details={"item_id": str(item.item_id)},
+            )
+
+
+def _validate_player_references(session: Session, player_ids: set[str]) -> None:
+    if not player_ids:
+        return
+    stored_ids = set(
+        session.scalars(
+            sa.select(Player.sleeper_player_id).where(
+                Player.sleeper_player_id.in_(player_ids)
+            )
+        )
+    )
+    missing = player_ids - stored_ids
+    if missing:
+        raise InvalidMemoryReference(
+            "referenced Sleeper player does not exist",
+            details={"player_id": min(missing)},
+        )
+
+
+def _validate_user_references(
+    session: Session,
+    competition_season_id: UUID,
+    user_ids: set[str],
+) -> None:
+    if not user_ids:
+        return
+    stored_ids = set(
+        session.scalars(
+            sa.select(User.sleeper_user_id).where(
+                User.sleeper_user_id.in_(user_ids)
+            )
+        )
+    )
+    missing = user_ids - stored_ids
+    if missing:
+        raise InvalidMemoryReference(
+            "referenced Sleeper user does not exist",
+            details={"sleeper_user_id": min(missing)},
+        )
+    member_ids = set(
+        session.scalars(
+            sa.select(LeagueUser.sleeper_user_id).where(
+                LeagueUser.competition_season_id == competition_season_id,
+                LeagueUser.sleeper_user_id.in_(user_ids),
+            )
+        )
+    )
+    outside_scope = user_ids - member_ids
+    if outside_scope:
+        raise MemoryScopeViolation(
+            "referenced Sleeper user is outside the producing season",
+            details={"sleeper_user_id": min(outside_scope)},
+        )
+
+
+def _validate_source_receipts(
+    session: Session,
+    generation: Generation,
+    tool_call_ids: set[UUID],
+    api_request_ids: set[UUID],
+) -> None:
+    tool_calls = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(ToolCall).where(ToolCall.id.in_(tool_call_ids))
+        )
+    }
+    for tool_call_id in tool_call_ids:
+        tool_call = tool_calls.get(tool_call_id)
+        if tool_call is None:
+            _invalid_reference("primary tool-call receipt does not exist", tool_call_id)
+        if tool_call.generation_id != generation.id:
+            raise MemoryScopeViolation(
+                "primary tool-call receipt belongs to another generation",
+                details={"tool_call_id": str(tool_call_id)},
+            )
+
+    api_requests = {
+        row.id: row
+        for row in session.scalars(
+            sa.select(ApiRequest).where(ApiRequest.id.in_(api_request_ids))
+        )
+    }
+    for api_request_id in api_request_ids:
+        api_request = api_requests.get(api_request_id)
+        if api_request is None:
+            _invalid_reference("primary API-request receipt does not exist", api_request_id)
+        if api_request.competition_season_id != generation.competition_season_id:
+            raise MemoryScopeViolation(
+                "primary API-request receipt is outside the producing season",
+                details={"api_request_id": str(api_request_id)},
+            )
+
+
+def _validate_context_note_keys(
+    session: Session,
+    competition_id: UUID,
+    revision: MemoryRevisionRef,
+    prepared: Sequence[_PreparedVersion],
+) -> None:
+    identities = [
+        (item.item_id, item.context_note_identity)
+        for item in prepared
+        if item.replaced_version_id is None and item.context_note_identity is not None
+    ]
+    keys: list[tuple[object, ...]] = []
+    for _, identity in identities:
+        keys.append(
+            (
+                identity.scope.value,
+                identity.competition_season_id,
+                identity.franchise_id,
+                identity.note_key,
+            )
+        )
+    _reject_duplicate_values("context-note identity", keys)
+    for item_id, identity in identities:
+        statement = sa.select(ContextNote.item_id).where(
+            ContextNote.competition_id == competition_id,
+            ContextNote.scope == identity.scope.value,
+            ContextNote.note_key == identity.note_key,
+        )
+        if identity.competition_season_id is not None:
+            statement = statement.where(
+                ContextNote.competition_season_id == identity.competition_season_id
+            )
+        if identity.franchise_id is not None:
+            statement = statement.where(ContextNote.franchise_id == identity.franchise_id)
+        existing_item_id = session.scalar(statement)
+        if existing_item_id is not None and session.scalar(
+            sa.select(
+                sa.exists(
+                    _visible_versions(revision)
+                    .with_only_columns(MemoryVersion.id)
+                    .where(MemoryVersion.item_id == existing_item_id)
+                )
+            )
+        ):
+            _invalid_reference("context-note identity already exists", item_id)
+
+
+def _resulting_state_hash(
+    session: Session,
+    base: MemoryRevisionRef,
+    prepared: Sequence[_PreparedVersion],
+) -> str:
+    visible_ids = list(
+        session.scalars(_visible_versions(base).with_only_columns(MemoryVersion.id))
+    )
+    current: dict[UUID, tuple[MemoryContent, ContextNoteIdentity | None]] = {
+        version.item_id: (version.content, version.context_note_identity)
+        for version in _load_typed_versions(session, visible_ids).values()
+    }
+    for item in prepared:
+        current[item.item_id] = (item.content, item.context_note_identity)
+    return _state_hash(current)
+
+
+def _stored_state_hash(session: Session, revision: MemoryRevisionRef) -> str:
+    visible_ids = list(
+        session.scalars(_visible_versions(revision).with_only_columns(MemoryVersion.id))
+    )
+    stored = {
+        version.item_id: (version.content, version.context_note_identity)
+        for version in _load_typed_versions(session, visible_ids).values()
+    }
+    return _state_hash(stored)
+
+
+def _state_hash(
+    state_by_item: Mapping[
+        UUID,
+        tuple[MemoryContent, ContextNoteIdentity | None],
+    ],
+) -> str:
+    state = [
+        {
+            "item_id": str(item_id),
+            "content": content.model_dump(mode="json"),
+            "context_note_identity": (
+                identity.model_dump(mode="json")
+                if identity is not None
+                else None
+            ),
+        }
+        for item_id, (content, identity) in sorted(
+            state_by_item.items(), key=lambda pair: pair[0].hex
+        )
+    ]
+    return sha256(_canonical_json_bytes(state)).hexdigest()
+
+
+def _persist_prepared_versions(
+    session: Session,
+    prepared: Sequence[_PreparedVersion],
+    generation: Generation,
+    revision_id: UUID,
+    recorded_at: datetime,
+) -> None:
+    creates = [item for item in prepared if item.replaced_version_id is None]
+    session.add_all(
+        [
+            MemoryItem(
+                id=item.item_id,
+                competition_id=generation.competition_id,
+                kind=item.content.kind,
+                agent_key=item.client_key,
+                created_at=recorded_at,
+            )
+            for item in creates
+        ]
+    )
+    # The context-note FK is composite and has no ORM relationship edge; make the
+    # stable items visible before adding their one-to-one identities.
+    session.flush()
+    session.add_all(
+        [
+            ContextNote(
+                item_id=item.item_id,
+                competition_id=generation.competition_id,
+                scope=item.context_note_identity.scope.value,
+                competition_season_id=item.context_note_identity.competition_season_id,
+                franchise_id=item.context_note_identity.franchise_id,
+                note_key=item.context_note_identity.note_key,
+            )
+            for item in creates
+            if item.context_note_identity is not None
+        ]
+    )
+    replaced_ids = [
+        item.replaced_version_id
+        for item in prepared
+        if item.replaced_version_id is not None
+    ]
+    if replaced_ids:
+        session.execute(
+            sa.update(MemoryVersion)
+            .where(
+                MemoryVersion.id.in_(replaced_ids),
+                MemoryVersion.retired_revision_id.is_(None),
+            )
+            .values(retired_revision_id=revision_id)
+        )
+    session.add_all(
+        [
+            MemoryVersion(
+                id=item.version_id,
+                item_id=item.item_id,
+                competition_id=generation.competition_id,
+                revision_number=item.revision_number,
+                content_schema_version=item.content.schema_version,
+                introduced_revision_id=revision_id,
+                retired_revision_id=None,
+                competition_season_id=generation.competition_season_id,
+                week=generation.domain_cutoff_week,
+                occurred_at=None,
+                creating_generation_id=generation.id,
+                creating_tool_call_id=None,
+                change_reason=item.change_reason,
+                recorded_at=recorded_at,
+            )
+            for item in prepared
+        ]
+    )
+    session.flush()
+    session.add_all(
+        [
+            encode_stored_content(
+                item.version_id,
+                generation.competition_id,
+                generation.id,
+                item.content,
+            )
+            for item in prepared
+        ]
+    )
+    session.flush()
+
+
+def _typed_prepared_versions(
+    prepared: Sequence[_PreparedVersion],
+    generation: Generation,
+    revision_id: UUID,
+    recorded_at: datetime,
+) -> tuple[TypedMemoryVersion, ...]:
+    return tuple(
+        _typed_prepared_version(
+            item,
+            competition_id=generation.competition_id,
+            competition_season_id=generation.competition_season_id,
+            week=generation.domain_cutoff_week,
+            generation_id=generation.id,
+            revision_id=revision_id,
+            recorded_at=recorded_at,
+        )
+        for item in prepared
+    )
+
+
+def _typed_prepared_version(
+    item: _PreparedVersion,
+    *,
+    competition_id: UUID,
+    competition_season_id: UUID | None,
+    week: int | None,
+    generation_id: UUID,
+    revision_id: UUID,
+    recorded_at: datetime,
+) -> TypedMemoryVersion:
+    return TypedMemoryVersion(
+        version_id=item.version_id,
+        item_id=item.item_id,
+        competition_id=competition_id,
+        kind=MemoryKind(item.content.kind),
+        content=item.content,
+        content_schema_version=item.content.schema_version,
+        revision_number=item.revision_number,
+        introduced_revision_id=revision_id,
+        competition_season_id=competition_season_id,
+        week=week,
+        creating_generation_id=generation_id,
+        change_reason=item.change_reason,
+        recorded_at=recorded_at,
+        context_note_identity=item.context_note_identity,
+    )
+
+
+def _canonical_content(content: MemoryContent) -> bytes:
+    return _canonical_json_bytes(content.model_dump(mode="json"))
+
+
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+
+
+def _integrity_constraint(error: IntegrityError) -> str | None:
+    diagnostic = getattr(error.orig, "diag", None)
+    return getattr(diagnostic, "constraint_name", None)
+
+
 def _revision_ref(revision: MemoryRevision) -> MemoryRevisionRef:
     return MemoryRevisionRef(
         id=revision.id,
@@ -668,21 +1782,13 @@ def _load_typed_versions(
         ids_by_kind.setdefault(kind, []).append(version.id)
 
     typed_rows: dict[UUID, object] = {}
-    table_by_kind = {
-        MemoryKind.STORYLINE: StorylineVersion,
-        MemoryKind.FACT: FactVersion,
-        MemoryKind.EVENT: EventVersion,
-        MemoryKind.TRIGGER: TriggerVersion,
-        MemoryKind.CONTEXT_NOTE: ContextNoteVersion,
-    }
     for kind, ids in ids_by_kind.items():
+        model = typed_content_model(kind)
         typed_rows.update(
             {
                 row.version_id: row
                 for row in session.scalars(
-                    sa.select(table_by_kind[kind]).where(
-                        table_by_kind[kind].version_id.in_(ids)
-                    )
+                    sa.select(model).where(model.version_id.in_(ids))
                 )
             }
         )
@@ -707,10 +1813,10 @@ def _load_typed_versions(
         if typed_row is None:
             raise MemoryNotFound(f"typed memory content not found: {version_id}")
         kind = MemoryKind(item.kind)
-        content = decode_memory_content(
+        content = decode_stored_content(
             kind,
             envelope.content_schema_version,
-            _content_payload(kind, typed_row),
+            typed_row,
         )
         identity_row = context_identities.get(item.id)
         decoded[version_id] = TypedMemoryVersion(
@@ -742,68 +1848,6 @@ def _load_typed_versions(
             ),
         )
     return decoded
-
-
-def _content_payload(kind: MemoryKind, row: object) -> dict[str, Any]:
-    if kind == MemoryKind.STORYLINE:
-        return {
-            "headline": row.headline,
-            "summary": row.summary,
-            "status": row.status,
-            "arc_type": row.arc_type,
-            "salience": row.salience,
-            "tags": row.tags,
-            "subjects": row.subjects,
-            "evidence": row.evidence,
-            "related_storylines": row.related_storylines,
-            "callback_condition": row.callback_condition,
-            "resolution_summary": row.resolution_summary,
-        }
-    if kind == MemoryKind.FACT:
-        return {
-            "claim": row.claim,
-            "category": row.category,
-            "numbers": row.structured_numbers or {},
-            "confidence": row.confidence,
-            "status": row.status,
-            "subjects": row.subjects,
-            "originating_event_version_ids": row.originating_event_version_ids,
-            "primary_tool_call_id": row.primary_tool_call_id,
-            "primary_api_request_id": row.primary_api_request_id,
-            "source_hints": row.additional_source_hints,
-        }
-    if kind == MemoryKind.EVENT:
-        return {
-            "event_type": row.event_type,
-            "headline": row.headline,
-            "summary": row.summary,
-            "salience": row.salience,
-            "confidence": row.confidence,
-            "status": row.status,
-            "details": row.details,
-            "primary_tool_call_id": row.primary_tool_call_id,
-            "primary_api_request_id": row.primary_api_request_id,
-            "source_hints": row.additional_source_hints,
-        }
-    if kind == MemoryKind.TRIGGER:
-        return {
-            "trigger_type": row.trigger_type,
-            "status": row.status,
-            "fire_policy": row.fire_policy,
-            "target_storyline_item_id": row.target_storyline_item_id,
-            "origin_event_item_id": row.origin_event_item_id,
-            "target_competition_season_id": row.target_competition_season_id,
-            "target_week": row.target_week,
-            "target_at": row.target_at,
-            "condition": row.condition,
-            "resolution_reason": row.resolution_reason,
-        }
-    return {
-        "narrative": row.narrative_text,
-        "outlook": row.outlook,
-        "status": row.status,
-        "tags": row.tags,
-    }
 
 
 def _load_evidence_versions(
@@ -891,13 +1935,6 @@ def _raise_invisible_version(
 
 
 def _status_matches(status: str) -> sa.ColumnElement[bool]:
-    tables = (
-        StorylineVersion,
-        FactVersion,
-        EventVersion,
-        TriggerVersion,
-        ContextNoteVersion,
-    )
     return sa.or_(
         *(
             sa.exists(
@@ -906,7 +1943,7 @@ def _status_matches(status: str) -> sa.ColumnElement[bool]:
                     table.status == status,
                 )
             )
-            for table in tables
+            for table in typed_content_models()
         )
     )
 

@@ -452,6 +452,50 @@ role-free entity keys rather than authored entity references.
 - Content-decoder errors contain sanitized JSON-safe validation details rather
   than Pydantic exception objects or documentation URLs.
 
+### MEM-022 — Normalize mutations against their pinned generation input
+
+**Date:** 2026-08-09
+**Status:** Settled
+**Source:** Independent concurrency and error-design review
+
+Mutation intent is first evaluated against the producing generation's pinned
+input revision, never against a newer current pointer. Empty or identical input
+therefore returns that pinned revision. If canonical state advanced, the manager
+evaluates the same unresolved transition against current state: an already
+represented transition is a no-op, while any remaining transition is stale.
+
+**Consequences:**
+
+- A stale generation cannot silently adopt unrelated newer memory as the result
+  of an empty or base-identical bundle.
+- Callers do not supply retry flags or implement race-specific branching.
+- First commits and retries return one payload-independent canonical result,
+  ordered by stable item and version identity.
+- A create result carries its client correlation key; a replacement result does
+  not incorrectly reuse the item's original creation key.
+
+### MEM-023 — Pair one content codec with a stored-state invariant
+
+**Date:** 2026-08-09
+**Status:** Settled
+**Source:** Independent deep-module and information-hiding review
+
+`backend/resources/memory/content_codec.py` owns both directions of every
+schema-versioned typed-content mapping. `MemoryManager` continues to own the
+aggregate transaction, but it decodes the rows it just persisted and verifies
+the resulting visible-state hash before advancing the current pointer.
+
+**Consequences:**
+
+- Adding or retaining a content schema version has one codec registry entry
+  rather than separate manager read and write switch statements.
+- Unsupported stored schemas and state-hash mismatches are named internal
+  operational faults, not caller input errors.
+- Source-backed facts and events require a tool-call or API-request receipt;
+  the manager validates that receipt in the generation or competition scope.
+- Any encoding drift, projection failure, or hash mismatch rolls back the whole
+  canonical mutation.
+
 ## Pending Decisions
 
 - Default retrieval and evidence-expansion limits.

@@ -16,9 +16,10 @@ are not preserved
 | Typed content and reference design | Designed | `application-contracts.md` |
 | Service boundaries and public contracts | Designed | `service-architecture.md` |
 | Resource objects and schema converters | Implemented | `backend/resources/memory/objects.py` |
+| Bidirectional typed-content codec | Implemented | `backend/resources/memory/content_codec.py` |
 | Stable application errors | Implemented | `backend/resources/memory/errors.py` |
 | Memory resource manager and canonical reads | Implemented | `backend/resources/memory/manager.py` |
-| Complete-bundle mutation transaction | Pending | Generation-derived context plus `MemoryManager` transaction |
+| Complete-bundle mutation transaction | Implemented | Generation-derived context plus `MemoryManager.apply` |
 | Authoritative search-document builder | Implemented | `backend/resources/memory/search_documents.py` |
 | Revision-pinned retrieval and hydration | Pending | `MemoryService.at_revision` plus internal retrieval pipeline |
 | Service facade and consumer protocols | Pending | `backend/services/memory/` |
@@ -48,8 +49,15 @@ are not preserved
   competition, cutoffs, season, and its one base-revision concurrency token.
 - Empty, identical, already-applied, and retry mutation cases return stable
   no-op/existing results rather than creating revisions or avoidable errors.
+- Mutation intent is normalized against the generation's pinned input first;
+  unresolved stale transitions are then compared with current state before a
+  stale-writer error is returned.
+- Source-backed facts and events require a persisted tool-call or API-request
+  receipt in the correct generation or competition scope.
 - An ordinary mutation creates zero or one revision in one short manager-owned
   transaction.
+- One schema-versioned codec owns both typed-row encoding and decoding. The
+  manager verifies the stored visible-state hash before advancing the pointer.
 - Search documents are derived, synchronously created for new versions, and
   independently rebuildable.
 - Mutation and rebuild use one authoritative deterministic document builder
@@ -71,7 +79,7 @@ are not preserved
 | 1. Contracts, errors, and schema converters | Complete | All initial typed payloads decode and validate with unit coverage |
 | 2. Canonical reads and hydration manager | Complete | Revision-pinned item/version/history queries pass PostgreSQL tests |
 | 3. Search-document builder | Complete | One dispatcher produces identical mutation/rebuild output for every kind |
-| 4. Canonical mutation transaction | Not started | Atomic create/replace, no-op/retry, stale-writer, reference, and projection tests pass |
+| 4. Canonical mutation transaction | Complete | Atomic create/replace, no-op/retry, stale-writer, reference, and projection tests pass |
 | 5. Pinned retrieval pipeline | Not started | Entity, evidence, related-item, lexical, and historical-leakage tests pass |
 | 6. Basic viewing, promotion integration, reporter/generation, and rebuild CLI | Not started | Narrow capabilities work without UI-specific business logic |
 | 7. Legacy removal | Not started | No active imports or writes depend on `reporter_memory` |
@@ -103,9 +111,9 @@ decision-log entry before expanding the baseline.
 
 ## Next Milestone
 
-Implement slice 4 canonical mutation with one generation-derived transaction,
-including no-op, retry, concurrency, reference, and atomic projection coverage.
-Then add the already-designed pinned retrieval service without public adapters.
+Refine and land slice 5 pinned retrieval and inspection without public adapters.
+Keep ranking and fallback policy inside the service while the pinned reader
+enforces one fixed competition/revision scope.
 
 ## PR Stack Coordination
 
@@ -117,7 +125,7 @@ integrated by `root` after the owning agent reports completion.
 | --- | --- | --- | --- | --- |
 | 1. Design and resource contracts | `codex/memory-service-contracts` | `contracts_agent` | Complete | `docs/memory/`; `backend/resources/memory/objects.py`; `errors.py`; resource contract tests |
 | 2. Canonical persistence and search documents | `codex/memory-service-persistence` | `persistence_agent` | Complete | `backend/resources/memory/manager.py`; `search_documents.py`; persistence/builder tests |
-| 3. Canonical mutation | `codex/memory-service-mutations` | Unassigned | Pending | mutation methods and transaction tests; no public adapters |
+| 3. Canonical mutation | `codex/memory-service-mutations` | `persistence_agent` | Complete | mutation methods and transaction tests; no public adapters |
 | 4. Pinned retrieval and inspection | `codex/memory-service-retrieval` | `service_agent` | In progress | `backend/services/memory/`; retrieval/inspection tests |
 | 5. Composition and adapters | `codex/memory-service-integration` | `root` | Pending | composition, reporter tools, minimal API/CLI adapters, legacy-path removal, integration tests |
 | 6. Workspace promotion | `codex/memory-workspace-promotion` | Unassigned | Pending | reporting-owned promotion workflow and private memory command |

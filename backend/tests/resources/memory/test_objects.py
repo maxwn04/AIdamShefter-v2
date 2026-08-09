@@ -18,6 +18,7 @@ from backend.resources.memory.objects import (
     MemoryMutationBundle,
     MemoryQuery,
     MemoryStatus,
+    MutationItemResult,
     PlayerRef,
     EvidenceRef,
     StorylineContent,
@@ -60,7 +61,7 @@ ID_4 = UUID("00000000-0000-0000-0000-000000000004")
             {
                 "claim": "The roster has won four straight.",
                 "category": "streak",
-                "confidence": "source_backed",
+                "confidence": "inferred",
                 "status": "active",
                 "subjects": [
                     {"kind": "franchise", "id": str(ID_1), "role": "subject"}
@@ -75,7 +76,7 @@ ID_4 = UUID("00000000-0000-0000-0000-000000000004")
                 "headline": "An upset",
                 "summary": "The underdog won.",
                 "salience": 5,
-                "confidence": "source_backed",
+                "confidence": "inferred",
                 "status": "active",
                 "details": {
                     "kind": "matchup",
@@ -138,7 +139,7 @@ def test_decode_validation_details_are_transport_safe() -> None:
                 "headline": "Impossible result",
                 "summary": "One franchise cannot beat itself.",
                 "salience": 3,
-                "confidence": "source_backed",
+                "confidence": "inferred",
                 "status": "active",
                 "details": {
                     "kind": "matchup",
@@ -166,7 +167,7 @@ def test_authored_content_is_deeply_immutable_and_serializes_as_json() -> None:
     fact = FactContent(
         claim="Three consecutive wins.",
         category="streak",
-        confidence="source_backed",
+        confidence="inferred",
         status="active",
         numbers=input_numbers,
         subjects=[{"kind": "player", "id": "p1", "role": "subject"}],
@@ -221,11 +222,53 @@ def test_content_discriminators_and_owned_roles_are_validated() -> None:
         FactContent(
             claim="A claim",
             category="general",
-            confidence="source_backed",
+            confidence="inferred",
             status="active",
             subjects=[PlayerRef(id="p1", role="focus")],
         )
 
+
+def test_source_backed_fact_requires_and_accepts_typed_receipt() -> None:
+    with pytest.raises(ValidationError, match="source-backed memory requires"):
+        FactContent(
+            claim="A sourced claim.",
+            category="general",
+            confidence="source_backed",
+            status="active",
+        )
+
+    fact = FactContent(
+        claim="A sourced claim.",
+        category="general",
+        confidence="source_backed",
+        status="active",
+        primary_tool_call_id=ID_1,
+    )
+    assert fact.primary_tool_call_id == ID_1
+
+
+def test_source_backed_event_requires_and_accepts_typed_receipt() -> None:
+    event_fields = {
+        "event_type": "matchup",
+        "headline": "A sourced result",
+        "summary": "The favorite won.",
+        "salience": 3,
+        "confidence": "source_backed",
+        "status": "active",
+        "details": {
+            "kind": "matchup",
+            "winner_franchise_id": ID_1,
+            "loser_franchise_id": ID_2,
+            "sleeper_matchup_id": "5",
+        },
+    }
+    with pytest.raises(ValidationError, match="source-backed memory requires"):
+        EventContent.model_validate(event_fields)
+
+    event = EventContent.model_validate(
+        {**event_fields, "primary_api_request_id": ID_3}
+    )
+    assert event.primary_api_request_id == ID_3
 
 def test_context_note_identity_enforces_scope_shape() -> None:
     ContextNoteIdentity(scope="competition", note_key="league-voice")
@@ -313,7 +356,7 @@ def test_mutation_bundle_derives_context_from_generation() -> None:
                 content=FactContent(
                     claim="Four straight wins.",
                     category="streak",
-                    confidence="source_backed",
+                    confidence="inferred",
                     status="active",
                 ),
             )
@@ -330,7 +373,7 @@ def test_create_ids_support_same_bundle_references() -> None:
         content=FactContent(
             claim="Four straight wins.",
             category="streak",
-            confidence="source_backed",
+            confidence="inferred",
             status="active",
         ),
     )
@@ -357,3 +400,17 @@ def test_create_ids_support_same_bundle_references() -> None:
 
     assert fact.item_id != fact.version_id
     assert bundle.operations[1].content.evidence[0].version_id == fact.version_id
+
+
+def test_mutation_item_result_has_no_request_position() -> None:
+    result = MutationItemResult(
+        client_key="fact:streak",
+        item_id=ID_1,
+        version_id=ID_2,
+    )
+
+    assert result.model_dump() == {
+        "client_key": "fact:streak",
+        "item_id": ID_1,
+        "version_id": ID_2,
+    }

@@ -54,3 +54,11 @@ class StaleCanonicalRevision(MemoryError):
 
 class SearchProjectionUnavailable(Exception):
     """Internal signal that retrieval must use its bounded canonical fallback."""
+
+
+class CanonicalStateHashMismatch(RuntimeError):
+    """Internal invariant failure between prepared and stored canonical state."""
+
+
+class UnsupportedMemorySchema(RuntimeError):
+    """Internal signal that persisted content has no installed schema codec."""

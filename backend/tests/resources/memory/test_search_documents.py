@@ -94,7 +94,7 @@ FACT_VERSION = _version(
         claim="The Sharks have lost three straight.",
         category="streak",
         numbers={"losses": 3},
-        confidence="source_backed",
+        confidence="inferred",
         status="active",
         subjects=(FranchiseRef(id=FRANCHISE_ID, role="subject"),),
         originating_event_version_ids=(EVIDENCE_ID,),
@@ -107,7 +107,7 @@ TRADE_VERSION = _version(
         headline="A blockbuster trade",
         summary="The Sharks acquired a quarterback and a first-round pick.",
         salience=5,
-        confidence="source_backed",
+        confidence="inferred",
         status="active",
         details=TradeEventPayload(
             sender_franchise_id=FRANCHISE_ID,
@@ -192,7 +192,7 @@ CONTEXT_VERSION = _version(
                     (
                         "The Sharks have lost three straight.",
                         "streak",
-                        "source_backed",
+                        "inferred",
                         "active",
                         '{"losses":3}',
                         f"franchise:{FRANCHISE_ID}",
@@ -219,7 +219,7 @@ CONTEXT_VERSION = _version(
                         "A blockbuster trade",
                         "The Sharks acquired a quarterback and a first-round pick.",
                         "trade",
-                        "source_backed",
+                        "inferred",
                         "active",
                         (
                             '{"assets":[{"display_name":"QB One","kind":"player",'

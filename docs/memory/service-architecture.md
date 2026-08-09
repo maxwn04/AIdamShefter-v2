@@ -219,8 +219,9 @@ rather than an unversioned side effect.
 
 - `NoChange`, retaining the base revision and explaining why no accepted
   operations remained; or
-- `RevisionCommitted`, returning the new revision reference and the item/version
-  IDs produced by each client operation key.
+- `RevisionCommitted`, returning the new revision reference plus a canonical,
+  item-ID-ordered set of produced item/version IDs. Creates retain their client
+  correlation key; replacements do not reuse the item's original create key.
 
 An empty bundle, an identical replacement, or a repeated transition already
 represented by current content returns `NoChange` without creating a revision.
@@ -543,6 +544,7 @@ backend/
 │   ├── __init__.py
 │   ├── objects.py
 │   ├── errors.py
+│   ├── content_codec.py
 │   ├── manager.py
 │   └── search_documents.py
 ├── services/memory/

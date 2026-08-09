@@ -177,6 +177,21 @@ FactConfidence = MemoryConfidence
 EventConfidence = MemoryConfidence
 
 
+def _validate_source_backed_receipt(
+    confidence: MemoryConfidence,
+    primary_tool_call_id: UUID | None,
+    primary_api_request_id: UUID | None,
+) -> None:
+    if (
+        confidence is MemoryConfidence.SOURCE_BACKED
+        and primary_tool_call_id is None
+        and primary_api_request_id is None
+    ):
+        raise ValueError(
+            "source-backed memory requires a primary tool-call or API-request receipt"
+        )
+
+
 class EntityReference(MemoryObject):
     role: NonEmptyStr
     display_name: NonEmptyStr | None = None
@@ -315,6 +330,11 @@ class FactContent(MemoryObject):
             set(self.originating_event_version_ids)
         ):
             raise ValueError("originating event references must be unique")
+        _validate_source_backed_receipt(
+            self.confidence,
+            self.primary_tool_call_id,
+            self.primary_api_request_id,
+        )
         return self
 
 
@@ -424,6 +444,11 @@ class EventContent(MemoryObject):
     def event_type_matches_payload(self) -> EventContent:
         if self.event_type.value != self.details.kind:
             raise ValueError("event_type must match details.kind")
+        _validate_source_backed_receipt(
+            self.confidence,
+            self.primary_tool_call_id,
+            self.primary_api_request_id,
+        )
         return self
 
 
@@ -733,7 +758,6 @@ class MemoryMutationBundle(MemoryObject):
 
 
 class MutationItemResult(MemoryObject):
-    operation_index: int = Field(ge=0)
     client_key: str | None = None
     item_id: UUID
     version_id: UUID

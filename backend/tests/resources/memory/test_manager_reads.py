@@ -294,7 +294,7 @@ def _seed_memory(engine: Engine) -> _SeededMemory:
                 "claim": "The Sharks lost three straight games.",
                 "category": "streak",
                 "structured_numbers": {"losses": 3},
-                "confidence": "source_backed",
+                "confidence": "inferred",
                 "status": "active",
                 "subjects": [],
                 "originating_event_version_ids": [],
