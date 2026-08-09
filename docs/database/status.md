@@ -79,7 +79,7 @@ agent takes over the same scope.
 | 2. Core identity | `core_agent` | Complete | `backend/database/models/core/`; core migration; core constraint tests |
 | 3. Sleeper persistence | `sleeper_agent` | Complete | `backend/database/models/sleeper/`; Sleeper migration; Sleeper constraint tests |
 | 4. Memory state | `core_agent` | Complete | `backend/database/models/memory/`; memory migration; memory constraint tests |
-| 5. Reporting history | `sleeper_agent` | In progress | `backend/database/models/reporting/`; reporting migration; reporting constraint tests |
+| 5. Reporting history | `sleeper_agent` | Complete | `backend/database/models/reporting/`; reporting migration; reporting constraint tests |
 | 6. Cross-namespace integrity | `root` | Pending | integration migration; immutability/scope/leakage tests |
 | 7. Supabase hardening | `foundation_agent` | Complete | CI and deployment/restore/role/TLS runbooks |
 
@@ -105,6 +105,13 @@ Coordination notes:
 - `sleeper_agent`: added all 19 request/current/snapshot ORM tables, revision
   `0003`, and DB-028-focused relational/concurrency/storage-shape/immutability
   tests. Live PostgreSQL tests pass and migrated schema matches ORM metadata.
+- `sleeper_agent` layer 5: completed the six reporting ORM tables, revision
+  `0005`, and DB-028-focused scope, concurrency, provenance, and immutable-history
+  tests. The full live PostgreSQL database suite passes (53 tests), reporting
+  migration/metadata drift is empty, and offline upgrade/downgrade DDL compiles.
+  Layer `0006` must add the deferred artifact/workspace pointer scope rules,
+  memory-to-reporting provenance FKs, and cross-namespace final-history guards;
+  `root` must also import reporting models into the shared metadata registry.
 - `foundation_agent` layer 7: added a role-only hosted bootstrap, manual
   preview/staging verification workflow, mandatory verify-full operator checks,
   credential-free schema reporting, guarded logical backup/restore-drill
