@@ -492,6 +492,12 @@ versions on one strictly ordered canonical revision history. Introduced/retired
 revision bounds select the exact versions visible to a generation. There are no
 canonical snapshots, branches, sibling states, merges, or access-history tables.
 
+Each kind owns a distinct typed content contract, including its subjects,
+exact-version evidence, stable-item relationships, and event-specific payloads.
+A persistent but rebuildable search-document table flattens those different
+contracts for entity, relationship, and full-text candidate discovery. Search
+results are always hydrated from the canonical typed version before use.
+
 Memory records retain both domain time and observation time, along with the
 generation that created the change. A future manual editor can submit a distinct
 generation kind instead of introducing a second provenance system.

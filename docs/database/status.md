@@ -29,7 +29,8 @@ database tests, and operational runbooks only
 - Sleeper API requests/payloads plus a current normalized view and frozen data
   snapshots, with one authoritative head per request scope.
 - Linear canonical memory revisions with introduced/retired version visibility
-  and one current pointer.
+  and one current pointer; kind-specific canonical payloads plus a rebuildable
+  per-version search-document projection.
 - Generations, actual AI-call/token logs, full tool calls, and generic versioned
   artifacts.
 - At most one active evaluation workspace per competition, stored through
@@ -120,11 +121,13 @@ Coordination notes:
   scripts, and deployment/recovery/observability runbooks. Shell/Python syntax,
   Compose validation, static safety assertions, and basedpyright pass; no hosted
   environment was contacted and live hosted gates remain intentionally manual.
-- `core_agent` layer 4: hardened the 12-table linear memory model to DB-028,
-  added same-competition trigger-target scope, revision/current concurrency and
-  sealed-history guards in revision `0004`, and added relational/storage-shape/
-  immutability tests. Offline stack upgrade/downgrade passes and live PostgreSQL
-  memory tests pass 8/8; reporting provenance remains reserved for `0006`.
+- `core_agent` layer 4: implemented the 11-table linear memory model under
+  DB-028 and DB-031. Typed versions own subjects, evidence, stable-item links,
+  high-resolution event details, and trigger targets; the mutable
+  `memory_search_documents` table supplies the rebuildable retrieval index.
+  Revision/current concurrency and sealed canonical-history guards remain in
+  revision `0004`. Offline stack upgrade/downgrade passes and live PostgreSQL
+  memory tests pass 8/8; reporting provenance lands in `0006`.
 - `core_agent` layer 6: added revision `0006` with scoped relational provenance
   across Sleeper, memory, and reporting; artifact/workspace ownership keys;
   non-global API receipt competition guards; and nullable-composite FK hole

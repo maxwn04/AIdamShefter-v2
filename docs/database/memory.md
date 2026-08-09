@@ -6,11 +6,13 @@
 
 ## Validation Ownership
 
-DB-028 governs implementation. PostgreSQL enforces stable identity,
-same-competition references, revision/current-pointer uniqueness, and sealed
-canonical-history immutability. Pydantic objects and the canonical mutation
-transaction validate status/type values, ranges, typed-content matching,
-revision adjacency, evidence policy, and resulting-state hashes.
+DB-028 and DB-031 govern implementation. PostgreSQL enforces stable identity,
+revision/current-pointer uniqueness, relational provenance, and sealed canonical
+history. Pydantic objects and the canonical mutation transaction validate
+status/type values, typed payloads, entity and memory references, target kinds,
+competition scope, evidence policy, and resulting-state hashes. Canonical
+participant and narrative references intentionally do not depend on a universal
+database graph.
 
 ## Purpose
 
@@ -111,6 +113,7 @@ One complete content version:
 - `id uuid` primary key;
 - item ID and denormalized competition ID;
 - positive item-local revision number;
+- positive application `content_schema_version` used to decode the typed row;
 - `introduced_revision_id`;
 - nullable `retired_revision_id`;
 - nullable competition season and non-negative football week;
@@ -152,6 +155,9 @@ A long-running narrative arc:
 - optional arc type;
 - `salience` from 1 through 5;
 - tags;
+- Pydantic-backed typed subjects;
+- exact fact/event version evidence with role metadata;
+- stable related-storyline item references with role metadata;
 - optional callback condition and resolution summary.
 
 The former priority and importance fields collapse into one higher-is-more-
@@ -164,6 +170,8 @@ A reusable remembered claim:
 - claim text and category;
 - structured numbers JSONB;
 - confidence: `unverified`, `inferred`, or `source_backed`;
+- Pydantic-backed typed subjects;
+- optional exact originating-event version IDs;
 - optional typed primary reporting tool-call ID;
 - optional typed primary Sleeper API-request ID;
 - optional additional source-hints JSONB;
@@ -181,11 +189,16 @@ swing, or similar moment:
 - event type, headline, and summary;
 - salience from 1 through 5;
 - confidence and status;
-- structured values and optional source-hints JSONB;
+- event-type-discriminated `details` JSONB and optional source hints;
 - optional typed primary tool-call and API-request receipts.
 
 Season, week, and occurrence time come from the common version envelope. The
 same typed-receipt and retention rules as facts apply.
+
+`details` describes this event; it is not a bag of related events. Application
+models distinguish trade, matchup, waiver, standings, and future event payloads
+with discriminated unions, so adding an event type does not weaken the shapes of
+existing types.
 
 ### `memory.trigger_versions`
 
@@ -194,8 +207,10 @@ A future callback condition:
 - trigger type;
 - status: `open`, `fired`, `satisfied`, `expired`, or `archived`;
 - fire policy: `one_shot`, `recurring`, or `until_resolved`;
+- optional stable target storyline item ID;
+- optional stable origin event item ID;
 - nullable target season/week/time;
-- versioned condition JSONB;
+- trigger-type-discriminated condition JSONB;
 - optional resolution reason.
 
 The physical row also carries the version's `competition_id` so both the parent
@@ -219,33 +234,50 @@ contains narrative text, optional outlook, status, and tags. This unifies the
 current team and league context responsibilities without introducing manager or
 roster-churn history.
 
-## Entities and Relationships
+## Typed References
 
-### `memory.version_entities`
+Participants and relationships belong to the typed source version that gives
+them meaning. Storyline `subjects`, `evidence`, and `related_storylines`; fact
+`subjects` and `originating_event_version_ids`; event `details`; and trigger
+target/origin fields are complete versioned content.
 
-Normalized participants attached to a version:
+Nested roles and event-specific structures use Pydantic-backed JSONB. Homogeneous
+exact IDs may use PostgreSQL UUID arrays. These physical choices do not make the
+payload untyped: the application resource model is the public mutation contract.
 
-- version ID, competition ID, and role;
-- nullable competition-season, franchise, season-roster, Sleeper-user, and
-  Sleeper-player targets;
-- optional display-name snapshot.
+References intentionally distinguish two meanings:
 
-Exactly one target is non-null. Core targets use same-competition composite
-foreign keys; Sleeper users and players use their explicit provider text IDs.
-There is no generic kind/ID escape hatch or core-manager target.
+| Meaning | Stored target |
+| --- | --- |
+| Exact evidence or historical origin | Immutable `memory_versions.id` |
+| Relationship to an evolving narrative object | Stable `memory_items.id` |
 
-### `memory.version_relationships`
+The manager validates reference existence, legal target kind, same competition,
+duplicates, and same-batch references before committing. A change to any owned
+reference creates a complete replacement source version. There is no separately
+versioned link subsystem and no canonical `version_entities` or
+`version_relationships` table.
 
-The complete outgoing relationships owned by a source version:
+## Search Projection
 
-- source version ID;
-- target memory item ID in the same competition;
-- relationship kind/role.
+### `memory.memory_search_documents`
 
-Examples include storyline-to-event, storyline-to-fact, and trigger-to-
-storyline. Retrieval resolves the target version visible at the same pinned
-canonical revision. A relationship change creates a new complete source version;
-there is no separately versioned link subsystem.
+One mutable, rebuildable row per exact memory version provides a uniform
+candidate space across different canonical types:
+
+- version, stable item, competition, and memory kind;
+- optional status, salience, season, and week filters;
+- flattened entity keys;
+- exact evidence-version and stable related-item ID arrays;
+- tags and deterministic document text;
+- a stored PostgreSQL `tsvector`;
+- builder version, content hash, and indexed time.
+
+GIN indexes cover entity, evidence, relationship, tag, and full-text lookup. The
+row is a custom index, not memory content: it may be updated, deleted, or rebuilt
+without creating a canonical revision. Search returns candidate version IDs;
+the application hydrates the authoritative typed rows before returning memory to
+the reporter. See [`../memory/retrieval.md`](../memory/retrieval.md).
 
 ## Canonical Mutation Transaction
 
@@ -256,8 +288,9 @@ A live generation applies accepted memory changes in one short transaction:
 3. Allocate the next sequence and insert its immutable revision row.
 4. Insert new items and complete versions.
 5. Set replaced visible versions' `retired_revision_id` to the new revision.
-6. Validate typed content, entity scope, relationships, and the resulting hash.
-7. Advance `current_revision_id` and its lock version.
+6. Insert deterministic search documents for the new versions.
+7. Validate typed content, reference scope, and the resulting hash.
+8. Advance `current_revision_id` and its lock version.
 
 External API/model calls never occur inside this transaction. A stale writer
 does not create a sibling canonical state; it fails cleanly and must rerun from
@@ -269,10 +302,13 @@ Every live generation pins its exact input canonical revision. Historical
 retrieval filters versions by that revision's sequence, so memories introduced
 later cannot leak into a replay.
 
-PostgreSQL full-text indexes operate directly on typed version text. Retrieval
-first applies revision visibility and competition scope, then ranking. Candidate-
-level RAG telemetry, access counters, verification attempts, and embeddings are
-deferred; the exact memory-search tool call and result remain in reporting.
+Retrieval queries `memory_search_documents`, joins to `memory_versions` and
+`memory_revisions`, and applies competition plus pinned-revision visibility
+before ranking. It then hydrates candidate IDs from the canonical typed tables.
+The projection is generated once when a version is accepted and reused by later
+articles; it is not regenerated per article. Candidate-level RAG telemetry,
+access counters, and embeddings are deferred; the exact memory-search tool call
+and result remain in reporting.
 
 ## Evaluation Workspaces
 
@@ -329,12 +365,15 @@ PostgreSQL automatically.
   is absent at 2, visible at 3 through 5, and absent at 6.
 - Application/manager tests — atomic replacement: a revision cannot expose both the retired and replacement
   version or neither version after commit.
-- Scope isolation: no revision, item, version, entity, generation, or workspace
-  can combine IDs from different competitions.
+- Scope isolation: no revision, item, version, generation, or workspace can
+  combine relational IDs from different competitions; application tests cover
+  typed payload references.
 - Stale live writer: two generations reading revision 8 cannot both advance
   canonical memory; the loser creates no partial revision.
 - Application/manager tests — temporal leakage: a generation pinned to revision 8 cannot search or hydrate
   content introduced at revision 9.
+- Projection rebuild: search documents can be replaced without mutating or
+  advancing canonical memory.
 - Workspace isolation: evaluation generations never change
   `memory.current_revisions`.
 - Single alternative: a second active workspace for the same competition is
@@ -352,9 +391,9 @@ Baseline indexes:
 - items by `(competition_id, kind)`;
 - versions by item/revision number, introduced/retired revision, generation, and
   season/week;
-- entities by each typed target;
-- relationships by source version and target item;
-- GIN full-text indexes on queryable narrative text and tags.
+- search documents by competition/kind/status and item;
+- GIN indexes on flattened entity keys, exact evidence versions, stable related
+  items, tags, and full-text vectors.
 
 Canonical revisions, items, versions, and cited source records use restrictive
 deletion. Archival is represented by a new content version. Only rebuildable
@@ -370,7 +409,7 @@ Explicitly deferred:
 - arbitrary promotion from a historical base;
 - full canonical-history replacement;
 - manager/person and name-history targets;
-- candidate-level RAG telemetry, access counters, and embeddings;
+- candidate-level RAG telemetry, access counters, and vector embeddings;
 - a fully normalized evidence graph beyond typed primary receipts;
 - Git persistence, automated Git export, or Git restoration.
 
