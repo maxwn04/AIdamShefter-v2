@@ -97,7 +97,9 @@ The current concepts remain distinct:
 - context note: team, season, or league narrative context.
 
 Stable items have complete typed versions arranged on one linear canonical
-revision history.
+revision history. Subjects, exact evidence, thematic relationships, and
+event-specific details are owned by those kind-specific versions and validated
+through application resource models.
 `priority` and `importance` become one higher-is-more-important `salience`.
 Season/week/occurrence time remain explicit; there is no phase column.
 Facts and events retain typed primary tool-call/API-request receipts; any extra
@@ -110,13 +112,15 @@ Canonical memory uses:
 | `memory_revisions` / `current_revisions` | Ordered mutation batches and the one current canonical revision |
 | `memory_items` / `memory_versions` | Stable identity and content versions with introduced/retired revisions |
 | typed version tables | Storyline, fact, event, trigger, context content |
-| `version_entities` / `version_relationships` | Retrieval participants and narrative links |
+| `memory_search_documents` | Rebuildable entity/reference/full-text candidate index keyed by exact version |
 
 There are no memory branches, sibling canonical states, or membership snapshots.
 A generation pins one revision; visibility comes from each version's introduced/
-retired revision range. Live mutations append the next revision. Historical and
-rolling evaluations operate on serialized reporting artifacts, not alternative
-rows in canonical memory.
+retired revision range. Live mutations append the next revision and build search
+documents for new versions in the same transaction. Search documents return
+candidate IDs only; callers hydrate typed canonical versions before use.
+Historical and rolling evaluations operate on serialized reporting artifacts,
+not alternative rows in canonical memory.
 
 ### `reporting`
 
@@ -176,10 +180,12 @@ PostgreSQL rows are physically unavailable.
 
 Ready data snapshots, request membership, canonical revision identity, workspace
 artifacts, content hashes, and artifact locators are immutable. Composite foreign
-keys prevent competition, season, snapshot, generation, franchise, roster, and
-memory IDs from being combined across competitions. PostgreSQL owns those
-relational, concurrency, and sealed-history guarantees; Pydantic objects and
-manager/service transactions own product-semantic validation under DB-028.
+keys prevent relational competition, season, snapshot, generation, franchise,
+roster, and provenance IDs from being combined across competitions. Typed memory
+payload references are validated by the application mutation boundary.
+PostgreSQL owns relational, concurrency, and sealed-history guarantees; Pydantic
+objects and manager/service transactions own product-semantic validation under
+DB-028 and DB-031.
 
 ## Shared Conventions
 
@@ -192,8 +198,9 @@ manager/service transactions own product-semantic validation under DB-028.
 - bigint token/byte/duration counts validated as non-negative by application
   objects;
 - text statuses validated through Pydantic enums and workflow policy;
-- JSONB for request payloads, resolved settings, provider metadata, and flexible
-  receipts—not relational identity or common query fields;
+- JSONB for request payloads, resolved settings, provider metadata, flexible
+  receipts, and Pydantic-backed kind-specific memory structures; common memory
+  query fields are flattened into a rebuildable projection;
 - schema-qualified foreign keys and indexes;
 - `ON DELETE RESTRICT` for durable history;
 - logical archival and immutable revisions rather than broad cascades.

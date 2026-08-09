@@ -502,7 +502,7 @@ simulated generations and never writes alternative rows into canonical memory.
 ## Current Implementation Decisions
 
 The current baseline is defined by DB-001 through DB-006, DB-010 through DB-011,
-DB-016 through DB-026, and DB-028 through DB-030. Within that set, later entries explicitly take
+DB-016 through DB-026, and DB-028 through DB-031. Within that set, later entries explicitly take
 precedence. DB-017 supersedes the larger identity/provider designs, DB-020
 supersedes branch/commit memory, DB-021 supersedes workflow/pricing-heavy
 reporting, DB-024 narrows the former evidence design and hardens factual snapshot
@@ -644,3 +644,44 @@ competition-scoped request masquerade as global.
 - Competition-scoped receipts cannot leak across competitions.
 - The trigger is a relational scope guard, not a product-semantic state machine,
   and therefore stays within DB-028.
+
+### DB-031 — Keep canonical memory typed and retrieval derived
+
+**Date:** 2026-08-09
+**Status:** Settled; supersedes generic canonical memory entity/relationship storage
+**Source:** User feedback and adversarial retrieval review
+
+Each storyline, fact, event, trigger, and context-note version owns a complete,
+kind-specific content shape. Subjects, evidence, thematic links, high-resolution
+event details, and trigger targets are represented on their owning typed version
+through ordinary columns, UUID arrays, or Pydantic-backed JSONB. The public
+mutation boundary accepts complete typed resource objects; it does not expose a
+generic graph of free-form roles and relationships.
+
+References use exact version IDs when the meaning is historical evidence and
+stable item IDs when the meaning should follow an evolving narrative identity.
+The application transaction validates target existence, expected kind,
+competition scope, duplicates, and same-batch references. The database retains
+mechanical history, concurrency, and relational provenance constraints without
+making every canonical payload reference a foreign key.
+
+Uniform querying uses `memory.memory_search_documents`, a persistent but
+rebuildable row per exact memory version. It flattens entity keys, evidence and
+related IDs, tags, filter fields, and deterministic text into indexed arrays and
+a PostgreSQL full-text vector. Search selects candidate version IDs at the
+generation's pinned canonical revision, then hydrates authoritative typed rows.
+The projection is maintained when versions are accepted and reused across
+article generations; rebuilding it never creates a memory revision.
+
+**Consequences:**
+
+- `memory.version_entities` and `memory.version_relationships` are removed from
+  canonical storage.
+- `memory_versions.content_schema_version` supports decoding immutable payloads
+  after application models evolve.
+- Search documents can be updated, deleted, or rebuilt and cannot replace
+  canonical content or revision visibility.
+- Exact entity, reference, and full-text queries remain uniform even as event
+  payloads become more specific.
+- Vector embeddings may later be keyed by exact version, builder, model, and
+  content hash without changing canonical memory.
