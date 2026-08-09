@@ -714,8 +714,10 @@ observability.
 Health endpoints distinguish:
 
 - **liveness:** process is running; no database round trip required;
-- **readiness:** bounded `SELECT 1`, expected database/role, TLS in hosted env, and
-  Alembic at head;
+- **readiness:** bounded database query plus expected database/role and TLS in
+  hosted environments; runtime roles do not read protected migration history;
+- **deployment readiness:** the migrator verifies Alembic at head before writers
+  are enabled;
 - **dependency detail:** operator-only diagnostics for server version, connection
   mode, pool, and migration revision.
 

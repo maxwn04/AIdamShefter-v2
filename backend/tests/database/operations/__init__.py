@@ -1,0 +1,1 @@
+"""Static operational-hardening tests."""
