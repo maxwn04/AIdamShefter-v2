@@ -599,3 +599,23 @@ transactions own product semantics and readable validation errors.
   belong with the later application objects and workflows.
 - DB-027's surrogate-ID choice remains settled; its year-range and nonblank-text
   enforcement move to application validation.
+
+### DB-029 — Prefer scoped relational keys over scope-validation triggers
+
+**Date:** 2026-08-08  
+**Status:** Settled  
+**Source:** Memory implementation review
+
+When a child row targets a competition-scoped resource, denormalize
+`competition_id` only where it enables an ordinary composite foreign key. Do not
+replace a simple scope-safe foreign key with a policy trigger merely to avoid the
+scope column.
+
+**Consequences:**
+
+- `memory.trigger_versions` carries `competition_id`, allowing its version and
+  optional target season to be constrained to the same competition.
+- Similar integration keys may use documented denormalized scope columns when
+  their only purpose is preventing cross-competition references.
+- The scope column is relational integrity, not a second domain identity or an
+  authorization mechanism.
