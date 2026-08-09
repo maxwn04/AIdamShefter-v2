@@ -528,6 +528,41 @@ scope capability, not a retrieval coordinator.
   a newer current state, and invalid cursor/query inputs use stable memory
   errors.
 
+### MEM-025 — Compose real ports now and defer adapters without required context
+
+**Date:** 2026-08-09
+**Status:** Settled; narrows stack layer 5 and gates layer 6
+**Source:** Independent adapter-boundary review
+
+`MemoryManager` directly satisfies canonical writer and search-index-admin ports;
+`MemoryService` satisfies reader and inspector ports. The only active external
+adapter added now is `aidam-memory`, with bounded, manager-direct `status` and
+`rebuild` commands.
+
+No memory HTTP handlers are added before the UI, authorization, and transport
+contracts exist. The legacy reporter is not switched to canonical memory before
+a database-backed generation runner can provide an already-pinned reader,
+persisted tool/API receipts, and canonical entity resolution. Existing legacy
+memory remains active until behavior parity; there is no speculative dual-write.
+
+Workspace promotion is gated on a versioned
+`PromotableMemoryWorkspaceArtifactV1`. An opaque artifact string and hash cannot
+prove final item/version identity or preserve exact evidence references.
+
+**Consequences:**
+
+- Stack layer 5 contains the justified maintenance CLI, not an unused FastAPI
+  object graph, placeholder HTTP routes, or unused reporter adapters.
+- A future reporter read adapter accepts `PinnedMemoryReader`; it never resolves
+  current memory itself or reaches through to `MemoryManager`.
+- Canonical writes remain a finalized-generation action, not in-loop model tool
+  side effects.
+- Promotion implementation begins only after the artifact contract defines base
+  identity, deterministic final changes, exact version IDs, reference limits,
+  and canonical hashing.
+- `reporter_memory` deletion remains a parity milestone rather than part of the
+  memory-service foundation stack.
+
 ## Pending Decisions
 
 - Default retrieval and evidence-expansion limits.

@@ -5,8 +5,8 @@
 **Phase:** Application memory implementation
 **Architecture:** Modular-monolith service with typed Python contracts
 **Persistence:** Canonical PostgreSQL schema and search-document table implemented
-**Compatibility:** Clean replacement; legacy `reporter_memory` persistence APIs
-are not preserved
+**Compatibility:** The new canonical layer is a clean replacement contract;
+legacy `reporter_memory` remains active until generation-runner behavior parity
 
 ## Components
 
@@ -25,9 +25,9 @@ are not preserved
 | Service facade and consumer protocols | Implemented | `backend/services/memory/` |
 | Basic canonical viewing and item history | Implemented | `MemoryInspector` capability on `MemoryService` |
 | Search-index status and rebuild contract | Implemented | `MemorySearchIndexAdmin` port satisfied directly by `MemoryManager` |
-| Search-index maintenance CLI | Pending | Thin adapter over the existing admin port |
-| Evaluation-workspace promotion integration | Pending | Evaluation-workspace manager-owned cross-resource transaction |
-| Reporter/generation adapters | Pending | Reporter service memory tools |
+| Search-index maintenance CLI | Implemented | `aidam-memory status` and `aidam-memory rebuild` |
+| Evaluation-workspace promotion integration | Contract blocked | Requires versioned promotable workspace-artifact schema |
+| Reporter/generation adapters | Implementation blocked | Requires database-backed generation runner, pinned input, and receipt/entity resolution |
 | UI-specific memory API | Deferred | Shape after initial memory UX is designed |
 | Legacy `reporter_memory` removal | Pending | After behavior parity |
 | Vector embeddings | Deferred | Add only after baseline retrieval measurement |
@@ -69,8 +69,9 @@ are not preserved
   independently rebuildable.
 - Mutation and rebuild use one authoritative deterministic document builder
   registry based only on immutable version content.
-- Inspector and search-index-admin contracts are narrow consumer ports on the
-  service, not runtime authorization and not mandatory coordinator classes.
+- Inspector and search-index-admin contracts are narrow consumer ports, not
+  runtime authorization and not mandatory coordinator classes. The manager
+  directly satisfies writer/admin ports; the service satisfies reader/inspector.
 - Inspection is limited to viewing canonical items/revisions and item history;
   search-index administration is limited to derived-projection status and
   rebuild.
@@ -88,14 +89,25 @@ are not preserved
 | 3. Search-document builder | Complete | One dispatcher produces identical mutation/rebuild output for every kind |
 | 4. Canonical mutation transaction | Complete | Atomic create/replace, no-op/retry, stale-writer, reference, and projection tests pass |
 | 5. Pinned retrieval pipeline | Complete | Entity, evidence, related-item, lexical, cursor, fallback, and historical-leakage tests pass |
-| 6. Composition, reporter/generation adapters, promotion, and rebuild CLI | Not started | Narrow adapters work without UI-specific business logic |
-| 7. Legacy removal | Not started | No active imports or writes depend on `reporter_memory` |
+| 6. Search-index maintenance CLI | Complete | Narrow manager-direct CLI works without UI-specific business logic |
+| 7. Promotion contract | Contract blocked | Workspace artifact has a promotable v1 schema |
+| 8. Generation/reporter adapter | Implementation blocked | Database-backed runner supplies pinned revisions, provenance, and entity resolution |
+| 9. Legacy removal | Deferred | No active imports or writes depend on `reporter_memory` |
 
 ## Remaining Decisions
 
 One non-blocking tuning decision remains:
 
 - maximum default retrieval result and evidence-expansion limits.
+
+One reporting contract blocks promotion:
+
+- a versioned `PromotableMemoryWorkspaceArtifactV1` with deterministic final
+  item/version identity and exact-reference rules.
+
+Canonical reporter activation is separately blocked on implementation of the
+database-backed generation runner, including pinned revision injection,
+persisted provenance receipts, and canonical entity resolution.
 
 These do not block implementation of the shared reference primitives, revision
 objects, stable errors, content-schema conversion framework, or canonical read
@@ -118,10 +130,10 @@ decision-log entry before expanding the baseline.
 
 ## Next Milestone
 
-Compose the implemented reader, writer, inspector, and search-index-admin ports
-into the FastAPI/reporting application. Add only the minimal reporter tools and
-maintenance adapter needed for behavior parity; keep UI-specific inspection and
-promotion on their separately reviewed boundaries.
+Define and review `PromotableMemoryWorkspaceArtifactV1` with the reporting
+aggregate, then build the database-backed generation runner that can inject an
+already-pinned reader and persist receipts. Do not activate canonical reporter
+writes or delete legacy memory before those inputs exist.
 
 ## PR Stack Coordination
 
@@ -135,8 +147,8 @@ integrated by `root` after the owning agent reports completion.
 | 2. Canonical persistence and search documents | `codex/memory-service-persistence` | `persistence_agent` | Complete | `backend/resources/memory/manager.py`; `search_documents.py`; persistence/builder tests |
 | 3. Canonical mutation | `codex/memory-service-mutations` | `persistence_agent` | Complete | mutation methods and transaction tests; no public adapters |
 | 4. Pinned retrieval and inspection | `codex/memory-service-retrieval` | `retrieval_implementation` | Complete | `backend/services/memory/`; retrieval/inspection tests |
-| 5. Composition and adapters | `codex/memory-service-integration` | `root` | Pending | composition, reporter tools, minimal API/CLI adapters, legacy-path removal, integration tests |
-| 6. Workspace promotion | `codex/memory-workspace-promotion` | Unassigned | Pending | reporting-owned promotion workflow and private memory command |
+| 5. Maintenance adapter | `codex/memory-service-integration` | `root` | Complete | Manager-direct search-index CLI; no premature HTTP/reporter wiring |
+| 6. Workspace promotion | `codex/memory-workspace-promotion` | Unassigned | Contract pending | promotable artifact v1, reporting-owned workflow, private memory command |
 
 Coordination rules:
 

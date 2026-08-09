@@ -305,7 +305,9 @@ mutation path synchronously inserts lexical/entity search documents; it does not
 invoke this administrative API for each write. It does not edit canonical
 content, tune ranking policy, transform memory, or restore historical state.
 
-The first implementation runs status and rebuild synchronously from a CLI. An
+The first implementation runs status and rebuild synchronously through
+`aidam-memory status <competition-uuid>` and
+`aidam-memory rebuild <competition-uuid>`. Batching remains manager-owned. An
 operator API, durable job system, and embedding backfill are deferred until a UI
 or operational need makes them concrete.
 
@@ -326,6 +328,24 @@ The session-scoped command is not a public memory service and never opens or
 commits a transaction. Promotion has no merge, rebase, historical restoration,
 or transformation modes. Retrying an already promoted workspace returns its
 existing promoted revision.
+
+Implementation requires one reporting-owned contract that does not yet exist:
+`PromotableMemoryWorkspaceArtifactV1`. The current artifact table stores opaque
+text plus a hash, while the design refers to both a full workspace state and its
+final diff. Before promotion code is added, the versioned artifact contract must
+define:
+
+- competition, base revision, and base state hash;
+- deterministic ordering and canonical JSON/hash rules;
+- explicit stable item and final version IDs for every create or replacement;
+- complete typed content and context-note identity;
+- references limited to versions visible at the base or final versions in the
+  same artifact; and
+- whether deletion exists (it is absent from the baseline mutation contract).
+
+Without those invariants, promotion could not preserve exact evidence identity
+or prove that the promoted revision matches the verified artifact. The workspace
+transaction is therefore intentionally not implemented from an opaque string.
 
 ## Component Responsibilities
 
@@ -470,12 +490,12 @@ document uses the stable entity key. Given the same typed version, builder
 version, and normalization rules, they produce the same document text, flattened
 keys, reference IDs, and content hash.
 
-`MemoryService.search_index_status` and
-`MemoryService.rebuild_search_index` apply caller scope, stable result contracts,
-and operation observability around deep manager operations. The manager scans
-canonical versions, decodes every retained content schema, calls the
-authoritative dispatcher, and replaces projection rows in bounded batches.
-There is no second rebuild-specific builder.
+`MemoryManager.search_index_status` and
+`MemoryManager.rebuild_search_index` enforce competition scope and return stable
+result contracts directly. The manager scans canonical versions, decodes every
+retained content schema, calls the authoritative dispatcher, and replaces
+projection rows in manager-bounded batches. There is no second rebuild-specific
+builder or forwarding service.
 
 Optional embeddings are a later adapter behind a narrow `EmbeddingProvider`
 port. Embedding availability cannot be required for canonical writes or baseline

@@ -131,6 +131,7 @@ _MAX_CANDIDATES_PER_SIGNAL = 200
 _CANDIDATES_PER_RESULT = 2
 _MAX_FALLBACK_VISIBLE_SCAN = 5_000
 _MAX_FALLBACK_CANDIDATES = 800
+_MAX_REBUILD_BATCH_SIZE = 1_000
 
 
 class MemoryManager:
@@ -818,6 +819,7 @@ class MemoryManager:
 
     def search_index_status(self, competition_id: UUID) -> SearchIndexStatus:
         with read_only_session(self._session_factory) as session:
+            _require_memory_competition(session, competition_id)
             total = session.scalar(
                 sa.select(sa.func.count())
                 .select_from(MemoryVersion)
@@ -870,8 +872,13 @@ class MemoryManager:
     ) -> RebuildResult:
         """Rebuild projection rows from immutable canonical versions in batches."""
 
-        if batch_size <= 0:
-            raise ValueError("batch_size must be positive")
+        if not 1 <= batch_size <= _MAX_REBUILD_BATCH_SIZE:
+            raise InvalidMemoryQuery(
+                f"rebuild batch size must be between 1 and {_MAX_REBUILD_BATCH_SIZE}",
+                details={"batch_size": batch_size},
+            )
+        with read_only_session(self._session_factory) as session:
+            _require_memory_competition(session, competition_id)
         rebuilt = 0
         cursor: UUID | None = None
         while True:
@@ -920,6 +927,13 @@ def _revision_for_generation(
             MemoryRevision.producing_generation_id == generation_id
         )
     )
+
+
+def _require_memory_competition(session: Session, competition_id: UUID) -> None:
+    if session.get(CurrentRevision, competition_id) is None:
+        raise MemoryNotFound(
+            f"canonical memory competition not found: {competition_id}"
+        )
 
 
 def _committed_result(

@@ -90,9 +90,4 @@ class MemorySearchIndexAdmin(Protocol):
 
     def search_index_status(self, competition_id: UUID) -> SearchIndexStatus: ...
 
-    def rebuild_search_index(
-        self,
-        competition_id: UUID,
-        *,
-        batch_size: int = 200,
-    ) -> RebuildResult: ...
+    def rebuild_search_index(self, competition_id: UUID) -> RebuildResult: ...

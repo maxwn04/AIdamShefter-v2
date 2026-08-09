@@ -22,6 +22,8 @@ from backend.database.models.reporting import Generation
 from backend.database.sessions import create_session_factory
 from backend.resources.memory.errors import (
     InvalidMemoryCursor,
+    InvalidMemoryQuery,
+    MemoryNotFound,
     MemoryScopeViolation,
     SearchProjectionUnavailable,
 )
@@ -650,3 +652,20 @@ def test_candidate_pool_reserves_capacity_for_each_independent_signal(
         filter_query,
     )
     assert len(filter_candidates) > filter_query.limit
+
+
+def test_projection_admin_rejects_unknown_scope_and_unbounded_batches(
+    database_engine: Engine,
+) -> None:
+    seeded = _seed_memory(database_engine)
+    manager = _manager(database_engine)
+    unknown_competition_id = uuid4()
+
+    with pytest.raises(MemoryNotFound):
+        manager.search_index_status(unknown_competition_id)
+    with pytest.raises(MemoryNotFound):
+        manager.rebuild_search_index(unknown_competition_id)
+    with pytest.raises(InvalidMemoryQuery):
+        manager.rebuild_search_index(seeded.competition_id, batch_size=0)
+    with pytest.raises(InvalidMemoryQuery):
+        manager.rebuild_search_index(seeded.competition_id, batch_size=1_001)
