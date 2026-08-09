@@ -1,0 +1,92 @@
+name: Hosted database verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Protected GitHub environment containing database secrets
+        required: true
+        type: choice
+        options:
+          - preview
+          - staging
+      expected_database:
+        description: Exact PostgreSQL database name
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    env:
+      AIDAM_MIGRATION_DATABASE_URL: ${{ secrets.AIDAM_MIGRATION_DATABASE_URL }}
+      AIDAM_DATABASE_URL: ${{ secrets.AIDAM_DATABASE_URL }}
+      AIDAM_WORKER_DATABASE_URL: ${{ secrets.AIDAM_WORKER_DATABASE_URL }}
+      AIDAM_EXPECTED_DATABASE: ${{ inputs.expected_database }}
+      AIDAM_MIGRATION_ROLE: aidam_owner
+      AIDAM_MIGRATION_REQUIRE_TLS: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install project
+        run: python -m pip install --editable '.[dev]'
+      - name: Install trusted database CA
+        env:
+          DATABASE_CA_PEM: ${{ secrets.AIDAM_DATABASE_CA_PEM }}
+        run: |
+          install -m 700 -d "$RUNNER_TEMP/aidam-database"
+          printf '%s' "$DATABASE_CA_PEM" > "$RUNNER_TEMP/aidam-database/root.crt"
+          chmod 600 "$RUNNER_TEMP/aidam-database/root.crt"
+          echo "AIDAM_DATABASE_CA_FILE=$RUNNER_TEMP/aidam-database/root.crt" >> "$GITHUB_ENV"
+      - name: Verify single Alembic head
+        run: test "$(alembic -c backend/migrations/alembic.ini heads | wc -l)" -eq 1
+      - name: Apply migration history
+        run: alembic -c backend/migrations/alembic.ini upgrade head
+      - name: Verify database is at head
+        run: alembic -c backend/migrations/alembic.ini current --check-heads
+      - name: Verify migrator and hosted boundaries
+        run: >-
+          python -m infra.database.verify_database
+          --url-environment AIDAM_MIGRATION_DATABASE_URL
+          --expected-database "$AIDAM_EXPECTED_DATABASE"
+          --expected-role aidam_migrator
+          --profile migrator
+      - name: Verify API role and TLS
+        run: >-
+          python -m infra.database.verify_database
+          --url-environment AIDAM_DATABASE_URL
+          --expected-database "$AIDAM_EXPECTED_DATABASE"
+          --expected-role aidam_api
+          --profile runtime
+      - name: Verify worker role and TLS
+        run: >-
+          python -m infra.database.verify_database
+          --url-environment AIDAM_WORKER_DATABASE_URL
+          --expected-database "$AIDAM_EXPECTED_DATABASE"
+          --expected-role aidam_worker
+          --profile runtime
+      - name: Check ORM and migration drift
+        run: alembic -c backend/migrations/alembic.ini check
+      - name: Write credential-free schema report
+        run: >-
+          python -m infra.database.schema_report
+          --url-environment AIDAM_MIGRATION_DATABASE_URL
+          > "$RUNNER_TEMP/schema-report.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: database-schema-report-${{ inputs.environment }}
+          path: ${{ runner.temp }}/schema-report.json
+          if-no-files-found: error
+          retention-days: 30
