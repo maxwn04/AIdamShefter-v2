@@ -8,7 +8,8 @@ resource managers or services.
 from backend.database.base import Base
 from backend.database.models import core as core_models
 from backend.database.models import sleeper as sleeper_models
+from backend.database.models import memory as memory_models
 
 metadata = Base.metadata
 
-__all__ = ["core_models", "metadata", "sleeper_models"]
+__all__ = ["core_models", "memory_models", "metadata", "sleeper_models"]

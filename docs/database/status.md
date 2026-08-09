@@ -77,11 +77,11 @@ agent takes over the same scope.
 | --- | --- | --- | --- |
 | 1. Foundation/private schemas | `foundation_agent` | Complete | `backend/database/` excluding namespace model files; `backend/migrations/` foundation; database test harness; dependency/config files |
 | 2. Core identity | `core_agent` | Complete | `backend/database/models/core/`; core migration; core constraint tests |
-| 3. Sleeper persistence | `sleeper_agent` | In progress | `backend/database/models/sleeper/`; Sleeper migration; Sleeper constraint tests |
-| 4. Memory state | `core_agent` | In progress | `backend/database/models/memory/`; memory migration; memory constraint tests |
-| 5. Reporting history | `root` | In progress | `backend/database/models/reporting/`; reporting migration; reporting constraint tests |
+| 3. Sleeper persistence | `sleeper_agent` | Complete | `backend/database/models/sleeper/`; Sleeper migration; Sleeper constraint tests |
+| 4. Memory state | `core_agent` | Complete | `backend/database/models/memory/`; memory migration; memory constraint tests |
+| 5. Reporting history | `sleeper_agent` | In progress | `backend/database/models/reporting/`; reporting migration; reporting constraint tests |
 | 6. Cross-namespace integrity | `root` | Pending | integration migration; immutability/scope/leakage tests |
-| 7. Supabase hardening | `root` | Pending | CI and deployment/restore/role/TLS runbooks |
+| 7. Supabase hardening | `foundation_agent` | Complete | CI and deployment/restore/role/TLS runbooks |
 
 Coordination notes:
 
@@ -102,3 +102,17 @@ Coordination notes:
   session, health, engine, and role-permission tests. Python 3.11 compilation,
   static assertions, Compose validation, and basedpyright pass; live PostgreSQL
   execution remains CI-ready because local execution requires explicit approval.
+- `sleeper_agent`: added all 19 request/current/snapshot ORM tables, revision
+  `0003`, and DB-028-focused relational/concurrency/storage-shape/immutability
+  tests. Live PostgreSQL tests pass and migrated schema matches ORM metadata.
+- `foundation_agent` layer 7: added a role-only hosted bootstrap, manual
+  preview/staging verification workflow, mandatory verify-full operator checks,
+  credential-free schema reporting, guarded logical backup/restore-drill
+  scripts, and deployment/recovery/observability runbooks. Shell/Python syntax,
+  Compose validation, static safety assertions, and basedpyright pass; no hosted
+  environment was contacted and live hosted gates remain intentionally manual.
+- `core_agent` layer 4: hardened the 12-table linear memory model to DB-028,
+  added same-competition trigger-target scope, revision/current concurrency and
+  sealed-history guards in revision `0004`, and added relational/storage-shape/
+  immutability tests. Offline stack upgrade/downgrade passes and live PostgreSQL
+  memory tests pass 8/8; reporting provenance remains reserved for `0006`.

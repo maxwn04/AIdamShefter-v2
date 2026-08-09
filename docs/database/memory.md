@@ -198,6 +198,10 @@ A future callback condition:
 - versioned condition JSONB;
 - optional resolution reason.
 
+The physical row also carries the version's `competition_id` so both the parent
+version and optional target season use composite same-competition foreign keys.
+This is a relational scope key under DB-029, not duplicate product identity.
+
 Trigger evaluation attempts remain ordinary reporting tool calls. A durable
 state change creates a new canonical trigger version.
 
