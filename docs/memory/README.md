@@ -92,6 +92,8 @@ storylines involving this franchise.”
 
 ## Documents
 
+- [`status.md`](status.md) — implementation ownership, verification, stack, and
+  open-decision ledger.
 - [`canonical-schema.md`](canonical-schema.md) — canonical PostgreSQL model,
   version boundaries, and reference rules.
 - [`application-contracts.md`](application-contracts.md) — Pydantic content

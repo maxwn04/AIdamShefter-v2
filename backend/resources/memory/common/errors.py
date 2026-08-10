@@ -1,0 +1,85 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from backend.resources.memory.common.kinds import MemoryKind
+
+
+class MemoryApplicationError(Exception):
+    """Base class for stable memory application failures."""
+
+
+class TargetNotFoundError(MemoryApplicationError):
+    def __init__(
+        self,
+        reference_id: UUID,
+        expected_kinds: tuple[MemoryKind, ...],
+    ) -> None:
+        self.reference_id = reference_id
+        self.expected_kinds = expected_kinds
+        expected = ", ".join(kind.value for kind in expected_kinds)
+        super().__init__(f"target {reference_id} was not found; expected {expected}")
+
+
+class WrongTargetKindError(MemoryApplicationError):
+    def __init__(
+        self,
+        reference_id: UUID,
+        expected_kinds: tuple[MemoryKind, ...],
+        actual_kind: MemoryKind,
+    ) -> None:
+        self.reference_id = reference_id
+        self.expected_kinds = expected_kinds
+        self.actual_kind = actual_kind
+        expected = ", ".join(kind.value for kind in expected_kinds)
+        super().__init__(
+            f"target {reference_id} has kind {actual_kind.value}; expected {expected}"
+        )
+
+
+class CrossCompetitionReferenceError(MemoryApplicationError):
+    def __init__(
+        self,
+        reference_id: UUID,
+        expected_competition_id: UUID,
+        actual_competition_id: UUID,
+    ) -> None:
+        self.reference_id = reference_id
+        self.expected_competition_id = expected_competition_id
+        self.actual_competition_id = actual_competition_id
+        super().__init__(
+            f"target {reference_id} belongs to competition {actual_competition_id}, "
+            f"not {expected_competition_id}"
+        )
+
+
+class StaleItemVersionError(MemoryApplicationError):
+    def __init__(
+        self,
+        item_id: UUID,
+        expected_revision_number: int,
+        actual_revision_number: int,
+    ) -> None:
+        self.item_id = item_id
+        self.expected_revision_number = expected_revision_number
+        self.actual_revision_number = actual_revision_number
+        super().__init__(
+            f"item {item_id} is at revision {actual_revision_number}, "
+            f"not {expected_revision_number}"
+        )
+
+
+class StaleCanonicalRevisionError(MemoryApplicationError):
+    def __init__(
+        self,
+        competition_id: UUID,
+        expected_revision_id: UUID,
+        actual_revision_id: UUID,
+    ) -> None:
+        self.competition_id = competition_id
+        self.expected_revision_id = expected_revision_id
+        self.actual_revision_id = actual_revision_id
+        super().__init__(
+            f"competition {competition_id} is at canonical revision "
+            f"{actual_revision_id}, not {expected_revision_id}"
+        )

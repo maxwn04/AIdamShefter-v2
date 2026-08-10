@@ -110,7 +110,9 @@ historically safe:
 
 ## Remaining Application Decisions
 
-- final role enums and reference cardinalities;
-- which event payload types are required in the first implementation;
-- projection rebuild command/API ownership;
-- embedding provider, model, and retention policy;
+The typed v1 contracts settled the role enums, reference cardinalities, and
+initial trade/matchup event payloads. Remaining decisions are tracked in
+[`status.md`](status.md), including:
+
+- projection rebuild command/API ownership; and
+- embedding provider, model, and retention policy.
