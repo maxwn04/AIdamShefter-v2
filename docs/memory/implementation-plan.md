@@ -132,9 +132,10 @@ backend/
 │
 ├── services/
 │   └── memory/
+│       ├── generation_context.py
+│       ├── proposals.py
 │       ├── mutation_service.py
-│       ├── retrieval_service.py
-│       └── lifecycle_service.py
+│       └── retrieval_service.py
 │
 └── api/
     ├── schemas/
@@ -274,32 +275,68 @@ large builder file.
 
 ## Service Responsibilities
 
+### Generation memory context
+
+`GenerationMemoryContext` is a generation-scoped facade, not a long-lived
+service or resource manager. `GenerationService` creates one after it seals the
+generation's competition, generation ID, and pinned canonical revision. The
+reporter memory tools receive this context instead of independently composing
+retrieval and mutation services.
+
+The context:
+
+- exposes search methods grounded at its immutable pinned revision;
+- buffers typed fact, event, storyline, trigger, and context-note proposals;
+- returns proposal-local references for same-bundle relationships;
+- exposes the completed mutation bundle to the generation workflow; and
+- contains no SQLAlchemy session or canonical database state.
+
+Calls such as `save_fact` or `save_memory_event` therefore stage typed proposals;
+they do not immediately write canonical memory. Searches made later in the same
+generation still read the pinned canonical revision and do not see the buffered
+proposals as established memory.
+
 ### Mutation service
 
-`MemoryMutationService` parses a typed multi-resource proposal, coordinates
-resource validation, and hands one complete bundle to `RevisionManager`. It owns
-workflow policy but no SQLAlchemy sessions or ORM imports.
+`MemoryMutationService` accepts the completed typed bundle, coordinates resource
+validation, and hands the accepted changes to `RevisionManager`. It owns bundle
+semantics such as same-batch references but no SQLAlchemy sessions or ORM
+imports. It does not decide when a generation commits.
 
 ### Retrieval service
 
 `MemoryRetrievalService` queries `SearchDocumentManager`, dispatches each
 candidate to its typed manager, expands requested exact and stable references,
-and returns hydrated aggregates with match reasons.
+and returns hydrated aggregates with match reasons. It is read-only, receives an
+explicit pinned revision on every search, and knows nothing about the current
+generation's mutation buffer.
 
-### Lifecycle service
+### Generation service
 
-`MemoryLifecycleService` coordinates generation-specific behavior:
+The existing `GenerationService` owns the run lifecycle. It:
 
-- pin the generation's canonical input revision;
-- expose revision-grounded retrieval;
-- accept an optional typed mutation proposal after article generation; and
-- fail a stale live generation without creating sibling state.
+- pins the canonical input revision;
+- constructs `GenerationMemoryContext` with immutable scope, the retrieval
+  dependency, and an empty proposal buffer;
+- gives that context to the reporter tools;
+- hands the context's completed bundle to `MemoryMutationService` once after
+  successful article submission; and
+- discards the buffer when the generation fails or is abandoned.
+
+There is no separate `MemoryLifecycleService`. Introducing one would split
+ownership of the generation lifecycle without creating a distinct application
+capability.
 
 ## Atomic Mutation Flow
 
 ```mermaid
 flowchart LR
-    Proposal["Typed mutation bundle"] --> Service["Mutation service"]
+    Generation["Generation service pins revision R"] --> Context["Generation memory context"]
+    Context -->|"search at R"| Retrieval["Retrieval service"]
+    Context -->|"buffer propose calls"| Buffer["Typed mutation bundle"]
+    Generation -->|"successful submission"| Finalize["Take completed bundle once"]
+    Buffer --> Finalize
+    Finalize --> Service["Mutation service"]
     Service --> Revision["Revision manager transaction"]
     Revision --> Storyline["Storyline helper"]
     Revision --> Fact["Fact helper"]
@@ -400,7 +437,12 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-9-mutation-bundles`
 
-- Add `MemoryMutationService` and complete multi-resource bundle commits.
+- Add `GenerationMemoryContext`, its typed proposal buffer, and
+  `MemoryMutationService`.
+- Keep context searches pinned to canonical input and exclude buffered proposals
+  from retrieval.
+- Commit the completed multi-resource bundle through one explicit finalization
+  call.
 - Batch-load and validate reference targets.
 - Support same-batch references without weakening type or scope validation.
 - Insert search documents atomically and verify the resulting-state hash.
@@ -438,9 +480,10 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-13-reporter-retrieval`
 
-- Replace legacy reporter search and candidate expansion with the new retrieval
-  service.
-- Pin every generation to its canonical input revision.
+- Have `GenerationService` pin canonical input and construct one
+  `GenerationMemoryContext` per run.
+- Replace legacy reporter search and candidate expansion with context methods
+  backed by the new retrieval service.
 - Preserve the rule that remembered facts are research leads requiring
   verification against the frozen Sleeper snapshot.
 
@@ -448,8 +491,9 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-14-reporter-mutations`
 
-- Replace legacy reporter writes with typed mutation proposals.
-- Apply accepted proposals only after article generation completes.
+- Replace legacy reporter writes with context-buffered typed mutation proposals.
+- Have `GenerationService` apply the completed bundle once after successful
+  article submission or discard it on failure.
 - Remove the legacy canonical write path rather than dual-writing both stores.
 - Cover successful commit, no-op proposal, invalid proposal, and stale
   generation behavior.
@@ -472,8 +516,13 @@ The complete stack must prove:
 6. a generation pinned to `R` cannot retrieve content introduced at `R + 1`;
 7. a projection rebuild does not change canonical history;
 8. a new event payload is additive and does not weaken existing contracts;
-9. stale canonical writers produce no revision or partial projection; and
-10. all retained content-schema versions remain decodable.
+9. several `save_*` calls in one generation create at most one canonical
+   revision;
+10. failed or abandoned generations discard their buffered proposals;
+11. searches within a generation do not treat its buffered proposals as
+    canonical memory;
+12. stale canonical writers produce no revision or partial projection; and
+13. all retained content-schema versions remain decodable.
 
 ## Settled Implementation Constraints
 
@@ -482,6 +531,12 @@ The complete stack must prove:
 - Thematic and operational references target stable item IDs.
 - Managers return resource objects and own short session boundaries.
 - Services orchestrate managers but do not import ORM models or open sessions.
+- `GenerationMemoryContext` is created once per generation and owns only pinned
+  retrieval scope plus an in-memory proposal buffer.
+- `GenerationService`, not a separate memory lifecycle service, decides when to
+  commit or discard that buffer.
+- Buffered proposals are not visible to retrieval during the producing
+  generation.
 - Search documents are rebuildable derived data and never canonical content.
 - The initial event implementation contains trade and matchup payloads.
 - Embeddings remain a later, independently rebuildable enhancement.

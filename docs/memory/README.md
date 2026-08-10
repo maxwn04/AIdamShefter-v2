@@ -54,9 +54,9 @@ hydrated from canonical typed versions before they are returned to the agent.
    context note has a complete, kind-specific content shape.
 2. **Stable items are identity envelopes.** Mutable content, participants, and
    links do not live on `memory_items`.
-3. **Semantic validation belongs at the application boundary.** Pydantic models
-   and the memory manager validate event shapes, roles, target kinds, competition
-   scope, and evidence policy.
+3. **Semantic validation belongs at the application boundary.** Pydantic models,
+   typed resource managers, and the mutation service validate event shapes,
+   roles, target kinds, competition scope, and evidence policy.
 4. **PostgreSQL still protects mechanical history.** Primary keys, revision
    sequence uniqueness, item-version uniqueness, current-pointer concurrency,
    and atomic revision advancement remain database responsibilities.

@@ -6,7 +6,8 @@
 
 Callers should know the complete legal shape of a mutation without understanding
 ORM association rows. Routes, tools, services, and the reporter operate on typed
-resource objects; only the memory manager translates those objects into storage.
+resource objects. Typed resource managers translate their own objects, while
+the mutation service and revision manager coordinate an atomic bundle.
 
 The examples below are illustrative Pydantic-style contracts, not final code.
 
@@ -184,15 +185,42 @@ A patch-oriented UI may edit individual fields locally, but the manager validate
 and persists one complete replacement. This prevents a caller from accidentally
 creating a partial version whose omitted relationships have ambiguous meaning.
 
-Before opening the canonical write transaction, the service performs all model
-or external work. Inside the short transaction, the manager:
+### Generation-scoped proposal contract
 
-1. validates Pydantic content and schema version;
-2. loads every referenced item/version in one scoped batch;
-3. requires the expected kinds and same competition;
-4. validates references created in the same mutation bundle;
-5. locks and verifies the current canonical revision;
-6. writes the complete replacement and its search projection atomically.
+Reporter-facing `save_*` operations do not invoke these public mutations one at
+a time. `GenerationService` creates one `GenerationMemoryContext` after pinning
+the generation's canonical input revision. The context exposes retrieval at
+that revision and buffers complete typed proposals:
+
+```python
+context.propose_fact(content: FactContent)
+context.propose_event(content: EventContent)
+context.propose_storyline(content: StorylineContent)
+context.propose_trigger(content: TriggerContent)
+context.propose_context_note(identity: ContextNoteIdentity, content: ContextNoteContent)
+```
+
+The context is an in-memory, generation-scoped facade rather than a manager or
+database unit of work. It contains no open session. Proposal-local references
+allow a later proposal to target another item or version created in the same
+bundle.
+
+Searches through the context always use its immutable pinned canonical revision.
+They do not hydrate buffered proposals or treat them as established memory. On
+successful article submission, `GenerationService` hands the completed bundle
+to `MemoryMutationService` once. On failure or abandonment, it discards the
+buffer without creating a canonical revision.
+
+Before opening the canonical write transaction, the service performs all model
+or external work. Inside the short transaction, the revision manager invokes
+resource-local transaction helpers to:
+
+1. validate Pydantic content and schema version;
+2. load every referenced item/version in one scoped batch;
+3. require the expected kinds and same competition;
+4. validate references created in the same mutation bundle;
+5. lock and verify the current canonical revision;
+6. write the complete replacement and its search projection atomically.
 
 Failures return typed application errors such as target-not-found,
 wrong-target-kind, cross-competition-reference, stale-item-version, or
