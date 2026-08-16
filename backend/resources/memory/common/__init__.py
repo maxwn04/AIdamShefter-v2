@@ -1,5 +1,7 @@
 from backend.resources.memory.common.errors import (
+    CrossCompetitionEntityReferenceError,
     CrossCompetitionReferenceError,
+    EntityReferenceNotFoundError,
     MemoryApplicationError,
     RevisionNotFoundError,
     StaleCanonicalRevisionError,
@@ -28,6 +30,8 @@ from backend.resources.memory.common.versioning import (
 
 __all__ = [
     "CrossCompetitionReferenceError",
+    "CrossCompetitionEntityReferenceError",
+    "EntityReferenceNotFoundError",
     "FranchiseRef",
     "MemoryApplicationError",
     "MemoryContent",

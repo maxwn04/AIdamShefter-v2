@@ -237,12 +237,14 @@ Canonical revisions and search documents are independent resources:
 
 - competition-scoped queries for one resource;
 - exact-version hydration and item history;
-- complete create and replacement validation for that resource;
+- validation and conversion of complete create and replacement payloads;
 - ORM-to-resource conversion; and
-- resource-local transaction helpers used during composed canonical writes.
+- resource-local basic SQL helpers used during composed canonical writes.
 
 They do not make model calls, Sleeper requests, expose ORM rows, or implement
-queries for other memory kinds.
+queries for other memory kinds. They also do not expose standalone canonical
+create or replace operations: a resource write is only durable as part of a
+service-owned mutation unit of work.
 
 ### Revision manager
 
@@ -300,8 +302,11 @@ proposals as established memory.
 
 `MemoryMutationService` accepts the completed typed bundle, coordinates resource
 validation, and hands the accepted changes to `RevisionManager`. It owns bundle
-semantics such as same-batch references but no SQLAlchemy sessions or ORM
-imports. It does not decide when a generation commits.
+and business semantics such as complete create/replacement operations,
+same-batch references, and which accepted changes form one atomic unit of work.
+It has no SQLAlchemy sessions or ORM imports: `RevisionManager` owns the short
+database transaction, locking, hashing, pointer advancement, and commit or
+rollback mechanics. The service does not decide when a generation commits.
 
 ### Retrieval service
 
@@ -398,15 +403,16 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-4-facts`
 
-- Add `FactManager`, codec, validation, transaction helper, and search builder.
-- Support complete create, replace, exact-version hydration, and history.
+- Add `FactManager`, codec, validation, basic SQL helper, and search builder.
+- Support exact-version hydration, history, and package-internal SQL preparation
+  for complete create and replacement proposals.
 - Cover subject, receipt, originating-event, status, and confidence policies.
 
 ### `memory-5` — events
 
 **Branch:** `codex/memory-5-events`
 
-- Add `EventManager`, codecs, transaction helper, and search builder.
+- Add `EventManager`, codecs, basic SQL helper, and search builder.
 - Implement trade and matchup payloads first.
 - Reject mismatched event-type and payload discriminators.
 - Prove adding another payload does not change unrelated contracts.
@@ -415,7 +421,7 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-6-storylines`
 
-- Add `StorylineManager`, codec, transaction helper, and search builder.
+- Add `StorylineManager`, codec, basic SQL helper, and search builder.
 - Validate exact fact/event evidence and stable storyline relationships.
 - Cover complete replacement, historical evidence stability, and history.
 
@@ -423,7 +429,7 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-7-triggers`
 
-- Add `TriggerManager`, condition models, codec, transaction helper, and builder.
+- Add `TriggerManager`, condition models, codec, basic SQL helper, and builder.
 - Validate stable storyline/event targets and competition scope.
 - Cover trigger status, fire policy, target time/week, and condition rules.
 
@@ -431,7 +437,7 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 **Branch:** `codex/memory-8-context-notes`
 
-- Add `ContextNoteManager`, codec, transaction helper, and builder.
+- Add `ContextNoteManager`, codec, basic SQL helper, and builder.
 - Treat scope/key identity and versioned content as one resource aggregate.
 - Cover competition, competition-season, and franchise scopes.
 
@@ -441,6 +447,8 @@ based on the preceding branch and each PR shows only its incremental changes.
 
 - Add `GenerationMemoryContext`, its typed proposal buffer, and
   `MemoryMutationService`.
+- Expose complete public create and replacement operations through the mutation
+  service; typed resource managers remain read/basic-SQL boundaries.
 - Keep context searches pinned to canonical input and exclude buffered proposals
   from retrieval.
 - Commit the completed multi-resource bundle through one explicit finalization
@@ -531,7 +539,8 @@ The complete stack must prove:
 - Public mutations accept complete content replacements, not patches.
 - Exact evidence references target immutable version IDs.
 - Thematic and operational references target stable item IDs.
-- Managers return resource objects and own short session boundaries.
+- Typed-manager read methods return resource objects and own their short read
+  sessions; `RevisionManager` owns the short write session and transaction.
 - Services orchestrate managers but do not import ORM models or open sessions.
 - `GenerationMemoryContext` is created once per generation and owns only pinned
   retrieval scope plus an in-memory proposal buffer.

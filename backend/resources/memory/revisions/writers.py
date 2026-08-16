@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import cast
 from uuid import UUID
@@ -9,7 +10,12 @@ from uuid import UUID
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from backend.database.models.memory import CurrentRevision, MemoryRevision
+from backend.database.models.memory import (
+    CurrentRevision,
+    MemoryItem,
+    MemoryRevision,
+    MemoryVersion,
+)
 from backend.resources.memory.common.errors import (
     RevisionNotFoundError,
     StaleCanonicalRevisionError,
@@ -21,6 +27,44 @@ class LockedRevisionParent:
     current_revision_id: UUID
     next_sequence_number: int
     next_lock_version: int
+
+
+def persist_version_envelopes(
+    session: Session,
+    revision: MemoryRevision,
+    *,
+    new_items: Iterable[MemoryItem],
+    new_versions: Iterable[MemoryVersion],
+    retired_versions: Iterable[MemoryVersion] = (),
+) -> None:
+    """Persist generic revision state in dependency order inside one transaction.
+
+    The ORM intentionally has no relationship graph, so SQLAlchemy cannot infer
+    the foreign-key order among pending revision, item, and version objects.
+    Canonical write orchestration uses this package-internal operation before
+    invoking typed resource writers; callers never coordinate these flush
+    stages themselves.
+    """
+
+    items = tuple(new_items)
+    versions = tuple(new_versions)
+    retired = tuple(retired_versions)
+
+    session.add(revision)
+    session.flush((revision,))
+
+    if retired:
+        for previous in retired:
+            previous.retired_revision_id = revision.id
+        session.flush(retired)
+
+    if items:
+        session.add_all(items)
+        session.flush(items)
+
+    if versions:
+        session.add_all(versions)
+        session.flush(versions)
 
 
 def lock_current_revision(

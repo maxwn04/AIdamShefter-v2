@@ -9,6 +9,29 @@ class MemoryApplicationError(Exception):
     """Base class for stable memory application failures."""
 
 
+class EntityReferenceNotFoundError(MemoryApplicationError):
+    def __init__(self, entity_kind: str, entity_id: UUID | str) -> None:
+        self.entity_kind = entity_kind
+        self.entity_id = entity_id
+        super().__init__(f"{entity_kind} entity {entity_id} was not found")
+
+
+class CrossCompetitionEntityReferenceError(MemoryApplicationError):
+    def __init__(
+        self,
+        entity_kind: str,
+        entity_id: UUID | str,
+        expected_competition_id: UUID,
+    ) -> None:
+        self.entity_kind = entity_kind
+        self.entity_id = entity_id
+        self.expected_competition_id = expected_competition_id
+        super().__init__(
+            f"{entity_kind} entity {entity_id} does not belong to competition "
+            f"{expected_competition_id}"
+        )
+
+
 class RevisionNotFoundError(MemoryApplicationError):
     def __init__(
         self,
