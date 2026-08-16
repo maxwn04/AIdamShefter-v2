@@ -4,7 +4,11 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from backend.resources.memory.events import EventContent, TradeEventPayload
+from backend.resources.memory.events import (
+    EventContent,
+    MatchupEventPayload,
+    TradeEventPayload,
+)
 from backend.resources.memory.triggers import TriggerContent
 
 
@@ -76,7 +80,7 @@ def test_trade_payload_discriminates_all_initial_asset_types() -> None:
 
 def test_event_contract_rejects_payload_mismatch_and_invalid_participants() -> None:
     winner_id = uuid4()
-    matchup = {
+    matchup: dict[str, object] = {
         "kind": "matchup",
         "winner_franchise_id": winner_id,
         "loser_franchise_id": winner_id,
@@ -106,6 +110,32 @@ def test_event_contract_rejects_payload_mismatch_and_invalid_participants() -> N
             },
             "trade",
         )
+
+
+def test_payload_contracts_remain_independently_validatable() -> None:
+    matchup = MatchupEventPayload.model_validate(
+        {
+            "winner_franchise_id": uuid4(),
+            "loser_franchise_id": uuid4(),
+            "sleeper_matchup_id": "standalone-matchup",
+        }
+    )
+    trade = TradeEventPayload.model_validate(
+        {
+            "sender_franchise_id": uuid4(),
+            "receiver_franchise_id": uuid4(),
+            "assets": [
+                {
+                    "kind": "budget",
+                    "direction": "sender_to_receiver",
+                    "amount": 5,
+                }
+            ],
+        }
+    )
+
+    assert matchup.kind == "matchup"
+    assert trade.kind == "trade"
 
 
 def test_trigger_contract_discriminates_initial_conditions() -> None:

@@ -1,3 +1,4 @@
+from backend.resources.memory.events.manager import EventManager
 from backend.resources.memory.events.objects import (
     Event,
     EventConfidence,
@@ -22,6 +23,7 @@ __all__ = [
     "Event",
     "EventConfidence",
     "EventContent",
+    "EventManager",
     "EventPayload",
     "EventStatus",
     "EventType",
