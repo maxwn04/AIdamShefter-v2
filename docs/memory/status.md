@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-10` complete; `memory-11` is next
-**Current branch:** `codex/memory-10-search-projection`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10`
-**Publication:** `memory-10` is published as PR #118 atop `memory-9` (PR #117).
+**Active layer:** `memory-11` complete; `memory-12` is next
+**Current branch:** `codex/memory-11-retrieval`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10` <- `memory-11`
+**Publication:** `memory-10` is published as PR #118; `memory-11` is complete locally atop it.
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -26,7 +26,7 @@ The completed database stack remains tracked separately in
 | `memory-8` context notes | `codex/memory-8-context-notes` | Complete | `root` | 9 focused context-note tests; memory: 73 passed; backend: 145 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR #115 |
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Complete | `root` | 5 focused PostgreSQL tests; memory: 84 passed; backend: 156 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `915ddf4`; PR #118 |
-| `memory-11` retrieval | `codex/memory-11-retrieval` | Pending | Unassigned | Not started | — |
+| `memory-11` retrieval | `codex/memory-11-retrieval` | Complete | `root` | 7 focused PostgreSQL tests; memory: 91 passed; backend: 163 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Commit pending |
 | `memory-12` HTTP API | `codex/memory-12-api` | Pending | Unassigned | Not started | — |
 | `memory-13` reporter retrieval | `codex/memory-13-reporter-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-14` reporter mutations | `codex/memory-14-reporter-mutations` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-11` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/services/memory/retrieval_service.py`, event/storyline visible reads, retrieval tests, typed generation-context boundary, `docs/memory/` | Revision-pinned canonical hydration, one-hop typed exact/stable reference sidecars, projection-integrity enforcement, public retrieval contracts, verification, and coordination ownership |
 
 ## `memory-10` Assignments
 
@@ -290,8 +296,31 @@ design and correctness pass.
   failures, projection failures, and hash mismatches all leave revision history,
   typed content, search documents, retirements, and the current pointer
   unchanged.
-- Search query/rebuild APIs, hydrated retrieval, HTTP routes, and reporter
-  lifecycle integration remain deferred to `memory-10` through `memory-14`.
+- HTTP routes and reporter lifecycle integration remain deferred to
+  `memory-12` through `memory-14`.
+
+## `memory-11` Boundary Notes
+
+- `MemoryRetrievalService` composes the competition-scoped search and typed
+  managers. Every call supplies an exact pinned revision, and ranked candidates
+  are returned only after their canonical version, item, kind, and competition
+  identities agree with the projection.
+- Results contain complete canonical typed aggregates plus score explanations
+  and matched query values. Projection text, hashes, builder metadata, projected
+  status/salience, search vectors, and ORM rows do not cross the boundary.
+- Exact storyline evidence and fact originating events hydrate the referenced
+  immutable version even after retirement. Stable related storylines and
+  trigger targets resolve the target version visible at the pinned revision.
+- Reference expansion is optional, typed, one hop, and returned as sidecars;
+  canonical content is never rewritten or recursively enriched. Per-request
+  caches reuse exact and revision-visible hydrations without persistent cache
+  state.
+- A projected candidate that cannot reconcile with canonical identity fails the
+  complete request with `SearchProjectionHydrationError`. Missing canonical
+  reference targets remain hard typed manager failures rather than partial
+  results.
+- HTTP schemas/routes, reporter tool integration, trigger scheduling,
+  embeddings, and persistent hydration caches remain deferred.
 
 ## `memory-10` Boundary Notes
 
@@ -341,9 +370,9 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-10` run
-  passed all 84 memory tests and all 156 backend tests.
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-11` run
+  passed all 91 memory tests and all 163 backend tests.
 - `uvx basedpyright backend` reports the same 16 diagnostics already present at
   the `memory-5` parent, including the existing Pydantic `schema_version`
-  narrowing pattern. No new error originates in the `memory-10`
+  narrowing pattern. No new error originates in the `memory-11`
   implementation or tests.

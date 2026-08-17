@@ -7,22 +7,31 @@ import pytest
 from backend.resources.memory.common.errors import GenerationMemoryContextClosedError
 from backend.resources.memory.events.objects import EventContent
 from backend.resources.memory.facts.objects import FactContent
-from backend.services.memory import GenerationMemoryContext
+from backend.resources.memory.search_documents import SearchDocumentQuery
+from backend.services.memory import (
+    GenerationMemoryContext,
+    MemoryRetrievalRequest,
+    MemoryRetrievalResult,
+)
 
 
 class RecordingRetrieval:
     def __init__(self) -> None:
-        self.calls: list[tuple[UUID, UUID, object]] = []
+        self.calls: list[tuple[UUID, UUID, MemoryRetrievalRequest]] = []
 
     def search(
         self,
         *,
         competition_id: UUID,
         revision_id: UUID,
-        request: object,
-    ) -> object:
+        request: MemoryRetrievalRequest,
+    ) -> MemoryRetrievalResult:
         self.calls.append((competition_id, revision_id, request))
-        return {"canonical": True}
+        return MemoryRetrievalResult(
+            competition_id=competition_id,
+            revision_id=revision_id,
+            matches=(),
+        )
 
 
 def _event() -> EventContent:
@@ -72,9 +81,13 @@ def test_context_keeps_search_pinned_and_finalizes_its_buffer_once() -> None:
 
     event_ref = context.propose_event(_event())
     fact_ref = context.propose_fact(_fact(event_ref.version_id))
-    assert context.search({"text": "rivalry"}) == {"canonical": True}
+    request = MemoryRetrievalRequest(query=SearchDocumentQuery(text="rivalry"))
+    result = context.search(request)
+    assert result.competition_id == competition_id
+    assert result.revision_id == revision_id
+    assert result.matches == ()
     assert retrieval.calls == [
-        (competition_id, revision_id, {"text": "rivalry"})
+        (competition_id, revision_id, request)
     ]
 
     bundle = context.take_completed_bundle()
@@ -90,4 +103,8 @@ def test_context_keeps_search_pinned_and_finalizes_its_buffer_once() -> None:
     with pytest.raises(GenerationMemoryContextClosedError):
         context.take_completed_bundle()
     with pytest.raises(GenerationMemoryContextClosedError):
-        context.search({"text": "buffered fact"})
+        context.search(
+            MemoryRetrievalRequest(
+                query=SearchDocumentQuery(text="buffered fact")
+            )
+        )

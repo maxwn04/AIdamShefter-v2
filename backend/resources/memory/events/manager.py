@@ -11,6 +11,7 @@ from backend.resources.memory.common.errors import TargetNotFoundError
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.events.codec import decode_event, event_rows_statement
 from backend.resources.memory.events.objects import Event
+from backend.resources.memory.revisions.shared import visible_versions_statement
 
 
 class EventManager:
@@ -35,6 +36,26 @@ class EventManager:
             row = session.execute(statement).one_or_none()
         if row is None:
             raise TargetNotFoundError(version_id, (MemoryKind.EVENT,))
+        return decode_event(row[0], row[1], row[2])
+
+    def visible_at(self, item_id: UUID, revision_id: UUID) -> Event:
+        """Hydrate the version of one stable event visible at a revision."""
+
+        visible = visible_versions_statement(
+            self._competition_id,
+            revision_id,
+        ).subquery("visible_event_versions")
+        statement = event_rows_statement().join(
+            visible,
+            visible.c.id == MemoryVersion.id,
+        ).where(
+            MemoryItem.id == item_id,
+            MemoryItem.competition_id == self._competition_id,
+        )
+        with read_only_session(self._session_factory) as session:
+            row = session.execute(statement).one_or_none()
+        if row is None:
+            raise TargetNotFoundError(item_id, (MemoryKind.EVENT,))
         return decode_event(row[0], row[1], row[2])
 
     def history(self, item_id: UUID) -> tuple[Event, ...]:

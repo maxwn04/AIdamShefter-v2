@@ -9,6 +9,7 @@ from backend.database.sessions import SessionFactory, read_only_session
 from backend.resources.context import CompetitionScope, ManagerContext
 from backend.resources.memory.common.errors import TargetNotFoundError
 from backend.resources.memory.common.kinds import MemoryKind
+from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.storylines.codec import (
     decode_storyline,
     storyline_rows_statement,
@@ -38,6 +39,26 @@ class StorylineManager:
             row = session.execute(statement).one_or_none()
         if row is None:
             raise TargetNotFoundError(version_id, (MemoryKind.STORYLINE,))
+        return decode_storyline(row[0], row[1], row[2])
+
+    def visible_at(self, item_id: UUID, revision_id: UUID) -> Storyline:
+        """Hydrate the version of one stable storyline visible at a revision."""
+
+        visible = visible_versions_statement(
+            self._competition_id,
+            revision_id,
+        ).subquery("visible_storyline_versions")
+        statement = storyline_rows_statement().join(
+            visible,
+            visible.c.id == MemoryVersion.id,
+        ).where(
+            MemoryItem.id == item_id,
+            MemoryItem.competition_id == self._competition_id,
+        )
+        with read_only_session(self._session_factory) as session:
+            row = session.execute(statement).one_or_none()
+        if row is None:
+            raise TargetNotFoundError(item_id, (MemoryKind.STORYLINE,))
         return decode_storyline(row[0], row[1], row[2])
 
     def history(self, item_id: UUID) -> tuple[Storyline, ...]:

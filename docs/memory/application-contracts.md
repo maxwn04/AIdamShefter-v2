@@ -315,12 +315,19 @@ meaning.
 
 ## Hydration Contract
 
-Retrieval returns candidate version IDs and scores. The manager then:
+Retrieval accepts a typed search query plus independent exact-reference and
+stable-reference expansion flags. The retrieval service then:
 
 1. loads the visible `memory_version` and correct typed row;
 2. decodes it through the kind's application model;
 3. loads exact evidence versions and visible stable-item references as requested;
-4. returns a typed aggregate plus match reasons to the reporter tool.
+4. returns a typed aggregate plus match reasons and matched query values.
+
+Expansions are typed, one-hop sidecars. Storyline evidence and fact originating
+events preserve exact immutable version identity even after retirement.
+Related storylines and trigger storyline/event targets resolve the version of
+the stable item visible at the pinned revision. Expanded targets are not
+recursively enriched, and the owning canonical aggregate is not rewritten.
 
 The agent never receives a search document as authoritative memory and never
 writes directly to the projection.
