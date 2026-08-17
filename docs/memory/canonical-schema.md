@@ -208,7 +208,8 @@ PostgreSQL retains mechanical invariants:
 - immutable revision/version history;
 - atomic retirement, introduction, and pointer advancement.
 
-Application models and the memory manager own semantic invariants:
+Application models, typed resource managers, and the mutation service own
+semantic invariants:
 
 - legal event and trigger payloads;
 - participant and evidence roles;
