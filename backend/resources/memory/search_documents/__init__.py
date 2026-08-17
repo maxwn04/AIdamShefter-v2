@@ -12,6 +12,10 @@ from backend.resources.memory.search_documents.builders.storyline import (
     STORYLINE_DOCUMENT_BUILDER_VERSION,
     build_storyline_document,
 )
+from backend.resources.memory.search_documents.builders.trigger import (
+    TRIGGER_DOCUMENT_BUILDER_VERSION,
+    build_trigger_document,
+)
 from backend.resources.memory.search_documents.objects import SearchDocumentProjection
 
 __all__ = [
@@ -19,7 +23,9 @@ __all__ = [
     "FACT_DOCUMENT_BUILDER_VERSION",
     "SearchDocumentProjection",
     "STORYLINE_DOCUMENT_BUILDER_VERSION",
+    "TRIGGER_DOCUMENT_BUILDER_VERSION",
     "build_event_document",
     "build_fact_document",
     "build_storyline_document",
+    "build_trigger_document",
 ]

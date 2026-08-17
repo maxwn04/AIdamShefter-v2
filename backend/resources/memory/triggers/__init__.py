@@ -2,6 +2,7 @@ from backend.resources.memory.triggers.conditions.rematch import RematchConditio
 from backend.resources.memory.triggers.conditions.trade_evaluation import (
     TradeEvaluationCondition,
 )
+from backend.resources.memory.triggers.manager import TriggerManager
 from backend.resources.memory.triggers.objects import (
     FirePolicy,
     Trigger,
@@ -18,6 +19,7 @@ __all__ = [
     "Trigger",
     "TriggerCondition",
     "TriggerContent",
+    "TriggerManager",
     "TriggerStatus",
     "TriggerType",
 ]
