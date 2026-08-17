@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -17,12 +18,18 @@ from backend.resources.memory.common.errors import (
     WrongTargetKindError,
 )
 from backend.resources.memory.common.kinds import MemoryKind
-from backend.resources.memory.facts.codec import encode_fact
+from backend.resources.memory.facts.codec import (
+    decode_fact,
+    encode_fact,
+    fact_rows_statement,
+    stored_fact_content,
+)
 from backend.resources.memory.facts.objects import FactContent
 from backend.resources.memory.facts.validation import (
     ValidatedFactContent,
     validate_fact_content,
 )
+from backend.resources.memory.revisions.hashing import StateHashItem, state_hash_item
 from backend.resources.memory.search_documents.builders.fact import (
     build_fact_document,
 )
@@ -126,3 +133,45 @@ def insert_fact_version(
         )
     )
     insert_search_document(session, version, build_fact_document(content))
+
+
+def fact_persister(
+    content: FactContent,
+) -> Callable[[Session, MemoryItem, MemoryVersion], None]:
+    """Bind typed fact preparation behind the generic revision writer."""
+
+    def persist(session: Session, _item: MemoryItem, version: MemoryVersion) -> None:
+        prepared = prepare_fact_write(session, version.competition_id, content)
+        insert_fact_version(session, version, prepared)
+
+    return persist
+
+
+def read_fact_state(
+    session: Session,
+    competition_id: UUID,
+) -> tuple[StateHashItem, ...]:
+    rows = session.execute(
+        fact_rows_statement().where(
+            MemoryItem.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    ).all()
+    result: list[StateHashItem] = []
+    for item, version, stored in rows:
+        fact = decode_fact(item, version, stored)
+        result.append(
+            state_hash_item(
+                item_id=item.id,
+                kind=MemoryKind.FACT,
+                agent_key=item.agent_key,
+                version_id=version.id,
+                revision_number=version.revision_number,
+                content_schema_version=version.content_schema_version,
+                competition_season_id=version.competition_season_id,
+                week=version.week,
+                occurred_at=version.occurred_at,
+                content=stored_fact_content(fact.content),
+            )
+        )
+    return tuple(result)

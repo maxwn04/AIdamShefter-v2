@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -18,15 +19,19 @@ from backend.database.models.memory.context_notes import (
 )
 from backend.resources.memory.common.errors import (
     CrossCompetitionReferenceError,
+    DuplicateContextNoteError,
     StaleItemVersionError,
     TargetNotFoundError,
     WrongTargetKindError,
 )
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.context_notes.codec import (
+    context_note_rows_statement,
+    decode_context_note,
     decode_context_note_identity,
     encode_context_note,
     encode_context_note_identity,
+    stored_context_note_content,
 )
 from backend.resources.memory.context_notes.objects import (
     ContextNoteContent,
@@ -36,6 +41,7 @@ from backend.resources.memory.context_notes.validation import (
     ValidatedContextNote,
     validate_context_note,
 )
+from backend.resources.memory.revisions.hashing import StateHashItem, state_hash_item
 from backend.resources.memory.search_documents.builders.context_note import (
     build_context_note_document,
 )
@@ -137,6 +143,22 @@ def insert_context_note_identity(
         )
     if not inspect(item).persistent:
         raise ValueError("context-note item envelope must be persisted before identity")
+    duplicate = session.scalar(
+        sa.select(ContextNoteRow.item_id).where(
+            ContextNoteRow.scope == prepared.identity.scope,
+            ContextNoteRow.note_key == prepared.identity.note_key,
+            ContextNoteRow.competition_id == prepared.competition_id,
+            ContextNoteRow.competition_season_id
+            == getattr(prepared.identity, "competition_season_id", None),
+            ContextNoteRow.franchise_id
+            == getattr(prepared.identity, "franchise_id", None),
+        )
+    )
+    if duplicate is not None:
+        raise DuplicateContextNoteError(
+            prepared.identity.scope,
+            prepared.identity.note_key,
+        )
     identity_row = ContextNoteRow(
         item_id=item.id,
         competition_id=item.competition_id,
@@ -182,3 +204,61 @@ def insert_context_note_version(
         version,
         build_context_note_document(prepared.identity, content),
     )
+
+
+def context_note_persister(
+    operation: str,
+    identity: ContextNoteIdentity | None,
+    content: ContextNoteContent,
+) -> Callable[[Session, MemoryItem, MemoryVersion], None]:
+    def persist(session: Session, item: MemoryItem, version: MemoryVersion) -> None:
+        resolved_identity = identity
+        if operation == "replace":
+            identity_row = session.get(ContextNoteRow, item.id)
+            if identity_row is None:
+                raise TargetNotFoundError(item.id, (MemoryKind.CONTEXT_NOTE,))
+            resolved_identity = decode_context_note_identity(identity_row)
+        if resolved_identity is None:
+            raise ValueError("context-note create is missing its stable identity")
+        prepared = prepare_context_note_write(
+            session,
+            version.competition_id,
+            resolved_identity,
+            content,
+        )
+        if operation == "create":
+            insert_context_note_identity(session, item, prepared)
+        insert_context_note_version(session, version, prepared)
+
+    return persist
+
+
+def read_context_note_state(
+    session: Session,
+    competition_id: UUID,
+) -> tuple[StateHashItem, ...]:
+    rows = session.execute(
+        context_note_rows_statement().where(
+            MemoryItem.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    ).all()
+    result: list[StateHashItem] = []
+    for item, version, identity_row, stored in rows:
+        note = decode_context_note(item, version, identity_row, stored)
+        result.append(
+            state_hash_item(
+                item_id=item.id,
+                kind=MemoryKind.CONTEXT_NOTE,
+                agent_key=item.agent_key,
+                version_id=version.id,
+                revision_number=version.revision_number,
+                content_schema_version=version.content_schema_version,
+                competition_season_id=version.competition_season_id,
+                week=version.week,
+                occurred_at=version.occurred_at,
+                content=stored_context_note_content(note.content),
+                context_note_identity=note.note_identity,
+            )
+        )
+    return tuple(result)

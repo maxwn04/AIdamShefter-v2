@@ -84,6 +84,37 @@ def compute_state_content_hash(
     return f"{STATE_HASH_PREFIX}{sha256(encoded).hexdigest()}"
 
 
+def state_hash_item(
+    *,
+    item_id: UUID,
+    kind: MemoryKind,
+    agent_key: str | None,
+    version_id: UUID,
+    revision_number: int,
+    content_schema_version: int,
+    competition_season_id: UUID | None,
+    week: int | None,
+    occurred_at: datetime | None,
+    content: StoredSchemaContent,
+    context_note_identity: ContextNoteIdentity | None = None,
+) -> StateHashItem:
+    """Construct one logical state value without exposing ORM rows."""
+
+    return StateHashItem(
+        item_id=item_id,
+        kind=kind,
+        agent_key=agent_key,
+        context_note_identity=context_note_identity,
+        version_id=version_id,
+        revision_number=revision_number,
+        content_schema_version=content_schema_version,
+        competition_season_id=competition_season_id,
+        week=week,
+        occurred_at=occurred_at,
+        content=content,
+    )
+
+
 def _state_item_payload(item: StateHashItem) -> dict[str, Any]:
     return {
         "item_id": _canonical_uuid(item.item_id),

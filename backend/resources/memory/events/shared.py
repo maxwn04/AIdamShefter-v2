@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -17,12 +18,18 @@ from backend.resources.memory.common.errors import (
     WrongTargetKindError,
 )
 from backend.resources.memory.common.kinds import MemoryKind
-from backend.resources.memory.events.codec import encode_event
+from backend.resources.memory.events.codec import (
+    decode_event,
+    encode_event,
+    event_rows_statement,
+    stored_event_content,
+)
 from backend.resources.memory.events.objects import EventContent
 from backend.resources.memory.events.validation import (
     ValidatedEventContent,
     validate_event_content,
 )
+from backend.resources.memory.revisions.hashing import StateHashItem, state_hash_item
 from backend.resources.memory.search_documents.builders.event import (
     build_event_document,
 )
@@ -123,3 +130,42 @@ def insert_event_version(
         )
     )
     insert_search_document(session, version, build_event_document(content))
+
+
+def event_persister(
+    content: EventContent,
+) -> Callable[[Session, MemoryItem, MemoryVersion], None]:
+    def persist(session: Session, _item: MemoryItem, version: MemoryVersion) -> None:
+        prepared = prepare_event_write(session, version.competition_id, content)
+        insert_event_version(session, version, prepared)
+
+    return persist
+
+
+def read_event_state(
+    session: Session,
+    competition_id: UUID,
+) -> tuple[StateHashItem, ...]:
+    rows = session.execute(
+        event_rows_statement().where(
+            MemoryItem.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    ).all()
+    return tuple(
+        state_hash_item(
+            item_id=item.id,
+            kind=MemoryKind.EVENT,
+            agent_key=item.agent_key,
+            version_id=version.id,
+            revision_number=version.revision_number,
+            content_schema_version=version.content_schema_version,
+            competition_season_id=version.competition_season_id,
+            week=version.week,
+            occurred_at=version.occurred_at,
+            content=stored_event_content(
+                decode_event(item, version, stored).content
+            ),
+        )
+        for item, version, stored in rows
+    )

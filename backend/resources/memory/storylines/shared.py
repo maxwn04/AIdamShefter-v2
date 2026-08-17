@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -22,11 +23,17 @@ from backend.resources.memory.search_documents.builders.storyline import (
 )
 from backend.resources.memory.search_documents.shared import insert_search_document
 from backend.resources.memory.storylines.codec import encode_storyline
+from backend.resources.memory.storylines.codec import (
+    decode_storyline,
+    storyline_rows_statement,
+    stored_storyline_content,
+)
 from backend.resources.memory.storylines.objects import StorylineContent
 from backend.resources.memory.storylines.validation import (
     ValidatedStorylineContent,
     validate_storyline_content,
 )
+from backend.resources.memory.revisions.hashing import StateHashItem, state_hash_item
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,3 +126,42 @@ def insert_storyline_version(
         )
     )
     insert_search_document(session, version, build_storyline_document(content))
+
+
+def storyline_persister(
+    content: StorylineContent,
+) -> Callable[[Session, MemoryItem, MemoryVersion], None]:
+    def persist(session: Session, _item: MemoryItem, version: MemoryVersion) -> None:
+        prepared = prepare_storyline_write(session, version.competition_id, content)
+        insert_storyline_version(session, version, prepared)
+
+    return persist
+
+
+def read_storyline_state(
+    session: Session,
+    competition_id: UUID,
+) -> tuple[StateHashItem, ...]:
+    rows = session.execute(
+        storyline_rows_statement().where(
+            MemoryItem.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    ).all()
+    return tuple(
+        state_hash_item(
+            item_id=item.id,
+            kind=MemoryKind.STORYLINE,
+            agent_key=item.agent_key,
+            version_id=version.id,
+            revision_number=version.revision_number,
+            content_schema_version=version.content_schema_version,
+            competition_season_id=version.competition_season_id,
+            week=version.week,
+            occurred_at=version.occurred_at,
+            content=stored_storyline_content(
+                decode_storyline(item, version, stored).content
+            ),
+        )
+        for item, version, stored in rows
+    )

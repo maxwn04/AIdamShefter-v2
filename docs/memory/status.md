@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-8` complete; `memory-9` is next
-**Current branch:** `codex/memory-8-context-notes`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8`
-**Publication:** Stack #116 is published through `memory-8` (PR #115).
+**Active layer:** `memory-9` complete; `memory-10` is next
+**Current branch:** `codex/memory-9-mutation-bundles`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9`
+**Publication:** `memory-9` is published as PR #117 atop `memory-8` (PR #115).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -24,7 +24,7 @@ The completed database stack remains tracked separately in
 | `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | `e4c7831`; PR #114 |
 | `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | `5788729`; PR #113 |
 | `memory-8` context notes | `codex/memory-8-context-notes` | Complete | `root` | 9 focused context-note tests; memory: 73 passed; backend: 145 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR #115 |
-| `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Pending | Unassigned | Not started | — |
+| `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Pending | Unassigned | Not started | — |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-12` HTTP API | `codex/memory-12-api` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-9` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/services/memory/`, canonical revision write orchestration, resource-local state readers/persisters, mutation-service tests, `docs/memory/status.md` | Generation-scoped typed proposal buffer, public mutation service, batch reference validation, same-bundle identity resolution, atomic multi-resource persistence, resulting-state hashing, stale-writer and rollback coverage |
 
 ## `memory-8` Assignments
 
@@ -248,6 +254,38 @@ design and correctness pass.
   Public mutation orchestration, uniqueness conflict translation, retrieval,
   and reporter integration remain deferred to later layers.
 
+## `memory-9` Boundary Notes
+
+- `GenerationMemoryContext` owns an in-memory, generation-scoped proposal
+  buffer. It preallocates canonical item and version UUIDs, returns those typed
+  proposal references to callers, keeps every search pinned to the immutable
+  input revision, and yields its completed bundle exactly once.
+- `MemoryMutationService` exposes complete create and replacement operations for
+  every implemented kind and accepts a completed multi-resource bundle. It
+  translates proposals into opaque resource-local persisters without importing
+  SQLAlchemy sessions or ORM models.
+- Proposal-local item and version UUIDs retain the existing canonical content
+  contracts. The bundle validates their declared kinds before persistence, and
+  typed resource validation runs again after generic envelopes are present.
+  Event, fact, storyline, trigger, and context-note writes use a dependency-safe
+  order so exact same-bundle evidence is fully typed before its consumer.
+- `RevisionManager` owns one short transaction: it locks and verifies the
+  canonical parent, batch-loads stable and exact reference targets, resolves
+  replacement envelopes, retires prior versions, inserts every item/version,
+  invokes typed persisters and projection builders, and advances the current
+  pointer only after all validation succeeds.
+- The resulting hash is computed from the pinned visible state plus the accepted
+  writes before the immutable revision row is inserted. After typed rows and
+  projections are flushed, all five resource readers independently reconstruct
+  the visible state and must produce the same hash before pointer advancement.
+- Empty bundles create no revision. Stale parents, wrong-kind local references,
+  stale item revisions, duplicate context-note identities, typed validation
+  failures, projection failures, and hash mismatches all leave revision history,
+  typed content, search documents, retirements, and the current pointer
+  unchanged.
+- Search query/rebuild APIs, hydrated retrieval, HTTP routes, and reporter
+  lifecycle integration remain deferred to `memory-10` through `memory-14`.
+
 ## `memory-3` Boundary Notes
 
 - The public revision boundary is deliberately read-only. The write skeleton is
@@ -276,10 +314,10 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-8` run
-  passed all 73 memory tests and all 145 backend tests; the test container and
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-9` run
+  passed all 79 memory tests and all 151 backend tests; the test container and
   its tmpfs data were removed afterward.
 - `uvx basedpyright backend` reports the same 16 diagnostics already present at
   the `memory-5` parent, including the existing Pydantic `schema_version`
-  narrowing pattern. No new error originates in the `memory-8`
+  narrowing pattern. No new error originates in the `memory-9`
   implementation or tests.
