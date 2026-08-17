@@ -225,7 +225,8 @@ aggregate.
 
 ## Mutation Contract
 
-Public mutations create or replace complete typed content:
+Public canonical mutations are service operations that create or replace
+complete typed content:
 
 ```python
 create_storyline(content: StorylineContent, ...)
@@ -238,9 +239,19 @@ replace_storyline(
 )
 ```
 
-A patch-oriented UI may edit individual fields locally, but the manager validates
-and persists one complete replacement. This prevents a caller from accidentally
-creating a partial version whose omitted relationships have ambiguous meaning.
+A patch-oriented UI may edit individual fields locally, but
+`MemoryMutationService` accepts one complete replacement, resolves its
+bundle-local semantics, and hands the accepted unit of work to
+`RevisionManager`. This prevents a caller from accidentally creating a partial
+version whose omitted relationships have ambiguous meaning.
+
+Typed resource managers do not expose standalone create or replace methods.
+They own scoped reads, codecs, resource validation, and package-internal SQL for
+their rows. `MemoryMutationService` owns the business decision that a single
+proposal or completed proposal bundle is one atomic mutation;
+`RevisionManager` owns the enclosed SQLAlchemy transaction, revision locking,
+state hashing, pointer advancement, and commit or rollback. The service and its
+callers never receive a session or ORM row.
 
 ### Generation-scoped proposal contract
 
@@ -269,15 +280,18 @@ to `MemoryMutationService` once. On failure or abandonment, it discards the
 buffer without creating a canonical revision.
 
 Before opening the canonical write transaction, the service performs all model
-or external work. Inside the short transaction, the revision manager invokes
-resource-local transaction helpers to:
+or external work, validates pure typed-content rules, resolves proposal-local
+references, and fixes the accepted mutation unit. It then hands that unit to
+`RevisionManager`. Inside the short transaction, the revision manager invokes
+resource-package basic SQL helpers to:
 
-1. validate Pydantic content and schema version;
-2. load every referenced item/version in one scoped batch;
-3. require the expected kinds and same competition;
-4. validate references created in the same mutation bundle;
-5. lock and verify the current canonical revision;
-6. write the complete replacement and its search projection atomically.
+1. load database-backed reference targets in scoped batches;
+2. validate their expected kinds and competition scope;
+3. write complete typed rows and search projections.
+
+Within that same transaction, `RevisionManager` itself locks and verifies the
+canonical parent, persists generic revision/item/version envelopes, hashes the
+resulting state, and advances the canonical pointer atomically.
 
 Failures return typed application errors such as target-not-found,
 wrong-target-kind, cross-competition-reference, stale-item-version, or

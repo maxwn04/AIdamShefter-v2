@@ -2,12 +2,11 @@
 
 ## Current Phase
 
-**Active layer:** `memory-3` complete; `memory-4` decision gate
-**Current branch:** `codex/memory-3-revisions`
-**Stack:** `main` ← `memory-0` ← `memory-1` ← `memory-2` ← `memory-3`
-**Publication:** Remote branches exist through `memory-2`; `memory-3` is local
-only. PR state is unverified because GitHub CLI is not authenticated in the
-implementation environment.
+**Active layer:** `memory-4` complete; publication pending
+**Current branch:** `codex/memory-4-facts`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4`
+**Publication:** Stack #108 is published through draft PR #110 (`memory-3`).
+`memory-4` is complete locally and ready to commit and submit.
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -17,11 +16,11 @@ The completed database stack remains tracked separately in
 
 | Layer | Branch | State | Owner | Verification | Commit / PR |
 | --- | --- | --- | --- | --- | --- |
-| `memory-0` implementation plan | `codex/memory-0-implementation-plan` | Complete | `root` | Documentation review | `45477b0`; PR unverified |
-| `memory-1` ORM modules | `codex/memory-1-orm-modules` | Complete | `root` | Schema-preserving split already committed | `b7f758c`; PR unverified |
-| `memory-2` contracts | `codex/memory-2-contracts` | Complete | `root` + `contracts_audit` | 29 focused contract tests; backend: 52 passed, 49 PostgreSQL tests skipped | Branch head; PR unverified |
-| `memory-3` revisions | `codex/memory-3-revisions` | Complete | `root` + `contracts_audit` + reviewers | 3 focused PostgreSQL tests; backend: 104 passed; basedpyright: clean | Local branch head; PR not published |
-| `memory-4` facts | `codex/memory-4-facts` | Decision gate | Unassigned | Hash and builder contracts required before implementation | — |
+| `memory-0` implementation plan | `codex/memory-0-implementation-plan` | Complete | `root` | Documentation review | `45477b0`; draft PR #106 |
+| `memory-1` ORM modules | `codex/memory-1-orm-modules` | Complete | `root` | Schema-preserving split already committed | `b7f758c`; draft PR #107 |
+| `memory-2` contracts | `codex/memory-2-contracts` | Complete | `root` + `contracts_audit` | 29 focused contract tests; backend: 52 passed, 49 PostgreSQL tests skipped | `e16e5ce`; draft PR #109 |
+| `memory-3` revisions | `codex/memory-3-revisions` | Complete | `root` + `contracts_audit` + reviewers | 3 focused PostgreSQL tests; backend: 104 passed; basedpyright: clean | `d70cb4c`; draft PR #110 |
+| `memory-4` facts | `codex/memory-4-facts` | Complete | `root` + `plan_mapper` + `stack_audit` + `contracts_audit` | 8 focused tests; memory: 40 passed; backend: 112 passed; basedpyright: clean | Active branch head; PR pending |
 | `memory-5` events | `codex/memory-5-events` | Pending | Unassigned | Not started | — |
 | `memory-6` storylines | `codex/memory-6-storylines` | Pending | Unassigned | Not started | — |
 | `memory-7` triggers | `codex/memory-7-triggers` | Pending | Unassigned | Not started | — |
@@ -45,6 +44,19 @@ The completed database stack remains tracked separately in
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
 
+## `memory-4` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/resources/memory/facts/`, revision transaction integration outside `revisions/hashing.py`, dependency metadata, `docs/memory/status.md` | Fact manager reads, codec, validation, basic SQL helpers, dependency and coordination ownership |
+| `plan_mapper` | `backend/resources/memory/revisions/hashing.py` | Confirmed deterministic CBOR state serializer and digest implementation |
+| `stack_audit` | `backend/resources/memory/search_documents/` | Identity-free projection contract, fact builder, and package-internal ORM persistence adapter |
+| `contracts_audit` | `backend/tests/resources/memory/test_fact_manager.py`, `backend/tests/resources/memory/test_fact_search_builder.py`, `backend/tests/resources/memory/test_revision_hashing.py` | Lean public-contract, golden-vector, and atomic-write tests |
+
+Agents must not edit another owner's paths. After implementation, review work is
+read-only and cross-assigned so each major boundary receives an independent
+design and correctness pass.
+
 ## `memory-3` Assignments
 
 | Owner | Assigned paths | Work |
@@ -62,23 +74,65 @@ The completed database stack remains tracked separately in
    prove the PostgreSQL query shapes with seeded acceptance tests in `memory-3`
    while keeping public storyline reads in `memory-6`. This default is being
    applied locally pending a user override.
-2. **Canonical state hashing.** The deterministic serialization and algorithm
-   for `MemoryRevision.state_content_hash` are not specified. Recommended
-   default for `memory-3`: limit this layer to transaction locking and
-   stale-writer scaffolding and do not accept an opaque caller-computed hash.
-   The hash contract must be settled before `memory-4`, because complete
-   FactManager create/replace operations would insert the first new canonical
-   revisions. Deferring all manager commits until `memory-9` would be a plan
-   deviation and requires explicit approval.
-3. **Search-document builder contract.** Per-kind builders begin in `memory-4`,
-   while the search-document application resource is otherwise scheduled with
-   `memory-10`. Its smallest stable result contract must be chosen before the
-   first builder lands.
+2. **Canonical state hashing (resolved for `memory-4`).** The user approved
+   `sha256-cbor-v1` over deterministic RFC 8949 CBOR. The revision package owns
+   a versioned competition-state envelope; callers cannot supply hashes.
+   Exact fields, normalization, exclusions, empty-state behavior, and golden
+   vectors are recorded by the implementation and tests in this layer.
+3. **Search-document builder contract (resolved for `memory-4`).** Builders
+   return an identity-free derived projection. Version, item, competition,
+   season/week, timestamps, and database search-vector concerns remain inside
+   the package-internal persistence adapter. Public query and rebuild APIs stay
+   deferred to `memory-10`.
 4. **Projection rebuild ownership.** The transition design leaves command/API
    ownership open. Resolve before `memory-10` without moving canonical mutation
    ownership into the projection manager.
 5. **Integration-tail stack split.** Layers `memory-12` through `memory-14` may
    become a second stack based on `memory-11`, but only with explicit approval.
+6. **Public mutation ownership (resolved for `memory-4`).** Public complete
+   create and replacement operations are deferred to `MemoryMutationService` in
+   `memory-9`; typed managers do not expose standalone mutation methods. Resource
+   managers own scoped reads, codecs, validation, and package-internal basic SQL
+   helpers. The service owns bundle and business semantics and defines the
+   atomic unit of work, while `RevisionManager` owns its enclosed database
+   transaction, revision locking, state hash, pointer advance, and commit or
+   rollback. Sessions and ORM rows do not cross either public boundary.
+
+## `memory-4` Boundary Notes
+
+- Canonical state hashes are `sha256-cbor-v1:<64 lowercase hex>` over RFC 8949
+  deterministic CBOR. Each resource codec supplies an explicit retained-schema
+  payload; hashing never serializes an upgraded current-view model and callers
+  never supply a digest.
+- The state envelope contains its format, competition UUID, and visible items
+  sorted by item/version UUID. Items contain stable identity, exact version
+  identity and revision number, stored schema version, season/week/occurrence,
+  optional context-note identity, and exact stored content. Revision mechanics,
+  DB timestamps, creation provenance, change reason, and projections are
+  excluded.
+- UUIDs use lowercase hyphenated text; aware datetimes normalize to UTC with
+  six fractional digits and `Z`; mapping order is canonicalized; finite numeric
+  types and exact list order are preserved. The empty-state and Fact-v1 bytes
+  are locked by golden vectors. The `cbor2` protocol dependency is major-bound.
+- Fact search projections are identity-free and rebuildable. Their derived
+  content hash normalizes the order-insensitive subject/origin collections,
+  while the confirmed canonical state protocol preserves exact stored list
+  order. Thus an order-only source rewrite may keep the same projection but is
+  still a distinct canonical stored state.
+- `season_roster` subjects use the retrieval design's documented `roster:`
+  flattened entity key; the typed source discriminator remains
+  `season_roster`.
+- Resource-local helpers bind validated competition scope, require typed event
+  origins, validate entity and receipt scope, enforce expected item revision on
+  replacement, and insert fact content plus its search projection in the
+  caller's transaction. Revision-owned envelope persistence hides the ORM's
+  explicit revision/item/version flush ordering.
+- `FactManager.exact` hydrates retired immutable versions without applying
+  current visibility. Fact item history is explicitly newest-first, matching
+  canonical revision history ordering.
+- Public fact create/replace is intentionally absent from this layer. The
+  resource-local validation and SQL helpers are composed by
+  `MemoryMutationService` in `memory-9`, including the one-proposal case.
 
 ## `memory-3` Boundary Notes
 
