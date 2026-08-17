@@ -3,9 +3,9 @@
 **Decision status:** Accepted
 
 **Implementation status:** Canonical resources, atomic mutations, search-document
-builders, candidate queries, deterministic rebuilds, and typed retrieval are
-implemented in the current PR stack; HTTP and reporter integration remain
-follow-up work
+builders, candidate queries, deterministic rebuilds, typed retrieval, and the
+HTTP boundary are implemented in the current PR stack; reporter integration
+remains follow-up work
 
 **Scope:** Canonical memory storage, application contracts, retrieval, and the
 generation lifecycle
@@ -16,9 +16,9 @@ This directory records the detailed design behind the memory schema summarized
 in [`docs/database/memory.md`](../database/memory.md). The database migration and
 ORM models implement the canonical typed fields and search-document table.
 Pydantic contracts, resource managers, atomic mutations, search builders,
-revision-grounded candidate queries, projection rebuilds, and canonical typed
-hydration are implemented. HTTP and reporter integration follow in later stack
-layers.
+revision-grounded candidate queries, projection rebuilds, canonical typed
+hydration, and the HTTP boundary are implemented. Reporter integration follows
+in later stack layers.
 
 The redesign keeps the valuable parts of that baseline:
 

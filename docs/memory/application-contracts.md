@@ -1,6 +1,7 @@
 # Application Memory Contracts
 
-**Status:** Typed v1 contracts implemented; resource managers pending
+**Status:** Typed v1 contracts, resource managers, services, and HTTP boundary
+implemented
 
 ## Goal
 

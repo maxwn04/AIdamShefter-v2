@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-11` complete; `memory-12` is next
-**Current branch:** `codex/memory-11-retrieval`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10` <- `memory-11`
-**Publication:** `memory-11` is published as PR #119 atop `memory-10` (PR #118).
+**Active layer:** `memory-12` complete; `memory-13` is next
+**Current branch:** `codex/memory-12-api`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10` <- `memory-11` <- `memory-12`
+**Publication:** `memory-12` is published as PR #120 atop `memory-11` (PR #119).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -27,7 +27,7 @@ The completed database stack remains tracked separately in
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Complete | `root` | 5 focused PostgreSQL tests; memory: 84 passed; backend: 156 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `915ddf4`; PR #118 |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Complete | `root` | 7 focused PostgreSQL tests; memory: 91 passed; backend: 163 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `a8a7250`; PR #119 |
-| `memory-12` HTTP API | `codex/memory-12-api` | Pending | Unassigned | Not started | — |
+| `memory-12` HTTP API | `codex/memory-12-api` | Complete | `root` | 10 focused API/composition tests; memory + API: 107 passed; backend: 173 passed; focused basedpyright clean and full backend retains the same 16 pre-existing errors; Ruff clean | `29474c4`; PR #120 |
 | `memory-13` reporter retrieval | `codex/memory-13-reporter-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-14` reporter mutations | `codex/memory-14-reporter-mutations` | Pending | Unassigned | Not started | — |
 
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-12` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/api/routes/memory/` (including co-located transport models), memory API dependencies/error translation, composition wiring, API tests, `docs/memory/` | Competition-scoped revision/resource reads, hydrated search, complete create/replacement writes, stable typed error responses, OpenAPI coverage, verification, and coordination ownership |
 
 ## `memory-11` Assignments
 
@@ -321,6 +327,28 @@ design and correctness pass.
   results.
 - HTTP schemas/routes, reporter tool integration, trigger scheduling,
   embeddings, and persistent hydration caches remain deferred.
+
+## `memory-12` Boundary Notes
+
+- The versioned HTTP boundary lives under
+  `/api/v1/memory/competitions/{competition_id}`. It exposes current, exact,
+  and historical canonical revision reads; exact-version and item-history reads
+  for all five typed memory resources; and revision-pinned hydrated search.
+- Each resource has distinct strict request and response schemas. `POST` creates
+  a complete typed resource and `PUT /{item_id}` performs a complete replacement
+  with an explicit expected item revision. Writes retain the application
+  service's required generation provenance and expected canonical parent.
+- A request-scoped dependency constructs one local-user `ManagerContext` from
+  the competition path and optional `X-Correlation-ID`, then composes the typed
+  managers, retrieval service, and mutation service over the process-owned
+  session factory. Routes never receive a session or ORM row.
+- Typed application failures map to stable HTTP status/code/message envelopes.
+  Missing scoped resources return 404, canonical or item conflicts return 409,
+  invalid reference semantics return 400, and canonical/projection integrity
+  failures return safe 500 responses without storage details.
+- Projection rebuild exposure, authentication/RBAC, reporter integration,
+  trigger scheduling, embeddings, and persistent hydration caches remain
+  deferred. FastAPI retains its standard 422 contract for transport validation.
 
 ## `memory-10` Boundary Notes
 

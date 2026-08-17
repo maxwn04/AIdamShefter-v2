@@ -1,7 +1,13 @@
-from sqlalchemy.engine import make_url
-import pytest
+from uuid import uuid4
 
-from backend.composition import build_api_runtime
+import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
+
+from backend.composition import build_api_runtime, build_memory_api_dependencies
+from backend.database.sessions import create_session_factory
+from backend.resources.context import CompetitionScope, ManagerContext
+from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 
 
 def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
@@ -20,5 +26,32 @@ def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
         assert runtime.expected_database == "aidam_test"
         assert runtime.expected_role == "aidam_api"
         assert runtime.require_tls is False
+        assert runtime.session_factory.kw["bind"] is runtime.engine
     finally:
         runtime.close()
+
+
+def test_memory_api_composition_is_scoped_without_opening_a_session() -> None:
+    competition_id = uuid4()
+    engine = create_engine("sqlite://")
+    context = ManagerContext[CompetitionScope].model_validate(
+        {
+            "actor": {"kind": "local_user"},
+            "scope": {
+                "kind": "competition",
+                "competition_id": competition_id,
+            },
+            "correlation_id": uuid4(),
+        }
+    )
+    try:
+        runtime = build_memory_api_dependencies(
+            create_session_factory(engine),
+            context,
+        )
+
+        assert runtime.revisions.competition_id == competition_id
+        assert isinstance(runtime.retrieval, MemoryRetrievalService)
+        assert isinstance(runtime.mutations, MemoryMutationService)
+    finally:
+        engine.dispose()
