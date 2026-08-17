@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-6` complete; publication pending
-**Current branch:** `codex/memory-6-storylines`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6`
-**Publication:** Stack #108 is published through draft PR #112 (`memory-5`); `memory-6` remains local.
+**Active layer:** `memory-7` complete; `memory-8` is next
+**Current branch:** `codex/memory-7-triggers`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7`
+**Publication:** Stack #108 is published through draft PR #112 (`memory-5`); `memory-6` and `memory-7` remain local.
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -22,7 +22,7 @@ The completed database stack remains tracked separately in
 | `memory-4` facts | `codex/memory-4-facts` | Complete | `root` + `plan_mapper` + `stack_audit` + `contracts_audit` | 8 focused tests; memory: 40 passed; backend: 112 passed; basedpyright: clean | `5b71628`; draft PR #111 |
 | `memory-5` events | `codex/memory-5-events` | Complete | `root` | 9 focused event tests; memory: 49 passed; backend: 121 passed; basedpyright 1.39.10 found no new errors and 16 pre-existing backend errors | Active branch head; draft PR #112 |
 | `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | Active branch head; not published |
-| `memory-7` triggers | `codex/memory-7-triggers` | Pending | Unassigned | Not started | — |
+| `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | Active branch head; not published |
 | `memory-8` context notes | `codex/memory-8-context-notes` | Pending | Unassigned | Not started | — |
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Pending | Unassigned | Not started | — |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-7` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/resources/memory/triggers/`, trigger projection builder/exports, trigger tests, `docs/memory/status.md` | Trigger manager reads, v1 codec, stable-target and rematch-entity validation, canonical-write helpers, deterministic projection, lean verification, and coordination ownership |
 
 ## `memory-6` Assignments
 
@@ -191,6 +197,29 @@ design and correctness pass.
   atomic typed-row plus projection insertion. Public mutations remain deferred
   to `memory-9`.
 
+## `memory-7` Boundary Notes
+
+- `TriggerManager` exposes competition-scoped exact-version hydration and
+  newest-first item history. Exact reads include retired immutable versions and
+  do not disclose cross-competition targets.
+- Trigger v1 codecs retain the complete status, fire policy, scheduling,
+  stable targets, discriminated condition, and resolution payload. Canonical
+  state hashing preserves exact stored rematch-franchise order.
+- Database-backed validation requires target seasons and rematch franchises to
+  exist in the competition. Optional storyline and origin-event references
+  target stable same-scope items of their declared kinds; current visibility is
+  irrelevant. Existing typed-contract rules remain the sole source of pure
+  trigger-condition validation.
+- Trigger projections include status, rematch franchise and season entity keys,
+  stable storyline/event item IDs, and deterministic type, policy, schedule,
+  condition, and resolution text. The unordered rematch pair is normalized for
+  projection equality and hashing without changing canonical stored ordering.
+- Resource-local create/replacement helpers enforce complete replacement,
+  expected item revision, persisted envelope ordering, schema agreement, and
+  atomic typed-row plus projection insertion. Public mutations remain deferred
+  to `memory-9`; migrations, retrieval behavior, and reporter integration remain
+  outside this layer.
+
 ## `memory-3` Boundary Notes
 
 - The public revision boundary is deliberately read-only. The write skeleton is
@@ -219,10 +248,10 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-6` run
-  passed all 56 memory tests and all 128 backend tests; the test container and
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-7` run
+  passed all 64 memory tests and all 136 backend tests; the test container and
   its tmpfs data were removed afterward.
 - `uvx basedpyright backend` reports the same 16 diagnostics already present at
   the `memory-5` parent, including the existing Pydantic `schema_version`
-  narrowing pattern. No new diagnostic originates in the `memory-6`
+  narrowing pattern. No new error originates in the `memory-7`
   implementation or tests.

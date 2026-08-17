@@ -23,6 +23,13 @@ from backend.resources.memory.storylines import (
     StorylineManager,
     StorylineStatus,
 )
+from backend.resources.memory.triggers import (
+    Trigger,
+    TriggerContent,
+    TriggerManager,
+    TriggerStatus,
+    TriggerType,
+)
 
 __all__ = [
     "Event",
@@ -42,4 +49,9 @@ __all__ = [
     "StorylineContent",
     "StorylineManager",
     "StorylineStatus",
+    "Trigger",
+    "TriggerContent",
+    "TriggerManager",
+    "TriggerStatus",
+    "TriggerType",
 ]
