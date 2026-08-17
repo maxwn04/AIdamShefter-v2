@@ -1,6 +1,6 @@
 # Application Memory Contracts
 
-**Status:** Application design; database storage implemented, application code pending
+**Status:** Typed v1 contracts implemented; resource managers pending
 
 ## Goal
 
@@ -9,7 +9,8 @@ ORM association rows. Routes, tools, services, and the reporter operate on typed
 resource objects. Typed resource managers translate their own objects, while
 the mutation service and revision manager coordinate an atomic bundle.
 
-The examples below are illustrative Pydantic-style contracts, not final code.
+The shapes below describe the implemented v1 Pydantic contracts. Contract model
+fields cannot be reassigned after validation, and unknown fields are rejected.
 
 ## Shared Reference Primitives
 
@@ -36,10 +37,20 @@ EntityRef = Annotated[
 ]
 ```
 
-Each owning content type narrows the roles it accepts. A trade event may accept
-`sender`, `receiver`, and `asset`; a fact may accept `subject`; a storyline may
-accept `focus` and `counterparty`. Sharing the low-level reference primitive does
-not imply sharing one generic semantic role bag.
+Each owning content type narrows the roles it accepts. A fact accepts `subject`,
+while a storyline accepts `focus` and `counterparty`. Event-specific participant
+meaning lives in its typed payload instead of a generic role bag. Sharing the
+low-level reference primitive does not imply sharing generic semantic roles.
+
+The initial storyline roles are `focus` and `counterparty`; the initial fact role
+is `subject`. Franchise, player, season-roster, season, and Sleeper-user references
+are legal for both resources. Empty subject lists remain legal for
+competition-wide memory, but a non-empty storyline subject list must contain a
+focus. Repeated targets are invalid even when their roles differ.
+
+Human-readable strings are trimmed and must be nonblank. Tags are normalized to
+case-folded, first-seen order; blank and repeated tags are removed. Complete
+collection fields remain required even when their legal value is an empty list.
 
 Evidence references identify exact immutable content:
 
@@ -85,18 +96,23 @@ class FactContent(BaseModel):
     schema_version: Literal[1]
     claim: str
     category: str
-    numbers: dict[str, object]
+    numbers: dict[str, JsonValue]
     confidence: FactConfidence
     status: FactStatus
     subjects: list[FactEntityRef]
     originating_event_version_ids: list[UUID]
     primary_tool_call_id: UUID | None = None
     primary_api_request_id: UUID | None = None
-    source_hints: dict[str, object] | None = None
+    source_hints: dict[str, JsonValue] | None = None
 ```
 
 An originating event is optional context; the fact remains a claim with its own
 receipts. It does not contain another event payload.
+
+Fact confidence is `unverified`, `inferred`, or `source_backed`; status is
+`active`, `superseded`, `rejected`, or `archived`. A source-backed fact requires
+at least one typed primary tool-call or API-request receipt. Source hints are
+JSON-valued mappings and cannot independently establish source-backed confidence.
 
 ### Event
 
@@ -116,7 +132,7 @@ class MatchupEventPayload(BaseModel):
 
 
 EventPayload = Annotated[
-    TradeEventPayload | MatchupEventPayload | WaiverEventPayload,
+    TradeEventPayload | MatchupEventPayload,
     Field(discriminator="kind"),
 ]
 
@@ -132,10 +148,19 @@ class EventContent(BaseModel):
     details: EventPayload
     primary_tool_call_id: UUID | None = None
     primary_api_request_id: UUID | None = None
+    source_hints: dict[str, JsonValue] | None = None
 ```
 
 `details` describes this event. It is not a collection of related events. The
 declared event type and discriminated payload must agree.
+
+The initial event union contains only `trade` and `matchup`. Event confidence and
+status use the same values and typed-receipt rule as facts. Trade assets form a
+second discriminated union over players, normalized draft picks, and budget.
+Every asset states `sender_to_receiver` or `receiver_to_sender`, making bilateral
+trades unambiguous. A trade requires distinct franchises and at least one unique
+asset; a matchup requires distinct winner and loser franchises and a nonblank
+Sleeper matchup ID.
 
 ### Trigger
 
@@ -145,6 +170,7 @@ class TriggerContent(BaseModel):
     trigger_type: TriggerType
     status: TriggerStatus
     fire_policy: FirePolicy
+    target_competition_season_id: UUID | None = None
     target_storyline_item_id: UUID | None = None
     origin_event_item_id: UUID | None = None
     target_week: int | None = None
@@ -152,6 +178,17 @@ class TriggerContent(BaseModel):
     condition: TriggerCondition
     resolution_reason: str | None = None
 ```
+
+Initial trigger types and conditions are:
+
+- `rematch`, with exactly two distinct franchise IDs; it requires a target
+  competition season and week;
+- `trade_evaluation`, whose stable origin event supplies the trade details; it
+  requires that origin event plus either a target week or target time.
+
+The condition discriminator must agree with `trigger_type`. Trigger status is
+`open`, `fired`, `satisfied`, `expired`, or `archived`; fire policy is `one_shot`,
+`recurring`, or `until_resolved`. Target times must be timezone-aware.
 
 ### Context note
 
@@ -165,6 +202,26 @@ class ContextNoteContent(BaseModel):
 ```
 
 The note's scope and key are loaded from its stable typed identity.
+
+Context-note status is initially `active` or `archived`. Its identity is a
+discriminated union for competition, competition-season, and franchise scopes,
+so impossible mixed scope/target shapes cannot be constructed.
+
+## Manager Context and Hydrated Resources
+
+Every manager receives an immutable, already-resolved `ManagerContext` with a
+discriminated local-user, system-process, or generation actor; an explicit
+competition or global resource scope; and a required correlation ID. Memory
+managers accept only competition scope. Global scope requires a nonblank reason.
+Generation cutoffs and pinned memory revisions remain explicit workflow inputs,
+not authorization context.
+
+Hydration returns one generic `VersionedMemory[Content]` envelope containing the
+stable memory-item identity, immutable version metadata, and the resource's typed
+content. The envelope validates item kind and stored content-schema version.
+History is a sequence of the same complete envelopes rather than a second shallow
+history DTO. Context notes add their stable typed scope/key identity to this
+aggregate.
 
 ## Mutation Contract
 

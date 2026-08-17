@@ -381,7 +381,9 @@ based on the preceding branch and each PR shows only its incremental changes.
 - Add separate Pydantic contracts for all five memory resources.
 - Settle role enums, cardinalities, initial event payloads, and initial trigger
   conditions.
-- Test every discriminator, semantic boundary, and retained schema version.
+- Use lean contract tests for public discriminator branches, meaningful semantic
+  boundaries, and every retained schema version; do not mirror implementation
+  details or enumerate low-value permutations.
 
 ### `memory-3` — revisions and critical query proofs
 

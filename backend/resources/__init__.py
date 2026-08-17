@@ -1,0 +1,1 @@
+"""Caller-facing application resources."""
