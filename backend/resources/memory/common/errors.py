@@ -9,6 +9,37 @@ class MemoryApplicationError(Exception):
     """Base class for stable memory application failures."""
 
 
+class GenerationMemoryContextClosedError(MemoryApplicationError):
+    def __init__(self, generation_id: UUID) -> None:
+        self.generation_id = generation_id
+        super().__init__(
+            f"generation memory context {generation_id} has already been finalized"
+        )
+
+
+class DuplicateContextNoteError(MemoryApplicationError):
+    def __init__(self, scope: str, note_key: str) -> None:
+        self.scope = scope
+        self.note_key = note_key
+        super().__init__(f"context note {scope}:{note_key} already exists")
+
+
+class CanonicalStateHashMismatchError(MemoryApplicationError):
+    def __init__(self, expected_hash: str, actual_hash: str) -> None:
+        self.expected_hash = expected_hash
+        self.actual_hash = actual_hash
+        super().__init__(
+            "canonical state hash mismatch: "
+            f"expected {expected_hash}, got {actual_hash}"
+        )
+
+
+class MemoryIdentityConflictError(MemoryApplicationError):
+    def __init__(self, identity_id: UUID) -> None:
+        self.identity_id = identity_id
+        super().__init__(f"memory identity {identity_id} is already in use")
+
+
 class EntityReferenceNotFoundError(MemoryApplicationError):
     def __init__(self, entity_kind: str, entity_id: UUID | str) -> None:
         self.entity_kind = entity_kind

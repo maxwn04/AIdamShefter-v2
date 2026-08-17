@@ -1,7 +1,11 @@
 from backend.resources.memory.common.errors import (
+    CanonicalStateHashMismatchError,
     CrossCompetitionEntityReferenceError,
     CrossCompetitionReferenceError,
+    DuplicateContextNoteError,
     EntityReferenceNotFoundError,
+    GenerationMemoryContextClosedError,
+    MemoryIdentityConflictError,
     MemoryApplicationError,
     RevisionNotFoundError,
     StaleCanonicalRevisionError,
@@ -29,11 +33,15 @@ from backend.resources.memory.common.versioning import (
 )
 
 __all__ = [
+    "CanonicalStateHashMismatchError",
     "CrossCompetitionReferenceError",
     "CrossCompetitionEntityReferenceError",
+    "DuplicateContextNoteError",
     "EntityReferenceNotFoundError",
     "FranchiseRef",
+    "GenerationMemoryContextClosedError",
     "MemoryApplicationError",
+    "MemoryIdentityConflictError",
     "MemoryContent",
     "MemoryItemIdentity",
     "MemoryKind",

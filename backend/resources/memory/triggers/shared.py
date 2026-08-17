@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -21,12 +22,18 @@ from backend.resources.memory.search_documents.builders.trigger import (
     build_trigger_document,
 )
 from backend.resources.memory.search_documents.shared import insert_search_document
-from backend.resources.memory.triggers.codec import encode_trigger
+from backend.resources.memory.triggers.codec import (
+    decode_trigger,
+    encode_trigger,
+    stored_trigger_content,
+    trigger_rows_statement,
+)
 from backend.resources.memory.triggers.objects import TriggerContent
 from backend.resources.memory.triggers.validation import (
     ValidatedTriggerContent,
     validate_trigger_content,
 )
+from backend.resources.memory.revisions.hashing import StateHashItem, state_hash_item
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,3 +127,42 @@ def insert_trigger_version(
         )
     )
     insert_search_document(session, version, build_trigger_document(content))
+
+
+def trigger_persister(
+    content: TriggerContent,
+) -> Callable[[Session, MemoryItem, MemoryVersion], None]:
+    def persist(session: Session, _item: MemoryItem, version: MemoryVersion) -> None:
+        prepared = prepare_trigger_write(session, version.competition_id, content)
+        insert_trigger_version(session, version, prepared)
+
+    return persist
+
+
+def read_trigger_state(
+    session: Session,
+    competition_id: UUID,
+) -> tuple[StateHashItem, ...]:
+    rows = session.execute(
+        trigger_rows_statement().where(
+            MemoryItem.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    ).all()
+    return tuple(
+        state_hash_item(
+            item_id=item.id,
+            kind=MemoryKind.TRIGGER,
+            agent_key=item.agent_key,
+            version_id=version.id,
+            revision_number=version.revision_number,
+            content_schema_version=version.content_schema_version,
+            competition_season_id=version.competition_season_id,
+            week=version.week,
+            occurred_at=version.occurred_at,
+            content=stored_trigger_content(
+                decode_trigger(item, version, stored).content
+            ),
+        )
+        for item, version, stored in rows
+    )
