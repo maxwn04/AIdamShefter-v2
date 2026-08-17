@@ -20,13 +20,27 @@ from backend.resources.memory.search_documents.builders.trigger import (
     TRIGGER_DOCUMENT_BUILDER_VERSION,
     build_trigger_document,
 )
-from backend.resources.memory.search_documents.objects import SearchDocumentProjection
+from backend.resources.memory.search_documents.manager import SearchDocumentManager
+from backend.resources.memory.search_documents.objects import (
+    SearchDocumentCandidate,
+    SearchDocumentProjection,
+    SearchDocumentQuery,
+    SearchMatchReason,
+    SearchProjectionRebuildResult,
+    SearchScoreComponents,
+)
 
 __all__ = [
     "CONTEXT_NOTE_DOCUMENT_BUILDER_VERSION",
     "EVENT_DOCUMENT_BUILDER_VERSION",
     "FACT_DOCUMENT_BUILDER_VERSION",
+    "SearchDocumentCandidate",
+    "SearchDocumentManager",
     "SearchDocumentProjection",
+    "SearchDocumentQuery",
+    "SearchMatchReason",
+    "SearchProjectionRebuildResult",
+    "SearchScoreComponents",
     "STORYLINE_DOCUMENT_BUILDER_VERSION",
     "TRIGGER_DOCUMENT_BUILDER_VERSION",
     "build_context_note_document",

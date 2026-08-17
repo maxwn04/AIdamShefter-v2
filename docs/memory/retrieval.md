@@ -1,6 +1,7 @@
 # Memory Retrieval Projection
 
-**Status:** Search-document schema implemented; builders and retrieval service pending
+**Status:** Search-document schema, builders, candidate queries, and rebuild implemented;
+typed hydration remains pending
 
 ## Purpose
 

@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-9` complete; `memory-10` is next
-**Current branch:** `codex/memory-9-mutation-bundles`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9`
-**Publication:** `memory-9` is published as PR #117 atop `memory-8` (PR #115).
+**Active layer:** `memory-10` complete; `memory-11` is next
+**Current branch:** `codex/memory-10-search-projection`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10`
+**Publication:** `memory-10` is published as PR #118 atop `memory-9` (PR #117).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -25,7 +25,7 @@ The completed database stack remains tracked separately in
 | `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | `5788729`; PR #113 |
 | `memory-8` context notes | `codex/memory-8-context-notes` | Complete | `root` | 9 focused context-note tests; memory: 73 passed; backend: 145 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR #115 |
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
-| `memory-10` search projection | `codex/memory-10-search-projection` | Pending | Unassigned | Not started | — |
+| `memory-10` search projection | `codex/memory-10-search-projection` | Complete | `root` | 5 focused PostgreSQL tests; memory: 84 passed; backend: 156 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `915ddf4`; PR #118 |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-12` HTTP API | `codex/memory-12-api` | Pending | Unassigned | Not started | — |
 | `memory-13` reporter retrieval | `codex/memory-13-reporter-retrieval` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-10` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/resources/memory/search_documents/`, search-document manager tests, `docs/memory/` | Revision-grounded candidate discovery, deterministic additive scoring, atomic competition-scoped rebuilds, public projection contracts, verification, and coordination ownership |
 
 ## `memory-9` Assignments
 
@@ -113,9 +119,10 @@ design and correctness pass.
    season/week, timestamps, and database search-vector concerns remain inside
    the package-internal persistence adapter. Public query and rebuild APIs stay
    deferred to `memory-10`.
-4. **Projection rebuild ownership.** The transition design leaves command/API
-   ownership open. Resolve before `memory-10` without moving canonical mutation
-   ownership into the projection manager.
+4. **Projection rebuild ownership (resolved for `memory-10`).**
+   `SearchDocumentManager.rebuild()` is the competition-scoped application
+   capability. HTTP/CLI exposure remains deferred, and canonical mutation
+   ownership remains exclusively with `RevisionManager`.
 5. **Integration-tail stack split.** Layers `memory-12` through `memory-14` may
    become a second stack based on `memory-11`, but only with explicit approval.
 6. **Public mutation ownership (resolved for `memory-4`).** Public complete
@@ -286,6 +293,26 @@ design and correctness pass.
 - Search query/rebuild APIs, hydrated retrieval, HTTP routes, and reporter
   lifecycle integration remain deferred to `memory-10` through `memory-14`.
 
+## `memory-10` Boundary Notes
+
+- `SearchDocumentManager.search()` requires an exact competition-scoped
+  canonical revision and returns compact version candidates only. Canonical
+  content and flattened document text never cross the manager boundary.
+- Entity, evidence-version, related-item, tag, and PostgreSQL full-text signals
+  combine with OR semantics. Kind, status, competition-season, and week filters
+  combine with AND semantics; filter-only browsing remains supported.
+- Ranking is a deterministic additive explanation: exact-overlap counts,
+  PostgreSQL `ts_rank_cd`, and a `0.1 * salience` component are returned by
+  name with stable match reasons and UUID tie-breaking.
+- Rebuild locks the same competition current-pointer row used by canonical
+  mutation, decodes every historical typed version through its retained-schema
+  codec, and replaces all derived rows in one transaction. A failure preserves
+  the prior projection, while a success leaves canonical revisions, hashes,
+  typed content, and the pointer unchanged.
+- Rebuild is exposed only as a manager operation in this layer. Typed hydration,
+  HTTP/CLI exposure, reporter integration, trigger scheduling evaluation, and
+  embeddings remain deferred.
+
 ## `memory-3` Boundary Notes
 
 - The public revision boundary is deliberately read-only. The write skeleton is
@@ -314,10 +341,9 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-9` run
-  passed all 79 memory tests and all 151 backend tests; the test container and
-  its tmpfs data were removed afterward.
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-10` run
+  passed all 84 memory tests and all 156 backend tests.
 - `uvx basedpyright backend` reports the same 16 diagnostics already present at
   the `memory-5` parent, including the existing Pydantic `schema_version`
-  narrowing pattern. No new error originates in the `memory-9`
+  narrowing pattern. No new error originates in the `memory-10`
   implementation or tests.
