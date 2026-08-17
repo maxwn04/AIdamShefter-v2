@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-5` complete; publication pending
-**Current branch:** `codex/memory-5-events`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5`
-**Publication:** Stack #108 is published through draft PR #112 (`memory-5`).
+**Active layer:** `memory-6` complete; publication pending
+**Current branch:** `codex/memory-6-storylines`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6`
+**Publication:** Stack #108 is published through draft PR #112 (`memory-5`); `memory-6` remains local.
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -21,7 +21,7 @@ The completed database stack remains tracked separately in
 | `memory-3` revisions | `codex/memory-3-revisions` | Complete | `root` + `contracts_audit` + reviewers | 3 focused PostgreSQL tests; backend: 104 passed; basedpyright: clean | `d70cb4c`; draft PR #110 |
 | `memory-4` facts | `codex/memory-4-facts` | Complete | `root` + `plan_mapper` + `stack_audit` + `contracts_audit` | 8 focused tests; memory: 40 passed; backend: 112 passed; basedpyright: clean | `5b71628`; draft PR #111 |
 | `memory-5` events | `codex/memory-5-events` | Complete | `root` | 9 focused event tests; memory: 49 passed; backend: 121 passed; basedpyright 1.39.10 found no new errors and 16 pre-existing backend errors | Active branch head; draft PR #112 |
-| `memory-6` storylines | `codex/memory-6-storylines` | Pending | Unassigned | Not started | — |
+| `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | Active branch head; not published |
 | `memory-7` triggers | `codex/memory-7-triggers` | Pending | Unassigned | Not started | — |
 | `memory-8` context notes | `codex/memory-8-context-notes` | Pending | Unassigned | Not started | — |
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-6` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | shared entity validation, `backend/resources/memory/storylines/`, storyline projection builder/exports, storyline tests, `docs/memory/status.md` | Storyline manager reads, v1 codec, exact evidence and stable relationship validation, canonical-write helpers, deterministic projection, verification, and coordination ownership |
 
 ## `memory-5` Assignments
 
@@ -161,6 +167,30 @@ design and correctness pass.
   and its search projection remain part of the caller-owned canonical
   transaction. Public mutation operations remain deferred to `memory-9`.
 
+## `memory-6` Boundary Notes
+
+- `StorylineManager` exposes competition-scoped exact-version hydration and
+  newest-first item history. Exact reads include retired immutable versions and
+  do not disclose cross-competition targets.
+- Storyline v1 codecs preserve complete subjects, exact fact/event evidence,
+  stable related-storyline references, callback conditions, and resolution
+  summaries. Retained canonical state preserves exact list order.
+- Shared entity-reference validation now owns the identical franchise,
+  season-roster, season, player, and Sleeper-user scope rules used by facts and
+  storylines; fact behavior is unchanged.
+- Evidence validation targets exact immutable fact/event versions, including
+  retired history, and verifies declared kind, typed-row presence, and
+  competition scope. Related storyline validation targets stable same-scope
+  storyline items without imposing an undocumented self-reference policy.
+- Storyline projections normalize order-insensitive subjects, evidence,
+  relationships, and tags. They include typed entity keys, exact evidence IDs,
+  stable related-item IDs, and deterministic narrative, participant, evidence,
+  relationship, callback, and resolution text.
+- Resource-local create/replacement helpers enforce complete replacement,
+  expected item revision, persisted envelope ordering, schema agreement, and
+  atomic typed-row plus projection insertion. Public mutations remain deferred
+  to `memory-9`.
+
 ## `memory-3` Boundary Notes
 
 - The public revision boundary is deliberately read-only. The write skeleton is
@@ -189,10 +219,10 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-5` run
-  passed all 49 memory tests and all 121 backend tests; the test container and
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-6` run
+  passed all 56 memory tests and all 128 backend tests; the test container and
   its tmpfs data were removed afterward.
-- `uvx basedpyright backend` with basedpyright 1.39.10 reports 16 diagnostics
-  already present at the `memory-4` parent, including the existing Pydantic
-  `schema_version` narrowing pattern. No new diagnostic originates in the
-  `memory-5` implementation or tests.
+- `uvx basedpyright backend` reports the same 16 diagnostics already present at
+  the `memory-5` parent, including the existing Pydantic `schema_version`
+  narrowing pattern. No new diagnostic originates in the `memory-6`
+  implementation or tests.

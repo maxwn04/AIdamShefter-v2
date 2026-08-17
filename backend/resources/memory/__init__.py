@@ -17,6 +17,12 @@ from backend.resources.memory.facts import (
     FactStatus,
     FactSubjectRole,
 )
+from backend.resources.memory.storylines import (
+    Storyline,
+    StorylineContent,
+    StorylineManager,
+    StorylineStatus,
+)
 
 __all__ = [
     "Event",
@@ -32,4 +38,8 @@ __all__ = [
     "FactManager",
     "FactStatus",
     "FactSubjectRole",
+    "Storyline",
+    "StorylineContent",
+    "StorylineManager",
+    "StorylineStatus",
 ]

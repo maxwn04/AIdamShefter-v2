@@ -1,3 +1,4 @@
+from backend.resources.memory.storylines.manager import StorylineManager
 from backend.resources.memory.storylines.objects import (
     EvidenceRef,
     EvidenceRole,
@@ -18,6 +19,7 @@ __all__ = [
     "Storyline",
     "StorylineContent",
     "StorylineEntityRef",
+    "StorylineManager",
     "StorylineStatus",
     "StorylineSubjectRole",
 ]
