@@ -1,14 +1,16 @@
 """FastAPI application factory and local server entry point."""
 
+import os
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-import os
 
-from fastapi import FastAPI
 import uvicorn
+from fastapi import FastAPI
 
+from backend.api.errors import memory_application_error_handler
 from backend.api.routes import api_router, health_router
 from backend.composition import ApiRuntimeDependencies, build_api_runtime
+from backend.resources.memory.common import MemoryApplicationError
 
 RuntimeFactory = Callable[[], ApiRuntimeDependencies]
 
@@ -35,6 +37,10 @@ def create_app(
     )
     application.include_router(health_router)
     application.include_router(api_router, prefix="/api/v1")
+    application.add_exception_handler(
+        MemoryApplicationError,
+        memory_application_error_handler,
+    )
     return application
 
 

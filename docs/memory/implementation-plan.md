@@ -138,16 +138,10 @@ backend/
 │       └── retrieval_service.py
 │
 └── api/
-    ├── schemas/
-    │   └── memory/
-    │       ├── storylines.py
-    │       ├── facts.py
-    │       ├── events.py
-    │       ├── triggers.py
-    │       ├── context_notes.py
-    │       └── search.py
     └── routes/
         └── memory/
+            ├── common.py
+            ├── revisions.py
             ├── storylines.py
             ├── facts.py
             ├── events.py
@@ -158,6 +152,10 @@ backend/
 
 Tests mirror these boundaries under `backend/tests/resources/memory/`,
 `backend/tests/services/memory/`, and `backend/tests/api/memory/`.
+
+Memory transport models remain co-located with their routes while each module
+is small. They can move to a separate schema package if reuse or module size
+creates a concrete boundary later.
 
 Not every package needs every helper on its first commit. `objects.py` and
 `manager.py` define the stable resource boundary. `codec.py`, `validation.py`,
