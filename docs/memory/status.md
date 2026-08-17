@@ -5,7 +5,7 @@
 **Active layer:** `memory-9` complete; `memory-10` is next
 **Current branch:** `codex/memory-9-mutation-bundles`
 **Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9`
-**Publication:** Stack #116 is published through `memory-8` (PR #115).
+**Publication:** `memory-9` is published as PR #117 atop `memory-8` (PR #115).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -24,7 +24,7 @@ The completed database stack remains tracked separately in
 | `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | `e4c7831`; PR #114 |
 | `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | `5788729`; PR #113 |
 | `memory-8` context notes | `codex/memory-8-context-notes` | Complete | `root` | 9 focused context-note tests; memory: 73 passed; backend: 145 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR #115 |
-| `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR pending |
+| `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Pending | Unassigned | Not started | — |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-12` HTTP API | `codex/memory-12-api` | Pending | Unassigned | Not started | — |
