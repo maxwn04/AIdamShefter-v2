@@ -1,5 +1,13 @@
 """Typed memory resources, grouped by canonical resource kind."""
 
+from backend.resources.memory.events import (
+    Event,
+    EventConfidence,
+    EventContent,
+    EventManager,
+    EventStatus,
+    EventType,
+)
 from backend.resources.memory.facts import (
     Fact,
     FactConfidence,
@@ -11,6 +19,12 @@ from backend.resources.memory.facts import (
 )
 
 __all__ = [
+    "Event",
+    "EventConfidence",
+    "EventContent",
+    "EventManager",
+    "EventStatus",
+    "EventType",
     "Fact",
     "FactConfidence",
     "FactContent",

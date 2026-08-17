@@ -11,8 +11,7 @@ from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from backend.database.models.core import CompetitionSeason, Franchise, SeasonRoster
 from backend.database.models.memory import EventVersion, MemoryItem, MemoryVersion
-from backend.database.models.reporting import Generation, ToolCall
-from backend.database.models.sleeper import ApiRequest, LeagueUser, Player, User
+from backend.database.models.sleeper import LeagueUser, Player, User
 from backend.resources.memory.common.errors import (
     CrossCompetitionEntityReferenceError,
     CrossCompetitionReferenceError,
@@ -21,6 +20,10 @@ from backend.resources.memory.common.errors import (
     WrongTargetKindError,
 )
 from backend.resources.memory.common.kinds import MemoryKind
+from backend.resources.memory.common.receipt_validation import (
+    validate_api_receipt,
+    validate_tool_receipt,
+)
 from backend.resources.memory.facts.objects import FactContent
 
 
@@ -40,10 +43,10 @@ def validate_fact_content(
 
     _validate_subjects(session, competition_id, content)
     _validate_originating_events(session, competition_id, content)
-    receipt_generation_id = _validate_tool_receipt(
+    receipt_generation_id = validate_tool_receipt(
         session, competition_id, content.primary_tool_call_id
     )
-    _validate_api_receipt(session, competition_id, content.primary_api_request_id)
+    validate_api_receipt(session, competition_id, content.primary_api_request_id)
     return ValidatedFactContent(
         competition_id=competition_id,
         content=content,
@@ -203,49 +206,3 @@ def _validate_originating_events(
             )
         if typed_event_id is None:
             raise TargetNotFoundError(version_id, (MemoryKind.EVENT,))
-
-
-def _validate_tool_receipt(
-    session: Session,
-    competition_id: UUID,
-    tool_call_id: UUID | None,
-) -> UUID | None:
-    if tool_call_id is None:
-        return None
-    row = session.execute(
-        sa.select(ToolCall.generation_id, Generation.competition_id)
-        .join(Generation, Generation.id == ToolCall.generation_id)
-        .where(ToolCall.id == tool_call_id)
-    ).one_or_none()
-    if row is None:
-        raise EntityReferenceNotFoundError("tool_call", tool_call_id)
-    generation_id, actual_scope = row
-    if actual_scope != competition_id:
-        raise CrossCompetitionEntityReferenceError(
-            "tool_call", tool_call_id, competition_id
-        )
-    return generation_id
-
-
-def _validate_api_receipt(
-    session: Session,
-    competition_id: UUID,
-    api_request_id: UUID | None,
-) -> None:
-    if api_request_id is None:
-        return
-    row = session.execute(
-        sa.select(ApiRequest.id, CompetitionSeason.competition_id)
-        .outerjoin(
-            CompetitionSeason,
-            CompetitionSeason.id == ApiRequest.competition_season_id,
-        )
-        .where(ApiRequest.id == api_request_id)
-    ).one_or_none()
-    if row is None:
-        raise EntityReferenceNotFoundError("api_request", api_request_id)
-    _, actual_scope = row
-    if actual_scope is not None and actual_scope != competition_id:
-        raise CrossCompetitionEntityReferenceError(
-            "api_request", api_request_id, competition_id
-        )
