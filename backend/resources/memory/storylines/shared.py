@@ -1,0 +1,121 @@
+"""Package-internal storyline validation and persistence for canonical writes."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from uuid import UUID
+
+import sqlalchemy as sa
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session
+
+from backend.database.models.memory import MemoryItem, MemoryVersion, StorylineVersion
+from backend.resources.memory.common.errors import (
+    CrossCompetitionReferenceError,
+    StaleItemVersionError,
+    TargetNotFoundError,
+    WrongTargetKindError,
+)
+from backend.resources.memory.common.kinds import MemoryKind
+from backend.resources.memory.search_documents.builders.storyline import (
+    build_storyline_document,
+)
+from backend.resources.memory.search_documents.shared import insert_search_document
+from backend.resources.memory.storylines.codec import encode_storyline
+from backend.resources.memory.storylines.objects import StorylineContent
+from backend.resources.memory.storylines.validation import (
+    ValidatedStorylineContent,
+    validate_storyline_content,
+)
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedStorylineReplacement:
+    validated: ValidatedStorylineContent
+    previous_version: MemoryVersion
+    next_revision_number: int
+
+
+def prepare_storyline_write(
+    session: Session,
+    competition_id: UUID,
+    content: StorylineContent,
+) -> ValidatedStorylineContent:
+    """Validate a complete create/replacement payload in the active transaction."""
+
+    return validate_storyline_content(session, competition_id, content)
+
+
+def prepare_storyline_replacement(
+    session: Session,
+    competition_id: UUID,
+    item_id: UUID,
+    expected_item_revision: int,
+    content: StorylineContent,
+) -> PreparedStorylineReplacement:
+    """Validate one complete replacement and resolve its current envelope."""
+
+    item = session.get(MemoryItem, item_id)
+    if item is None:
+        raise TargetNotFoundError(item_id, (MemoryKind.STORYLINE,))
+    if item.competition_id != competition_id:
+        raise CrossCompetitionReferenceError(
+            item_id,
+            competition_id,
+            item.competition_id,
+        )
+    if item.kind != MemoryKind.STORYLINE.value:
+        raise WrongTargetKindError(
+            item_id,
+            (MemoryKind.STORYLINE,),
+            MemoryKind(item.kind),
+        )
+    previous = session.scalar(
+        sa.select(MemoryVersion)
+        .join(StorylineVersion, StorylineVersion.version_id == MemoryVersion.id)
+        .where(
+            MemoryVersion.item_id == item_id,
+            MemoryVersion.competition_id == competition_id,
+            MemoryVersion.retired_revision_id.is_(None),
+        )
+    )
+    if previous is None:
+        raise TargetNotFoundError(item_id, (MemoryKind.STORYLINE,))
+    if previous.revision_number != expected_item_revision:
+        raise StaleItemVersionError(
+            item_id,
+            expected_item_revision,
+            previous.revision_number,
+        )
+    return PreparedStorylineReplacement(
+        validated=validate_storyline_content(session, competition_id, content),
+        previous_version=previous,
+        next_revision_number=previous.revision_number + 1,
+    )
+
+
+def insert_storyline_version(
+    session: Session,
+    version: MemoryVersion,
+    prepared: ValidatedStorylineContent,
+) -> None:
+    """Insert typed content and its derived projection beside a new envelope."""
+
+    content = prepared.content
+    if version.competition_id != prepared.competition_id:
+        raise CrossCompetitionReferenceError(
+            version.id,
+            prepared.competition_id,
+            version.competition_id,
+        )
+    if version.content_schema_version != content.schema_version:
+        raise ValueError("storyline schema version does not match version envelope")
+    if not inspect(version).persistent:
+        raise ValueError("storyline version envelope must be persisted before content")
+    session.add(
+        StorylineVersion(
+            version_id=version.id,
+            **encode_storyline(content),
+        )
+    )
+    insert_search_document(session, version, build_storyline_document(content))
