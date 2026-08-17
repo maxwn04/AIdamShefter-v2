@@ -2,10 +2,10 @@
 
 ## Current Phase
 
-**Active layer:** `memory-7` complete; `memory-8` is next
-**Current branch:** `codex/memory-7-triggers`
-**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7`
-**Publication:** Stack #108 is published through draft PR #112 (`memory-5`); `memory-6` and `memory-7` remain local.
+**Active layer:** `memory-8` complete; `memory-9` is next
+**Current branch:** `codex/memory-8-context-notes`
+**Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8`
+**Publication:** Stack #116 is published through `memory-8` (PR #115).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -21,9 +21,9 @@ The completed database stack remains tracked separately in
 | `memory-3` revisions | `codex/memory-3-revisions` | Complete | `root` + `contracts_audit` + reviewers | 3 focused PostgreSQL tests; backend: 104 passed; basedpyright: clean | `d70cb4c`; draft PR #110 |
 | `memory-4` facts | `codex/memory-4-facts` | Complete | `root` + `plan_mapper` + `stack_audit` + `contracts_audit` | 8 focused tests; memory: 40 passed; backend: 112 passed; basedpyright: clean | `5b71628`; draft PR #111 |
 | `memory-5` events | `codex/memory-5-events` | Complete | `root` | 9 focused event tests; memory: 49 passed; backend: 121 passed; basedpyright 1.39.10 found no new errors and 16 pre-existing backend errors | Active branch head; draft PR #112 |
-| `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | Active branch head; not published |
-| `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | Active branch head; not published |
-| `memory-8` context notes | `codex/memory-8-context-notes` | Pending | Unassigned | Not started | — |
+| `memory-6` storylines | `codex/memory-6-storylines` | Complete | `root` | 7 focused storyline tests; memory: 56 passed; backend: 128 passed; basedpyright found no new errors and 16 pre-existing backend errors | `e4c7831`; PR #114 |
+| `memory-7` triggers | `codex/memory-7-triggers` | Complete | `root` | 8 focused trigger tests; memory: 64 passed; backend: 136 passed; basedpyright found no new errors and 16 pre-existing backend errors | `5788729`; PR #113 |
+| `memory-8` context notes | `codex/memory-8-context-notes` | Complete | `root` | 9 focused context-note tests; memory: 73 passed; backend: 145 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | Active branch head; PR #115 |
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Pending | Unassigned | Not started | — |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Pending | Unassigned | Not started | — |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Pending | Unassigned | Not started | — |
@@ -42,6 +42,12 @@ The completed database stack remains tracked separately in
 - Record uncovered design decisions here rather than resolving them implicitly.
 - Keep the integration tail on the same stack unless the optional split after
   `memory-11` is explicitly approved.
+
+## `memory-8` Assignments
+
+| Owner | Assigned paths | Work |
+| --- | --- | --- |
+| `root` | `backend/resources/memory/context_notes/`, context-note projection builder/exports, context-note tests, `docs/memory/status.md`, context-note builder signature in `docs/memory/retrieval.md` | Context-note aggregate hydration, stable scope/key validation and persistence, v1 codec, deterministic projection, lean verification, and coordination ownership |
 
 ## `memory-7` Assignments
 
@@ -220,6 +226,28 @@ design and correctness pass.
   to `memory-9`; migrations, retrieval behavior, and reporter integration remain
   outside this layer.
 
+## `memory-8` Boundary Notes
+
+- `ContextNoteManager` hydrates the stable scope/key identity and immutable
+  versioned content as one competition-scoped aggregate. Exact reads include
+  retired versions, and history is newest-first without disclosing another
+  competition's notes.
+- Create preparation accepts a typed competition, competition-season, or
+  franchise identity plus complete v1 content. Season and franchise targets
+  must exist in the manager's competition; competition-scoped notes require no
+  additional target lookup.
+- Scope and note key are inserted once beside the stable memory item.
+  Replacements resolve that stored identity and accept only new complete
+  content, so a version change cannot silently move or rename the note.
+- Context-note projections include status, normalized tags, stable scope and
+  note key, narrative, outlook, and season/franchise entity keys. The derived
+  content hash covers both stable identity and complete content because the
+  context note is one resource aggregate.
+- Resource-local helpers preserve caller-owned transaction boundaries and
+  atomically persist stable identity, typed content, and derived projection.
+  Public mutation orchestration, uniqueness conflict translation, retrieval,
+  and reporter integration remain deferred to later layers.
+
 ## `memory-3` Boundary Notes
 
 - The public revision boundary is deliberately read-only. The write skeleton is
@@ -248,10 +276,10 @@ design and correctness pass.
 - Unit/backend tests use `.cache/tmp` as `TMP` and `TEMP` to avoid the host
   pytest temp-directory permission issue.
 - PostgreSQL-backed tests use the repository's temporary PostgreSQL 17 Compose
-  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-7` run
-  passed all 64 memory tests and all 136 backend tests; the test container and
+  service and command-scoped `AIDAM_TEST_DATABASE_URL`. The `memory-8` run
+  passed all 73 memory tests and all 145 backend tests; the test container and
   its tmpfs data were removed afterward.
 - `uvx basedpyright backend` reports the same 16 diagnostics already present at
   the `memory-5` parent, including the existing Pydantic `schema_version`
-  narrowing pattern. No new error originates in the `memory-7`
+  narrowing pattern. No new error originates in the `memory-8`
   implementation or tests.

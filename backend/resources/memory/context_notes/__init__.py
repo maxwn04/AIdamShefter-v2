@@ -1,3 +1,4 @@
+from backend.resources.memory.context_notes.manager import ContextNoteManager
 from backend.resources.memory.context_notes.objects import (
     CompetitionContextNoteIdentity,
     CompetitionSeasonContextNoteIdentity,
@@ -14,6 +15,7 @@ __all__ = [
     "ContextNote",
     "ContextNoteContent",
     "ContextNoteIdentity",
+    "ContextNoteManager",
     "ContextNoteStatus",
     "FranchiseContextNoteIdentity",
 ]

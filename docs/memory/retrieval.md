@@ -69,7 +69,10 @@ build_storyline_document(content: StorylineContent) -> SearchDocument
 build_fact_document(content: FactContent) -> SearchDocument
 build_event_document(content: EventContent) -> SearchDocument
 build_trigger_document(content: TriggerContent) -> SearchDocument
-build_context_note_document(content: ContextNoteContent) -> SearchDocument
+build_context_note_document(
+    identity: ContextNoteIdentity,
+    content: ContextNoteContent,
+) -> SearchDocument
 ```
 
 Builders flatten type-specific structure into a common shape and render useful
