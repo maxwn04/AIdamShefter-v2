@@ -23,6 +23,10 @@ from backend.services.memory.proposals import (
     MemoryProposalContent,
     ProposedMemoryRef,
 )
+from backend.services.memory.retrieval_service import (
+    MemoryRetrievalRequest,
+    MemoryRetrievalResult,
+)
 
 
 class PinnedMemoryRetrieval(Protocol):
@@ -33,8 +37,8 @@ class PinnedMemoryRetrieval(Protocol):
         *,
         competition_id: UUID,
         revision_id: UUID,
-        request: object,
-    ) -> object: ...
+        request: MemoryRetrievalRequest,
+    ) -> MemoryRetrievalResult: ...
 
 
 class GenerationMemoryContext:
@@ -61,7 +65,7 @@ class GenerationMemoryContext:
         self._proposals: list[MemoryProposal] = []
         self._closed = False
 
-    def search(self, request: object) -> object:
+    def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""
 
         self._require_open()

@@ -1,7 +1,7 @@
 # Memory Retrieval Projection
 
-**Status:** Search-document schema, builders, candidate queries, and rebuild implemented;
-typed hydration remains pending
+**Status:** Search-document schema, builders, candidate queries, rebuild, and
+typed hydration implemented
 
 ## Purpose
 
@@ -129,8 +129,12 @@ Search returns compact leads:
 }
 ```
 
-The manager hydrates the highest-value leads from canonical typed tables and
-returns the complete content and requested references to the agent.
+`MemoryRetrievalService` hydrates ranked leads through the typed resource
+managers and returns complete canonical content plus score explanations. It can
+optionally attach one-hop typed sidecars for exact evidence and references or
+stable related items resolved at the same pinned revision. The canonical
+aggregate itself is unchanged, and projection-only text or metadata is never
+returned as authoritative content.
 
 ## Vector Search
 

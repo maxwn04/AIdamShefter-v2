@@ -46,13 +46,25 @@ from backend.services.memory import (
     MemoryMutationBundle,
     MemoryMutationOrigin,
     MemoryMutationService,
+    MemoryRetrievalRequest,
+    MemoryRetrievalResult,
 )
 from backend.tests.database.conftest import database_engine, migrated_database
 
 
 class EmptyRetrieval:
-    def search(self, **_kwargs: object) -> object:
-        return ()
+    def search(
+        self,
+        *,
+        competition_id: UUID,
+        revision_id: UUID,
+        request: MemoryRetrievalRequest,
+    ) -> MemoryRetrievalResult:
+        return MemoryRetrievalResult(
+            competition_id=competition_id,
+            revision_id=revision_id,
+            matches=(),
+        )
 
 
 class Domain:

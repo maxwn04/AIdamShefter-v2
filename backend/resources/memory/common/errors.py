@@ -80,6 +80,22 @@ class RevisionNotFoundError(MemoryApplicationError):
         super().__init__(message)
 
 
+class SearchProjectionHydrationError(MemoryApplicationError):
+    def __init__(
+        self,
+        version_id: UUID,
+        projected_kind: MemoryKind,
+        reason: str,
+    ) -> None:
+        self.version_id = version_id
+        self.projected_kind = projected_kind
+        self.reason = reason
+        super().__init__(
+            f"search candidate {version_id} projected as {projected_kind.value} "
+            f"could not be hydrated canonically: {reason}"
+        )
+
+
 class TargetNotFoundError(MemoryApplicationError):
     def __init__(
         self,
