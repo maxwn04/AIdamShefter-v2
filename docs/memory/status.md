@@ -5,8 +5,7 @@
 **Active layer:** `memory-12` complete; `memory-13` is next
 **Current branch:** `codex/memory-12-api`
 **Stack:** `main` <- `memory-0` <- `memory-1` <- `memory-2` <- `memory-3` <- `memory-4` <- `memory-5` <- `memory-6` <- `memory-7` <- `memory-8` <- `memory-9` <- `memory-10` <- `memory-11` <- `memory-12`
-**Publication:** `memory-12` is implemented locally atop `memory-11` (PR #119)
-and is not yet published.
+**Publication:** `memory-12` is published as PR #120 atop `memory-11` (PR #119).
 
 This file is the coordination ledger for the typed-memory application stack.
 The completed database stack remains tracked separately in
@@ -28,7 +27,7 @@ The completed database stack remains tracked separately in
 | `memory-9` mutation bundles | `codex/memory-9-mutation-bundles` | Complete | `root` | 6 focused service tests; memory: 79 passed; backend: 151 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `0260366`; PR #117 |
 | `memory-10` search projection | `codex/memory-10-search-projection` | Complete | `root` | 5 focused PostgreSQL tests; memory: 84 passed; backend: 156 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `915ddf4`; PR #118 |
 | `memory-11` retrieval | `codex/memory-11-retrieval` | Complete | `root` | 7 focused PostgreSQL tests; memory: 91 passed; backend: 163 passed; basedpyright found no new errors and the same 16 pre-existing backend errors | `a8a7250`; PR #119 |
-| `memory-12` HTTP API | `codex/memory-12-api` | Complete | `root` | 10 focused API/composition tests; memory + API: 107 passed; backend: 173 passed; focused basedpyright clean and full backend retains the same 16 pre-existing errors; Ruff clean | Active branch head; not yet published |
+| `memory-12` HTTP API | `codex/memory-12-api` | Complete | `root` | 10 focused API/composition tests; memory + API: 107 passed; backend: 173 passed; focused basedpyright clean and full backend retains the same 16 pre-existing errors; Ruff clean | `29474c4`; PR #120 |
 | `memory-13` reporter retrieval | `codex/memory-13-reporter-retrieval` | Pending | Unassigned | Not started | — |
 | `memory-14` reporter mutations | `codex/memory-14-reporter-mutations` | Pending | Unassigned | Not started | — |
 
