@@ -1,6 +1,7 @@
 from backend.resources.memory.common.errors import (
     CrossCompetitionReferenceError,
     MemoryApplicationError,
+    RevisionNotFoundError,
     StaleCanonicalRevisionError,
     StaleItemVersionError,
     TargetNotFoundError,
@@ -36,6 +37,7 @@ __all__ = [
     "PlayerRef",
     "ReceiptConfidence",
     "ReceiptedMemoryContent",
+    "RevisionNotFoundError",
     "SeasonRef",
     "SeasonRosterRef",
     "SleeperUserRef",

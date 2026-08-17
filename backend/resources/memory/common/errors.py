@@ -9,6 +9,23 @@ class MemoryApplicationError(Exception):
     """Base class for stable memory application failures."""
 
 
+class RevisionNotFoundError(MemoryApplicationError):
+    def __init__(
+        self,
+        competition_id: UUID,
+        revision_id: UUID | None = None,
+    ) -> None:
+        self.competition_id: UUID = competition_id
+        self.revision_id: UUID | None = revision_id
+        if revision_id is None:
+            message = f"current revision was not found for competition {competition_id}"
+        else:
+            message = (
+                f"revision {revision_id} was not found in competition {competition_id}"
+            )
+        super().__init__(message)
+
+
 class TargetNotFoundError(MemoryApplicationError):
     def __init__(
         self,
