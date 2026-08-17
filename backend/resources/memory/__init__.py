@@ -1,5 +1,11 @@
 """Typed memory resources, grouped by canonical resource kind."""
 
+from backend.resources.memory.context_notes import (
+    ContextNote,
+    ContextNoteContent,
+    ContextNoteManager,
+    ContextNoteStatus,
+)
 from backend.resources.memory.events import (
     Event,
     EventConfidence,
@@ -32,6 +38,10 @@ from backend.resources.memory.triggers import (
 )
 
 __all__ = [
+    "ContextNote",
+    "ContextNoteContent",
+    "ContextNoteManager",
+    "ContextNoteStatus",
     "Event",
     "EventConfidence",
     "EventContent",
