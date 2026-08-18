@@ -227,13 +227,16 @@ than ORM rows.
 Exposes one ordinary operation, `get_or_create(request)`, and owns the complete
 long-running snapshot workflow:
 
-- asks `SleeperDataManager` for eligible request candidates;
-- selects exactly one request for every required scope;
-- computes a canonical build key from the factual inputs;
+- computes the daily canonical build key from the validated factual inputs;
 - asks `DataSnapshotManager.begin_or_get()` to atomically return the existing
-  snapshot or claim the build;
+  snapshot or claim the build before request selection;
+- hash/size-verifies an existing ready artifact and expires it before retrying
+  when verification fails;
 - bounds waiting on an existing build, atomically fails an abandoned build,
   and retries the claim without exposing recovery policy to its caller;
+- reads season-stable planning settings, derives explicit required scopes, asks
+  `SleeperDataManager` for eligible request candidates, and selects exactly one
+  request for every requirement;
 - resolves and hash-verifies raw payloads;
 - runs the same normalizers used by ingestion;
 - projects endpoint records into cutoff-safe snapshot tables;
@@ -246,7 +249,12 @@ Missing required inputs fail the request. A future diagnostic workflow, if
 needed, is a separate command and cannot weaken generation snapshot guarantees.
 
 No database transaction remains open while payload files are read, SQLite is
-built, or the artifact is written to its final local path.
+built, or the artifact is written to its final local path. Claim/reuse and
+ready sealing are separate atomic manager operations around that external work.
+If content-addressed storage succeeds but sealing fails, the unreferenced bytes
+are a benign orphan rather than a reason to span a database transaction across
+the file write. V1 retains benign orphans; reference-aware cleanup is a future,
+separate operator workflow.
 
 ### SQLite Snapshot Materializer
 
@@ -298,15 +306,37 @@ bracket:<competition-season-id>:winners
 Callers never hand-build scope strings. Stable scope keys connect request audit,
 current-head concurrency, refresh results, and snapshot membership.
 
-### Canonical snapshot build key
+### Canonical daily snapshot identity
 
-Snapshot reuse is manager-owned and concurrency safe. After selecting the exact
-request set, the service computes a build key from content-affecting inputs:
+Snapshot reuse is manager-owned and concurrency safe. Before reading candidates
+or selecting exact request membership, the service computes a daily reuse key
+from:
 
 - primary competition season;
-- validated `through_week` and `observed_through` boundaries;
-- ordered selected-request-set hash;
+- validated `through_week`;
+- `as_of_date`;
 - snapshot projection version.
+
+The key intentionally does not contain an exact observation timestamp or an
+aggregate selected-request-set hash. Exact request IDs, roles, scope keys, and
+individual response hashes remain sealed membership for audit and replay, but
+they do not create multiple identities within one daily reuse key. The first
+healthy ready snapshot for a key is reused; observations completed after it
+became ready do not replace it, and callers normally choose another date label
+when they want another identity.
+
+The daily key is an intentionally coarse product identity. Exact request
+membership and artifact SHA-256 audit the concrete build attempt without
+refining that identity. While a ready artifact remains healthy, later
+observations do not replace it. If a failed or expired row releases the key, a
+recovery attempt may select different eligible membership under the same daily
+identity; preserving availability with that coarsening is an explicit v1
+tradeoff.
+
+One versioned module function canonicalizes these four fields; callers never
+construct or supply a raw build key. The date is encoded as ISO `YYYY-MM-DD`,
+UUIDs use canonical lowercase text, and the projection-version string is
+included verbatim after validation.
 
 `DataSnapshotManager.begin_or_get(build_key)` relies on a partial unique
 constraint over active (`building` or `ready`) rows, so concurrent callers
@@ -364,8 +394,9 @@ V1 has three version concepts:
 
 - ingestion normalizer version on an API request records the logic that produced
   its current-view outcome;
-- snapshot projection version covers selected-payload normalization,
-  derivations, field cutoff policy, and SQLite schema compatibility;
+- snapshot projection version covers requirement planning, request-selection
+  policy, selected-payload normalization, derivations, field cutoff policy, and
+  SQLite schema compatibility;
 - deployed code revision is audit-only.
 
 These are module/build constants, not a version-provider abstraction. Split the
@@ -473,8 +504,10 @@ Only boundary failures escape services:
 Source failures, invalid payloads, normalization rejection, and identity mapping
 gaps are recorded as refresh request outcomes and contribute to the manager-
 derived refresh status. Local file collisions with matching content are no-ops.
-Artifact/schema verification failures are handled inside the snapshot service,
-which marks the build failed before returning a sanitized boundary failure.
+Artifact/schema verification failures during construction mark the `building`
+attempt failed before returning a sanitized boundary failure. Missing, corrupt,
+or incompatible bytes discovered while reusing a `ready` snapshot atomically
+expire that ready row before a replay claim.
 
 Expected reporter lookup misses remain ordinary query results with
 `found = false`; they are not service exceptions.

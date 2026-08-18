@@ -12,7 +12,7 @@ consists of:
   SQLite compatibility;
 - a content-addressed, read-only SQLite artifact;
 - completeness/reconstruction warnings;
-- immutable hashes tying those pieces together.
+- immutable per-request response hashes plus the final artifact hash.
 
 PostgreSQL remains the source of truth. The SQLite file is a reproducibility and
 future-data safety artifact. It also preserves the existing reporter query
@@ -21,31 +21,37 @@ PostgreSQL projection.
 
 ## Boundary Semantics
 
-The datalayer accepts factual boundaries, not a mode label:
+The datalayer accepts a week boundary and a daily reuse label, not a mode label:
 
 - `through_week` is the last fantasy week whose week-scoped facts may appear;
-- `observed_through` is the latest time at which an API request could have
-  completed and remained eligible.
+- `as_of_date` groups compatible builds under one caller-chosen calendar date.
 
 Generation policy translates user intent into those values:
 
-| Generation intent | `through_week` | `observed_through` |
+| Generation intent | `through_week` | `as_of_date` |
 | --- | --- | --- |
-| Live/current | Current effective week | Current time |
-| Historical replay | Requested historical week | Historical instant being simulated |
-| Retrospective correction | Requested earlier week | Present or another later correction time |
+| Live/current | Current effective week | Current date |
+| Historical replay | Requested historical week | Generation-selected reuse date |
+| Retrospective correction | Requested earlier week | Present or another later date |
 
-Two generation intents with identical factual boundaries can and should reuse
+Two generation intents with identical week/date inputs can and should reuse
 the same snapshot. Intent remains on the generation rather than creating
 duplicate factual artifacts.
 
-Every snapshot excludes requests completed after `observed_through` and
-endpoint scopes after `through_week`. A Week 9 matchup request cannot
-enter a Week 8 snapshot. A Week 8 roster, user, player, or bracket response
-observed after the observation boundary is also unavailable even if its rows
-appear innocuous.
+`as_of_date` is not a source-request eligibility boundary. After claiming a
+build, the service selects the latest complete requests visible when each
+candidate read executes, including later backfills for an earlier football
+week. `through_week` remains the factual domain cutoff: a Week 9 matchup request
+cannot enter a Week 8 snapshot.
 
-A week alone never implies an observation timestamp.
+The date is deliberately a coarse reuse bucket, not a claim about what the
+system knew by the end of that date. During healthy reuse, the first ready
+snapshot wins and observations completed after it became ready do not replace
+it; callers normally choose another date label when they want another identity.
+Recovery after failure or expiration may reselect within the same daily bucket;
+that coarsening is an explicit tradeoff. Request start time may rank complete
+candidates within one scope, but no request timestamp maps into `as_of_date` or
+affects identity or eligibility.
 
 Selection is endpoint-aware:
 
@@ -58,11 +64,10 @@ Selection is endpoint-aware:
   comes from the selected Week 8 matchup payload, not from a Week 10 rosters
   response.
 
-V1 does not accept an instant-based domain cutoff. The source data needed to
-reconstruct matchups, transactions, lineups, and standings is week-scoped, and
-the datalayer does not yet have trustworthy intra-week rules. An instant
-variant should be added only when the service can own those rules without
-making callers choose projection details.
+V1 does not accept an instant-based domain or observation cutoff. The source
+data needed to reconstruct matchups, transactions, lineups, and standings is
+week-scoped, and the datalayer does not need timestamp-level simulation
+precision. Exact knowledge-time replay is deliberately outside this contract.
 
 ## Build Flow
 
@@ -72,23 +77,35 @@ sequenceDiagram
     participant Service as DatalayerSnapshotService
     participant Snap as DataSnapshotManager
     participant Obs as SleeperDataManager
+    participant Require as Pure requirement planning
     participant Select as Pure request selection
     participant Norm as Endpoint-family modules
     participant Mat as SQLiteMaterializer
     participant Files as LocalDatalayerFileStore
 
     Caller->>Service: get_or_create(SnapshotRequest)
-    Service->>Obs: list_snapshot_candidates(...)
-    Obs-->>Service: candidate metadata
-    Service->>Select: select(spec, required scopes, candidates)
-    Select-->>Service: SelectedRequestManifest
-    Service->>Snap: begin_or_get(canonical build key)
+    Service->>Snap: begin_or_get(daily build key)
     alt ready snapshot exists
-        Snap-->>Service: ReadyDataSnapshot
+        Snap-->>Service: ready metadata
+        Service->>Files: resolve and verify hash/size
+        alt artifact valid
+            Files-->>Service: VerifiedLocalArtifact
+        else artifact missing or invalid
+            Service->>Snap: atomically expire unusable ready row
+            Service->>Snap: retry begin_or_get(...)
+        end
     else another caller is building
         Service->>Snap: wait bounded time for ready/failed state
         Service->>Snap: atomically fail build if stale, then retry claim
     else this caller claimed the build
+        Service->>Obs: get season-stable planning settings
+        Obs-->>Service: SnapshotPlanningContext
+        Service->>Require: plan(spec, season settings)
+        Require-->>Service: SnapshotRequirements
+        Service->>Obs: list candidate metadata for required season/scopes
+        Obs-->>Service: candidate metadata
+        Service->>Select: select(requirements, candidates)
+        Select-->>Service: SelectedRequestManifest
         Service->>Obs: resolve_verified_payloads(ids)
         Obs-->>Service: verified raw payloads
         Service->>Norm: endpoint modules normalize selected payloads
@@ -116,24 +133,42 @@ to failed and the service retries the claim. A non-stale build that does not
 finish within the request's wait budget produces `SnapshotUnavailable`; the
 caller is never asked whether to steal, wait, or retry the build.
 
+The manager operations that claim/reuse identity and seal readiness are atomic;
+the overall build is intentionally not one database transaction. Candidate
+reads, payload verification, normalization, SQLite work, and local-file writes
+happen between those operations. If the content-addressed file write succeeds
+but sealing fails, the file is a harmless unreferenced orphan. V1 retains it
+rather than adding a reference-aware cleanup workflow.
+
 ## Required Request Set
 
-The selector expands a `SnapshotRequest` into explicit required scopes using
-the shared `EndpointKind` and `ScopeKey` vocabulary.
+V1 assumes structural league settings remain stable within one competition
+season. `SleeperDataManager` returns a season-scoped `SnapshotPlanningContext`
+from the current normalized league configuration; a pure planner expands that
+context and the `SnapshotRequest` into explicit `SnapshotRequirements` using
+the shared `EndpointKind` and `ScopeKey` vocabulary. These planning settings
+decide obligations such as draft-pick and bracket scopes but are not represented
+as historical cutoff facts. The selected league response still supplies the
+artifact's league content and provenance.
+
+The selector never infers that a conditional scope was optional merely because
+no request candidate exists. Historical midseason settings changes are
+deliberately unsupported in v1; supporting them later requires versioned
+settings observations and a snapshot-projection-version change.
 
 For the initial single-season artifact:
 
 - one league response;
 - one league-users response;
-- one league-rosters response eligible for the cutoff;
+- one latest complete league-rosters response;
 - one NFL-state response when required for provenance;
 - one player-catalog response;
 - one matchup response for every included week;
 - one transaction response for every included week, including authoritative
   empty lists;
 - the traded-picks response when the league has draft rounds;
-- winners/losers bracket responses only when the bracket is relevant and could
-  have been known by the cutoff.
+- winners/losers bracket responses only when relevant under `through_week` and
+  season-stable settings.
 
 The request manifest assigns each selected request a stable selection role.
 Requiredness comes from the snapshot request and league settings—not from
@@ -155,20 +190,19 @@ Eligibility requires:
 - `is_complete == true`;
 - verified payload ID and matching response hash;
 - exact scope/season agreement;
-- completion at or before `observed_through`;
 - endpoint week at or before `through_week`;
-- bracket timing compatible with `through_week` and `observed_through`;
+- bracket relevance compatible with `through_week` and season settings;
 - global scope only for explicitly global endpoint kinds.
 
-For current-state payloads selected after `through_week` but before
-`observed_through`, eligibility does not mean every field can be copied into
-the artifact. The materializer has an explicit cutoff policy per target table:
+For current-state payloads fetched after `through_week`, eligibility does not
+mean every field can be copied into the artifact. The materializer has an
+explicit cutoff policy per target table:
 
 - weekly membership and starter/bench roles come from matchup payloads;
 - standings and scores are derived only through `through_week`;
 - later roster membership and later record totals are not copied as cutoff
   truth;
-- reference/display fields known by the observation boundary may be retained;
+- reference/display fields may be retained;
 - unreconstructable volatile fields are null/absent and produce a structured
   warning rather than silently leaking later state.
 
@@ -178,18 +212,19 @@ not maintain a second field list. Projection unit tests and its emitted warnings
 are the evidence for field-level safety.
 
 Within a scope, the latest eligible observation is selected by request start
-time, then request ID. Completion time remains the observation gate,
-while start time prevents out-of-order completions from reversing source order.
+time, then request ID. Start time prevents out-of-order completions from
+reversing source order.
 
-The manifest is canonicalized and hashed from ordered entries containing at
-least request ID, scope key, selection role, response hash, and endpoint kind.
-This `selected_request_set_sha256` is not a hash of query results; it identifies
-the exact source membership.
+The manifest contains a deterministic ordered entry for every selected request,
+including request ID, scope key, selection role, response hash, and endpoint
+kind. Those exact entries are sealed for audit/replay and embedded as
+provenance. No aggregate selected-request-set hash is computed or used in
+snapshot identity.
 
 ## Worked Week 8 Cases
 
-A “Week 8 snapshot” is incomplete terminology. The caller must also provide an
-observation boundary.
+A “Week 8 snapshot” is incomplete terminology. The caller must also provide a
+daily reuse label.
 
 ### Week 8 data observed during Week 8
 
@@ -200,50 +235,50 @@ For:
 
 ```text
 through_week = 8
-observed_through = end of Week 8
+as_of_date = caller-chosen Week 8 reuse label
 ```
 
 the selector chooses the latest complete request for every required scope that
-finished by that timestamp. The materializer builds games and standings through
-Week 8, uses Week 8 matchup data for cutoff roster/lineup membership, and omits
-all Week 9+ endpoint scopes.
+is visible when the post-claim candidate read executes. The materializer builds
+games and standings through Week 8, uses Week 8 matchup data for cutoff
+roster/lineup membership, and omits all Week 9+ endpoint scopes.
 
 ### Week 8 endpoint fetched for the first time during Week 10
 
 Suppose the only Week 8 matchup request is a Week 10 call to
 `/league/.../matchups/8`.
 
-- A snapshot observed only through the end of Week 8 cannot use
-  it. The required `matchups:<season>:8` scope is missing, so an ordinary build
-  fails rather than guessing from the PostgreSQL current view.
-- A Week 8 snapshot observed through Week 10 may use
-  it because the response is specifically scoped to the Week 8 domain.
+- A new or recovery Week 8 build may use it because the response is explicitly
+  scoped to the Week 8 domain; `as_of_date` does not pretend the request was
+  observed earlier.
+- A healthy ready snapshot with the same daily key is still reused rather than
+  silently upgraded with the backfill.
 - A request to `/matchups/10` can never substitute for `/matchups/8`, regardless
-  of generation intent or observation boundary.
+  of generation intent or calendar label.
 
 ### Only current-state roster data was captured during Week 10
 
-A Week 10 `/rosters` response is unavailable to a snapshot observed only through
-Week 8. If the observation boundary is Week 10, the request may
-provide identities and display/reference metadata that AIdam knew by then, but
-the snapshot must not copy Week 10 membership or record totals as Week 8 truth.
+A Week 10 `/rosters` response may provide current identities and
+display/reference metadata to a Week 8 rebuild, but the snapshot must not copy
+Week 10 membership or record totals as Week 8 truth.
 Week 8 lineup membership comes from `matchups:8`; standings are derived through
 Week 8.
 
 If no eligible request supplies a required identity/reference scope, the
 snapshot fails. There is no ordinary incomplete-build flag.
 
-This is why raw request history is essential: the latest PostgreSQL normalized
-row alone cannot answer when AIdam observed a value or whether it was safe for a
-particular cutoff.
+This is why raw request history is still useful: the build seals exact replay
+provenance and can choose corrected week-scoped responses without treating the
+latest PostgreSQL normalized row as historical truth.
 
 ## Snapshot Reuse
 
-`get_or_create()` computes one canonical build key from:
+Before request selection, `get_or_create()` computes one canonical build key
+from:
 
 - primary competition season;
-- validated `through_week` and `observed_through`;
-- exact selected request-set hash;
+- validated `through_week`;
+- `as_of_date`;
 - snapshot projection version.
 
 The database partially constrains that build key across active `building` and
@@ -254,7 +289,17 @@ the service retries the claim. Code revision is stored for audit but is not part
 of the key; code changes that affect output must bump the snapshot projection
 version.
 
-Artifact SHA-256 verifies bytes but is not the semantic build identity. The
+The key deliberately omits exact request membership. While a ready artifact is
+healthy, later observations do not replace it; callers normally choose another
+date label to request another identity. Failed or expired recovery may reselect
+newer eligible membership under the same intentionally coarse daily identity.
+Exact membership and individual response hashes remain immutable audit/replay
+data on each ready row.
+Changes to requirement planning or request-selection policy must bump the
+snapshot projection version just like normalization, derivation, cutoff-policy,
+or SQLite-schema changes.
+
+Artifact SHA-256 verifies bytes but does not define the daily reuse identity. The
 active-key constraint prevents concurrent duplicate rows/work instead of
 declaring them harmless.
 
@@ -312,15 +357,15 @@ The file contains exactly one `snapshot_metadata` row with:
 
 - canonical build key, competition ID, and primary season ID;
 - Sleeper league ID and season year;
-- `through_week` and `observed_through`;
-- selected-request-set hash;
+- `through_week` and `as_of_date`;
+- ordered selected-request provenance with individual response hashes;
 - snapshot projection version;
 - structured completeness warning JSON.
 
 Snapshot-row UUID, creation time, and deployed code revision remain in
 PostgreSQL and are deliberately omitted from the file. This lets equivalent
 builds produce equivalent bytes while allowing the runtime to reject a valid
-SQLite file with the wrong semantic build key.
+SQLite file with the wrong expected build key.
 
 ## Deterministic Materialization
 
@@ -336,6 +381,11 @@ The materializer:
 
 It accepts no PostgreSQL manager or connection. Determinism excludes volatile
 instance values such as snapshot UUID and creation time from the file.
+The materializer's temporary-file hash and size prove its output; the local file
+store independently verifies and moves those bytes, and its stored receipt is
+the authoritative artifact metadata passed to `seal_ready()`. The manager owns
+database membership/sealing, while the materializer only embeds the selector's
+manifest as SQLite provenance.
 
 ### Snapshot-only derivations
 
@@ -345,8 +395,7 @@ The following legacy logic is retained and extracted into pure functions:
   two members;
 - compute standings through `through_week`;
 - interpret league-average-match record strings;
-- derive current-as-of-cutoff team/manager profiles from selected users and
-  rosters;
+- derive cutoff-safe team/manager profiles from selected users and rosters;
 - seed draft-pick coordinates and apply selected traded-pick ownership;
 - derive starter/bench roster snapshots from weekly matchup payloads;
 - record `effective_week` from the snapshot request rather than the machine's
@@ -363,7 +412,6 @@ A snapshot is not ready until automated checks prove:
 - no matchup, transaction, performance, game, standing, or bracket row exceeds
   `through_week`;
 - every source-backed row traces to a selected request scope;
-- no request completed after the snapshot's observation boundary;
 - the artifact contains only the primary competition season plus declared
   global resources;
 - roster/franchise mappings belong to the same competition;
@@ -392,11 +440,12 @@ with shared storage without changing snapshot identity or query runtime.
 
 ## `FrozenLeagueData`
 
-`FrozenLeagueData.open()`:
+`FrozenLeagueData.open(ready_snapshot)`:
 
 - uses SQLite read-only immutable mode;
 - validates snapshot projection version against supported versions;
-- compares the internal build key with `VerifiedLocalArtifact`;
+- compares the internal build key and projection version with the expected
+  values on `ReadyDataSnapshot`;
 - opens one query connection for the context lifetime;
 - exposes only curated methods and guarded SQL;
 - closes deterministically at context exit.
@@ -445,10 +494,12 @@ statements, oversized results, and attempts to inspect attached databases.
 
 ## Retention
 
-Ready snapshot membership and meaning are immutable. An artifact remains
-available while referenced by a generation. Retention may mark an unreferenced
-snapshot expired and remove its artifact bytes, but request membership, hashes,
-versions, and the visible loss of artifact availability remain auditable. The
-expired row no longer participates in active build-key uniqueness, so a later
-`get_or_create()` can produce a replacement artifact with the same semantic
-key.
+Ready snapshot membership and meaning are immutable. V1 performs no proactive
+snapshot or orphan deletion: healthy ready artifacts and benign unreferenced
+content-addressed files are retained. If a ready artifact is missing or corrupt,
+the service marks its snapshot expired while preserving request membership,
+hashes, versions, and the visible loss of availability for audit. The expired
+row no longer participates in active build-key uniqueness, so a later
+`get_or_create()` can reselect and produce a replacement artifact with the same
+coarse daily key. Reference-aware retention can be added later as a separate
+operator workflow.

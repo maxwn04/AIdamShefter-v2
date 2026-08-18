@@ -84,9 +84,9 @@ inside the SQLite reporter read model because they are already coupled to the
 curated query contract and must be cutoff-safe.
 
 The SQLite artifact is not necessarily unique to a generation. Several
-generations may reference the same ready snapshot when their competition,
-season, factual boundaries, selected API requests, and snapshot projection
-version match.
+generations may reference the same ready snapshot when their competition
+season, `through_week`, `as_of_date`, and snapshot projection version match.
+Exact selected API requests are sealed audit membership, not reuse identity.
 
 ## Settled Decisions
 
@@ -105,6 +105,9 @@ version match.
   replaced when adapting around them would add more layers than rewriting them.
 - Current normalized tables are convenient heads, not historical truth.
   Historical snapshots select raw request history and normalize it again.
+- V1 treats structural league settings as stable for one competition season.
+  Requirement planning may read the season's current normalized settings; it
+  does not reconstruct historical settings changes within that season.
 - The reporter never receives a PostgreSQL connection. Curated queries and
   free-form SQL execute only against a verified frozen SQLite artifact.
 - V1 stores frozen SQLite artifacts on the local filesystem under a configured
@@ -117,9 +120,10 @@ version match.
 - Routes are thin. They parse HTTP input, establish manager context, call a
   service, and translate errors. They do not fetch, normalize, select requests,
   or open database sessions.
-- Snapshot callers supply a required `through_week` and `observed_through`.
+- Snapshot callers supply a required `through_week` and plain `as_of_date`.
   Live/backtest/retrospective labels belong to generation policy, not snapshot
-  identity. V1 deliberately has no underspecified instant-based cutoff.
+  identity. `as_of_date` is a coarse daily reuse label, not a timestamp or
+  request-eligibility cutoff.
 - `DatalayerSnapshotService.get_or_create()` is the only ordinary snapshot
   operation. It owns reuse versus build and uses an atomic canonical build key.
 
@@ -130,13 +134,14 @@ The component has three caller-facing Python entry points:
 ```python
 refresh = DatalayerRefreshService(...)
 snapshots = DatalayerSnapshotService(...)
-data = FrozenLeagueData.open(verified_artifact)
+data = FrozenLeagueData.open(ready_snapshot)
 ```
 
 - `DatalayerRefreshService` records a refresh and updates eligible current
   normalized scopes.
 - `DatalayerSnapshotService.get_or_create()` builds or reuses a ready,
-  immutable snapshot for a precise factual cutoff contract.
+  immutable snapshot for a week-scoped factual boundary and daily reuse
+  contract.
 - `FrozenLeagueData` exposes curated factual queries and guarded SQL to the
   reporter without exposing persistence or source-fetch behavior.
 
@@ -167,8 +172,8 @@ The datalayer owns:
 - complete request/payload audit capture;
 - payload completeness and normalization validation;
 - current normalized Sleeper heads;
-- request selection from explicit `through_week` and `observed_through`
-  boundaries;
+- request selection from available complete observations plus an explicit
+  `through_week` domain boundary;
 - frozen SQLite schema/materialization;
 - curated factual query functions and guarded SQL runtime.
 

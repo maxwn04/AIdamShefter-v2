@@ -74,19 +74,24 @@ exception.
 class SnapshotRequest(BaseModel, frozen=True):
     competition_season_id: UUID
     through_week: int
-    observed_through: datetime
+    as_of_date: date
 ```
 
-This contract describes factual availability rather than generation intent.
-The generation service converts live, historical replay, or retrospective
-policy into a valid week/observation pair. Competition identity is derived from
-the season. Missing required data always fails an ordinary snapshot request;
-incomplete diagnostic builds are not part of this API.
+This contract describes a week-scoped simulation and its daily reuse identity,
+not exact historical knowledge. The generation service converts live,
+historical replay, or retrospective policy into a valid week/date pair.
+`as_of_date` is a plain caller-chosen calendar date; the datalayer does not map
+timestamps into dates or use it to filter source requests. Competition identity
+is derived from the season. Missing required data always fails an ordinary
+snapshot request; incomplete diagnostic builds are not part of this API.
 
-V1 intentionally does not expose an instant-based domain cutoff. Matchups,
-transactions, standings, and lineup reconstruction are week-scoped, and the
-system has no trustworthy intra-week projection contract yet. Add an instant
-variant only with explicit service-owned resolution and intra-week rules.
+V1 intentionally exposes neither an instant-based domain cutoff nor an
+observation-time cutoff. Matchups, transactions, standings, and lineup
+reconstruction are week-scoped. A historical week may be rebuilt later from the
+latest complete requests visible during the post-claim candidate read. Request
+start time may order candidates within one scope, but no request timestamp maps
+into `as_of_date` or creates a knowledge boundary. Add exact knowledge-time
+simulation only if a concrete product need justifies that additional contract.
 
 ### Ready snapshot
 
@@ -96,9 +101,8 @@ class ReadyDataSnapshot(BaseModel, frozen=True):
     competition_id: UUID
     primary_competition_season_id: UUID
     through_week: int
-    observed_through: datetime
+    as_of_date: date
     build_key: str
-    selected_request_set_sha256: str
     snapshot_projection_version: str
     artifact: VerifiedLocalArtifact
     completeness_warnings: tuple[CompletenessWarning, ...]
@@ -116,6 +120,7 @@ refinements before this service is implemented:
   `building` or `ready` row per key;
 - remove snapshot `mode`; live/backtest/retrospective intent belongs to the
   generation rather than factual identity;
+- store the `as_of_date` used by the daily build identity;
 - consolidate materializer/schema versions into one
   `snapshot_projection_version` and add sanitized failure metadata;
 - pin `response_sha256` beside every selected request ID and scope key;
@@ -157,9 +162,24 @@ class DatalayerSnapshotService:
     def get_or_create(self, request: SnapshotRequest) -> ReadyDataSnapshot: ...
 ```
 
-`get_or_create()` selects the exact request set, computes the canonical build
-key, and atomically returns or builds the one matching snapshot. Callers cannot
-bypass reuse or request a weakened incomplete build.
+`get_or_create()` validates the request, computes the daily canonical build key,
+and asks the snapshot manager to atomically reuse or claim that identity before
+selecting source requests. If a ready row exists, the service verifies its
+artifact hash and size before returning it; an unusable artifact is atomically
+expired before another claim. A newly claimed build selects exact request
+membership into an immutable in-memory manifest, performs payload/file/SQLite
+work outside database transactions, and atomically persists that membership
+with the ready result. Callers cannot bypass reuse or request a weakened
+incomplete build.
+
+The first healthy ready snapshot for one season/week/date/projection-version
+key is reused. During normal reuse, observations completed after that snapshot
+became ready do not replace it; callers normally choose another date label when
+they want another identity. A failed or expired row releases the key so recovery
+can reselect from the same coarse daily reuse bucket; the replacement may
+therefore contain different exact membership under the same intentional daily
+identity. Every attempt preserves its own audit row and a ready attempt seals
+its exact membership.
 
 The service accepts:
 
@@ -184,7 +204,7 @@ snapshot = datalayer_snapshot_service.get_or_create(
     SnapshotRequest(
         competition_season_id=request.competition_season_id,
         through_week=request.domain_cutoff_week,
-        observed_through=request.knowledge_cutoff_at,
+        as_of_date=request.snapshot_date,
     )
 )
 
@@ -220,6 +240,10 @@ class SleeperDataManager:
 
     def get_refresh(self, refresh_id: UUID) -> RefreshRun: ...
     def list_refresh_requests(self, refresh_id: UUID) -> Page[ApiRequest]: ...
+    def get_snapshot_planning_context(
+        self,
+        competition_season_id: UUID,
+    ) -> SnapshotPlanningContext: ...
     def list_snapshot_candidates(self, query: SnapshotCandidateQuery) -> tuple[ApiRequestCandidate, ...]: ...
     def resolve_verified_payloads(self, request_ids: Collection[UUID]) -> tuple[VerifiedPayload, ...]: ...
 
@@ -242,6 +266,11 @@ I/O.
 across the Sleeper persistence namespace. `finish_refresh()` derives status and
 counts from recorded request outcomes; the service does not calculate and pass
 the same summary back down.
+
+`get_snapshot_planning_context()` returns the current normalized structural
+settings for the requested season under v1's season-stability assumption.
+`SnapshotCandidateQuery` is limited by season, required endpoint scopes, and
+`through_week`; it never contains or applies `as_of_date`.
 
 Singular `get_*` methods either return the scoped resource or raise the common
 resource-not-found error. Normal absence uses empty list/page results or a
@@ -272,7 +301,8 @@ keep retry and recovery decisions out of callers and preserve the failed or
 expired row for audit.
 `seal_ready()` owns one transaction that validates current build state, inserts
 the exact request membership, and records hashes, sizes, versions, warnings,
-artifact key, and completion time. Ready input fields are immutable thereafter.
+artifact key, and completion time. It succeeds only while that snapshot is
+currently `building`. Ready input fields are immutable thereafter.
 
 ## Reporter Data Contract
 
@@ -284,13 +314,15 @@ a one-implementation protocol.
 The runtime adds context-manager lifecycle:
 
 ```python
-with FrozenLeagueData.open(local_verified_snapshot) as data:
+with FrozenLeagueData.open(snapshot) as data:
     reporter.run(data=data)
 ```
 
-`DatalayerSnapshotService.get_or_create()` returns a verified local artifact.
-The runtime validates its internal projection metadata and opens SQLite in
-immutable read-only mode without exposing the connection to callers.
+`DatalayerSnapshotService.get_or_create()` returns the complete
+`ReadyDataSnapshot`. The runtime opens its nested verified artifact, compares
+the file's internal build key and projection version with the expected values on
+that snapshot, and opens SQLite in immutable read-only mode without exposing the
+connection to callers.
 
 Convenience pairs such as games/games-with-players may remain distinct public
 tool operations, while sharing one internal query implementation where doing so

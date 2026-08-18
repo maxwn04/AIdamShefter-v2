@@ -106,9 +106,11 @@ the attempt. Payload hashes deduplicate bytes without deduplicating observations
 
 ### 4. Make historical reconstruction physical
 
-The legacy `week_override` prevents some obvious future loads but still begins
-from current responses. It becomes a required `through_week` plus an
-`observed_through` boundary, selected raw requests, and cutoff-safe projection.
+The legacy `week_override` becomes a required `through_week` plus an
+`as_of_date` daily reuse label, selected raw requests, and cutoff-safe
+projection. The date does not filter source observations. The first healthy
+daily snapshot is reused, while recovery after failure or expiration may
+reselect within the same daily key.
 
 ## Implementation Slices
 
@@ -152,7 +154,6 @@ transactions.
 - Reuse or extract legacy normalization calculations per endpoint based on the
   simplest resulting representation.
 - Wire the one refresh workflow.
-- Add manual refresh/status HTTP routes.
 
 **Exit:** fixture-backed source responses populate the latest PostgreSQL view;
 partial refreshes remain auditable and do not erase good heads.
@@ -161,17 +162,22 @@ partial refreshes remain auditable and do not erase good heads.
 
 - Implement `DataSnapshotManager` against the snapshot contract completed in
   Slice 1.
-- Implement request candidate reads and pure selection from `through_week` and
-  `observed_through`.
-- Implement concrete `LocalDatalayerFileStore`, payload verification, and canonical
-  request-set hashing.
+- Implement the daily build key and claim/reuse it before candidate selection.
+- Implement explicit season-stable requirement planning, request candidate
+  reads, and pure selection of the latest complete observations compatible with
+  `through_week`.
+- Reuse the concrete `LocalDatalayerFileStore` from the source-I/O layer and
+  verify selected payloads; each membership row retains its individual response
+  SHA-256 rather than one aggregate identity hash.
 - Implement `begin_or_get(build_key)` and snapshot lifecycle methods.
 - Add bounded waiting plus atomic stale-build failure and unusable-artifact
   expiration; failed/expired history must not block a replacement claim.
 - Make missing required scopes fail without a configurable incomplete mode.
 
-**Exit:** a snapshot build can deterministically select and persist exact source
-membership without yet generating SQLite.
+**Exit:** the service can deterministically select an immutable in-memory source
+manifest, and manager tests can atomically seal that membership with a synthetic
+verified artifact receipt. Production membership is not persisted before the
+artifact is ready.
 
 ### Slice 5: SQLite materializer
 
@@ -182,9 +188,14 @@ membership without yet generating SQLite.
   derivations.
 - Centralize late current-state field policy in the projection and add integrity,
   provenance, cutoff, and artifact hash verification.
+- Wire the real materializer and file store into the snapshot service and prove
+  selection, payload replay, materialization, storage, and atomic sealing in one
+  end-to-end integration test.
 
 **Exit:** selected fixture request sets produce deterministic, verified SQLite
-artifacts with no future rows.
+artifacts with no post-`through_week` week-scoped or volatile state, and the real
+snapshot workflow returns a ready, hash-verified artifact with exact sealed
+membership.
 
 ### Slice 6: Frozen query runtime and reporter integration
 
@@ -201,10 +212,11 @@ any source or PostgreSQL access during the agent loop.
 
 ### Slice 7: Current-data and audit API
 
+- Add synchronous manual refresh/status HTTP routes.
 - Add product read projections for overview, roster, matchup, transaction,
   refresh, request, and snapshot audit views.
 - Add pagination and safe error translation.
-- Add polling support for refresh/snapshot status where builds run in a worker.
+- Leave worker polling as a future seam until an asynchronous worker exists.
 
 **Exit:** the frontend can inspect current data and provenance without using the
 reporter SQLite or raw SQL.
@@ -228,8 +240,9 @@ reporter query runtime. No dual behavior remains.
 - completeness validators, especially authoritative empty lists;
 - every reused/extracted endpoint normalizer with existing JSON fixtures;
 - `Decimal` preservation and JSON boundary conversion;
-- request selection across `through_week`/`observed_through` combinations;
-- canonical request-set hashing;
+- request selection across `through_week` and available request-history
+  combinations;
+- daily build-key canonicalization and deterministic membership ordering;
 - standings, games, profiles, picks, and reconstruction warnings;
 - guarded SQL parser/limits/deadlines.
 
@@ -247,8 +260,10 @@ Use real disposable PostgreSQL sessions and manager contexts to prove:
 - refresh final status/counts are derived transactionally;
 - concurrent identical snapshot requests share one canonical build key;
 - a crashed build becomes failed after the stale threshold and can be rebuilt;
+- a late original builder cannot seal after its row is failed and a replacement
+  claims the same daily key;
 - failed, expired, missing-artifact, and corrupt-artifact rows do not poison a
-  semantic build key;
+  daily build key;
 - snapshot membership and ready metadata seal atomically;
 - ready snapshot fields are immutable.
 
@@ -256,11 +271,18 @@ Use real disposable PostgreSQL sessions and manager contexts to prove:
 
 Build real SQLite files from fixture request histories and assert:
 
-- a Week 8 snapshot observed through Week 8 contains no Week 9 facts;
-- a roster, user, player, or bracket response observed after the observation
-  boundary is absent even if its domain fields appear earlier;
-- changing the observation boundary changes eligibility while changing only
-  generation intent does not duplicate a factual snapshot;
+- a Week 8 snapshot with any caller-chosen date label contains no Week 9 facts;
+- `as_of_date` and request timestamps do not filter candidate selection;
+- a fresh Week 8 build may select a later complete correction scoped to Week 8;
+- current season-stable settings, rather than historical league-payload
+  settings, determine conditional request requirements;
+- a later roster, user, player, or bracket response may supply reference data,
+  while projection policy prevents later-week state from becoming cutoff truth;
+- the first ready snapshot is reused for the same season/week/date/version,
+  while a caller-chosen different date label may select later observations;
+- recovery after failure/expiration may reselect newer eligible membership
+  under the same coarse daily key and preserves both attempts for audit;
+- changing only generation intent does not duplicate a factual snapshot;
 - weekly lineup membership comes from the selected matchup payload;
 - exact request IDs and hashes appear in snapshot provenance;
 - missing required scopes fail ordinary builds;
@@ -268,7 +290,8 @@ Build real SQLite files from fixture request histories and assert:
   projection's explicit policy;
 - the artifact hash changes when selected input or snapshot projection version
   changes;
-- repeated identical builds have one build key and byte-equivalent artifacts;
+- identical selected membership and projection version produce byte-equivalent
+  artifacts, while one active daily build key prevents duplicate work;
 - SQLite integrity and metadata validation fail closed.
 
 ### Query contract tests
@@ -288,8 +311,8 @@ file write, or SQLite build.
 ### API tests
 
 Use dependency overrides and verify request validation, scope enforcement,
-status polling, pagination, safe error translation, and absence of private
-payload/storage details.
+synchronous status reads, pagination, safe error translation, and absence of
+private payload/storage details.
 
 ## Acceptance Criteria
 
@@ -297,10 +320,10 @@ The component is ready for platform use when:
 
 - refreshes durably record every attempt and safely maintain current heads;
 - current product reads are competition-scoped and do not return ORM rows;
-- every snapshot selects exact request history under its `through_week` and
-  `observed_through` boundaries;
+- every snapshot seals exact selected request history and enforces its
+  `through_week` domain boundary;
 - every ready snapshot is immutable, hash-verified, and physically excludes
-  future facts;
+  post-`through_week` week-scoped and volatile state;
 - reporter tools and guarded SQL operate only through `FrozenLeagueData`;
 - core curated query behavior passes migrated legacy tests;
 - no service, route, worker, or reporter tool imports ORM models or opens a
