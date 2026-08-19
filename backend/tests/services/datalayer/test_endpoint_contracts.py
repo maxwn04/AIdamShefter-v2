@@ -8,6 +8,8 @@ from backend.services.datalayer.sleeper.endpoints import (
     EndpointRecords,
     LeagueEndpointRecords,
     LeagueRecord,
+    MatchupRecord,
+    MatchupsEndpointRecords,
     PlayerCatalogEndpointRecords,
     PlayerRecord,
 )
@@ -67,3 +69,21 @@ def test_endpoint_record_union_round_trips_by_endpoint_kind() -> None:
 
     assert isinstance(result, PlayerCatalogEndpointRecords)
     assert result.players[0].metadata["score"] == Decimal("1.25")
+
+    matchup_records = MatchupsEndpointRecords(
+        matchups=(
+            MatchupRecord(
+                week=8,
+                sleeper_roster_id="1",
+                sleeper_matchup_id=4,
+                points=Decimal("123.45"),
+            ),
+        ),
+        player_performances=(),
+    )
+    matchup_result = TypeAdapter(EndpointRecords).validate_python(
+        matchup_records.model_dump()
+    )
+
+    assert isinstance(matchup_result, MatchupsEndpointRecords)
+    assert matchup_result.matchups[0].points == Decimal("123.45")
