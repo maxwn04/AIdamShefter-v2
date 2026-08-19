@@ -83,3 +83,30 @@ class DatabaseSettings:
             require_tls=self.require_tls if require_tls is None else require_tls,
             statement_timeout_ms=self.statement_timeout_ms,
         )
+
+
+@dataclass(frozen=True, slots=True)
+class DatalayerSettings:
+    """Local storage and Sleeper source settings for datalayer composition."""
+
+    data_root: Path
+    sleeper_base_url: str
+    sleeper_timeout_seconds: int
+
+    @classmethod
+    def from_environment(cls) -> "DatalayerSettings":
+        data_root = os.getenv("AIDAM_DATALAYER_ROOT", ".data/datalayer").strip()
+        if not data_root:
+            raise ValueError("AIDAM_DATALAYER_ROOT must not be empty")
+        base_url = os.getenv(
+            "AIDAM_SLEEPER_BASE_URL", "https://api.sleeper.app/v1"
+        ).strip().rstrip("/")
+        if not base_url:
+            raise ValueError("AIDAM_SLEEPER_BASE_URL must not be empty")
+        return cls(
+            data_root=Path(data_root).expanduser(),
+            sleeper_base_url=base_url,
+            sleeper_timeout_seconds=_positive_int(
+                "AIDAM_SLEEPER_TIMEOUT_SECONDS", 10
+            ),
+        )

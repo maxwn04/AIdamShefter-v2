@@ -1,4 +1,4 @@
-"""Shared Sleeper endpoint identity vocabulary."""
+"""Sleeper provider boundary and shared endpoint identity vocabulary."""
 
 from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 
