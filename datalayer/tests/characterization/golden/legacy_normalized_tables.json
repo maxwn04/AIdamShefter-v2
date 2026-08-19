@@ -1,0 +1,599 @@
+{
+  "bracket_records": {
+    "losers": [],
+    "winners": [
+      {
+        "bracket_type": "winners",
+        "league_id": "123",
+        "loser_roster_id": 2,
+        "matchup_id": 1,
+        "placement": null,
+        "round": 1,
+        "season": "2024",
+        "t1_from_matchup_id": null,
+        "t1_from_outcome": null,
+        "t1_roster_id": 1,
+        "t2_from_matchup_id": null,
+        "t2_from_outcome": null,
+        "t2_roster_id": 2,
+        "winner_roster_id": 1
+      },
+      {
+        "bracket_type": "winners",
+        "league_id": "123",
+        "loser_roster_id": null,
+        "matchup_id": 2,
+        "placement": 1,
+        "round": 2,
+        "season": "2024",
+        "t1_from_matchup_id": 1,
+        "t1_from_outcome": "w",
+        "t1_roster_id": null,
+        "t2_from_matchup_id": 1,
+        "t2_from_outcome": "l",
+        "t2_roster_id": null,
+        "winner_roster_id": null
+      }
+    ]
+  },
+  "record_string_weeks": {
+    "median_double_result": [
+      [
+        1,
+        2,
+        0,
+        0
+      ],
+      [
+        2,
+        2,
+        1,
+        1
+      ],
+      [
+        3,
+        3,
+        1,
+        2
+      ]
+    ],
+    "single_result": [
+      [
+        1,
+        1,
+        0,
+        0
+      ],
+      [
+        2,
+        1,
+        1,
+        0
+      ],
+      [
+        3,
+        1,
+        1,
+        1
+      ],
+      [
+        4,
+        2,
+        1,
+        1
+      ]
+    ]
+  },
+  "tables": {
+    "draft_picks": [
+      {
+        "current_roster_id": 1,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 1,
+        "season": "2026",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 1,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 1,
+        "season": "2027",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 1,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 2,
+        "season": "2025",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 1,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 2,
+        "season": "2026",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 1,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 2,
+        "season": "2027",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 1,
+        "pick_id": null,
+        "round": 1,
+        "season": "2025",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 1,
+        "season": "2025",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 1,
+        "season": "2026",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 1,
+        "season": "2027",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 2,
+        "season": "2025",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 2,
+        "season": "2026",
+        "source": "seed"
+      },
+      {
+        "current_roster_id": 2,
+        "league_id": "123",
+        "original_roster_id": 2,
+        "pick_id": null,
+        "round": 2,
+        "season": "2027",
+        "source": "seed"
+      }
+    ],
+    "games": [
+      {
+        "is_playoffs": 0,
+        "league_id": "123",
+        "matchup_id": 1,
+        "points_a": 100.5,
+        "points_b": 90.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "season": "2024",
+        "week": 1,
+        "winner_roster_id": 1
+      },
+      {
+        "is_playoffs": 0,
+        "league_id": "123",
+        "matchup_id": 1,
+        "points_a": 110.0,
+        "points_b": 105.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "season": "2024",
+        "week": 2,
+        "winner_roster_id": 1
+      }
+    ],
+    "leagues": [
+      {
+        "league_average_match": null,
+        "league_id": "123",
+        "name": "Test League",
+        "playoff_teams": 4,
+        "playoff_week_start": 15,
+        "roster_positions_json": "[\"QB\", \"RB\", \"WR\", \"TE\", \"FLEX\"]",
+        "scoring_settings_json": "{\"pass_td\": 4}",
+        "season": "2024",
+        "sport": "nfl"
+      }
+    ],
+    "matchups": [
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "points": 100.5,
+        "roster_id": 1,
+        "season": "2024",
+        "week": 1
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "points": 105.0,
+        "roster_id": 2,
+        "season": "2024",
+        "week": 2
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "points": 110.0,
+        "roster_id": 1,
+        "season": "2024",
+        "week": 2
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "points": 90.0,
+        "roster_id": 2,
+        "season": "2024",
+        "week": 1
+      }
+    ],
+    "player_performances": [
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p1",
+        "points": 60.5,
+        "role": "starter",
+        "roster_id": 1,
+        "season": "2024",
+        "week": 1
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p1",
+        "points": 70.0,
+        "role": "starter",
+        "roster_id": 1,
+        "season": "2024",
+        "week": 2
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p2",
+        "points": 40.0,
+        "role": "bench",
+        "roster_id": 1,
+        "season": "2024",
+        "week": 1
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p2",
+        "points": 40.0,
+        "role": "bench",
+        "roster_id": 1,
+        "season": "2024",
+        "week": 2
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p3",
+        "points": 55.0,
+        "role": "starter",
+        "roster_id": 2,
+        "season": "2024",
+        "week": 1
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p3",
+        "points": 60.0,
+        "role": "starter",
+        "roster_id": 2,
+        "season": "2024",
+        "week": 2
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p4",
+        "points": 35.0,
+        "role": "bench",
+        "roster_id": 2,
+        "season": "2024",
+        "week": 1
+      },
+      {
+        "league_id": "123",
+        "matchup_id": 1,
+        "player_id": "p4",
+        "points": 45.0,
+        "role": "bench",
+        "roster_id": 2,
+        "season": "2024",
+        "week": 2
+      }
+    ],
+    "players": [
+      {
+        "age": 24,
+        "full_name": "Player Two",
+        "injury_status": null,
+        "metadata_json": "{\"player_id\": \"p2\", \"full_name\": \"Player Two\", \"position\": \"RB\", \"team\": \"BBB\", \"status\": \"Active\", \"injury_status\": null, \"age\": 24, \"years_exp\": 2, \"updated_at\": \"2024-09-01\"}",
+        "nfl_team": "BBB",
+        "player_id": "p2",
+        "position": "RB",
+        "status": "Active",
+        "updated_at": "2024-09-01",
+        "years_exp": 2
+      },
+      {
+        "age": 25,
+        "full_name": "Player One",
+        "injury_status": null,
+        "metadata_json": "{\"player_id\": \"p1\", \"full_name\": \"Player One\", \"position\": \"QB\", \"team\": \"AAA\", \"status\": \"Active\", \"injury_status\": null, \"age\": 25, \"years_exp\": 3, \"updated_at\": \"2024-09-01\"}",
+        "nfl_team": "AAA",
+        "player_id": "p1",
+        "position": "QB",
+        "status": "Active",
+        "updated_at": "2024-09-01",
+        "years_exp": 3
+      },
+      {
+        "age": 26,
+        "full_name": "Player Four",
+        "injury_status": null,
+        "metadata_json": "{\"player_id\": \"p4\", \"full_name\": \"Player Four\", \"position\": \"TE\", \"team\": \"DDD\", \"status\": \"Active\", \"injury_status\": null, \"age\": 26, \"years_exp\": 4, \"updated_at\": \"2024-09-01\"}",
+        "nfl_team": "DDD",
+        "player_id": "p4",
+        "position": "TE",
+        "status": "Active",
+        "updated_at": "2024-09-01",
+        "years_exp": 4
+      },
+      {
+        "age": 27,
+        "full_name": "Player Three",
+        "injury_status": null,
+        "metadata_json": "{\"player_id\": \"p3\", \"full_name\": \"Player Three\", \"position\": \"WR\", \"team\": \"CCC\", \"status\": \"Active\", \"injury_status\": null, \"age\": 27, \"years_exp\": 5, \"updated_at\": \"2024-09-01\"}",
+        "nfl_team": "CCC",
+        "player_id": "p3",
+        "position": "WR",
+        "status": "Active",
+        "updated_at": "2024-09-01",
+        "years_exp": 5
+      }
+    ],
+    "playoff_matchups": [],
+    "roster_players": [
+      {
+        "league_id": "123",
+        "player_id": "p1",
+        "role": "starter",
+        "roster_id": 1
+      },
+      {
+        "league_id": "123",
+        "player_id": "p2",
+        "role": "bench",
+        "roster_id": 1
+      },
+      {
+        "league_id": "123",
+        "player_id": "p3",
+        "role": "starter",
+        "roster_id": 2
+      },
+      {
+        "league_id": "123",
+        "player_id": "p4",
+        "role": "bench",
+        "roster_id": 2
+      }
+    ],
+    "rosters": [
+      {
+        "league_id": "123",
+        "metadata_json": "{\"team_name\": \"Alpha\"}",
+        "owner_user_id": "u1",
+        "record_string": null,
+        "roster_id": 1,
+        "settings_json": "{\"wins\": 1, \"losses\": 0, \"ties\": 0, \"fpts\": 200, \"fpts_decimal\": 10, \"fpts_against\": 180, \"fpts_against_decimal\": 5, \"rank\": 1, \"streak_type\": \"W\", \"streak_length\": 1}"
+      },
+      {
+        "league_id": "123",
+        "metadata_json": "{\"team_name\": \"Beta\"}",
+        "owner_user_id": "u2",
+        "record_string": null,
+        "roster_id": 2,
+        "settings_json": "{\"wins\": 0, \"losses\": 1, \"ties\": 0, \"fpts\": 180, \"fpts_decimal\": 5, \"fpts_against\": 200, \"fpts_against_decimal\": 10, \"rank\": 2, \"streak_type\": \"L\", \"streak_length\": 1}"
+      }
+    ],
+    "season_context": [
+      {
+        "computed_week": 2,
+        "effective_week": 2,
+        "league_id": "123",
+        "override_week": null
+      }
+    ],
+    "standings": [
+      {
+        "league_id": "123",
+        "losses": 0,
+        "points_against": 180.05,
+        "points_for": 200.1,
+        "rank": 1,
+        "roster_id": 1,
+        "season": "2024",
+        "streak_len": 1,
+        "streak_type": "W",
+        "ties": 0,
+        "week": 2,
+        "wins": 1
+      },
+      {
+        "league_id": "123",
+        "losses": 1,
+        "points_against": 200.1,
+        "points_for": 180.05,
+        "rank": 2,
+        "roster_id": 2,
+        "season": "2024",
+        "streak_len": 1,
+        "streak_type": "L",
+        "ties": 0,
+        "week": 2,
+        "wins": 0
+      }
+    ],
+    "team_profiles": [
+      {
+        "avatar_url": "https://sleepercdn.com/avatars/avatar1",
+        "league_id": "123",
+        "manager_name": "Alice",
+        "roster_id": 1,
+        "team_name": "Alpha"
+      },
+      {
+        "avatar_url": "https://sleepercdn.com/avatars/avatar2",
+        "league_id": "123",
+        "manager_name": "Bob",
+        "roster_id": 2,
+        "team_name": "Beta"
+      }
+    ],
+    "transaction_moves": [
+      {
+        "asset_type": "pick",
+        "bid_amount": null,
+        "direction": "pick_in",
+        "from_roster_id": 1,
+        "pick_id": "pick1",
+        "pick_original_roster_id": 1,
+        "pick_round": 1,
+        "pick_season": "2025",
+        "player_id": null,
+        "roster_id": 2,
+        "to_roster_id": 2,
+        "transaction_id": "tx2"
+      },
+      {
+        "asset_type": "pick",
+        "bid_amount": null,
+        "direction": "pick_out",
+        "from_roster_id": 1,
+        "pick_id": "pick1",
+        "pick_original_roster_id": 1,
+        "pick_round": 1,
+        "pick_season": "2025",
+        "player_id": null,
+        "roster_id": 1,
+        "to_roster_id": 2,
+        "transaction_id": "tx2"
+      },
+      {
+        "asset_type": "player",
+        "bid_amount": 5,
+        "direction": "add",
+        "from_roster_id": null,
+        "pick_id": null,
+        "pick_original_roster_id": null,
+        "pick_round": null,
+        "pick_season": null,
+        "player_id": "p2",
+        "roster_id": 1,
+        "to_roster_id": null,
+        "transaction_id": "tx1"
+      },
+      {
+        "asset_type": "player",
+        "bid_amount": 5,
+        "direction": "drop",
+        "from_roster_id": null,
+        "pick_id": null,
+        "pick_original_roster_id": null,
+        "pick_round": null,
+        "pick_season": null,
+        "player_id": "p3",
+        "roster_id": 2,
+        "to_roster_id": null,
+        "transaction_id": "tx1"
+      }
+    ],
+    "transactions": [
+      {
+        "created_ts": 1700000000,
+        "league_id": "123",
+        "metadata_json": "{\"notes\": \"waiver add\"}",
+        "season": "2024",
+        "settings_json": "{\"waiver_bid\": 5}",
+        "status": "complete",
+        "transaction_id": "tx1",
+        "type": "waiver",
+        "week": 1
+      },
+      {
+        "created_ts": 1700003600,
+        "league_id": "123",
+        "metadata_json": "{\"notes\": \"trade with pick\"}",
+        "season": "2024",
+        "settings_json": "{}",
+        "status": "complete",
+        "transaction_id": "tx2",
+        "type": "trade",
+        "week": 2
+      }
+    ],
+    "users": [
+      {
+        "avatar": "avatar1",
+        "display_name": "Alice",
+        "metadata_json": null,
+        "user_id": "u1"
+      },
+      {
+        "avatar": "avatar2",
+        "display_name": "Bob",
+        "metadata_json": null,
+        "user_id": "u2"
+      }
+    ]
+  }
+}
