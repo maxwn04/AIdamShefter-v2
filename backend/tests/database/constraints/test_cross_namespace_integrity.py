@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID, uuid4
 
 import pytest
@@ -327,11 +327,11 @@ def test_generation_snapshot_must_match_the_exact_competition_season(
                 "id": snapshot_id,
                 "competition_id": domain["competition"],
                 "primary_competition_season_id": domain["season"],
-                "mode": "test",
-                "knowledge_cutoff_at": datetime.now(timezone.utc),
+                "build_key": f"test:{snapshot_id}",
+                "domain_cutoff_week": 8,
+                "as_of_date": date(2026, 10, 27),
                 "status": "building",
-                "materializer_version": "test",
-                "sqlite_schema_version": "test",
+                "snapshot_projection_version": "test",
                 "code_version": "test",
                 "completeness_warnings": [],
             },
