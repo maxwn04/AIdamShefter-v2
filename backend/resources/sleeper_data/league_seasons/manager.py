@@ -15,6 +15,7 @@ from backend.resources.context import CompetitionScope, ManagerContext
 from backend.resources.sleeper_data.common.codec import parse_jsonb_text
 from backend.resources.sleeper_data.league_seasons.objects import (
     LeagueSeasonOverview,
+    RefreshSeasonIdentity,
     SnapshotPlanningContext,
 )
 from backend.services.datalayer.errors import DatalayerResourceNotFound
@@ -30,6 +31,29 @@ class LeagueSeasonManager:
     ) -> None:
         self._session_factory = session_factory
         self._competition_id = context.scope.competition_id
+
+    def get_refresh_identity(
+        self, competition_season_id: UUID
+    ) -> RefreshSeasonIdentity:
+        """Read bootstrap identity without requiring normalized Sleeper rows."""
+
+        with read_only_session(self._session_factory) as session:
+            season = session.scalar(
+                sa.select(CompetitionSeason).where(
+                    CompetitionSeason.id == competition_season_id,
+                    CompetitionSeason.competition_id == self._competition_id,
+                )
+            )
+            if season is None:
+                raise DatalayerResourceNotFound(
+                    "competition_season", str(competition_season_id)
+                )
+            return RefreshSeasonIdentity(
+                competition_id=self._competition_id,
+                competition_season_id=season.id,
+                sleeper_league_id=season.sleeper_league_id,
+                season_year=season.season_year,
+            )
 
     def get_snapshot_planning_context(
         self, competition_season_id: UUID

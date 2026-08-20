@@ -38,10 +38,12 @@ class RefreshRequest(BaseModel, frozen=True):
     trigger: RefreshTrigger
 ```
 
-The service derives `competition_id`, the standard endpoint set, player-catalog
-staleness, and bracket relevance. Ordinary callers cannot partially configure a
-refresh into an invalid data state. A future endpoint-specific maintenance
-command is separate from the product refresh contract.
+The service derives `competition_id`, the standard endpoint set, effective week,
+and bracket relevance. V1 always fetches the player catalog so the roster and
+weekly dependency graph is complete inside the same auditable refresh. Ordinary
+callers cannot partially configure a refresh into an invalid data state. A
+future endpoint-specific maintenance command is separate from the product
+refresh contract.
 
 ### Refresh outcome
 
@@ -146,11 +148,19 @@ identity correction is a maintenance command, not a second public service mode.
 The service accepts these constructor dependencies:
 
 - `SleeperSourceClient`;
-- `SleeperDataManager`;
+- resource-specific refresh, request, normalized-scope, and season managers;
 - read-only core identity lookup port;
-- a clock;
+- configured bounded retry policy and delay;
 - configured `LocalDatalayerFileStore` for raw payloads too large for inline
   PostgreSQL JSONB.
+
+League metadata and NFL state are fetched first because they resolve the
+effective week and settings-dependent scopes. Their attempt envelopes are held
+in memory only until the complete immutable refresh plan is created, then are
+recorded before normalization or current-view application. An explicit
+`through_week` takes precedence over NFL state. If neither it nor a complete NFL
+state supplies a positive week, the refresh records and applies only the
+resolvable season/global plan rather than guessing a week.
 
 Endpoint planning and endpoint-family dispatch are ordinary module functions,
 not injected registries or one-method strategy objects.
@@ -183,7 +193,7 @@ its exact membership.
 
 The service accepts:
 
-- `SleeperDataManager` for eligible request reads and payload resolution;
+- `ApiRequestManager` for eligible request reads and payload resolution;
 - `DataSnapshotManager` for atomic build-key ownership, lifecycle, and
   membership;
 - core identity lookup port;
@@ -224,33 +234,46 @@ All managers are constructed with a `ManagerContext`. Competition-scoped
 operations apply that context to every read and write. Signatures below omit
 ordinary pagination values for clarity.
 
-### `SleeperDataManager`
+### Sleeper resource managers
 
 ```python
-class SleeperDataManager:
+class RefreshRunManager:
     def start_refresh(self, command: StartRefresh) -> RefreshRun: ...
+    def finish_refresh(self, refresh_id: UUID) -> RefreshRun: ...
+    def get_refresh(self, refresh_id: UUID) -> RefreshRun: ...
+
+class ApiRequestManager:
     def record_attempt(self, command: RecordApiAttempt) -> ApiRequest: ...
+    def reject_normalization(self, request_id: UUID, rejection: Rejection) -> ApiRequest: ...
+    def list_refresh_requests(self, refresh_id: UUID) -> Page[ApiRequest]: ...
+    def list_snapshot_candidates(self, query: SnapshotCandidateQuery) -> tuple[ApiRequestCandidate, ...]: ...
+    def resolve_verified_payloads(self, request_ids: Collection[UUID]) -> tuple[VerifiedPayload, ...]: ...
+
+class NormalizedScopeManager:
     def apply_scope(
         self,
         request_id: UUID,
         records: EndpointRecords,
     ) -> ApplyResult: ...
-    def reject_normalization(self, request_id: UUID, rejection: Rejection) -> ApiRequest: ...
-    def finish_refresh(self, refresh_id: UUID) -> RefreshRun: ...
 
-    def get_refresh(self, refresh_id: UUID) -> RefreshRun: ...
-    def list_refresh_requests(self, refresh_id: UUID) -> Page[ApiRequest]: ...
+class LeagueSeasonManager:
+    def get_refresh_identity(self, competition_season_id: UUID) -> RefreshSeasonIdentity: ...
     def get_snapshot_planning_context(
         self,
         competition_season_id: UUID,
     ) -> SnapshotPlanningContext: ...
-    def list_snapshot_candidates(self, query: SnapshotCandidateQuery) -> tuple[ApiRequestCandidate, ...]: ...
-    def resolve_verified_payloads(self, request_ids: Collection[UUID]) -> tuple[VerifiedPayload, ...]: ...
-
     def get_season_overview(self, season_id: UUID) -> LeagueSeasonOverview: ...
+
+class RosterManager:
     def get_roster(self, season_roster_id: UUID) -> SeasonRosterState: ...
+
+class MatchupManager:
     def list_matchups(self, season_id: UUID, week: int) -> tuple[Matchup, ...]: ...
+
+class TransactionManager:
     def list_transactions(self, query: TransactionQuery) -> tuple[Transaction, ...]: ...
+
+class PlayerManager:
     def search_players(self, query: PlayerSearch) -> Page[Player]: ...
 ```
 
@@ -262,10 +285,11 @@ Large payload bytes are stored before this call; the manager verifies the
 supplied local-file receipt/hash rather than performing filesystem or network
 I/O.
 
-`apply_scope()` owns the compare-and-swap request/head/current-view transaction
-across the Sleeper persistence namespace. `finish_refresh()` derives status and
-counts from recorded request outcomes; the service does not calculate and pass
-the same summary back down.
+`NormalizedScopeManager.apply_scope()` owns the compare-and-swap
+request/head/current-view transaction across the Sleeper persistence namespace.
+`RefreshRunManager.finish_refresh()` derives status and counts from recorded
+request outcomes; the service does not calculate and pass the same summary back
+down.
 
 `get_snapshot_planning_context()` returns the current normalized structural
 settings for the requested season under v1's season-stability assumption.

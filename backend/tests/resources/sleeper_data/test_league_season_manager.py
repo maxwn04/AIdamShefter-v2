@@ -8,6 +8,7 @@ from backend.database.sessions import SessionFactory
 from backend.resources.sleeper_data.league_seasons import (
     LeagueSeasonManager,
     LeagueSeasonOverview,
+    RefreshSeasonIdentity,
     SnapshotPlanningContext,
 )
 from backend.services.datalayer.errors import DatalayerResourceNotFound
@@ -16,6 +17,27 @@ from backend.tests.resources.sleeper_data.conftest import (
     manager_context,
     seed_domain,
 )
+
+
+def test_refresh_identity_does_not_require_normalized_league(
+    database_engine: Engine,
+    session_factory: SessionFactory,
+) -> None:
+    domain = seed_domain(database_engine, label="Bootstrap")
+    manager = LeagueSeasonManager(session_factory, manager_context(domain))
+
+    identity = manager.get_refresh_identity(domain.season_id)
+
+    assert isinstance(identity, RefreshSeasonIdentity)
+    assert identity.model_dump() == {
+        "competition_id": domain.competition_id,
+        "competition_season_id": domain.season_id,
+        "sleeper_league_id": domain.sleeper_league_id,
+        "season_year": 2026,
+    }
+
+    with pytest.raises(DatalayerResourceNotFound, match="competition_season"):
+        manager.get_refresh_identity(uuid4())
 
 
 def test_snapshot_planning_context_uses_latest_league_metadata(

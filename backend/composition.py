@@ -6,7 +6,7 @@ from typing import Protocol
 from sqlalchemy import Engine
 from sqlalchemy.engine import make_url
 
-from backend.config import DatabaseSettings
+from backend.config import DatabaseSettings, DatalayerSettings
 from backend.database.engine import build_runtime_engine
 from backend.database.health import assert_database_ready, read_database_health
 from backend.database.sessions import SessionFactory, create_session_factory
@@ -18,6 +18,17 @@ from backend.resources.memory.revisions import RevisionManager
 from backend.resources.memory.search_documents import SearchDocumentManager
 from backend.resources.memory.storylines import StorylineManager
 from backend.resources.memory.triggers import TriggerManager
+from backend.resources.sleeper_data import (
+    ApiRequestManager,
+    LeagueSeasonManager,
+    NormalizedScopeManager,
+    RefreshRunManager,
+)
+from backend.services.datalayer import (
+    LocalDatalayerFileStore,
+    SleeperSourceClient,
+)
+from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 
 
@@ -76,6 +87,17 @@ class MemoryApiDependencies:
     mutations: MemoryMutationService
 
 
+@dataclass(frozen=True, slots=True)
+class DatalayerRefreshDependencies:
+    """One scoped refresh service and its owned source transport."""
+
+    refresh: DatalayerRefreshService
+    source: SleeperSourceClient
+
+    def close(self) -> None:
+        self.source.close()
+
+
 def build_memory_api_dependencies(
     session_factory: SessionFactory,
     context: ManagerContext[CompetitionScope],
@@ -105,6 +127,41 @@ def build_memory_api_dependencies(
             context_notes=context_notes,
         ),
         mutations=MemoryMutationService(revisions),
+    )
+
+
+def build_datalayer_refresh_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+    *,
+    settings: DatalayerSettings | None = None,
+) -> DatalayerRefreshDependencies:
+    """Compose one competition-scoped synchronous refresh capability."""
+
+    resolved = settings or DatalayerSettings.from_environment()
+    source = SleeperSourceClient(
+        base_url=resolved.sleeper_base_url,
+        timeout_seconds=resolved.sleeper_timeout_seconds,
+    )
+    refreshes = RefreshRunManager(session_factory, context)
+    attempts = ApiRequestManager(session_factory, context)
+    scopes = NormalizedScopeManager(session_factory, context)
+    identities = LeagueSeasonManager(session_factory, context)
+    files = LocalDatalayerFileStore(resolved.data_root)
+    return DatalayerRefreshDependencies(
+        refresh=DatalayerRefreshService(
+            source=source,
+            identities=identities,
+            refreshes=refreshes,
+            attempts=attempts,
+            scopes=scopes,
+            files=files,
+            code_version=resolved.code_version,
+            max_attempts=resolved.sleeper_max_attempts,
+            retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
+            inline_payload_max_bytes=resolved.inline_payload_max_bytes,
+        ),
+        source=source,
     )
 
 

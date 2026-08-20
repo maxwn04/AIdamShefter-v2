@@ -58,7 +58,7 @@ generation snapshot when the reporter needs data.
 flowchart LR
     Caller["API, worker, or generation service"] --> Refresh["DatalayerRefreshService"]
     Refresh --> Sleeper["Sleeper source adapter"]
-    Refresh --> Data["SleeperDataManager"]
+    Refresh --> Data["Sleeper resource managers"]
     Data --> Current["Normalized PostgreSQL heads"]
     Caller --> Snapshot["DatalayerSnapshotService"]
     Snapshot --> Data
@@ -154,7 +154,8 @@ The baseline intentionally pays for only these deep boundaries:
 
 - refresh service for external fetch/retry/orchestration;
 - snapshot service for selection, atomic reuse/build, and artifact sealing;
-- `SleeperDataManager` for the complete ingestion persistence transaction;
+- resource-specific Sleeper managers, with `NormalizedScopeManager` owning the
+  complete ingestion persistence transaction;
 - `DataSnapshotManager` for canonical snapshot lifecycle;
 - SQLite projection plus `FrozenLeagueData` for cutoff-safe reporter execution;
 - local file storage for atomic, hash-verified artifacts.

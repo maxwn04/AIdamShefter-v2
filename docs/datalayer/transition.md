@@ -90,7 +90,7 @@ endpoint record.
 raw Sleeper payload
   -> endpoint-family validation/normalization
   -> EndpointRecords
-      -> SleeperDataManager current-view projection
+      -> NormalizedScopeManager current-view projection
       -> SQLite cutoff projection
 ```
 
@@ -101,7 +101,7 @@ Snapshot-only derivations remain in the snapshot projection.
 ### 3. Separate observations from facts
 
 The legacy cache can make a request disappear from runtime behavior. The new
-client always performs the planned call, and `SleeperDataManager` records
+client always performs the planned call, and `ApiRequestManager` records
 the attempt. Payload hashes deduplicate bytes without deduplicating observations.
 
 ### 4. Make historical reconstruction physical
@@ -136,7 +136,8 @@ constraints are proven before manager code depends on them.
 
 ### Slice 2: Deep persistence aggregates
 
-- Implement `SleeperDataManager` against the completed PostgreSQL models.
+- Implement resource-specific Sleeper managers against the completed PostgreSQL
+  models.
 - Implement content-addressed payload receipts and request recording.
 - Implement scope-head compare-and-swap and atomic apply behavior.
 - Make refresh finalization derive counts/status from child requests.

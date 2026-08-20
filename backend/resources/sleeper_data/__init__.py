@@ -4,6 +4,7 @@ from backend.resources.sleeper_data.common import Page
 from backend.resources.sleeper_data.league_seasons import (
     LeagueSeasonManager,
     LeagueSeasonOverview,
+    RefreshSeasonIdentity,
     SnapshotPlanningContext,
 )
 from backend.resources.sleeper_data.matchups import (
@@ -68,6 +69,7 @@ __all__ = [
     "RecordApiAttempt",
     "RefreshRun",
     "RefreshRunManager",
+    "RefreshSeasonIdentity",
     "RosterManager",
     "RosterManagerAssignment",
     "RosterPlayer",
