@@ -1,0 +1,185 @@
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+import pytest
+import sqlalchemy as sa
+from sqlalchemy.engine import Engine
+
+from backend.database.models.sleeper import ApiRequest as StoredApiRequest
+from backend.database.sessions import SessionFactory, create_session_factory
+from backend.resources.sleeper_data.refreshes import RefreshRunManager
+from backend.resources.sleeper_data.requests import (
+    ApiRequest,
+    ApiRequestManager,
+    RecordApiAttempt,
+)
+from backend.services.datalayer.contracts import (
+    NormalizationStatus,
+    RefreshStatus,
+)
+from backend.services.datalayer.errors import DatalayerResourceNotFound
+from backend.services.datalayer.sleeper.endpoints import (
+    build_league_request,
+    build_league_users_request,
+)
+from backend.services.datalayer.sleeper.endpoints.contracts import CompletenessFinding
+from backend.services.datalayer.sleeper.responses import EndpointRequest
+from backend.tests.resources.sleeper_data.conftest import (
+    Domain,
+    failed_attempt,
+    manager_context,
+    seed_domain,
+    start_refresh,
+    successful_attempt,
+)
+
+
+def _record_success(
+    manager: ApiRequestManager,
+    refresh_id: UUID,
+    endpoint: EndpointRequest,
+    requested_at: datetime,
+) -> ApiRequest:
+    request = manager.record_attempt(
+        RecordApiAttempt(
+            refresh_run_id=refresh_id,
+            attempt=successful_attempt(
+                endpoint,
+                {"observed_at": requested_at.isoformat()},
+                requested_at=requested_at,
+            ),
+            completeness=CompletenessFinding(is_complete=True),
+        )
+    )
+    return request
+
+
+def _record_failure(
+    manager: ApiRequestManager,
+    refresh_id: UUID,
+    endpoint: EndpointRequest,
+    requested_at: datetime,
+) -> None:
+    manager.record_attempt(
+        RecordApiAttempt(
+            refresh_run_id=refresh_id,
+            attempt=failed_attempt(endpoint, requested_at=requested_at),
+            completeness=CompletenessFinding(
+                is_complete=False,
+                reason="source_attempt_failed",
+            ),
+        )
+    )
+
+
+def _mark_normalized(session_factory: SessionFactory, request_id: UUID) -> None:
+    with session_factory.begin() as session:
+        session.execute(
+            sa.update(StoredApiRequest)
+            .where(StoredApiRequest.id == request_id)
+            .values(
+                normalization_status=NormalizationStatus.SUCCEEDED.value,
+                normalizer_version="test-normalizer",
+                normalized_at=datetime.now(UTC),
+            )
+        )
+
+
+def _managers(
+    database_engine: Engine,
+    domain: Domain,
+) -> tuple[RefreshRunManager, ApiRequestManager, SessionFactory]:
+    session_factory = create_session_factory(database_engine)
+    context = manager_context(domain)
+    return (
+        RefreshRunManager(session_factory, context),
+        ApiRequestManager(session_factory, context),
+        session_factory,
+    )
+
+
+def test_refresh_run_is_competition_scoped(
+    database_engine: Engine,
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+) -> None:
+    other = seed_domain(database_engine, label="Other")
+    other_refresh_manager, _, _ = _managers(database_engine, other)
+    endpoint = build_league_request(domain.season_id, domain.sleeper_league_id)
+    refresh = start_refresh(refresh_manager, domain, endpoint)
+
+    assert refresh_manager.get_refresh(refresh.id) == refresh
+    with pytest.raises(DatalayerResourceNotFound):
+        other_refresh_manager.get_refresh(refresh.id)
+    with pytest.raises(DatalayerResourceNotFound):
+        start_refresh(other_refresh_manager, domain, endpoint)
+
+
+def test_finish_refresh_uses_latest_attempt_and_optional_failures_do_not_downgrade(
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+    request_manager: ApiRequestManager,
+    session_factory: SessionFactory,
+) -> None:
+    league = build_league_request(domain.season_id, domain.sleeper_league_id)
+    users = build_league_users_request(domain.season_id, domain.sleeper_league_id)
+    now = datetime.now(UTC)
+    refresh = start_refresh(
+        refresh_manager,
+        domain,
+        league,
+        users,
+        required={users.scope_key.value: False},
+    )
+    league_request = _record_success(request_manager, refresh.id, league, now)
+    _mark_normalized(session_factory, league_request.id)
+    _record_failure(request_manager, refresh.id, users, now + timedelta(seconds=1))
+
+    finished = refresh_manager.finish_refresh(refresh.id)
+
+    assert finished.status is RefreshStatus.SUCCEEDED
+    assert (
+        finished.request_count,
+        finished.succeeded_request_count,
+        finished.failed_request_count,
+    ) == (2, 1, 1)
+    assert finished.error == {
+        "code": "refresh_scopes_failed",
+        "scope_keys": [users.scope_key.value],
+    }
+    assert refresh_manager.finish_refresh(refresh.id) == finished
+
+
+def test_finish_refresh_derives_partial_and_failed_required_plans(
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+    request_manager: ApiRequestManager,
+    session_factory: SessionFactory,
+) -> None:
+    league = build_league_request(domain.season_id, domain.sleeper_league_id)
+    users = build_league_users_request(domain.season_id, domain.sleeper_league_id)
+    now = datetime.now(UTC)
+
+    partial = start_refresh(refresh_manager, domain, league, users)
+    good = _record_success(request_manager, partial.id, league, now)
+    _mark_normalized(session_factory, good.id)
+    _record_failure(request_manager, partial.id, users, now + timedelta(seconds=1))
+    assert refresh_manager.finish_refresh(partial.id).status is RefreshStatus.PARTIAL
+
+    failed = start_refresh(refresh_manager, domain, league)
+    first = _record_success(
+        request_manager,
+        failed.id,
+        league,
+        now + timedelta(seconds=2),
+    )
+    _mark_normalized(session_factory, first.id)
+    _record_failure(
+        request_manager,
+        failed.id,
+        league,
+        now + timedelta(seconds=3),
+    )
+    outcome = refresh_manager.finish_refresh(failed.id)
+    assert outcome.status is RefreshStatus.FAILED
+    assert (outcome.succeeded_request_count, outcome.failed_request_count) == (0, 1)
