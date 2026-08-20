@@ -29,6 +29,7 @@ from backend.resources.sleeper_data.refreshes import (
     RefreshRunManager,
     StartRefresh,
 )
+from backend.resources.sleeper_data.normalized_scopes import NormalizedScopeManager
 from backend.resources.sleeper_data.requests import (
     ApiRequest,
     ApiRequestManager,
@@ -54,9 +55,10 @@ def clean_sleeper_resources(request: pytest.FixtureRequest) -> None:
         return
     database_engine = request.getfixturevalue("database_engine")
     with database_engine.begin() as connection:
-        connection.execute(
-            sa.text("TRUNCATE TABLE core.competitions, " "sleeper.api_payloads CASCADE")
-        )
+        connection.execute(sa.text("""
+                TRUNCATE TABLE core.competitions,
+                    sleeper.api_payloads CASCADE
+                """))
 
 
 @dataclass(frozen=True)
@@ -244,6 +246,14 @@ def request_manager(
     domain: Domain,
 ) -> ApiRequestManager:
     return ApiRequestManager(session_factory, manager_context(domain))
+
+
+@pytest.fixture
+def normalized_scope_manager(
+    session_factory: SessionFactory,
+    domain: Domain,
+) -> NormalizedScopeManager:
+    return NormalizedScopeManager(session_factory, manager_context(domain))
 
 
 @pytest.fixture
