@@ -39,7 +39,11 @@ def test_v1_schema_is_snapshot_only_and_complete() -> None:
 def test_metadata_omits_volatile_snapshot_instance_fields() -> None:
     columns = set(get_snapshot_schema("1").tables["snapshot_metadata"].c.keys())
 
-    assert {"build_key", "selected_requests_json", "completeness_warnings_json"} <= columns
+    assert {
+        "build_key",
+        "selected_requests_json",
+        "completeness_warnings_json",
+    } <= columns
     assert not {"snapshot_id", "created_at", "completed_at", "code_version"} & columns
 
 

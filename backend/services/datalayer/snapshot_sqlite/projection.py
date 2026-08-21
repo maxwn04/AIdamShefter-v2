@@ -82,7 +82,10 @@ class _Builder:
         warnings = tuple(
             sorted(
                 set(self.warnings),
-                key=lambda item: (item.code, item.scope_key.value if item.scope_key else ""),
+                key=lambda item: (
+                    item.code,
+                    item.scope_key.value if item.scope_key else "",
+                ),
             )
         )
         provenance = tuple(
@@ -213,7 +216,9 @@ def _project_endpoint(
                     "roster_id": roster_id,
                     "owner_user_id": owner,
                     "settings_json": None,
-                    "metadata_json": _json(display_metadata) if display_metadata else None,
+                    "metadata_json": (
+                        _json(display_metadata) if display_metadata else None
+                    ),
                     "record_string": _safe_record_prefix(
                         roster.record_string,
                         through_week=cutoff,
@@ -309,7 +314,10 @@ def _project_endpoint(
                     row["move_index"],
                     row["direction"],
                 )
-    elif isinstance(records, (WinnersBracketEndpointRecords, LosersBracketEndpointRecords)):
+    elif isinstance(
+        records,
+        (WinnersBracketEndpointRecords, LosersBracketEndpointRecords),
+    ):
         if context.playoff_start_week is None:
             if records.matchups:
                 builder.warn(
@@ -454,7 +462,9 @@ def _safe_record_prefix(
 ) -> str | None:
     if not record:
         return None
-    normalized = "".join(character for character in record.upper() if not character.isspace())
+    normalized = "".join(
+        character for character in record.upper() if not character.isspace()
+    )
     if not normalized or any(character not in "WLT" for character in normalized):
         return None
     regular_weeks = min(
@@ -471,9 +481,13 @@ def _roster_id(value: str | None) -> int:
     try:
         result = int(value)
     except ValueError as error:
-        raise ValueError("snapshot reporter schema requires numeric roster IDs") from error
+        raise ValueError(
+            "snapshot reporter schema requires numeric roster IDs"
+        ) from error
     if result < 1 or str(result) != value.strip():
-        raise ValueError("snapshot reporter schema requires canonical positive roster IDs")
+        raise ValueError(
+            "snapshot reporter schema requires canonical positive roster IDs"
+        )
     return result
 
 
