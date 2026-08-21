@@ -36,6 +36,7 @@ from backend.resources.sleeper_data.requests import (
     ApiRequestManager,
     RecordApiAttempt,
 )
+from backend.resources.sleeper_data.snapshots import DataSnapshotManager
 from backend.services.datalayer.canonical_json import JsonValue, canonical_json_bytes
 from backend.services.datalayer.contracts import RefreshTrigger, RequestStatus
 from backend.services.datalayer.sleeper.responses import (
@@ -300,6 +301,14 @@ def normalized_scope_manager(
     domain: Domain,
 ) -> NormalizedScopeManager:
     return NormalizedScopeManager(session_factory, manager_context(domain))
+
+
+@pytest.fixture
+def snapshot_manager(
+    session_factory: SessionFactory,
+    domain: Domain,
+) -> DataSnapshotManager:
+    return DataSnapshotManager(session_factory, manager_context(domain))
 
 
 @pytest.fixture
