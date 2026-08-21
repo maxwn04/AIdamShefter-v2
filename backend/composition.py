@@ -20,12 +20,15 @@ from backend.resources.memory.storylines import StorylineManager
 from backend.resources.memory.triggers import TriggerManager
 from backend.resources.sleeper_data import (
     ApiRequestManager,
+    DataSnapshotManager,
     LeagueSeasonManager,
     NormalizedScopeManager,
     RefreshRunManager,
 )
 from backend.services.datalayer import (
+    DatalayerSnapshotService,
     LocalDatalayerFileStore,
+    SQLiteSnapshotMaterializer,
     SleeperSourceClient,
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
@@ -98,6 +101,13 @@ class DatalayerRefreshDependencies:
         self.source.close()
 
 
+@dataclass(frozen=True, slots=True)
+class DatalayerSnapshotDependencies:
+    """One competition-scoped immutable snapshot capability."""
+
+    snapshot: DatalayerSnapshotService
+
+
 def build_memory_api_dependencies(
     session_factory: SessionFactory,
     context: ManagerContext[CompetitionScope],
@@ -162,6 +172,30 @@ def build_datalayer_refresh_dependencies(
             inline_payload_max_bytes=resolved.inline_payload_max_bytes,
         ),
         source=source,
+    )
+
+
+def build_datalayer_snapshot_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+    *,
+    settings: DatalayerSettings | None = None,
+) -> DatalayerSnapshotDependencies:
+    """Compose one competition-scoped snapshot service."""
+
+    resolved = settings or DatalayerSettings.from_environment()
+    files = LocalDatalayerFileStore(resolved.data_root)
+    return DatalayerSnapshotDependencies(
+        snapshot=DatalayerSnapshotService(
+            planning=LeagueSeasonManager(session_factory, context),
+            requests=ApiRequestManager(session_factory, context),
+            snapshots=DataSnapshotManager(session_factory, context),
+            materializer=SQLiteSnapshotMaterializer(
+                files.root / ".staging" / "snapshots"
+            ),
+            files=files,
+            code_version=resolved.code_version,
+        )
     )
 
 
