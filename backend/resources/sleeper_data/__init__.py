@@ -1,6 +1,10 @@
-"""Typed Sleeper refresh and request audit resources."""
+"""Typed Sleeper audit and normalized-scope resources."""
 
 from backend.resources.sleeper_data.common import Page
+from backend.resources.sleeper_data.normalized_scopes import (
+    ApplyResult,
+    NormalizedScopeManager,
+)
 from backend.resources.sleeper_data.refreshes import (
     PlannedEndpointScope,
     RefreshRun,
@@ -23,8 +27,10 @@ __all__ = [
     "ApiRequest",
     "ApiRequestCandidate",
     "ApiRequestManager",
+    "ApplyResult",
     "InlineVerifiedPayload",
     "NormalizationRejection",
+    "NormalizedScopeManager",
     "ObjectVerifiedPayload",
     "Page",
     "PlannedEndpointScope",

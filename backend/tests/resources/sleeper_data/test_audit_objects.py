@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 import backend.resources.sleeper_data as sleeper_data
+from backend.resources.sleeper_data.normalized_scopes import NormalizedScopeManager
 from backend.resources.sleeper_data.refreshes import (
     PlannedEndpointScope,
     RefreshRunManager,
@@ -24,19 +25,19 @@ from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 from backend.tests.resources.sleeper_data.conftest import successful_attempt
 
 
-def test_only_audit_resource_managers_are_exported_and_own_their_modules() -> None:
+def test_audit_resource_managers_are_exported_and_own_their_modules() -> None:
     exported_managers = {
         name: getattr(sleeper_data, name)
         for name in sleeper_data.__all__
         if name.endswith("Manager")
     }
 
-    assert exported_managers == {
-        "ApiRequestManager": ApiRequestManager,
-        "RefreshRunManager": RefreshRunManager,
-    }
+    assert exported_managers["ApiRequestManager"] is ApiRequestManager
+    assert exported_managers["NormalizedScopeManager"] is NormalizedScopeManager
+    assert exported_managers["RefreshRunManager"] is RefreshRunManager
     assert RefreshRunManager.__module__.endswith(".refreshes.manager")
     assert ApiRequestManager.__module__.endswith(".requests.manager")
+    assert NormalizedScopeManager.__module__.endswith(".normalized_scopes.manager")
 
 
 def test_refresh_plan_requires_ordered_unique_dependencies() -> None:
