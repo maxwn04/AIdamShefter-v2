@@ -1,6 +1,8 @@
 """Snapshot-only SQLite schema, projections, and materialization."""
 
 from backend.services.datalayer.snapshot_sqlite.schema import (
+    SQLITE_APPLICATION_ID,
+    SQLITE_USER_VERSION,
     SnapshotSchema,
     get_snapshot_schema,
 )
@@ -20,6 +22,8 @@ from backend.services.datalayer.snapshot_sqlite.materializer import (
 
 __all__ = [
     "SnapshotProjection",
+    "SQLITE_APPLICATION_ID",
+    "SQLITE_USER_VERSION",
     "SQLiteSnapshotMaterializer",
     "SnapshotArtifactInvalid",
     "SnapshotSchema",

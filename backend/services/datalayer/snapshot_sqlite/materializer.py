@@ -22,10 +22,11 @@ from backend.services.datalayer.snapshot_sqlite.projection import (
     SnapshotProjection,
     project_source_records,
 )
-from backend.services.datalayer.snapshot_sqlite.schema import get_snapshot_schema
-
-
-SQLITE_APPLICATION_ID = 0x41494441
+from backend.services.datalayer.snapshot_sqlite.schema import (
+    SQLITE_APPLICATION_ID,
+    SQLITE_USER_VERSION,
+    get_snapshot_schema,
+)
 _WEEK_TABLES = (
     "matchups",
     "player_performances",
@@ -85,7 +86,9 @@ class SQLiteSnapshotMaterializer:
                     connection.exec_driver_sql(
                         f"PRAGMA application_id = {SQLITE_APPLICATION_ID}"
                     )
-                    connection.exec_driver_sql("PRAGMA user_version = 1")
+                    connection.exec_driver_sql(
+                        f"PRAGMA user_version = {SQLITE_USER_VERSION}"
+                    )
                     schema.metadata.create_all(connection)
                     for table_name in schema.table_order:
                         table = schema.tables[table_name]
@@ -138,7 +141,10 @@ def verify_snapshot_file(
             raise SnapshotArtifactInvalid("snapshot SQLite integrity check failed")
         application_id = connection.execute("PRAGMA application_id").fetchone()[0]
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
-        if application_id != SQLITE_APPLICATION_ID or user_version != 1:
+        if (
+            application_id != SQLITE_APPLICATION_ID
+            or user_version != SQLITE_USER_VERSION
+        ):
             raise SnapshotArtifactInvalid("snapshot SQLite version markers differ")
         tables = {
             row[0]
