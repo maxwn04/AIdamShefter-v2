@@ -5,17 +5,22 @@ from __future__ import annotations
 from decimal import Decimal
 import hashlib
 import json
-from typing import NoReturn, TypeAlias
+from typing import NoReturn
+
+from typing_extensions import TypeAliasType
 
 
-JsonValue: TypeAlias = (
-    type(None)
-    | bool
-    | int
-    | Decimal
-    | str
-    | list["JsonValue"]
-    | dict[str, "JsonValue"]
+JsonValue = TypeAliasType(
+    "JsonValue",
+    (
+        type(None)
+        | bool
+        | int
+        | Decimal
+        | str
+        | list["JsonValue"]
+        | dict[str, "JsonValue"]
+    ),
 )
 
 
