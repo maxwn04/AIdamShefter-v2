@@ -90,7 +90,7 @@ RunLog:         all events
 ```
 
 Tools receive only the slice of state they need — brief tools get
-`ArtifactStore` + `RunLog`, datalayer tools get `SleeperLeagueData`, persistent
+`ArtifactStore` + `RunLog`, datalayer tools get `FrozenLeagueData`, persistent
 tools get `reporter_memory.ContextStore`.
 
 ## Tool Inventory
@@ -100,7 +100,7 @@ tools get `reporter_memory.ContextStore`.
 | **Procedure** | `load_procedure` |
 | **Brief** | `save_fact`, `save_storyline`, `set_outline`, `read_brief`, `set_style`, `set_bias` |
 | **Article** | `write_section`, `read_article`, `read_section`, `rewrite_section`, `set_section_order`, `submit_article` |
-| **Datalayer** (18) | `league_snapshot`, `standings`, `week_games`, `week_player_leaderboard`, `season_leaders`, `bench_analysis`, `transactions`, `team_dossier`, `team_game`, `team_schedule`, `roster_current`, `roster_snapshot`, `team_transactions`, `player_summary`, `player_weekly_log`, `playoff_bracket`, `team_playoff_path`, `run_sql` |
+| **Datalayer** (18) | `league_snapshot`, `standings`, `week_games`, `week_player_leaderboard`, `season_leaders`, `bench_analysis`, `transactions`, `team_dossier`, `team_game`, `team_schedule`, `roster_at_cutoff`, `roster_snapshot`, `team_transactions`, `player_summary`, `player_weekly_log`, `playoff_bracket`, `team_playoff_path`, `run_sql` |
 | **Persistent context** | `save_persistent_storyline`, `save_team_context`, `save_league_note`, `load_persistent_storylines`, `load_team_context`, `load_league_notes` |
 
 Persistent context is implemented in `reporter_memory/`, not `datalayer/`.
