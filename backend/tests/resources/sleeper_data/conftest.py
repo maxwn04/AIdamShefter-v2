@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 import hashlib
 from uuid import UUID, uuid4
 
@@ -43,7 +44,34 @@ from backend.services.datalayer.sleeper.responses import (
     SanitizedSourceError,
     SuccessfulSourceAttempt,
 )
-from backend.services.datalayer.sleeper.endpoints.contracts import CompletenessFinding
+from backend.services.datalayer.sleeper.endpoints import (
+    build_league_request,
+    build_league_rosters_request,
+    build_league_users_request,
+    build_matchups_request,
+    build_player_catalog_request,
+    build_transactions_request,
+)
+from backend.services.datalayer.sleeper.endpoints.contracts import (
+    CompletenessFinding,
+    LeagueEndpointRecords,
+    LeagueRecord,
+    LeagueRostersEndpointRecords,
+    LeagueUserRecord,
+    LeagueUsersEndpointRecords,
+    MatchupRecord,
+    MatchupsEndpointRecords,
+    PlayerCatalogEndpointRecords,
+    PlayerPerformanceRecord,
+    PlayerRecord,
+    RosterManagerRecord,
+    RosterPlayerRecord,
+    RosterRecord,
+    TransactionMoveRecord,
+    TransactionRecord,
+    TransactionsEndpointRecords,
+    UserRecord,
+)
 from backend.tests.database.conftest import database_engine, migrated_database
 
 
@@ -68,6 +96,24 @@ class Domain:
     sleeper_league_id: str
     franchise_ids: tuple[UUID, UUID]
     roster_ids: tuple[UUID, UUID]
+
+
+@dataclass(frozen=True)
+class ProjectedSeason:
+    """Representative current state shared by resource read-manager tests."""
+
+    domain: Domain
+    refresh_run_id: UUID
+    league_request_id: UUID
+    users_request_id: UUID
+    player_request_id: UUID
+    roster_request_id: UUID
+    matchup_request_id: UUID
+    transaction_request_id: UUID
+    week: int
+    user_ids: tuple[str, str]
+    player_ids: tuple[str, str, str, str]
+    sleeper_transaction_id: str
 
 
 def seed_domain(database_engine: Engine, *, label: str = "Sleeper Resource") -> Domain:
@@ -254,6 +300,260 @@ def normalized_scope_manager(
     domain: Domain,
 ) -> NormalizedScopeManager:
     return NormalizedScopeManager(session_factory, manager_context(domain))
+
+
+@pytest.fixture
+def projected_season(
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+    request_manager: ApiRequestManager,
+    normalized_scope_manager: NormalizedScopeManager,
+) -> ProjectedSeason:
+    """Apply a small, complete league graph through the public write boundary."""
+
+    week = 1
+    endpoints = (
+        build_league_request(domain.season_id, domain.sleeper_league_id),
+        build_league_users_request(domain.season_id, domain.sleeper_league_id),
+        build_player_catalog_request(),
+        build_league_rosters_request(domain.season_id, domain.sleeper_league_id),
+        build_matchups_request(domain.season_id, domain.sleeper_league_id, week),
+        build_transactions_request(domain.season_id, domain.sleeper_league_id, week),
+    )
+    refresh = start_refresh(
+        refresh_manager,
+        domain,
+        *endpoints,
+        requested_through_week=week,
+    )
+    now = datetime.now(UTC)
+    requests = tuple(
+        record_complete_attempt(
+            request_manager,
+            refresh.id,
+            endpoint,
+            {"fixture_scope": index},
+            requested_at=now + timedelta(milliseconds=index),
+        )
+        for index, endpoint in enumerate(endpoints)
+    )
+    normalized_scope_manager.apply_scope(
+        requests[0].id,
+        LeagueEndpointRecords(
+            league=LeagueRecord(
+                sleeper_league_id=domain.sleeper_league_id,
+                name="Projected League",
+                status="in_season",
+                season="2026",
+                sport="nfl",
+                scoring_settings={"passing_bonus": Decimal("1.125")},
+                roster_positions=("QB", "RB"),
+                provider_settings={"draft_rounds": 2},
+                playoff_start_week=15,
+                playoff_team_count=2,
+                league_average_match=1,
+            )
+        ),
+    )
+    normalized_scope_manager.apply_scope(
+        requests[1].id,
+        LeagueUsersEndpointRecords(
+            users=(
+                UserRecord(
+                    sleeper_user_id="u1",
+                    display_name="Manager One",
+                    metadata={"rank": 1},
+                ),
+                UserRecord(
+                    sleeper_user_id="u2",
+                    display_name="Manager Two",
+                    metadata={"rank": 2},
+                ),
+            ),
+            league_users=(
+                LeagueUserRecord(
+                    sleeper_user_id="u1",
+                    team_name="Alpha Team",
+                    is_commissioner=True,
+                    metadata={},
+                ),
+                LeagueUserRecord(
+                    sleeper_user_id="u2",
+                    team_name="Beta Team",
+                    metadata={},
+                ),
+            ),
+        ),
+    )
+    normalized_scope_manager.apply_scope(
+        requests[2].id,
+        PlayerCatalogEndpointRecords(
+            players=(
+                PlayerRecord(
+                    sleeper_player_id="p1",
+                    full_name="Alpha Quarterback",
+                    position="QB",
+                    nfl_team="SEA",
+                    active=True,
+                    status="Active",
+                    age=25,
+                    years_experience=3,
+                    metadata={"rating": Decimal("9.75")},
+                ),
+                PlayerRecord(
+                    sleeper_player_id="p2",
+                    full_name="Beta Runner",
+                    position="RB",
+                    nfl_team="SF",
+                    active=True,
+                    status="Active",
+                    metadata={"rating": Decimal("8.5")},
+                ),
+                PlayerRecord(
+                    sleeper_player_id="p3",
+                    full_name="Beta Runner",
+                    position="RB",
+                    nfl_team="SEA",
+                    active=False,
+                    status="Inactive",
+                    metadata={},
+                ),
+                PlayerRecord(
+                    sleeper_player_id="p4",
+                    full_name=None,
+                    position="QB",
+                    nfl_team="SEA",
+                    active=True,
+                    metadata={},
+                ),
+            )
+        ),
+    )
+    normalized_scope_manager.apply_scope(
+        requests[3].id,
+        LeagueRostersEndpointRecords(
+            rosters=(
+                RosterRecord(
+                    sleeper_roster_id="1",
+                    settings={"waiver_position": 1},
+                    metadata={"streak": "W2"},
+                    record_string="2-0",
+                    wins=2,
+                    losses=0,
+                    ties=0,
+                    points_for=Decimal("200.75"),
+                    points_against=Decimal("180.5"),
+                ),
+                RosterRecord(
+                    sleeper_roster_id="2",
+                    settings={"waiver_position": 2},
+                    metadata={"streak": "L2"},
+                    record_string="0-2",
+                    wins=0,
+                    losses=2,
+                    ties=0,
+                    points_for=Decimal("150.5"),
+                    points_against=Decimal("190.25"),
+                ),
+            ),
+            managers=(
+                RosterManagerRecord(
+                    sleeper_roster_id="1",
+                    sleeper_user_id="u1",
+                    role="owner",
+                    source_order=0,
+                ),
+                RosterManagerRecord(
+                    sleeper_roster_id="2",
+                    sleeper_user_id="u2",
+                    role="owner",
+                    source_order=0,
+                ),
+            ),
+            players=(
+                RosterPlayerRecord(
+                    sleeper_roster_id="1",
+                    sleeper_player_id="p1",
+                    role="starter",
+                ),
+                RosterPlayerRecord(
+                    sleeper_roster_id="2",
+                    sleeper_player_id="p2",
+                    role="starter",
+                ),
+            ),
+        ),
+    )
+    normalized_scope_manager.apply_scope(
+        requests[4].id,
+        MatchupsEndpointRecords(
+            matchups=(
+                MatchupRecord(
+                    week=week,
+                    sleeper_roster_id="1",
+                    sleeper_matchup_id=1,
+                    points=Decimal("101.5"),
+                ),
+                MatchupRecord(
+                    week=week,
+                    sleeper_roster_id="2",
+                    sleeper_matchup_id=1,
+                    points=Decimal("87.25"),
+                ),
+            ),
+            player_performances=(
+                PlayerPerformanceRecord(
+                    week=week,
+                    sleeper_roster_id="1",
+                    sleeper_matchup_id=1,
+                    sleeper_player_id="p1",
+                    points=Decimal("25.125"),
+                    role="starter",
+                ),
+            ),
+        ),
+    )
+    normalized_scope_manager.apply_scope(
+        requests[5].id,
+        TransactionsEndpointRecords(
+            transactions=(
+                TransactionRecord(
+                    week=week,
+                    sleeper_transaction_id="tx1",
+                    transaction_type="trade",
+                    status="complete",
+                    provider_created_at_ms=123456,
+                    settings={"waiver_bid": Decimal("3.5")},
+                    metadata={"note": "fixture"},
+                ),
+            ),
+            moves=(
+                TransactionMoveRecord(
+                    sleeper_transaction_id="tx1",
+                    move_index=0,
+                    move_kind="player",
+                    from_sleeper_roster_id="1",
+                    to_sleeper_roster_id="2",
+                    sleeper_player_id="p2",
+                ),
+            ),
+        ),
+    )
+    refresh_manager.finish_refresh(refresh.id)
+    return ProjectedSeason(
+        domain=domain,
+        refresh_run_id=refresh.id,
+        league_request_id=requests[0].id,
+        users_request_id=requests[1].id,
+        player_request_id=requests[2].id,
+        roster_request_id=requests[3].id,
+        matchup_request_id=requests[4].id,
+        transaction_request_id=requests[5].id,
+        week=week,
+        user_ids=("u1", "u2"),
+        player_ids=("p1", "p2", "p3", "p4"),
+        sleeper_transaction_id="tx1",
+    )
 
 
 @pytest.fixture

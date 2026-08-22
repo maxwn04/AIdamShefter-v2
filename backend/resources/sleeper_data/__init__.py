@@ -1,10 +1,21 @@
-"""Typed Sleeper audit and normalized-scope resources."""
+"""Typed Sleeper resources, grouped by resource kind."""
 
 from backend.resources.sleeper_data.common import Page
+from backend.resources.sleeper_data.league_seasons import (
+    LeagueSeasonManager,
+    LeagueSeasonOverview,
+    SnapshotPlanningContext,
+)
+from backend.resources.sleeper_data.matchups import (
+    Matchup,
+    MatchupManager,
+    PlayerPerformance,
+)
 from backend.resources.sleeper_data.normalized_scopes import (
     ApplyResult,
     NormalizedScopeManager,
 )
+from backend.resources.sleeper_data.players import Player, PlayerManager, PlayerSearch
 from backend.resources.sleeper_data.refreshes import (
     PlannedEndpointScope,
     RefreshRun,
@@ -22,6 +33,18 @@ from backend.resources.sleeper_data.requests import (
     SnapshotCandidateQuery,
     VerifiedPayload,
 )
+from backend.resources.sleeper_data.rosters import (
+    RosterManager,
+    RosterManagerAssignment,
+    RosterPlayer,
+    SeasonRosterState,
+)
+from backend.resources.sleeper_data.transactions import (
+    Transaction,
+    TransactionManager,
+    TransactionMove,
+    TransactionQuery,
+)
 
 __all__ = [
     "ApiRequest",
@@ -29,15 +52,32 @@ __all__ = [
     "ApiRequestManager",
     "ApplyResult",
     "InlineVerifiedPayload",
+    "LeagueSeasonManager",
+    "LeagueSeasonOverview",
+    "Matchup",
+    "MatchupManager",
     "NormalizationRejection",
     "NormalizedScopeManager",
     "ObjectVerifiedPayload",
     "Page",
     "PlannedEndpointScope",
+    "Player",
+    "PlayerManager",
+    "PlayerPerformance",
+    "PlayerSearch",
     "RecordApiAttempt",
     "RefreshRun",
     "RefreshRunManager",
+    "RosterManager",
+    "RosterManagerAssignment",
+    "RosterPlayer",
+    "SeasonRosterState",
     "SnapshotCandidateQuery",
+    "SnapshotPlanningContext",
     "StartRefresh",
+    "Transaction",
+    "TransactionManager",
+    "TransactionMove",
+    "TransactionQuery",
     "VerifiedPayload",
 ]
