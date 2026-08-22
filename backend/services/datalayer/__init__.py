@@ -12,7 +12,10 @@ from backend.services.datalayer.contracts import (
     RefreshTrigger,
     RequestStatus,
     ScopeRefreshResult,
+    SnapshotSelectionRole,
+    SnapshotStatus,
     SnapshotRequest,
+    ReadyDataSnapshot,
     WarningCode,
 )
 from backend.services.datalayer.errors import (
@@ -154,8 +157,15 @@ __all__ = [
     "SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
     "ScopeRefreshResult",
+    "SelectedRequestManifest",
+    "SelectedRequestManifestEntry",
+    "SnapshotRequirement",
+    "SnapshotRequirements",
     "SnapshotRequest",
+    "SnapshotSelectionRole",
+    "SnapshotStatus",
     "SnapshotUnavailable",
+    "ReadyDataSnapshot",
     "SleeperSourceClient",
     "SourceAttempt",
     "StoredLocalArtifact",
@@ -177,11 +187,13 @@ __all__ = [
     "build_nfl_state_request",
     "build_player_catalog_request",
     "build_standard_refresh_plan",
+    "canonical_snapshot_build_key",
     "build_traded_picks_request",
     "build_transactions_request",
     "build_winners_bracket_request",
     "get_endpoint_apply_metadata",
     "missing_dependency_scope_keys",
+    "plan_snapshot_requirements",
     "normalize_league",
     "normalize_league_rosters",
     "normalize_league_users",
@@ -202,17 +214,53 @@ __all__ = [
     "validate_traded_picks_completeness",
     "validate_transactions_completeness",
     "validate_winners_bracket_completeness",
+    "select_snapshot_requests",
 ]
 
 
 def __getattr__(name: str) -> Any:
-    """Lazily expose the resource-composing refresh service without a cycle."""
+    """Lazily expose resource-composing workflows without import cycles."""
 
     if name in {
         "DatalayerRefreshService",
         "PlannedRefresh",
         "build_standard_refresh_plan",
+        "SelectedRequestManifest",
+        "SelectedRequestManifestEntry",
+        "SnapshotRequirement",
+        "SnapshotRequirements",
+        "canonical_snapshot_build_key",
+        "plan_snapshot_requirements",
+        "select_snapshot_requests",
     }:
+        if name in {
+            "SelectedRequestManifest",
+            "SelectedRequestManifestEntry",
+            "SnapshotRequirement",
+            "SnapshotRequirements",
+            "canonical_snapshot_build_key",
+            "plan_snapshot_requirements",
+            "select_snapshot_requests",
+        }:
+            from backend.services.datalayer.snapshot_selection import (
+                SelectedRequestManifest,
+                SelectedRequestManifestEntry,
+                SnapshotRequirement,
+                SnapshotRequirements,
+                canonical_snapshot_build_key,
+                plan_snapshot_requirements,
+                select_snapshot_requests,
+            )
+
+            return {
+                "SelectedRequestManifest": SelectedRequestManifest,
+                "SelectedRequestManifestEntry": SelectedRequestManifestEntry,
+                "SnapshotRequirement": SnapshotRequirement,
+                "SnapshotRequirements": SnapshotRequirements,
+                "canonical_snapshot_build_key": canonical_snapshot_build_key,
+                "plan_snapshot_requirements": plan_snapshot_requirements,
+                "select_snapshot_requests": select_snapshot_requests,
+            }[name]
         from backend.services.datalayer.refresh_service import (
             DatalayerRefreshService,
             PlannedRefresh,

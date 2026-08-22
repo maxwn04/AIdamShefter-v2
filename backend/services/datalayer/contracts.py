@@ -9,6 +9,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from backend.services.datalayer.local_files import VerifiedLocalArtifact
 from backend.services.datalayer.sleeper.scope import ScopeKey
 
 
@@ -60,6 +61,26 @@ class NormalizationStatus(StrEnum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class SnapshotStatus(StrEnum):
+    BUILDING = "building"
+    READY = "ready"
+    FAILED = "failed"
+    EXPIRED = "expired"
+
+
+class SnapshotSelectionRole(StrEnum):
+    LEAGUE = "league"
+    LEAGUE_USERS = "league_users"
+    NFL_STATE = "nfl_state"
+    PLAYER_CATALOG = "player_catalog"
+    LEAGUE_ROSTERS = "league_rosters"
+    TRADED_PICKS = "traded_picks"
+    WEEK_MATCHUPS = "week_matchups"
+    WEEK_TRANSACTIONS = "week_transactions"
+    WINNERS_BRACKET = "winners_bracket"
+    LOSERS_BRACKET = "losers_bracket"
+
+
 class ApplyDisposition(StrEnum):
     APPLIED = "applied"
     STALE_IGNORED = "stale_ignored"
@@ -103,3 +124,15 @@ class CompletenessWarning(_WorkflowValue):
     code: WarningCode
     summary: WarningSummary
     scope_key: ScopeKey | None = None
+
+
+class ReadyDataSnapshot(_WorkflowValue):
+    id: UUID
+    competition_id: UUID
+    primary_competition_season_id: UUID
+    through_week: int = Field(ge=1, le=18, strict=True)
+    as_of_date: date
+    build_key: str
+    snapshot_projection_version: str
+    artifact: VerifiedLocalArtifact
+    completeness_warnings: tuple[CompletenessWarning, ...] = ()
