@@ -117,6 +117,7 @@ __all__ = [
     "EndpointApplyMetadata",
     "DatalayerError",
     "DatalayerRefreshService",
+    "DatalayerSnapshotService",
     "DatalayerResourceNotFound",
     "DatalayerScopeConflict",
     "EndpointKind",
@@ -130,6 +131,7 @@ __all__ = [
     "LocalArtifactKind",
     "LocalArtifactVerificationError",
     "LocalDatalayerFileStore",
+    "MaterializedSnapshot",
     "LeagueEndpointRecords",
     "LeagueRecord",
     "LeagueRostersEndpointRecords",
@@ -162,6 +164,8 @@ __all__ = [
     "SnapshotRequirement",
     "SnapshotRequirements",
     "SnapshotRequest",
+    "SnapshotEndpointRecords",
+    "SnapshotMaterializationInput",
     "SnapshotSelectionRole",
     "SnapshotStatus",
     "SnapshotUnavailable",
@@ -225,6 +229,10 @@ def __getattr__(name: str) -> Any:
         "DatalayerRefreshService",
         "PlannedRefresh",
         "build_standard_refresh_plan",
+        "DatalayerSnapshotService",
+        "MaterializedSnapshot",
+        "SnapshotEndpointRecords",
+        "SnapshotMaterializationInput",
         "SelectedRequestManifest",
         "SelectedRequestManifestEntry",
         "SnapshotRequirement",
@@ -233,6 +241,25 @@ def __getattr__(name: str) -> Any:
         "plan_snapshot_requirements",
         "select_snapshot_requests",
     }:
+        if name in {
+            "DatalayerSnapshotService",
+            "MaterializedSnapshot",
+            "SnapshotEndpointRecords",
+            "SnapshotMaterializationInput",
+        }:
+            from backend.services.datalayer.snapshot_service import (
+                DatalayerSnapshotService,
+                MaterializedSnapshot,
+                SnapshotEndpointRecords,
+                SnapshotMaterializationInput,
+            )
+
+            return {
+                "DatalayerSnapshotService": DatalayerSnapshotService,
+                "MaterializedSnapshot": MaterializedSnapshot,
+                "SnapshotEndpointRecords": SnapshotEndpointRecords,
+                "SnapshotMaterializationInput": SnapshotMaterializationInput,
+            }[name]
         if name in {
             "SelectedRequestManifest",
             "SelectedRequestManifestEntry",
