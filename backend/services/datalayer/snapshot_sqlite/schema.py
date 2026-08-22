@@ -19,6 +19,10 @@ from sqlalchemy import (
 )
 
 
+SQLITE_APPLICATION_ID = 0x41494441
+SQLITE_USER_VERSION = 1
+
+
 SNAPSHOT_TABLE_ORDER = (
     "leagues",
     "season_context",

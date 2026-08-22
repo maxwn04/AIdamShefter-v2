@@ -125,6 +125,8 @@ __all__ = [
     "EndpointRequest",
     "EndpointPayloadRejected",
     "FailedSourceAttempt",
+    "FrozenLeagueData",
+    "FrozenSnapshotInvalid",
     "INGESTION_NORMALIZER_VERSION",
     "InternalDatalayerFailure",
     "InvalidDatalayerRequest",
@@ -242,7 +244,19 @@ def __getattr__(name: str) -> Any:
         "plan_snapshot_requirements",
         "select_snapshot_requests",
         "SQLiteSnapshotMaterializer",
+        "FrozenLeagueData",
+        "FrozenSnapshotInvalid",
     }:
+        if name in {"FrozenLeagueData", "FrozenSnapshotInvalid"}:
+            from backend.services.datalayer.query import (
+                FrozenLeagueData,
+                FrozenSnapshotInvalid,
+            )
+
+            return {
+                "FrozenLeagueData": FrozenLeagueData,
+                "FrozenSnapshotInvalid": FrozenSnapshotInvalid,
+            }[name]
         if name == "SQLiteSnapshotMaterializer":
             from backend.services.datalayer.snapshot_sqlite import (
                 SQLiteSnapshotMaterializer,
