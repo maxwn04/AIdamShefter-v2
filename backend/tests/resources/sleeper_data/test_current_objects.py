@@ -4,6 +4,7 @@ from pydantic import ValidationError
 import backend.resources.sleeper_data as sleeper_data
 from backend.resources.sleeper_data import (
     ApiRequestManager,
+    DataSnapshotManager,
     LeagueSeasonManager,
     MatchupManager,
     NormalizedScopeManager,
@@ -19,6 +20,7 @@ def test_all_resource_managers_are_exported_from_distinct_owning_modules() -> No
     managers = (
         RefreshRunManager,
         ApiRequestManager,
+        DataSnapshotManager,
         NormalizedScopeManager,
         LeagueSeasonManager,
         RosterManager,
