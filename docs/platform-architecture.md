@@ -679,8 +679,8 @@ Tests should follow the designed boundary:
 - API tests use dependency overrides and focus on authentication, validation,
   and response translation.
 - Worker tests inject fake services and verify generation status/progress behavior.
-- Snapshot tests use real SQLite fixtures and verify that future facts are
-  physically absent.
+- Snapshot tests use real SQLite fixtures and verify that post-`through_week`
+  week-scoped and volatile state is physically absent.
 - Scope tests prove competition isolation and deliberate global access.
 - Transaction tests verify that composed finalization writes commit or roll
   back together.

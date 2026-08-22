@@ -10,3 +10,4 @@ sleeper_fantasy_reporter.egg-info/
 sleeper_datalayer.egg-info/
 .output/
 .data/
+.context/

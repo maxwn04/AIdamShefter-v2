@@ -266,12 +266,12 @@ to a competition season. Its natural key is
 status, provider-created timestamp, settings/metadata JSONB, and source request.
 
 `transaction_moves` uses a UUID primary key plus unique
-`(transaction_id, move_index)`. Each row has a checked kind of `player`, `pick`,
-or `budget`, from/to season-roster IDs, and exactly one matching payload:
-`player_id`, `draft_pick_id`, or non-negative budget amount. Pick moves reference
-the canonical normalized draft-pick row rather than repeating unconstrained pick
-coordinates. A corrected complete request replaces the normalized week scope;
-the old raw request remains available for historical replay.
+`(transaction_id, move_index)`. Each application record is one `player` or
+`pick` transfer with optional from/to season-roster IDs. It references exactly
+one player or canonical normalized draft pick, and may carry the transaction's
+non-negative waiver/budget amount. A corrected complete request replaces the
+normalized week scope; the old raw request remains available for historical
+replay.
 
 ### `sleeper.draft_picks`
 
@@ -294,9 +294,9 @@ The latest normalized winners/losers bracket nodes, keyed by
 `(competition_season_id, bracket_kind, node_key)`, retaining the current bracket
 fields and source API request. `node_key` uses Sleeper's node/matchup identifier
 when present and otherwise a deterministic provider-array position within that
-exact response scope. Historical snapshot creation uses only a bracket request
-eligible at its knowledge cutoff; it never trims today's final bracket and
-presents it as historically known.
+exact response scope. Historical snapshot construction may use a later recorded
+bracket response, but projection policy must not present nodes beyond
+`through_week` as historical results.
 
 ## Existing Derived Tables
 
@@ -321,14 +321,21 @@ One immutable factual input to one or more generations:
 
 - `id uuid` primary key;
 - competition and primary competition-season IDs;
-- mode: `live`, `retrospective`, or `historical`;
-- domain cutoff week/time and knowledge cutoff time;
+- canonical daily reuse `build_key`;
+- populated domain cutoff week, nullable reserved cutoff-time seam, and the
+  `as_of_date` daily reuse label;
 - status: `building`, `ready`, `failed`, or `expired`;
-- materializer/schema/code versions;
+- one snapshot-projection version plus audit-only code version;
 - completeness warnings JSONB;
-- selected-request-set hash;
+- sanitized failure summary for failed builds;
 - exact SQLite artifact hash, byte size, and private storage key/path;
 - created/completed timestamps.
+
+Only `building` and `ready` rows participate in the partial unique build-key
+index. Failed and expired attempts remain auditable but release the key so a
+later request can build a replacement. Generation intent such as live,
+historical, or retrospective is not factual snapshot identity and remains on
+the generation workflow.
 
 ### `sleeper.data_snapshot_requests`
 
@@ -337,6 +344,7 @@ The exact successful API requests selected for the snapshot:
 - data snapshot ID;
 - API request ID;
 - scope key;
+- response SHA-256;
 - selection role.
 
 Unique `(data_snapshot_id, scope_key)`. The baseline artifact contains one
@@ -346,19 +354,20 @@ not silently mixed into the current agent SQL surface.
 
 Snapshot selection rules:
 
-- historical mode chooses the latest complete request per required scope with
-  `completed_at <= knowledge_cutoff_at`;
-- retrospective mode may use newer corrections for domain events through the
-  cutoff, and is labeled accordingly;
+- selection chooses the latest complete request available per required scope;
+- an earlier `through_week` may use a later recorded correction specifically
+  scoped to that earlier week;
 - future-week matchup/transaction requests are excluded;
-- later roster/player/user/bracket payloads cannot enter a historical snapshot;
-- missing required requests fail the snapshot unless the generation is
-  explicitly diagnostic/incomplete;
-- the exact SQLite artifact is retained while any generation references it.
+- later roster/player/user/bracket payloads may supply current reference data,
+  while the SQLite projection suppresses later-week state fields;
+- missing required requests fail the ordinary snapshot workflow;
+- v1 retains ready SQLite artifacts and does not proactively delete benign
+  unreferenced content-addressed files.
 
 The existing normalizers build the artifact from the selected raw payloads.
 This both preserves the familiar SQLite query schema and physically prevents
-the reporter's guarded SQL tool from seeing future primary-database rows.
+the reporter's guarded SQL tool from seeing post-`through_week` week-scoped and
+volatile state from primary-database rows.
 
 The SQLite tables retain the existing provider-facing `league_id`, `roster_id`,
 and season columns expected by current query/tool code. They may add internal
@@ -366,11 +375,12 @@ competition/franchise IDs as non-breaking columns for future tools. Cross-season
 factual tools should be introduced deliberately after their SQL is scoped and
 tested; dynasty continuity initially comes from core identity and memory.
 
-Once a snapshot is `ready`, its cutoff fields, request membership, selected-set
-hash, artifact locator/hash/size, and materializer versions are immutable. A
+Once a snapshot is `ready`, its cutoff fields, exact request membership,
+artifact locator/hash/size, and projection version are immutable. A
 snapshot becomes ready only after verifying that its selected API requests are
 succeeded and complete and that the stored artifact matches its hash. Expiration
-may change retention state but never rewrites what the snapshot meant.
+may change retention state but never rewrites what the snapshot meant; expired
+is terminal.
 
 Tables that carry both `competition_id` and `competition_season_id` use a
 composite foreign key to prevent cross-competition combinations. A data snapshot
@@ -400,7 +410,8 @@ In addition to request indexes and natural uniqueness:
 - transactions by season/week/type/status and provider transaction ID;
 - transaction moves by player, pick coordinates, and involved roster;
 - draft picks by competition/draft season/current franchise;
-- snapshots by competition season, mode, cutoff, and creation time;
+- snapshots by active build key and by competition season, `as_of_date`,
+  and creation time;
 - snapshot-request membership by snapshot and API request.
 
 JSONB receives no general GIN indexes until a real query requires one.

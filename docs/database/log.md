@@ -502,14 +502,15 @@ simulated generations and never writes alternative rows into canonical memory.
 ## Current Implementation Decisions
 
 The current baseline is defined by DB-001 through DB-006, DB-010 through DB-011,
-DB-016 through DB-026, and DB-028 through DB-031. Within that set, later entries explicitly take
+DB-016 through DB-026, and DB-028 through DB-032. Within that set, later entries explicitly take
 precedence. DB-017 supersedes the larger identity/provider designs, DB-020
 supersedes branch/commit memory, DB-021 supersedes workflow/pricing-heavy
 reporting, DB-024 narrows the former evidence design and hardens factual snapshot
 boundaries, and DB-025 replaces persistent alternative memory with a linear
 canonical revision plus one reporting workspace. DB-028 moves product-semantic
 validation out of DDL while retaining relational, concurrency, storage-shape,
-and sealed-history guarantees.
+and sealed-history guarantees. DB-032 supersedes DB-024's exact snapshot
+observation identity with the coarse daily identity used by the datalayer.
 
 ## Pending Decisions
 
@@ -685,3 +686,41 @@ article generations; rebuilding it never creates a memory revision.
   payloads become more specific.
 - Vector embeddings may later be keyed by exact version, builder, model, and
   content hash without changing canonical memory.
+
+### DB-032 — Use daily frozen snapshot identity
+
+**Date:** 2026-08-09
+**Amended:** 2026-08-18
+**Status:** Settled; supersedes mode-based snapshot identity in DB-024
+**Source:** Datalayer service design review and simulation-precision decision
+
+A frozen data snapshot is identified by its competition season,
+`through_week`, `as_of_date`, and one snapshot-projection version. Exact
+observation timestamps and aggregate selected-request-set hashes add precision
+without useful fantasy-football simulation fidelity, so neither participates
+in identity. Live, historical, and retrospective are generation intent rather
+than factual snapshot modes.
+
+Only active `building` and `ready` rows reserve the canonical build key. Failed
+and expired attempts remain auditable but release it for a replacement build.
+Every request membership row pins the response SHA-256 in addition to the
+request ID and scope. Ready snapshot meaning and membership are sealed; the
+only allowed retention transition is `ready` to terminal `expired`. The first
+healthy ready snapshot for a season/week/date/version is reused; observations
+completed after it became ready do not replace it, and callers normally choose
+another date label when they want another identity. Recovery after failure or
+expiration may reselect within the same intentionally coarse daily identity.
+
+**Consequences:**
+
+- Snapshot `mode` is removed.
+- Snapshot identity uses one plain caller-chosen calendar date. Request
+  timestamps do not map into or filter that date in v1.
+- Materializer and SQLite-schema versions become one
+  `snapshot_projection_version` owned by compatibility policy.
+- Snapshot rows gain sanitized failure metadata; each exact request-membership
+  row pins its individual response SHA-256.
+- Active-key partial uniqueness supplies build concurrency without making a
+  failed attempt poison the daily reuse identity.
+- Generation rows retain their own intent and knowledge policy while pinning
+  the exact ready factual snapshot used for execution.
