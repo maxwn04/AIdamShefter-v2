@@ -10,6 +10,15 @@ from backend.resources._contracts import ContractModel
 from backend.services.datalayer.canonical_json import JsonValue
 
 
+class RefreshSeasonIdentity(ContractModel):
+    """Core season identity needed before Sleeper facts have been loaded."""
+
+    competition_id: UUID
+    competition_season_id: UUID
+    sleeper_league_id: str
+    season_year: int = Field(strict=True, ge=1900, le=9999)
+
+
 class SnapshotPlanningContext(ContractModel):
     competition_id: UUID
     competition_season_id: UUID

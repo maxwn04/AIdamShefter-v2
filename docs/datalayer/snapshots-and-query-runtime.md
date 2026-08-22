@@ -76,7 +76,7 @@ sequenceDiagram
     participant Caller
     participant Service as DatalayerSnapshotService
     participant Snap as DataSnapshotManager
-    participant Obs as SleeperDataManager
+    participant Obs as Sleeper resource managers
     participant Require as Pure requirement planning
     participant Select as Pure request selection
     participant Norm as Endpoint-family modules
@@ -143,7 +143,7 @@ rather than adding a reference-aware cleanup workflow.
 ## Required Request Set
 
 V1 assumes structural league settings remain stable within one competition
-season. `SleeperDataManager` returns a season-scoped `SnapshotPlanningContext`
+season. `LeagueSeasonManager` returns a season-scoped `SnapshotPlanningContext`
 from the current normalized league configuration; a pure planner expands that
 context and the `SnapshotRequest` into explicit `SnapshotRequirements` using
 the shared `EndpointKind` and `ScopeKey` vocabulary. These planning settings

@@ -1,6 +1,7 @@
 """Environment-backed product configuration."""
 
 from dataclasses import dataclass
+import math
 import os
 from pathlib import Path
 from typing import Literal
@@ -24,6 +25,14 @@ def _positive_int(name: str, default: int) -> int:
     raw_value = os.getenv(name)
     value = default if raw_value is None else int(raw_value)
     if value <= 0:
+        raise ValueError(f"{name} must be positive")
+    return value
+
+
+def _positive_float(name: str, default: float) -> float:
+    raw_value = os.getenv(name)
+    value = default if raw_value is None else float(raw_value)
+    if not math.isfinite(value) or value <= 0:
         raise ValueError(f"{name} must be positive")
     return value
 
@@ -92,6 +101,10 @@ class DatalayerSettings:
     data_root: Path
     sleeper_base_url: str
     sleeper_timeout_seconds: int
+    sleeper_max_attempts: int
+    sleeper_retry_backoff_seconds: float
+    inline_payload_max_bytes: int
+    code_version: str
 
     @classmethod
     def from_environment(cls) -> "DatalayerSettings":
@@ -103,10 +116,21 @@ class DatalayerSettings:
         ).strip().rstrip("/")
         if not base_url:
             raise ValueError("AIDAM_SLEEPER_BASE_URL must not be empty")
+        code_version = os.getenv("AIDAM_CODE_VERSION", "dev").strip()
+        if not code_version:
+            raise ValueError("AIDAM_CODE_VERSION must not be empty")
         return cls(
             data_root=Path(data_root).expanduser(),
             sleeper_base_url=base_url,
             sleeper_timeout_seconds=_positive_int(
                 "AIDAM_SLEEPER_TIMEOUT_SECONDS", 10
             ),
+            sleeper_max_attempts=_positive_int("AIDAM_SLEEPER_MAX_ATTEMPTS", 3),
+            sleeper_retry_backoff_seconds=_positive_float(
+                "AIDAM_SLEEPER_RETRY_BACKOFF_SECONDS", 1.0
+            ),
+            inline_payload_max_bytes=_positive_int(
+                "AIDAM_DATALAYER_INLINE_PAYLOAD_MAX_BYTES", 1024 * 1024
+            ),
+            code_version=code_version,
         )

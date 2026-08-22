@@ -38,7 +38,7 @@ flowchart TB
     end
 
     subgraph Resources["backend/resources"]
-        DataManager["SleeperDataManager"]
+        DataManagers["Sleeper resource managers"]
         SnapshotManager["DataSnapshotManager"]
         CoreManagers["Competition and identity managers"]
     end
@@ -57,10 +57,10 @@ flowchart TB
     Refresh --> Source
     Source --> SleeperAPI
     Refresh --> Endpoints
-    Refresh --> DataManager
-    DataManager --> PG
+    Refresh --> DataManagers
+    DataManagers --> PG
     Snapshot --> Selector
-    Snapshot --> DataManager
+    Snapshot --> DataManagers
     Snapshot --> SnapshotManager
     Snapshot --> Endpoints
     Snapshot --> Projection
@@ -72,9 +72,10 @@ flowchart TB
     Refresh -. "resolved IDs" .-> CoreManagers
 ```
 
-`SleeperDataManager` owns the whole ingestion write aggregate, including the
-atomic “apply request and advance scope head” transaction. No manager reaches
-through another resource with session-bound write helpers.
+Resource-specific managers own their public objects and operations.
+`NormalizedScopeManager` owns the atomic “apply request and advance scope head”
+transaction and calls transaction-scoped endpoint projection writers; no ORM row
+or session leaves the resource package.
 
 ## Projection and Query Boundaries
 
@@ -165,8 +166,8 @@ Owns one refresh workflow from request planning through refresh completion. It:
   normalized facts;
 - delegates normalization of complete payloads to that same endpoint-family
   module;
-- asks `SleeperDataManager` to atomically apply eligible endpoint records;
-- asks the manager to derive and persist the final succeeded, partial, failed,
+- asks `NormalizedScopeManager` to atomically apply eligible endpoint records;
+- asks `RefreshRunManager` to derive and persist the final succeeded, partial, failed,
   or cancelled status from its recorded child requests.
 
 It does not open sessions or hold a transaction during HTTP work.
@@ -209,18 +210,20 @@ endpoint kinds.
 
 ### Resource Managers
 
-Two managers own deep persistence aggregates:
+Resource-specific managers own the Sleeper persistence boundaries:
 
 | Manager | Aggregate and responsibilities |
 | --- | --- |
-| `SleeperDataManager` | Refresh runs, API attempts/payloads, normalized scope heads, current normalized Sleeper tables, current product reads, snapshot candidates, and the atomic request/head/current-view transaction |
+| `RefreshRunManager` | Refresh plans, lifecycle, derived terminal status, and counts |
+| `ApiRequestManager` | API attempts, payload receipts, audit reads, snapshot candidates, and verified payload resolution |
+| `NormalizedScopeManager` | Atomic scope-head comparison and normalized current-view replacement |
+| Season, roster, matchup, transaction, and player managers | Scoped current product reads returning immutable resource objects |
 | `DataSnapshotManager` | Canonical build-key claim/reuse, snapshot lifecycle, exact request membership, immutable sealing, and failure state |
 
-There are no cross-resource `shared.py` write helpers. The Sleeper request,
-scope head, player catalog, and league current view form one ingestion write
-aggregate, so one manager owns that transaction. Its public read methods still
-apply explicit competition or global scope and return resource objects rather
-than ORM rows.
+There are no cross-resource `shared.py` write helpers. Endpoint projection
+writers run only inside the transaction owned by `NormalizedScopeManager`.
+Public read methods apply explicit competition or global scope and return
+resource objects rather than ORM rows.
 
 ### `DatalayerSnapshotService`
 
@@ -235,7 +238,7 @@ long-running snapshot workflow:
 - bounds waiting on an existing build, atomically fails an abandoned build,
   and retries the claim without exposing recovery policy to its caller;
 - reads season-stable planning settings, derives explicit required scopes, asks
-  `SleeperDataManager` for eligible request candidates, and selects exactly one
+  `ApiRequestManager` for eligible request candidates, and selects exactly one
   request for every requirement;
 - resolves and hash-verifies raw payloads;
 - runs the same normalizers used by ingestion;

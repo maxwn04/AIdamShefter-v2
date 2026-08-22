@@ -21,7 +21,7 @@ The ingestion design is governed by these rules:
 sequenceDiagram
     participant Caller
     participant Service as DatalayerRefreshService
-    participant Data as SleeperDataManager
+    participant Data as Sleeper resource managers
     participant Source as SleeperSourceClient
     participant Endpoint as Endpoint-family module
     participant DB as PostgreSQL
@@ -234,7 +234,7 @@ manager name.
 
 ## Atomic Scope Application
 
-`SleeperDataManager.apply_scope()` follows this transaction:
+`NormalizedScopeManager.apply_scope()` follows this transaction:
 
 1. load the recorded request and lock its `normalized_scopes` row;
 2. verify the source request is successful, complete, payload-hash verified,
@@ -314,7 +314,8 @@ only through the same eligibility transaction.
 
 ## Current-View Read Models
 
-`SleeperDataManager` returns resource objects designed for product display and
+The season, roster, matchup, transaction, and player managers return resource
+objects designed for product display and
 cross-season application workflows. They may join normalized Sleeper tables to
 core competition/franchise identities, but they do not expose source ORM rows.
 

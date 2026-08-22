@@ -1,5 +1,7 @@
 """Pure contracts shared by datalayer workflows and later adapters."""
 
+from typing import Any
+
 from backend.services.datalayer.contracts import (
     ApplyDisposition,
     CompletenessWarning,
@@ -111,6 +113,7 @@ __all__ = [
     "CompletenessFinding",
     "EndpointApplyMetadata",
     "DatalayerError",
+    "DatalayerRefreshService",
     "DatalayerResourceNotFound",
     "DatalayerScopeConflict",
     "EndpointKind",
@@ -138,6 +141,7 @@ __all__ = [
     "PlayerCatalogEndpointRecords",
     "PlayerPerformanceRecord",
     "PlayerRecord",
+    "PlannedRefresh",
     "RefreshOutcome",
     "RefreshRequest",
     "RefreshStatus",
@@ -172,6 +176,7 @@ __all__ = [
     "build_matchups_request",
     "build_nfl_state_request",
     "build_player_catalog_request",
+    "build_standard_refresh_plan",
     "build_traded_picks_request",
     "build_transactions_request",
     "build_winners_bracket_request",
@@ -198,3 +203,25 @@ __all__ = [
     "validate_transactions_completeness",
     "validate_winners_bracket_completeness",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """Lazily expose the resource-composing refresh service without a cycle."""
+
+    if name in {
+        "DatalayerRefreshService",
+        "PlannedRefresh",
+        "build_standard_refresh_plan",
+    }:
+        from backend.services.datalayer.refresh_service import (
+            DatalayerRefreshService,
+            PlannedRefresh,
+            build_standard_refresh_plan,
+        )
+
+        return {
+            "DatalayerRefreshService": DatalayerRefreshService,
+            "PlannedRefresh": PlannedRefresh,
+            "build_standard_refresh_plan": build_standard_refresh_plan,
+        }[name]
+    raise AttributeError(name)
