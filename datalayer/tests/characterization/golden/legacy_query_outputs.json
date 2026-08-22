@@ -1,0 +1,1149 @@
+{
+  "bench_analysis_league": [
+    {
+      "bench_points": 45.0,
+      "starter_points": 60.0,
+      "team_name": "Beta",
+      "total_points": 105.0
+    },
+    {
+      "bench_points": 40.0,
+      "starter_points": 70.0,
+      "team_name": "Alpha",
+      "total_points": 110.0
+    }
+  ],
+  "bench_analysis_team": {
+    "as_of_week": 2,
+    "bench_players": [
+      {
+        "nfl_team": "BBB",
+        "player_name": "Player Two",
+        "points": 40.0,
+        "position": "RB"
+      }
+    ],
+    "bench_points": 40.0,
+    "found": true,
+    "starter_points": 70.0,
+    "team_name": "Alpha",
+    "total_points": 110.0
+  },
+  "league_snapshot": {
+    "as_of_week": 2,
+    "found": true,
+    "games": [
+      {
+        "points_a": 110.0,
+        "points_b": 105.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 2,
+        "winner": "Alpha"
+      }
+    ],
+    "league": {
+      "name": "Test League",
+      "playoff_week_start": 15,
+      "season": "2024",
+      "sport": "nfl"
+    },
+    "standings": [
+      {
+        "losses": 0,
+        "points_against": 180.05,
+        "points_for": 200.1,
+        "rank": 1,
+        "team_name": "Alpha",
+        "ties": 0,
+        "wins": 1
+      },
+      {
+        "losses": 1,
+        "points_against": 200.1,
+        "points_for": 180.05,
+        "rank": 2,
+        "team_name": "Beta",
+        "ties": 0,
+        "wins": 0
+      }
+    ],
+    "transactions": [
+      {
+        "created_ts": 1700003600,
+        "details": [
+          {
+            "assets_received": [],
+            "assets_sent": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "team_name": "Alpha"
+          },
+          {
+            "assets_received": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "assets_sent": [],
+            "team_name": "Beta"
+          }
+        ],
+        "status": "complete",
+        "type": "trade",
+        "week": 2
+      }
+    ]
+  },
+  "player_summary_by_id": {
+    "found": true,
+    "player": {
+      "injury_status": null,
+      "nfl_team": "AAA",
+      "player_name": "Player One",
+      "position": "QB",
+      "status": "Active"
+    }
+  },
+  "player_summary_by_name": {
+    "found": true,
+    "player": {
+      "injury_status": null,
+      "nfl_team": "AAA",
+      "player_name": "Player One",
+      "position": "QB",
+      "status": "Active"
+    }
+  },
+  "player_summary_not_found": {
+    "found": false,
+    "player_key": "missing"
+  },
+  "player_weekly_log": {
+    "avg_points": 65.25,
+    "found": true,
+    "performances": [
+      {
+        "points": 60.5,
+        "role": "starter",
+        "team_name": "Alpha",
+        "week": 1
+      },
+      {
+        "points": 70.0,
+        "role": "starter",
+        "team_name": "Alpha",
+        "week": 2
+      }
+    ],
+    "player_name": "Player One",
+    "total_points": 130.5,
+    "weeks_played": 2
+  },
+  "player_weekly_log_filtered": {
+    "avg_points": 70.0,
+    "found": true,
+    "performances": [
+      {
+        "points": 70.0,
+        "role": "starter",
+        "team_name": "Alpha",
+        "week": 2
+      }
+    ],
+    "player_name": "Player One",
+    "total_points": 70.0,
+    "week_from": 2,
+    "week_to": 2,
+    "weeks_played": 1
+  },
+  "playoff_brackets": {
+    "brackets": {
+      "winners": {
+        "champion": null,
+        "placements": [],
+        "rounds": {
+          "1": [
+            {
+              "loser": "Beta",
+              "matchup_id": 1,
+              "round": 1,
+              "status": "complete",
+              "team_1": "Alpha",
+              "team_2": "Beta",
+              "winner": "Alpha"
+            }
+          ],
+          "2": [
+            {
+              "loser": null,
+              "matchup_id": 2,
+              "placement": 1,
+              "round": 2,
+              "status": "pending",
+              "team_1": "Winner of Match 1",
+              "team_2": "Loser of Match 1",
+              "winner": null
+            }
+          ]
+        }
+      }
+    },
+    "found": true
+  },
+  "playoff_winners": {
+    "brackets": {
+      "winners": {
+        "champion": null,
+        "placements": [],
+        "rounds": {
+          "1": [
+            {
+              "loser": "Beta",
+              "matchup_id": 1,
+              "round": 1,
+              "status": "complete",
+              "team_1": "Alpha",
+              "team_2": "Beta",
+              "winner": "Alpha"
+            }
+          ],
+          "2": [
+            {
+              "loser": null,
+              "matchup_id": 2,
+              "placement": 1,
+              "round": 2,
+              "status": "pending",
+              "team_1": "Winner of Match 1",
+              "team_2": "Loser of Match 1",
+              "winner": null
+            }
+          ]
+        }
+      }
+    },
+    "found": true
+  },
+  "roster_current_by_manager": {
+    "found": true,
+    "picks": [
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2025"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 1,
+        "season": "2026"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2026"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 1,
+        "season": "2027"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2027"
+      }
+    ],
+    "roster": {
+      "bench": {
+        "def": [],
+        "k": [],
+        "qb": [],
+        "rb": [
+          {
+            "full_name": "Player Two",
+            "injury_status": null,
+            "nfl_team": "BBB",
+            "player_name": "Player Two",
+            "position": "RB",
+            "role": "bench",
+            "status": "Active"
+          }
+        ],
+        "te": [],
+        "wr": []
+      },
+      "starters": {
+        "def": [],
+        "k": [],
+        "qb": [
+          {
+            "full_name": "Player One",
+            "injury_status": null,
+            "nfl_team": "AAA",
+            "player_name": "Player One",
+            "position": "QB",
+            "role": "starter",
+            "status": "Active"
+          }
+        ],
+        "rb": [],
+        "te": [],
+        "wr": []
+      }
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "roster_current_by_name": {
+    "found": true,
+    "picks": [
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2025"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 1,
+        "season": "2026"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2026"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 1,
+        "season": "2027"
+      },
+      {
+        "current_team_name": "Alpha",
+        "original_team_name": "Alpha",
+        "round": 2,
+        "season": "2027"
+      }
+    ],
+    "roster": {
+      "bench": {
+        "def": [],
+        "k": [],
+        "qb": [],
+        "rb": [
+          {
+            "full_name": "Player Two",
+            "injury_status": null,
+            "nfl_team": "BBB",
+            "player_name": "Player Two",
+            "position": "RB",
+            "role": "bench",
+            "status": "Active"
+          }
+        ],
+        "te": [],
+        "wr": []
+      },
+      "starters": {
+        "def": [],
+        "k": [],
+        "qb": [
+          {
+            "full_name": "Player One",
+            "injury_status": null,
+            "nfl_team": "AAA",
+            "player_name": "Player One",
+            "position": "QB",
+            "role": "starter",
+            "status": "Active"
+          }
+        ],
+        "rb": [],
+        "te": [],
+        "wr": []
+      }
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "roster_snapshot": {
+    "as_of_week": 1,
+    "found": true,
+    "roster": {
+      "bench": {
+        "def": [],
+        "k": [],
+        "qb": [],
+        "rb": [
+          {
+            "nfl_team": "BBB",
+            "player_name": "Player Two",
+            "points": 40.0,
+            "position": "RB",
+            "role": "bench"
+          }
+        ],
+        "te": [],
+        "wr": []
+      },
+      "starters": {
+        "def": [],
+        "k": [],
+        "qb": [
+          {
+            "nfl_team": "AAA",
+            "player_name": "Player One",
+            "points": 60.5,
+            "position": "QB",
+            "role": "starter"
+          }
+        ],
+        "rb": [],
+        "te": [],
+        "wr": []
+      }
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "season_leaders": [
+    {
+      "avg_points": 65.25,
+      "best_week": 70.0,
+      "nfl_team": "AAA",
+      "player_name": "Player One",
+      "position": "QB",
+      "rank": 1,
+      "team_name": "Alpha",
+      "total_points": 130.5,
+      "weeks_played": 2,
+      "worst_week": 60.5
+    },
+    {
+      "avg_points": 57.5,
+      "best_week": 60.0,
+      "nfl_team": "CCC",
+      "player_name": "Player Three",
+      "position": "WR",
+      "rank": 2,
+      "team_name": "Beta",
+      "total_points": 115.0,
+      "weeks_played": 2,
+      "worst_week": 55.0
+    },
+    {
+      "avg_points": 40.0,
+      "best_week": 45.0,
+      "nfl_team": "DDD",
+      "player_name": "Player Four",
+      "position": "TE",
+      "rank": 3,
+      "team_name": "Beta",
+      "total_points": 80.0,
+      "weeks_played": 2,
+      "worst_week": 35.0
+    }
+  ],
+  "season_leaders_filtered": [
+    {
+      "avg_points": 70.0,
+      "best_week": 70.0,
+      "nfl_team": "AAA",
+      "player_name": "Player One",
+      "position": "QB",
+      "rank": 1,
+      "team_name": "Alpha",
+      "total_points": 70.0,
+      "weeks_played": 1,
+      "worst_week": 70.0
+    }
+  ],
+  "sql_named_params_and_limit": {
+    "columns": [
+      "roster_id",
+      "points"
+    ],
+    "row_count": 1,
+    "rows": [
+      [
+        1,
+        110.0
+      ]
+    ]
+  },
+  "standings": {
+    "as_of_week": 2,
+    "found": true,
+    "league_average_match": false,
+    "standings": [
+      {
+        "losses": 0,
+        "points_against": 180.05,
+        "points_for": 200.1,
+        "rank": 1,
+        "record": "1-0",
+        "streak_len": 1,
+        "streak_type": "W",
+        "team_name": "Alpha",
+        "ties": 0,
+        "wins": 1
+      },
+      {
+        "losses": 1,
+        "points_against": 200.1,
+        "points_for": 180.05,
+        "rank": 2,
+        "record": "0-1",
+        "streak_len": 1,
+        "streak_type": "L",
+        "team_name": "Beta",
+        "ties": 0,
+        "wins": 0
+      }
+    ]
+  },
+  "team_dossier_by_id": {
+    "as_of_week": 2,
+    "found": true,
+    "recent_games": [
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 110.0,
+        "points_b": 105.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 2
+      },
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 100.5,
+        "points_b": 90.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 1
+      }
+    ],
+    "standings": {
+      "losses": 0,
+      "points_against": 180.05,
+      "points_for": 200.1,
+      "rank": 1,
+      "record": "1-0",
+      "streak_len": 1,
+      "streak_type": "W",
+      "ties": 0,
+      "wins": 1
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "team_dossier_by_manager": {
+    "as_of_week": 2,
+    "found": true,
+    "recent_games": [
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 110.0,
+        "points_b": 105.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 2
+      },
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 100.5,
+        "points_b": 90.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 1
+      }
+    ],
+    "standings": {
+      "losses": 0,
+      "points_against": 180.05,
+      "points_for": 200.1,
+      "rank": 1,
+      "record": "1-0",
+      "streak_len": 1,
+      "streak_type": "W",
+      "ties": 0,
+      "wins": 1
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "team_dossier_by_name": {
+    "as_of_week": 2,
+    "found": true,
+    "recent_games": [
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 110.0,
+        "points_b": 105.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 2
+      },
+      {
+        "manager_a": "Alice",
+        "manager_b": "Bob",
+        "points_a": 100.5,
+        "points_b": 90.0,
+        "roster_id_a": 1,
+        "roster_id_b": 2,
+        "team_a": "Alpha",
+        "team_b": "Beta",
+        "week": 1
+      }
+    ],
+    "standings": {
+      "losses": 0,
+      "points_against": 180.05,
+      "points_for": 200.1,
+      "rank": 1,
+      "record": "1-0",
+      "streak_len": 1,
+      "streak_type": "W",
+      "ties": 0,
+      "wins": 1
+    },
+    "team": {
+      "manager_name": "Alice",
+      "team_name": "Alpha"
+    }
+  },
+  "team_dossier_not_found": {
+    "as_of_week": 2,
+    "found": false,
+    "roster_key": "missing"
+  },
+  "team_game": {
+    "as_of_week": 2,
+    "found": true,
+    "game": {
+      "points_a": 110.0,
+      "points_b": 105.0,
+      "roster_id_a": 1,
+      "roster_id_b": 2,
+      "team_a": "Alpha",
+      "team_b": "Beta",
+      "week": 2,
+      "winner": "Alpha"
+    }
+  },
+  "team_game_with_players": {
+    "as_of_week": 2,
+    "found": true,
+    "game": {
+      "points_a": 110.0,
+      "points_b": 105.0,
+      "roster_id_a": 1,
+      "roster_id_b": 2,
+      "team_a": "Alpha",
+      "team_a_players": {
+        "bench": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [
+            {
+              "nfl_team": "BBB",
+              "player_name": "Player Two",
+              "points": 40.0,
+              "position": "RB",
+              "role": "bench"
+            }
+          ],
+          "te": [],
+          "wr": []
+        },
+        "starters": {
+          "def": [],
+          "k": [],
+          "qb": [
+            {
+              "nfl_team": "AAA",
+              "player_name": "Player One",
+              "points": 70.0,
+              "position": "QB",
+              "role": "starter"
+            }
+          ],
+          "rb": [],
+          "te": [],
+          "wr": []
+        }
+      },
+      "team_b": "Beta",
+      "team_b_players": {
+        "bench": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [],
+          "te": [
+            {
+              "nfl_team": "DDD",
+              "player_name": "Player Four",
+              "points": 45.0,
+              "position": "TE",
+              "role": "bench"
+            }
+          ],
+          "wr": []
+        },
+        "starters": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [],
+          "te": [],
+          "wr": [
+            {
+              "nfl_team": "CCC",
+              "player_name": "Player Three",
+              "points": 60.0,
+              "position": "WR",
+              "role": "starter"
+            }
+          ]
+        }
+      },
+      "week": 2,
+      "winner": "Alpha"
+    }
+  },
+  "team_playoff_path": {
+    "bracket_type": "winners",
+    "final_placement": null,
+    "found": true,
+    "is_champion": false,
+    "is_eliminated": false,
+    "matchups": [
+      {
+        "matchup_id": 1,
+        "opponent": "Beta",
+        "result": "win",
+        "round": 1
+      }
+    ],
+    "team_name": "Alpha"
+  },
+  "team_schedule": {
+    "as_of_week": 2,
+    "found": true,
+    "playoff_games": [],
+    "regular_season_games": [
+      {
+        "opponent_name": "Beta",
+        "opponent_points": 90.0,
+        "result": "W",
+        "team_points": 100.5,
+        "week": 1
+      },
+      {
+        "opponent_name": "Beta",
+        "opponent_points": 105.0,
+        "result": "W",
+        "team_points": 110.0,
+        "week": 2
+      }
+    ],
+    "team_name": "Alpha"
+  },
+  "team_transactions": {
+    "found": true,
+    "team_name": "Alpha",
+    "transactions": [
+      {
+        "created_ts": 1700003600,
+        "details": [
+          {
+            "assets_received": [],
+            "assets_sent": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "team_name": "Alpha"
+          },
+          {
+            "assets_received": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "assets_sent": [],
+            "team_name": "Beta"
+          }
+        ],
+        "status": "complete",
+        "type": "trade",
+        "week": 2
+      },
+      {
+        "bid_amount": 5,
+        "created_ts": 1700000000,
+        "details": [
+          {
+            "assets_received": [
+              {
+                "age": 24,
+                "asset_type": "player",
+                "player_name": "Player Two",
+                "position": "RB",
+                "years_exp": 2
+              }
+            ],
+            "assets_sent": [],
+            "team_name": "Alpha"
+          },
+          {
+            "assets_received": [],
+            "assets_sent": [
+              {
+                "age": 27,
+                "asset_type": "player",
+                "player_name": "Player Three",
+                "position": "WR",
+                "years_exp": 5
+              }
+            ],
+            "team_name": "Beta"
+          }
+        ],
+        "status": "complete",
+        "type": "waiver",
+        "week": 1
+      }
+    ],
+    "week_from": 1,
+    "week_to": 2
+  },
+  "team_week_transactions": {
+    "found": true,
+    "team_name": "Alpha",
+    "transactions": [
+      {
+        "created_ts": 1700003600,
+        "details": [
+          {
+            "assets_received": [],
+            "assets_sent": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "team_name": "Alpha"
+          },
+          {
+            "assets_received": [
+              {
+                "asset_type": "pick",
+                "pick_original_team_name": "Alpha",
+                "pick_round": 1,
+                "pick_season": "2025"
+              }
+            ],
+            "assets_sent": [],
+            "team_name": "Beta"
+          }
+        ],
+        "status": "complete",
+        "type": "trade",
+        "week": 2
+      }
+    ],
+    "week_from": 2,
+    "week_to": 2
+  },
+  "transactions": [
+    {
+      "created_ts": 1700003600,
+      "details": [
+        {
+          "assets_received": [],
+          "assets_sent": [
+            {
+              "asset_type": "pick",
+              "pick_original_team_name": "Alpha",
+              "pick_round": 1,
+              "pick_season": "2025"
+            }
+          ],
+          "team_name": "Alpha"
+        },
+        {
+          "assets_received": [
+            {
+              "asset_type": "pick",
+              "pick_original_team_name": "Alpha",
+              "pick_round": 1,
+              "pick_season": "2025"
+            }
+          ],
+          "assets_sent": [],
+          "team_name": "Beta"
+        }
+      ],
+      "status": "complete",
+      "type": "trade",
+      "week": 2
+    },
+    {
+      "bid_amount": 5,
+      "created_ts": 1700000000,
+      "details": [
+        {
+          "assets_received": [
+            {
+              "age": 24,
+              "asset_type": "player",
+              "player_name": "Player Two",
+              "position": "RB",
+              "years_exp": 2
+            }
+          ],
+          "assets_sent": [],
+          "team_name": "Alpha"
+        },
+        {
+          "assets_received": [],
+          "assets_sent": [
+            {
+              "age": 27,
+              "asset_type": "player",
+              "player_name": "Player Three",
+              "position": "WR",
+              "years_exp": 5
+            }
+          ],
+          "team_name": "Beta"
+        }
+      ],
+      "status": "complete",
+      "type": "waiver",
+      "week": 1
+    }
+  ],
+  "week_games": [
+    {
+      "points_a": 110.0,
+      "points_b": 105.0,
+      "roster_id_a": 1,
+      "roster_id_b": 2,
+      "team_a": "Alpha",
+      "team_b": "Beta",
+      "week": 2,
+      "winner": "Alpha"
+    }
+  ],
+  "week_games_default": [
+    {
+      "points_a": 110.0,
+      "points_b": 105.0,
+      "roster_id_a": 1,
+      "roster_id_b": 2,
+      "team_a": "Alpha",
+      "team_b": "Beta",
+      "week": 2,
+      "winner": "Alpha"
+    }
+  ],
+  "week_games_with_players": [
+    {
+      "points_a": 110.0,
+      "points_b": 105.0,
+      "roster_id_a": 1,
+      "roster_id_b": 2,
+      "team_a": "Alpha",
+      "team_a_players": {
+        "bench": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [
+            {
+              "nfl_team": "BBB",
+              "player_name": "Player Two",
+              "points": 40.0,
+              "position": "RB",
+              "role": "bench"
+            }
+          ],
+          "te": [],
+          "wr": []
+        },
+        "starters": {
+          "def": [],
+          "k": [],
+          "qb": [
+            {
+              "nfl_team": "AAA",
+              "player_name": "Player One",
+              "points": 70.0,
+              "position": "QB",
+              "role": "starter"
+            }
+          ],
+          "rb": [],
+          "te": [],
+          "wr": []
+        }
+      },
+      "team_b": "Beta",
+      "team_b_players": {
+        "bench": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [],
+          "te": [
+            {
+              "nfl_team": "DDD",
+              "player_name": "Player Four",
+              "points": 45.0,
+              "position": "TE",
+              "role": "bench"
+            }
+          ],
+          "wr": []
+        },
+        "starters": {
+          "def": [],
+          "k": [],
+          "qb": [],
+          "rb": [],
+          "te": [],
+          "wr": [
+            {
+              "nfl_team": "CCC",
+              "player_name": "Player Three",
+              "points": 60.0,
+              "position": "WR",
+              "role": "starter"
+            }
+          ]
+        }
+      },
+      "week": 2,
+      "winner": "Alpha"
+    }
+  ],
+  "week_player_leaderboard": [
+    {
+      "nfl_team": "AAA",
+      "player_name": "Player One",
+      "points": 70.0,
+      "position": "QB",
+      "rank": 1,
+      "role": "starter",
+      "team_name": "Alpha"
+    },
+    {
+      "nfl_team": "CCC",
+      "player_name": "Player Three",
+      "points": 60.0,
+      "position": "WR",
+      "rank": 2,
+      "role": "starter",
+      "team_name": "Beta"
+    },
+    {
+      "nfl_team": "DDD",
+      "player_name": "Player Four",
+      "points": 45.0,
+      "position": "TE",
+      "rank": 3,
+      "role": "bench",
+      "team_name": "Beta"
+    }
+  ],
+  "week_transactions": [
+    {
+      "created_ts": 1700003600,
+      "details": [
+        {
+          "assets_received": [],
+          "assets_sent": [
+            {
+              "asset_type": "pick",
+              "pick_original_team_name": "Alpha",
+              "pick_round": 1,
+              "pick_season": "2025"
+            }
+          ],
+          "team_name": "Alpha"
+        },
+        {
+          "assets_received": [
+            {
+              "asset_type": "pick",
+              "pick_original_team_name": "Alpha",
+              "pick_round": 1,
+              "pick_season": "2025"
+            }
+          ],
+          "assets_sent": [],
+          "team_name": "Beta"
+        }
+      ],
+      "status": "complete",
+      "type": "trade",
+      "week": 2
+    }
+  ]
+}
