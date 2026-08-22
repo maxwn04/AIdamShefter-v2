@@ -260,6 +260,7 @@ class DatalayerSnapshotService:
         request: SnapshotRequest,
         claimed: DataSnapshot,
     ) -> ReadyDataSnapshot | None:
+        materialized: MaterializedSnapshot | None = None
         try:
             context = self._planning.get_snapshot_planning_context(
                 request.competition_season_id
@@ -321,6 +322,12 @@ class DatalayerSnapshotService:
             if public_error is error:
                 raise
             raise public_error from error
+        finally:
+            if materialized is not None:
+                try:
+                    materialized.path.unlink(missing_ok=True)
+                except OSError:
+                    pass
         return self._reuse_ready(sealed)
 
     def _replay(

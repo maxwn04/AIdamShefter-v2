@@ -159,6 +159,7 @@ __all__ = [
     "SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
     "ScopeRefreshResult",
+    "SQLiteSnapshotMaterializer",
     "SelectedRequestManifest",
     "SelectedRequestManifestEntry",
     "SnapshotRequirement",
@@ -240,7 +241,14 @@ def __getattr__(name: str) -> Any:
         "canonical_snapshot_build_key",
         "plan_snapshot_requirements",
         "select_snapshot_requests",
+        "SQLiteSnapshotMaterializer",
     }:
+        if name == "SQLiteSnapshotMaterializer":
+            from backend.services.datalayer.snapshot_sqlite import (
+                SQLiteSnapshotMaterializer,
+            )
+
+            return SQLiteSnapshotMaterializer
         if name in {
             "DatalayerSnapshotService",
             "MaterializedSnapshot",
