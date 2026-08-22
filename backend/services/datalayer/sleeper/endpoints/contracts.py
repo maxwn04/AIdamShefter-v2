@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Annotated, Literal, TypeAlias
 
 from pydantic import (
@@ -15,7 +16,7 @@ from pydantic import (
 )
 
 from backend.services.datalayer.canonical_json import JsonValue
-from backend.services.datalayer.sleeper.scope import EndpointKind
+from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 
 
 CompletenessReason = Annotated[
@@ -28,6 +29,13 @@ CompletenessReason = Annotated[
 ]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
+ApplyStage = Literal[1, 2, 3]
+ManagerRole = Literal["owner", "co_owner"]
+RosterRole = Literal["starter", "bench", "taxi", "reserve", "ir"]
+LineupRole = Literal["starter", "bench"]
+MoveKind = Literal["player", "pick"]
+BracketKind = Literal["winners", "losers"]
+ProgressionOutcome = Literal["w", "l"]
 
 
 class _EndpointValue(BaseModel):
@@ -47,6 +55,13 @@ class CompletenessFinding(_EndpointValue):
         if not self.is_complete and self.reason is None:
             raise ValueError("an incomplete payload requires a reason")
         return self
+
+
+class EndpointApplyMetadata(_EndpointValue):
+    """Pure ordering and prerequisite metadata for one canonical request."""
+
+    apply_stage: ApplyStage
+    dependency_scope_keys: tuple[ScopeKey, ...] = ()
 
 
 class LeagueRecord(_EndpointValue):
@@ -108,6 +123,121 @@ class PlayerRecord(_EndpointValue):
     metadata: dict[str, JsonValue]
 
 
+class RosterRecord(_EndpointValue):
+    sleeper_roster_id: StrictStr
+    settings: dict[str, JsonValue]
+    metadata: dict[str, JsonValue]
+    record_string: StrictStr | None = None
+    wins: NonNegativeInt
+    losses: NonNegativeInt
+    ties: NonNegativeInt
+    points_for: Decimal
+    points_against: Decimal
+
+
+class RosterManagerRecord(_EndpointValue):
+    sleeper_roster_id: StrictStr
+    sleeper_user_id: StrictStr
+    role: ManagerRole
+    source_order: NonNegativeInt
+
+
+class RosterPlayerRecord(_EndpointValue):
+    sleeper_roster_id: StrictStr
+    sleeper_player_id: StrictStr
+    role: RosterRole
+
+
+class TradedPickRecord(_EndpointValue):
+    draft_season_year: PositiveInt
+    draft_round: PositiveInt
+    original_sleeper_roster_id: StrictStr
+    current_owner_sleeper_roster_id: StrictStr
+    sleeper_pick_id: StrictStr | None = None
+
+
+class MatchupRecord(_EndpointValue):
+    week: PositiveInt
+    sleeper_roster_id: StrictStr
+    sleeper_matchup_id: NonNegativeInt | None = None
+    points: Decimal
+
+
+class PlayerPerformanceRecord(_EndpointValue):
+    week: PositiveInt
+    sleeper_roster_id: StrictStr
+    sleeper_matchup_id: NonNegativeInt | None = None
+    sleeper_player_id: StrictStr
+    points: Decimal
+    role: LineupRole
+
+
+class TransactionRecord(_EndpointValue):
+    week: PositiveInt
+    sleeper_transaction_id: StrictStr
+    transaction_type: StrictStr
+    status: StrictStr | None = None
+    provider_created_at_ms: NonNegativeInt | None = None
+    settings: dict[str, JsonValue]
+    metadata: dict[str, JsonValue]
+
+
+class TransactionMoveRecord(_EndpointValue):
+    sleeper_transaction_id: StrictStr
+    move_index: NonNegativeInt
+    move_kind: MoveKind
+    from_sleeper_roster_id: StrictStr | None = None
+    to_sleeper_roster_id: StrictStr | None = None
+    sleeper_player_id: StrictStr | None = None
+    draft_season_year: PositiveInt | None = None
+    draft_round: PositiveInt | None = None
+    original_sleeper_roster_id: StrictStr | None = None
+    sleeper_pick_id: StrictStr | None = None
+    budget_amount: NonNegativeInt | None = None
+
+    @model_validator(mode="after")
+    def validate_asset_identity(self) -> "TransactionMoveRecord":
+        pick_identity = (
+            self.draft_season_year,
+            self.draft_round,
+            self.original_sleeper_roster_id,
+        )
+        if self.move_kind == "player":
+            if self.sleeper_player_id is None or any(
+                value is not None
+                for value in (*pick_identity, self.sleeper_pick_id)
+            ):
+                raise ValueError("player moves require only a player identity")
+        elif self.sleeper_player_id is not None or any(
+            value is None for value in pick_identity
+        ):
+            raise ValueError("pick moves require one complete pick identity")
+        return self
+
+
+class BracketMatchupRecord(_EndpointValue):
+    bracket_kind: BracketKind
+    node_key: StrictStr
+    round: PositiveInt
+    t1_sleeper_roster_id: StrictStr | None = None
+    t2_sleeper_roster_id: StrictStr | None = None
+    t1_from_node_key: StrictStr | None = None
+    t1_from_outcome: ProgressionOutcome | None = None
+    t2_from_node_key: StrictStr | None = None
+    t2_from_outcome: ProgressionOutcome | None = None
+    winner_sleeper_roster_id: StrictStr | None = None
+    loser_sleeper_roster_id: StrictStr | None = None
+    placement: PositiveInt | None = None
+
+    @model_validator(mode="after")
+    def validate_progression_pairs(self) -> "BracketMatchupRecord":
+        if (self.t1_from_node_key is None) != (self.t1_from_outcome is None):
+            raise ValueError("t1 progression key and outcome must appear together")
+        if (self.t2_from_node_key is None) != (self.t2_from_outcome is None):
+            raise ValueError("t2 progression key and outcome must appear together")
+        return self
+
+
 class LeagueEndpointRecords(_EndpointValue):
     endpoint_kind: Literal[EndpointKind.LEAGUE] = EndpointKind.LEAGUE
     league: LeagueRecord
@@ -129,10 +259,56 @@ class PlayerCatalogEndpointRecords(_EndpointValue):
     players: tuple[PlayerRecord, ...]
 
 
+class LeagueRostersEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.LEAGUE_ROSTERS] = (
+        EndpointKind.LEAGUE_ROSTERS
+    )
+    rosters: tuple[RosterRecord, ...]
+    managers: tuple[RosterManagerRecord, ...]
+    players: tuple[RosterPlayerRecord, ...]
+
+
+class TradedPicksEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.TRADED_PICKS] = EndpointKind.TRADED_PICKS
+    picks: tuple[TradedPickRecord, ...]
+
+
+class MatchupsEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.MATCHUPS] = EndpointKind.MATCHUPS
+    matchups: tuple[MatchupRecord, ...]
+    player_performances: tuple[PlayerPerformanceRecord, ...]
+
+
+class TransactionsEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.TRANSACTIONS] = EndpointKind.TRANSACTIONS
+    transactions: tuple[TransactionRecord, ...]
+    moves: tuple[TransactionMoveRecord, ...]
+
+
+class WinnersBracketEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.WINNERS_BRACKET] = (
+        EndpointKind.WINNERS_BRACKET
+    )
+    matchups: tuple[BracketMatchupRecord, ...]
+
+
+class LosersBracketEndpointRecords(_EndpointValue):
+    endpoint_kind: Literal[EndpointKind.LOSERS_BRACKET] = (
+        EndpointKind.LOSERS_BRACKET
+    )
+    matchups: tuple[BracketMatchupRecord, ...]
+
+
 EndpointRecords: TypeAlias = Annotated[
     LeagueEndpointRecords
     | LeagueUsersEndpointRecords
     | NflStateEndpointRecords
-    | PlayerCatalogEndpointRecords,
+    | PlayerCatalogEndpointRecords
+    | LeagueRostersEndpointRecords
+    | TradedPicksEndpointRecords
+    | MatchupsEndpointRecords
+    | TransactionsEndpointRecords
+    | WinnersBracketEndpointRecords
+    | LosersBracketEndpointRecords,
     Field(discriminator="endpoint_kind"),
 ]
