@@ -16,6 +16,7 @@ ModelAttemptStatus = Literal[
     "cancelled",
     "unknown_outcome",
 ]
+ToolExecutionStatus = Literal["succeeded", "failed", "cancelled"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,31 @@ class ModelAttemptFinish:
     usage: RecordedTokenUsage = field(default_factory=RecordedTokenUsage)
 
 
+@dataclass(frozen=True, slots=True)
+class ToolExecutionStart:
+    turn_number: int
+    tool_ordinal: int
+    provider_tool_call_id: str | None
+    tool_name: str
+    implementation_version: str
+    arguments: dict[str, JsonValue]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolExecutionFinish:
+    status: ToolExecutionStatus
+    full_result_text: str | None = None
+    structured_result: dict[str, JsonValue] | list[JsonValue] | None = None
+    error_text: str | None = None
+    error: dict[str, JsonValue] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationProgress:
+    current_turn: int
+    current_stage: str
+
+
 class CompletionRecorder(Protocol):
     """Record provider attempts for exactly one durable generation."""
 
@@ -65,10 +91,34 @@ class CompletionRecorder(Protocol):
     def successful_ai_call_id(self, turn_number: int) -> UUID | None: ...
 
 
+class RunnerRecorder(Protocol):
+    """Record tool execution and bounded progress for one reporter run."""
+
+    def begin_tool_execution(self, execution: ToolExecutionStart) -> UUID: ...
+
+    def finish_tool_execution(
+        self,
+        execution_id: UUID,
+        result: ToolExecutionFinish,
+    ) -> None: ...
+
+    def update_progress(self, progress: GenerationProgress) -> None: ...
+
+
+class ExecutionRecorder(CompletionRecorder, RunnerRecorder, Protocol):
+    """Complete durable recorder contract used by a generation run."""
+
+
 __all__ = [
     "CompletionRecorder",
+    "ExecutionRecorder",
+    "GenerationProgress",
     "ModelAttemptFinish",
     "ModelAttemptStart",
     "ModelAttemptStatus",
     "RecordedTokenUsage",
+    "RunnerRecorder",
+    "ToolExecutionFinish",
+    "ToolExecutionStart",
+    "ToolExecutionStatus",
 ]

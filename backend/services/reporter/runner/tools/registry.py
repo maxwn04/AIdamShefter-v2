@@ -54,6 +54,9 @@ class ToolRegistry:
     def get_handler(self, name: str) -> Callable[..., Any] | None:
         return self._handlers.get(name)
 
+    def get_implementation_version(self, name: str) -> str | None:
+        return self._implementation_versions.get(name)
+
     def set_turn(self, turn: int) -> None:
         if self._context is not None:
             self._context.turn = turn

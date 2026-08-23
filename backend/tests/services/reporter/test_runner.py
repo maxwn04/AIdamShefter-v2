@@ -7,12 +7,18 @@ import json
 from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 import pytest
 
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
-from backend.services.reporter.runner.runner import Runner
+from backend.services.reporter.runner.recording import (
+    GenerationProgress,
+    ToolExecutionFinish,
+    ToolExecutionStart,
+)
+from backend.services.reporter.runner.runner import Runner, RunnerRecordingError
 from backend.services.reporter.runner.state import (
     ArtifactStore,
     ProcedureHistoryMode,
@@ -20,7 +26,47 @@ from backend.services.reporter.runner.state import (
 )
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.procedure_tools import (
+    register_procedure_tools,
+)
 from backend.services.reporter.runner.tools.registry import ToolRegistry
+
+
+class RecordingProbe:
+    def __init__(
+        self,
+        *,
+        fail_begin: bool = False,
+        fail_finish: bool = False,
+        fail_progress: bool = False,
+    ) -> None:
+        self.fail_begin = fail_begin
+        self.fail_finish = fail_finish
+        self.fail_progress = fail_progress
+        self.started: list[tuple[UUID, ToolExecutionStart]] = []
+        self.finished: list[tuple[UUID, ToolExecutionFinish]] = []
+        self.progress: list[GenerationProgress] = []
+
+    def begin_tool_execution(self, execution: ToolExecutionStart) -> UUID:
+        if self.fail_begin:
+            raise RuntimeError("database unavailable")
+        execution_id = uuid4()
+        self.started.append((execution_id, execution))
+        return execution_id
+
+    def finish_tool_execution(
+        self,
+        execution_id: UUID,
+        result: ToolExecutionFinish,
+    ) -> None:
+        if self.fail_finish:
+            raise RuntimeError("database unavailable")
+        self.finished.append((execution_id, result))
+
+    def update_progress(self, progress: GenerationProgress) -> None:
+        if self.fail_progress:
+            raise RuntimeError("database unavailable")
+        self.progress.append(progress)
 
 
 class FakeCompletion:
@@ -99,6 +145,8 @@ def test_tool_registry_exposes_specs_and_names() -> None:
     assert registry.tool_names == ["lookup"]
     assert registry.tool_specs == [tool_def("lookup")]
     assert registry.tool_implementation_versions == [("lookup", "test-v1")]
+    assert registry.get_implementation_version("lookup") == "test-v1"
+    assert registry.get_implementation_version("missing") is None
     assert registry.get_handler("lookup") is not None
     assert registry.get_handler("missing") is None
 
@@ -200,6 +248,187 @@ def test_runner_tool_call_dispatch() -> None:
     assert result_message["role"] == "tool"
     assert result_message["tool_call_id"] == "call_1"
     assert result_message["content"] == '{"ok": true, "value": 7}'
+
+
+def test_runner_records_parallel_tools_in_provider_order_with_exact_results() -> None:
+    async def handler(*, value: int, delay: float) -> dict[str, Any]:
+        await asyncio.sleep(delay)
+        return {"ok": value != 2, "value": value}
+
+    calls = [
+        tool_call("lookup", {"value": 1, "delay": 0.02}, "call_1"),
+        tool_call("lookup", {"value": 2, "delay": 0.0}, "call_2"),
+    ]
+    complete = FakeCompletion(
+        [make_response(tool_calls=calls), make_response(text="Done.")]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with("lookup", handler),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    assert [event.tool_ordinal for _, event in recorder.started] == [0, 1]
+    assert [event.provider_tool_call_id for _, event in recorder.started] == [
+        "call_1",
+        "call_2",
+    ]
+    assert [result.status for _, result in recorder.finished] == [
+        "succeeded",
+        "succeeded",
+    ]
+    persisted_by_id = {
+        execution_id: result.full_result_text
+        for execution_id, result in recorder.finished
+    }
+    persisted_in_provider_order = [
+        persisted_by_id[execution_id] for execution_id, _ in recorder.started
+    ]
+    sent_results = [
+        message["content"]
+        for message in complete.requests[1]["messages"]
+        if message["role"] == "tool"
+    ]
+    assert persisted_in_provider_order == sent_results
+    assert json.loads(sent_results[1]) == {"ok": False, "value": 2}
+
+
+def test_runner_records_unknown_tools_and_sanitized_handler_exceptions() -> None:
+    def explode() -> None:
+        raise RuntimeError("Bearer secret-token api_key=top-secret")
+
+    registry = registry_with("explode", explode)
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("missing"), tool_call("explode", call_id="call_2")]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(registry, complete=complete, recorder=recorder)
+
+    run(runner.run("system", "user"))
+
+    starts = [event for _, event in recorder.started]
+    assert starts[0].implementation_version == "unregistered-v1"
+    assert starts[1].implementation_version == "test-v1"
+    results = [result for _, result in recorder.finished]
+    assert [result.status for result in results] == ["failed", "failed"]
+    assert results[0].error == {
+        "type": "UnknownToolError",
+        "message": "Unknown tool: missing",
+    }
+    assert results[1].error is not None
+    assert results[1].error["type"] == "RuntimeError"
+    assert "secret-token" not in str(results[1].error)
+    assert "top-secret" not in str(results[1].error)
+    sent = [
+        message["content"]
+        for message in complete.requests[1]["messages"]
+        if message["role"] == "tool"
+    ]
+    assert sent == [result.full_result_text for result in results]
+
+
+def test_runner_records_tool_cancellation_and_reraises() -> None:
+    started = asyncio.Event()
+
+    async def wait_forever() -> None:
+        started.set()
+        await asyncio.Event().wait()
+
+    async def scenario() -> None:
+        recorder = RecordingProbe()
+        runner = Runner(
+            registry_with("wait", wait_forever),
+            complete=FakeCompletion([]),
+            recorder=recorder,
+        )
+        task = asyncio.create_task(runner._execute_tool(tool_call("wait"), 1, 0))
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert recorder.finished[0][1] == ToolExecutionFinish(status="cancelled")
+
+    run(scenario())
+
+
+def test_runner_records_bounded_turn_and_phase_progress() -> None:
+    registry = ToolRegistry()
+    register_artifact_tools(registry)
+    register_procedure_tools(registry)
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("load_procedure", {"name": "research"})]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(registry, complete=complete, recorder=recorder)
+
+    run(runner.run("system", "user"))
+
+    assert recorder.progress == [
+        GenerationProgress(current_turn=1, current_stage="running"),
+        GenerationProgress(current_turn=1, current_stage="research"),
+        GenerationProgress(current_turn=2, current_stage="research"),
+    ]
+
+
+def test_runner_progress_recording_fails_closed_before_provider_call() -> None:
+    complete = FakeCompletion([make_response(text="Done.")])
+    runner = Runner(
+        ToolRegistry(),
+        complete=complete,
+        recorder=RecordingProbe(fail_progress=True),
+    )
+
+    with pytest.raises(RunnerRecordingError, match="progress"):
+        run(runner.run("system", "user"))
+
+    assert complete.requests == []
+
+
+def test_runner_tool_recording_fails_closed_around_handler() -> None:
+    calls: list[str] = []
+
+    def handler() -> str:
+        calls.append("called")
+        return "result"
+
+    responses = [
+        make_response(tool_calls=[tool_call("lookup")]),
+        make_response(text="Done."),
+    ]
+    begin_complete = FakeCompletion(list(responses))
+    begin_runner = Runner(
+        registry_with("lookup", handler),
+        complete=begin_complete,
+        recorder=RecordingProbe(fail_begin=True),
+    )
+    with pytest.raises(RunnerRecordingError, match="begin"):
+        run(begin_runner.run("system", "user"))
+    assert calls == []
+    assert len(begin_complete.requests) == 1
+
+    finish_complete = FakeCompletion(list(responses))
+    finish_runner = Runner(
+        registry_with("lookup", handler),
+        complete=finish_complete,
+        recorder=RecordingProbe(fail_finish=True),
+    )
+    with pytest.raises(RunnerRecordingError, match="finish"):
+        run(finish_runner.run("system", "user"))
+    assert calls == ["called"]
+    assert len(finish_complete.requests) == 1
 
 
 def test_runner_carries_tool_call_history_after_tool_call() -> None:
