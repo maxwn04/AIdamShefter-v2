@@ -1,7 +1,7 @@
 # Typed Memory Application Implementation Plan
 
-**Status:** Proposed implementation plan  
-**Stack position:** `memory-0`  
+**Status:** Accepted implementation boundary map
+
 **Scope:** Application contracts, resource managers, canonical mutations,
 retrieval, API integration, and reporter integration
 
@@ -359,6 +359,9 @@ search documents, retirements, and current pointer together.
 
 The implementation uses the repository's `gh stack` workflow. Every branch is
 based on the preceding branch and each PR shows only its incremental changes.
+The layers below preserve the accepted dependency and ownership boundaries;
+mutable branch, PR, verification, and completion state lives in the local,
+gitignored `.context/memory/` workspace.
 
 ### `memory-0` — implementation plan
 
