@@ -9,10 +9,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from backend.resources.reporting.ai_calls import AICallManager
+from backend.resources.reporting.artifact_versions import ArtifactVersionManager
+from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import GenerationManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.services.generations import GenerationExecutionRecorder
 from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
     GenerationProgress,
     ModelAttemptFinish,
     ModelAttemptStart,
@@ -66,6 +69,51 @@ class FakeGenerationManager:
         return SimpleNamespace(id=command.generation_id)
 
 
+class FakeArtifactManager:
+    def __init__(self) -> None:
+        self.created = []
+        self.ids: dict[str, UUID] = {}
+
+    def create_artifact(self, command):
+        self.created.append(command)
+        artifact_id = self.ids.setdefault(command.path, uuid4())
+        return SimpleNamespace(
+            id=artifact_id,
+            generation_id=command.generation_id,
+            path=command.path,
+            media_type=command.media_type,
+        )
+
+
+class FakeArtifactVersionManager:
+    def __init__(self, generation_id: UUID) -> None:
+        self.generation_id = generation_id
+        self.appended = []
+        self.versions: dict[UUID, list[SimpleNamespace]] = {}
+
+    def append_artifact_version(self, command):
+        self.appended.append(command)
+        versions = self.versions.setdefault(command.artifact_id, [])
+        if (
+            versions
+            and versions[-1].content == command.content
+            and versions[-1].content_hash == command.content_hash
+        ):
+            return versions[-1]
+        version = SimpleNamespace(
+            id=uuid4(),
+            artifact_id=command.artifact_id,
+            generation_id=self.generation_id,
+            revision_number=len(versions) + 1,
+            content=command.content,
+            content_hash=command.content_hash,
+            source_ai_call_id=command.source_ai_call_id,
+            source_tool_call_id=command.source_tool_call_id,
+        )
+        versions.append(version)
+        return version
+
+
 def make_recorder(
     generation_id: UUID | None = None,
 ) -> tuple[
@@ -73,22 +121,36 @@ def make_recorder(
     FakeAICallManager,
     FakeToolCallManager,
     FakeGenerationManager,
+    FakeArtifactManager,
+    FakeArtifactVersionManager,
 ]:
+    resolved_generation_id = generation_id or uuid4()
     ai_calls = FakeAICallManager()
     tool_calls = FakeToolCallManager()
     generations = FakeGenerationManager()
+    artifacts = FakeArtifactManager()
+    artifact_versions = FakeArtifactVersionManager(resolved_generation_id)
     recorder = GenerationExecutionRecorder(
-        generation_id or uuid4(),
+        resolved_generation_id,
         cast(AICallManager, ai_calls),
         cast(ToolCallManager, tool_calls),
         cast(GenerationManager, generations),
+        cast(ArtifactManager, artifacts),
+        cast(ArtifactVersionManager, artifact_versions),
     )
-    return recorder, ai_calls, tool_calls, generations
+    return (
+        recorder,
+        ai_calls,
+        tool_calls,
+        generations,
+        artifacts,
+        artifact_versions,
+    )
 
 
 def test_recorder_maps_reporter_events_and_retains_success_identity() -> None:
     generation_id = uuid4()
-    recorder, manager, _, _ = make_recorder(generation_id)
+    recorder, manager, _, _, _, _ = make_recorder(generation_id)
     attempt_id = recorder.begin_model_attempt(
         ModelAttemptStart(
             turn_number=2,
@@ -123,7 +185,7 @@ def test_recorder_maps_reporter_events_and_retains_success_identity() -> None:
 
 
 def test_failed_attempt_does_not_become_successful_identity() -> None:
-    recorder, _, _, _ = make_recorder()
+    recorder, _, _, _, _, _ = make_recorder()
     attempt_id = recorder.begin_model_attempt(
         ModelAttemptStart(
             turn_number=1,
@@ -147,7 +209,7 @@ def test_failed_attempt_does_not_become_successful_identity() -> None:
 
 def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
     generation_id = uuid4()
-    recorder, _, tool_calls, _ = make_recorder(generation_id)
+    recorder, _, tool_calls, _, _, _ = make_recorder(generation_id)
     attempt_id = recorder.begin_model_attempt(
         ModelAttemptStart(
             turn_number=4,
@@ -202,7 +264,7 @@ def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
 
 
 def test_recorder_rejects_tools_without_a_successful_turn() -> None:
-    recorder, _, tool_calls, _ = make_recorder()
+    recorder, _, tool_calls, _, _, _ = make_recorder()
 
     with pytest.raises(RuntimeError, match="successful AI call"):
         recorder.begin_tool_execution(
@@ -221,7 +283,7 @@ def test_recorder_rejects_tools_without_a_successful_turn() -> None:
 
 def test_recorder_deduplicates_identical_progress_checkpoints() -> None:
     generation_id = uuid4()
-    recorder, _, _, generations = make_recorder(generation_id)
+    recorder, _, _, generations, _, _ = make_recorder(generation_id)
 
     recorder.update_progress(
         GenerationProgress(current_turn=1, current_stage="running")
@@ -240,3 +302,89 @@ def test_recorder_deduplicates_identical_progress_checkpoints() -> None:
         (generation_id, 1, "running"),
         (generation_id, 1, "research"),
     ]
+
+
+def test_recorder_persists_seed_and_tool_mutations_with_exact_provenance() -> None:
+    generation_id = uuid4()
+    recorder, _, _, _, artifacts, versions = make_recorder(generation_id)
+    seed = ArtifactMutation(
+        path="research/brief.md",
+        media_type="text/markdown",
+        content="# Brief",
+        revision=1,
+        content_hash="fd55350669a978d5a8cde0218d92baa5d6f8e1c9102f40cc42301a56543cc99d",
+    )
+    recorder.record_artifact_mutation(seed)
+
+    attempt_id = recorder.begin_model_attempt(
+        ModelAttemptStart(
+            turn_number=1,
+            requested_provider=None,
+            requested_model="model",
+            input_messages=(),
+            tool_definitions=(),
+            request_parameters={},
+        )
+    )
+    recorder.finish_model_attempt(
+        attempt_id,
+        ModelAttemptFinish(
+            status="succeeded",
+            actual_model="model",
+            provider_response={"choices": []},
+        ),
+    )
+    execution_id = recorder.begin_tool_execution(
+        ToolExecutionStart(
+            turn_number=1,
+            tool_ordinal=0,
+            provider_tool_call_id="call-1",
+            tool_name="edit_artifact",
+            implementation_version="2",
+            arguments={},
+        )
+    )
+    edited = ArtifactMutation(
+        path="research/brief.md",
+        media_type="text/markdown",
+        content="# Brief\n\nFact",
+        revision=2,
+        content_hash="08808033cd0b39693b096ed7cf4553f0186b76aae404c125b8ddb66b88680862",
+        source_tool_call_id=execution_id,
+    )
+    version_id = recorder.record_artifact_mutation(edited)
+
+    assert len(artifacts.created) == 2
+    seed_command, edit_command = versions.appended
+    assert seed_command.source_ai_call_id is None
+    assert seed_command.source_tool_call_id is None
+    assert edit_command.source_ai_call_id == attempt_id
+    assert edit_command.source_tool_call_id == execution_id
+    assert version_id == next(iter(versions.versions.values()))[-1].id
+
+
+def test_recorder_returns_identical_version_and_rejects_revision_drift() -> None:
+    recorder, _, _, _, _, versions = make_recorder()
+    mutation = ArtifactMutation(
+        path="article.md",
+        media_type="text/markdown",
+        content="same",
+        revision=1,
+        content_hash="0967115f2813a3541eaef77de9d9d5773f1c0c04314b0bbfe4ff3b3b1c55b5d5",
+    )
+
+    first = recorder.record_artifact_mutation(mutation)
+    repeated = recorder.record_artifact_mutation(mutation)
+
+    assert repeated == first
+    assert len(next(iter(versions.versions.values()))) == 1
+
+    drifted = ArtifactMutation(
+        path="article.md",
+        media_type="text/markdown",
+        content="different",
+        revision=3,
+        content_hash="9d6f965ac832e40a5df6c06afe983e3b449c07b843ff51ce76204de05c690d11",
+    )
+    with pytest.raises(RuntimeError, match="does not match mutation"):
+        recorder.record_artifact_mutation(drifted)

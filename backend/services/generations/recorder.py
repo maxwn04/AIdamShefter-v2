@@ -10,6 +10,11 @@ from backend.resources.reporting.ai_calls import (
     FinishAICall,
     TokenUsage,
 )
+from backend.resources.reporting.artifact_versions import (
+    AppendArtifactVersion,
+    ArtifactVersionManager,
+)
+from backend.resources.reporting.artifacts import ArtifactManager, CreateArtifact
 from backend.resources.reporting.generations import (
     GenerationManager,
     UpdateGenerationProgress,
@@ -20,6 +25,7 @@ from backend.resources.reporting.tool_calls import (
     ToolCallManager,
 )
 from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
     GenerationProgress,
     ModelAttemptFinish,
     ModelAttemptStart,
@@ -37,12 +43,17 @@ class GenerationExecutionRecorder:
         ai_call_manager: AICallManager,
         tool_call_manager: ToolCallManager,
         generation_manager: GenerationManager,
+        artifact_manager: ArtifactManager,
+        artifact_version_manager: ArtifactVersionManager,
     ) -> None:
         self._generation_id = generation_id
         self._ai_call_manager = ai_call_manager
         self._tool_call_manager = tool_call_manager
         self._generation_manager = generation_manager
+        self._artifact_manager = artifact_manager
+        self._artifact_version_manager = artifact_version_manager
         self._successful_by_turn: dict[int, UUID] = {}
+        self._tool_ai_calls: dict[UUID, UUID] = {}
         self._last_progress: tuple[int, str] | None = None
 
     @property
@@ -113,6 +124,7 @@ class GenerationExecutionRecorder:
                 arguments=execution.arguments,
             )
         )
+        self._tool_ai_calls[started.id] = ai_call_id
         return started.id
 
     def finish_tool_execution(
@@ -143,6 +155,50 @@ class GenerationExecutionRecorder:
             )
         )
         self._last_progress = checkpoint
+
+    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
+        source_ai_call_id: UUID | None = None
+        if mutation.source_tool_call_id is not None:
+            source_ai_call_id = self._tool_ai_calls.get(
+                mutation.source_tool_call_id
+            )
+            if source_ai_call_id is None:
+                raise RuntimeError(
+                    "artifact mutation requires a tool call begun by this recorder"
+                )
+
+        artifact = self._artifact_manager.create_artifact(
+            CreateArtifact(
+                generation_id=self._generation_id,
+                path=mutation.path,
+                media_type=mutation.media_type,
+            )
+        )
+        if (
+            artifact.generation_id != self._generation_id
+            or artifact.path != mutation.path
+            or artifact.media_type != mutation.media_type
+        ):
+            raise RuntimeError("durable artifact identity does not match mutation")
+
+        version = self._artifact_version_manager.append_artifact_version(
+            AppendArtifactVersion(
+                artifact_id=artifact.id,
+                content=mutation.content,
+                content_hash=mutation.content_hash,
+                source_ai_call_id=source_ai_call_id,
+                source_tool_call_id=mutation.source_tool_call_id,
+            )
+        )
+        if (
+            version.artifact_id != artifact.id
+            or version.generation_id != self._generation_id
+            or version.revision_number != mutation.revision
+            or version.content != mutation.content
+            or version.content_hash != mutation.content_hash
+        ):
+            raise RuntimeError("durable artifact version does not match mutation")
+        return version.id
 
 
 __all__ = ["GenerationExecutionRecorder"]

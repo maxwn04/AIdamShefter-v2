@@ -333,6 +333,11 @@ complete snapshots at successful mutation boundaries:
 | publishable draft artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision regardless of path |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
+The reporter-owned `research/brief.md` seed is persisted as revision 1 before
+the first provider call, without AI-call or tool-call provenance. Subsequent
+reporter edits therefore retain the same revision numbers in memory and in
+durable storage.
+
 Artifact versions use their source AI call/tool call when available. Reads do
 not append versions. Failed and content-identical mutations do not append
 versions. Durable finalization pins the selected version both on its artifact

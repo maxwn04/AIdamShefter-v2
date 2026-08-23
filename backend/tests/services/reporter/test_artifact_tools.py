@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 import json
+from uuid import UUID, uuid4
 
+import pytest
+
+from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
+    ArtifactRecordingError,
+)
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 from backend.services.reporter.runner.tools.artifact_tools import (
@@ -17,12 +24,27 @@ from backend.services.reporter.runner.tools.artifact_tools import (
 from backend.services.reporter.runner.tools.context import ToolContext
 
 
-def make_ctx() -> ToolContext:
+class ArtifactRecordingProbe:
+    def __init__(self, *, fail: bool = False) -> None:
+        self.fail = fail
+        self.mutations: list[ArtifactMutation] = []
+
+    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
+        if self.fail:
+            raise RuntimeError("database unavailable")
+        self.mutations.append(mutation)
+        return uuid4()
+
+
+def make_ctx(
+    recorder: ArtifactRecordingProbe | None = None,
+) -> ToolContext:
     return ToolContext(
         artifacts=ArtifactStore(),
         procedures=ProcedureState(),
         log=RunLog(session_id="testlog"),
         turn=3,
+        artifact_recorder=recorder,
     )
 
 
@@ -256,3 +278,60 @@ def test_submit_pins_existing_snapshot_and_final_artifact_is_immutable() -> None
     assert rejected_edit["error"]["code"] == "artifact_finalized"
     assert ctx.log.entries[-2].data["operation"] == "submit_artifact"
     assert ctx.log.entries[-1].event_type == "completion"
+
+
+def test_only_changed_mutations_are_recorded_with_bound_tool_provenance() -> None:
+    recorder = ArtifactRecordingProbe()
+    ctx = make_ctx(recorder)
+    create_call_id = uuid4()
+    edit_call_id = uuid4()
+
+    with ctx.bind_tool_execution(create_call_id):
+        create_artifact(ctx, path="article.md", content="Stable")
+    read_artifact(ctx, path="article.md")
+    with ctx.bind_tool_execution(uuid4()):
+        edit_artifact(
+            ctx,
+            path="article.md",
+            old_text="Stable",
+            new_text="Stable",
+            expected_revision=1,
+        )
+    with ctx.bind_tool_execution(edit_call_id):
+        edit_artifact(
+            ctx,
+            path="article.md",
+            old_text="Stable",
+            new_text="Changed",
+            expected_revision=1,
+        )
+    submit_artifact(ctx, path="article.md", expected_revision=2)
+
+    assert [mutation.revision for mutation in recorder.mutations] == [1, 2]
+    assert [
+        mutation.source_tool_call_id for mutation in recorder.mutations
+    ] == [create_call_id, edit_call_id]
+    assert recorder.mutations[-1].content == "Changed"
+
+
+def test_recording_failure_rolls_back_create_and_edit() -> None:
+    create_ctx = make_ctx(ArtifactRecordingProbe(fail=True))
+    with pytest.raises(ArtifactRecordingError, match="article.md"):
+        create_artifact(create_ctx, path="article.md", content="Draft")
+    assert create_ctx.artifacts.list() == ()
+
+    edit_ctx = make_ctx()
+    create_artifact(edit_ctx, path="article.md", content="Draft")
+    edit_ctx.artifact_recorder = ArtifactRecordingProbe(fail=True)
+    with pytest.raises(ArtifactRecordingError, match="article.md"):
+        edit_artifact(
+            edit_ctx,
+            path="article.md",
+            old_text="Draft",
+            new_text="Changed",
+            expected_revision=1,
+        )
+
+    snapshot = edit_ctx.artifacts.read("article.md")
+    assert snapshot.revision == 1
+    assert snapshot.content == "Draft"

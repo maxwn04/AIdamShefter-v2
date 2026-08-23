@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
 from typing import Any
 
@@ -66,7 +67,13 @@ class ArtifactStore(BaseModel):
         normalized = self._normalize_path(path)
         return self._get(normalized).current
 
-    def create(self, path: str, content: str) -> ArtifactSnapshot:
+    def create(
+        self,
+        path: str,
+        content: str,
+        *,
+        on_change: Callable[[ArtifactSnapshot], None] | None = None,
+    ) -> ArtifactSnapshot:
         normalized = self._normalize_path(path)
         collision = self._casefold_collision(normalized)
         if collision is not None:
@@ -79,6 +86,12 @@ class ArtifactStore(BaseModel):
 
         artifact = WorkingArtifact.create(path=normalized, content=content)
         self.artifacts[normalized] = artifact
+        try:
+            if on_change is not None:
+                on_change(artifact.current)
+        except Exception:
+            del self.artifacts[normalized]
+            raise
         return artifact.current
 
     def edit(
@@ -88,6 +101,7 @@ class ArtifactStore(BaseModel):
         old_text: str,
         new_text: str,
         expected_revision: int,
+        on_change: Callable[[ArtifactSnapshot], None] | None = None,
     ) -> tuple[ArtifactSnapshot, bool]:
         normalized = self._normalize_path(path)
         artifact = self._get(normalized)
@@ -127,7 +141,15 @@ class ArtifactStore(BaseModel):
         if updated == artifact.current.content:
             return artifact.current, False
 
-        return artifact.append(updated), True
+        previous_snapshots = artifact.snapshots
+        snapshot = artifact.append(updated)
+        try:
+            if on_change is not None:
+                on_change(snapshot)
+        except Exception:
+            artifact.snapshots = previous_snapshots
+            raise
+        return snapshot, True
 
     def submit(self, path: str, *, expected_revision: int) -> ArtifactSnapshot:
         normalized = self._normalize_path(path)

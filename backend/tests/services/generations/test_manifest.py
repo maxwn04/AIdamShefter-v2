@@ -126,7 +126,7 @@ def test_manifest_has_a_locked_schema_and_hash() -> None:
     assert built.schema_version == 1
     assert built.manifest["schema_version"] == 1
     assert built.manifest_hash == (
-        "6c8f715099f5421247c7bff04a01b103cbfb007ec391b292920b09a5c5cbb3a3"
+        "7990c2c3dfa07301b107b8091e66f21b601acb76a501492f9fb4d2a059e9bf3d"
     )
     assert built.canonical_bytes.decode("utf-8").startswith(
         '{"assets":{"procedures":[{"content_sha256":"'
@@ -189,7 +189,7 @@ def test_every_versioned_input_changes_manifest_identity(field: str) -> None:
         tool = inputs.tools[0].model_copy(update={"definition": definition})
         changed = inputs.model_copy(update={"tools": (tool, *inputs.tools[1:])})
     elif field == "tool_version":
-        tool = inputs.tools[0].model_copy(update={"implementation_version": "2"})
+        tool = inputs.tools[0].model_copy(update={"implementation_version": "3"})
         changed = inputs.model_copy(update={"tools": (tool, *inputs.tools[1:])})
     else:
         code = inputs.code.model_copy(update={"reporter_revision": "reporter-next"})
