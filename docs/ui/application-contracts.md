@@ -49,13 +49,13 @@ Recommended routes:
 
 | Method and path | Purpose | Status |
 | --- | --- | --- |
-| `GET /competitions` | List active competitions with season/freshness/article summary | Missing |
-| `POST /competitions` | Create `{display_name}` | Missing |
-| `GET /competitions/{competition_id}` | Competition detail and summary | Missing |
-| `PATCH /competitions/{competition_id}` | Rename or archive through explicit allowed fields | Missing |
-| `GET /competitions/{competition_id}/seasons` | Ordered season list | Missing |
-| `POST /competitions/{competition_id}/seasons` | Attach `{season_year, sleeper_league_id}` and derive sequence | Missing |
-| `GET /competitions/{competition_id}/seasons/{season_id}` | Season identity plus normalized league overview when present | Missing |
+| `GET /competitions` | List active competitions with season/freshness/article summary | Implemented |
+| `POST /competitions` | Create `{display_name}` | Implemented |
+| `GET /competitions/{competition_id}` | Competition detail and summary | Implemented |
+| `PATCH /competitions/{competition_id}` | Rename or archive through explicit allowed fields | Implemented |
+| `GET /competitions/{competition_id}/seasons` | Ordered season list | Implemented |
+| `POST /competitions/{competition_id}/seasons` | Attach `{season_year, sleeper_league_id}` and derive sequence | Implemented |
+| `GET /competitions/{competition_id}/seasons/{season_id}` | Season identity plus normalized league overview when present | Implemented |
 
 Example creation response:
 
@@ -71,10 +71,49 @@ Example creation response:
 }
 ```
 
+`PATCH /competitions/{competition_id}` accepts exactly one sparse change:
+
+```json
+{"display_name": "Renamed League"}
+```
+
+or:
+
+```json
+{"archived": true}
+```
+
+Empty bodies, null values, `archived: false`, combined changes, and unknown
+fields are rejected with `422`. Restore remains out of scope.
+
 The list/detail projection should include summaries the UI otherwise has to
 assemble with N+1 requests: season count/latest season, latest terminal and
 successful refresh timestamps, latest ready snapshot time, and latest submitted
 article time. These are read projections, not denormalized write contracts.
+
+Competition list items and detail responses carry the canonical competition
+beside that activity summary. Season list items carry the canonical season,
+normalized league name/status when available, latest terminal refresh status,
+boundary and counts, latest successful refresh time, and latest ready snapshot
+time. Season detail adds the complete normalized league overview when one has
+been loaded; before the first refresh that field is `null`.
+
+Typed competition errors use the new product envelope:
+
+```json
+{
+  "error": {
+    "code": "competition_season_year_exists",
+    "summary": "that season year is already attached to this competition",
+    "field_errors": {"season_year": ["Already attached to this competition."]}
+  }
+}
+```
+
+The stable core codes are `competition_not_found`,
+`competition_season_not_found`, `competition_archived`,
+`competition_season_year_exists`, `sleeper_league_id_exists`, and
+`competition_concurrency_conflict`.
 
 Season creation must return `409` codes for at least
 `competition_season_year_exists` and `sleeper_league_id_exists`. Editing an ID
