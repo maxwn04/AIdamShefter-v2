@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Workflow Tracker"
+  short_description: "Design docs and local implementation tracking"
+  default_prompt: "Use $track-feature-workflow to design and implement this feature with durable docs and local progress tracking."
