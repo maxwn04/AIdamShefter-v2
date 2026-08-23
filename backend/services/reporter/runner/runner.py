@@ -32,6 +32,8 @@ from backend.services.reporter.runner.models import (
 )
 from backend.services.reporter.runner.provider_telemetry import sanitize_provider_error
 from backend.services.reporter.runner.recording import (
+    ArtifactRecorder,
+    ArtifactRecordingError,
     GenerationProgress,
     RunnerRecorder,
     ToolExecutionFinish,
@@ -92,6 +94,7 @@ class Runner:
             artifacts=self.artifacts,
             procedures=self.procedures,
             log=self.log,
+            artifact_recorder=self._artifact_recorder(recorder),
         )
         self.registry.set_context(self.tool_context)
         self._procedure_message_idx: int | None = None
@@ -239,16 +242,24 @@ class Runner:
             )
             return result_content
 
+        artifact_recording_error: ArtifactRecordingError | None = None
         try:
-            result = handler(**call.arguments)
-            if asyncio.iscoroutine(result):
-                result = await result
+            with self.tool_context.bind_tool_execution(execution_id):
+                result = handler(**call.arguments)
+                if asyncio.iscoroutine(result):
+                    result = await result
         except asyncio.CancelledError:
             self._finish_tool_execution(
                 execution_id,
                 ToolExecutionFinish(status="cancelled"),
             )
             raise
+        except ArtifactRecordingError as exc:
+            artifact_recording_error = exc
+            error = sanitize_provider_error(exc)
+            error_text = str(error.get("message") or type(exc).__name__)
+            result = {"error": error_text}
+            status = "failed"
         except Exception as exc:
             error = sanitize_provider_error(exc)
             error_text = str(error.get("message") or type(exc).__name__)
@@ -278,6 +289,11 @@ class Runner:
                 error=error,
             ),
         )
+
+        if artifact_recording_error is not None:
+            raise RunnerRecordingError(
+                "Could not record durable artifact mutation"
+            ) from artifact_recording_error
 
         if call.name == "submit_artifact" and self._is_successful_submit(result_content):
             self._submitted = True
@@ -321,6 +337,15 @@ class Runner:
             raise RunnerRecordingError(
                 f"Could not record generation progress for turn {turn}"
             ) from exc
+
+    @staticmethod
+    def _artifact_recorder(
+        recorder: RunnerRecorder | None,
+    ) -> ArtifactRecorder | None:
+        if recorder is None:
+            return None
+        method = getattr(recorder, "record_artifact_mutation", None)
+        return cast(ArtifactRecorder, recorder) if callable(method) else None
 
     def _append_procedure_message(
         self,

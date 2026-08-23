@@ -14,6 +14,7 @@ import pytest
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
 from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
     GenerationProgress,
     ToolExecutionFinish,
     ToolExecutionStart,
@@ -39,13 +40,16 @@ class RecordingProbe:
         fail_begin: bool = False,
         fail_finish: bool = False,
         fail_progress: bool = False,
+        fail_artifact: bool = False,
     ) -> None:
         self.fail_begin = fail_begin
         self.fail_finish = fail_finish
         self.fail_progress = fail_progress
+        self.fail_artifact = fail_artifact
         self.started: list[tuple[UUID, ToolExecutionStart]] = []
         self.finished: list[tuple[UUID, ToolExecutionFinish]] = []
         self.progress: list[GenerationProgress] = []
+        self.artifact_mutations: list[ArtifactMutation] = []
 
     def begin_tool_execution(self, execution: ToolExecutionStart) -> UUID:
         if self.fail_begin:
@@ -67,6 +71,12 @@ class RecordingProbe:
         if self.fail_progress:
             raise RuntimeError("database unavailable")
         self.progress.append(progress)
+
+    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
+        if self.fail_artifact:
+            raise RuntimeError("database unavailable")
+        self.artifact_mutations.append(mutation)
+        return uuid4()
 
 
 class FakeCompletion:
@@ -429,6 +439,64 @@ def test_runner_tool_recording_fails_closed_around_handler() -> None:
         run(finish_runner.run("system", "user"))
     assert calls == ["called"]
     assert len(finish_complete.requests) == 1
+
+
+def test_runner_artifact_recording_fails_closed_and_rolls_back() -> None:
+    registry = ToolRegistry()
+    register_artifact_tools(registry)
+    recorder = RecordingProbe(fail_artifact=True)
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "Draft"},
+                    )
+                ]
+            )
+        ]
+    )
+    runner = Runner(registry, complete=complete, recorder=recorder)
+
+    with pytest.raises(RunnerRecordingError, match="artifact"):
+        run(runner.run("system", "user"))
+
+    assert runner.artifacts.list() == ()
+    assert recorder.finished[-1][1].status == "failed"
+
+
+def test_runner_parallel_artifact_provenance_is_invocation_local() -> None:
+    registry = ToolRegistry()
+    register_artifact_tools(registry)
+    recorder = RecordingProbe()
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "one.md", "content": "One"},
+                        "create_1",
+                    ),
+                    tool_call(
+                        "create_artifact",
+                        {"path": "two.md", "content": "Two"},
+                        "create_2",
+                    ),
+                ]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    runner = Runner(registry, complete=complete, recorder=recorder)
+
+    run(runner.run("system", "user"))
+
+    started_ids = [execution_id for execution_id, _ in recorder.started]
+    assert [
+        mutation.source_tool_call_id for mutation in recorder.artifact_mutations
+    ] == started_ids
 
 
 def test_runner_carries_tool_call_history_after_tool_call() -> None:

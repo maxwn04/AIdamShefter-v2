@@ -346,6 +346,8 @@ as a new immutable version. There is deliberately no `replace_all` mode.
 `list_artifacts` and `read_artifact` never append versions. Failed mutations and
 content-identical edits do not append versions. Each successful create/edit
 passes its complete snapshot to the recorder with source AI/tool provenance.
+The generator records its seeded `research/brief.md` snapshot as revision 1
+before the first model call, with no source AI call or tool call.
 
 `submit_artifact` accepts any non-empty artifact, requires its expected current
 revision, records no content version, and ends the reporter loop. The resulting

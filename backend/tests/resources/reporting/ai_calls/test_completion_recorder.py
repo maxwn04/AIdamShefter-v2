@@ -4,11 +4,20 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+import hashlib
 from typing import Any
 from uuid import UUID, uuid4
 
 from backend.database.sessions import SessionFactory
 from backend.resources.reporting.ai_calls import AICallManager, AICallQuery
+from backend.resources.reporting.artifact_versions import (
+    ArtifactVersionManager,
+    ArtifactVersionQuery,
+)
+from backend.resources.reporting.artifacts import (
+    ArtifactManager,
+    ArtifactQuery,
+)
 from backend.resources.reporting.generations import (
     CreateGeneration,
     GenerationManager,
@@ -22,6 +31,7 @@ from backend.services.reporter.runner.completion import (
     RetryPolicy,
 )
 from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
     GenerationProgress,
     ToolExecutionFinish,
     ToolExecutionStart,
@@ -93,11 +103,27 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
     context = generation_context(generation_domain)
     generation_manager = GenerationManager(session_factory, context)
     tool_call_manager = ToolCallManager(session_factory, context)
+    artifact_manager = ArtifactManager(session_factory, context)
+    artifact_version_manager = ArtifactVersionManager(session_factory, context)
     recorder = GenerationExecutionRecorder(
         generation_id,
         ai_call_manager,
         tool_call_manager,
         generation_manager,
+        artifact_manager,
+        artifact_version_manager,
+    )
+    seed_content = "# Brief"
+    seed_version_id = recorder.record_artifact_mutation(
+        ArtifactMutation(
+            path="research/brief.md",
+            media_type="text/markdown",
+            content=seed_content,
+            revision=1,
+            content_hash=hashlib.sha256(
+                seed_content.encode("utf-8")
+            ).hexdigest(),
+        )
     )
     client = CompletionClient(
         complete,
@@ -135,6 +161,19 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
             arguments={"week": 8},
         )
     )
+    edited_content = "# Brief\n\nVerified fact."
+    edited_version_id = recorder.record_artifact_mutation(
+        ArtifactMutation(
+            path="research/brief.md",
+            media_type="text/markdown",
+            content=edited_content,
+            revision=2,
+            content_hash=hashlib.sha256(
+                edited_content.encode("utf-8")
+            ).hexdigest(),
+            source_tool_call_id=execution_id,
+        )
+    )
     recorder.finish_tool_execution(
         execution_id,
         ToolExecutionFinish(
@@ -154,3 +193,17 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
     assert stored_tool.status.value == "succeeded"
     assert stored_tool.full_result_text == '{"ok": false}'
     assert stored_tool.structured_result == {"ok": False}
+
+    artifacts = artifact_manager.list(ArtifactQuery(generation_id=generation_id))
+    assert artifacts.total == 1
+    versions = artifact_version_manager.list(
+        ArtifactVersionQuery(artifact_id=artifacts.items[0].id)
+    )
+    assert [item.revision_number for item in versions.items] == [1, 2]
+    seed_version = artifact_version_manager.get(seed_version_id)
+    edited_version = artifact_version_manager.get(edited_version_id)
+    assert seed_version.source_ai_call_id is None
+    assert seed_version.source_tool_call_id is None
+    assert edited_version.source_ai_call_id == page.items[1].id
+    assert edited_version.source_tool_call_id == execution_id
+    assert edited_version.content == edited_content

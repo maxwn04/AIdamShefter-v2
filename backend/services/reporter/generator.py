@@ -25,9 +25,13 @@ from backend.services.reporter.runner.completion import (
     make_completion_client,
 )
 from backend.services.reporter.runner.memory_lifecycle import prepare_memory_run
-from backend.services.reporter.runner.recording import ExecutionRecorder
+from backend.services.reporter.runner.recording import (
+    ArtifactMutation,
+    ArtifactRecordingError,
+    ExecutionRecorder,
+)
 from backend.services.reporter.runner.runner import Runner
-from backend.services.reporter.runner.schemas import ReporterOutput
+from backend.services.reporter.runner.schemas import ArtifactSnapshot, ReporterOutput
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
@@ -103,6 +107,11 @@ async def generate_article(
             league_id=league_id,
             league_name=league_name,
         ),
+        on_change=(
+            _seed_artifact_recorder(resolved_recorder)
+            if resolved_recorder is not None
+            else None
+        ),
     )
 
     runner = Runner(
@@ -115,6 +124,28 @@ async def generate_article(
     )
 
     return await runner.run(_build_system_prompt(), _build_user_message(config))
+
+
+def _seed_artifact_recorder(
+    recorder: ExecutionRecorder,
+) -> Callable[[ArtifactSnapshot], None]:
+    def record(snapshot: ArtifactSnapshot) -> None:
+        try:
+            recorder.record_artifact_mutation(
+                ArtifactMutation(
+                    path=snapshot.path,
+                    media_type=snapshot.media_type,
+                    content=snapshot.content,
+                    revision=snapshot.revision,
+                    content_hash=snapshot.content_hash,
+                )
+            )
+        except Exception as exc:
+            raise ArtifactRecordingError(
+                f"Could not record seeded artifact {snapshot.path}"
+            ) from exc
+
+    return record
 
 
 def _build_registry(

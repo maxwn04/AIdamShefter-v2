@@ -13,7 +13,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "1"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "2"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -80,7 +80,10 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
                     "path": {"type": "string"},
                     "old_text": {
                         "type": "string",
-                        "description": "Exact non-empty text expected once, including whitespace.",
+                        "description": (
+                            "Exact non-empty text expected once, including "
+                            "whitespace."
+                        ),
                     },
                     "new_text": {"type": "string"},
                     "expected_revision": {
@@ -171,7 +174,11 @@ def read_artifact(ctx: ToolContext, *, path: str) -> str:
 
 def create_artifact(ctx: ToolContext, *, path: str, content: str) -> str:
     def operation() -> str:
-        artifact = ctx.artifacts.create(path, content)
+        artifact = ctx.artifacts.create(
+            path,
+            content,
+            on_change=ctx.record_artifact_mutation,
+        )
         ctx.log.add_artifact_write(
             artifact.path,
             "create_artifact",
@@ -200,6 +207,7 @@ def edit_artifact(
             old_text=old_text,
             new_text=new_text,
             expected_revision=expected_revision,
+            on_change=ctx.record_artifact_mutation,
         )
         if changed:
             ctx.log.add_artifact_write(

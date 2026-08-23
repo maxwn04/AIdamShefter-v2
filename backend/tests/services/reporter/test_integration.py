@@ -6,11 +6,13 @@ import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 from backend.services.reporter.config import ReportConfig, TimeRange
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.completion import CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
+from backend.services.reporter.runner.recording import ArtifactMutation
 
 
 class FakeCompletion:
@@ -23,6 +25,43 @@ class FakeCompletion:
         if not self.responses:
             return make_response(text="Done.")
         return self.responses.pop(0)
+
+
+class ExecutionRecordingProbe:
+    def __init__(self) -> None:
+        self.attempt_turns: dict[UUID, int] = {}
+        self.successful_turns: dict[int, UUID] = {}
+        self.tool_ai_calls: dict[UUID, UUID] = {}
+        self.artifact_mutations: list[ArtifactMutation] = []
+
+    def begin_model_attempt(self, attempt):
+        attempt_id = uuid4()
+        self.attempt_turns[attempt_id] = attempt.turn_number
+        return attempt_id
+
+    def finish_model_attempt(self, attempt_id, result):
+        if result.status == "succeeded":
+            self.successful_turns[self.attempt_turns[attempt_id]] = attempt_id
+
+    def successful_ai_call_id(self, turn_number):
+        return self.successful_turns.get(turn_number)
+
+    def begin_tool_execution(self, execution):
+        execution_id = uuid4()
+        self.tool_ai_calls[execution_id] = self.successful_turns[
+            execution.turn_number
+        ]
+        return execution_id
+
+    def finish_tool_execution(self, execution_id, result):
+        del execution_id, result
+
+    def update_progress(self, progress):
+        del progress
+
+    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
+        self.artifact_mutations.append(mutation)
+        return uuid4()
 
 
 class FakeFrozenLeagueData:
@@ -96,6 +135,7 @@ def run(coro: Any) -> Any:
 
 
 def test_generate_article_end_to_end_tool_loop() -> None:
+    recorder = ExecutionRecordingProbe()
     complete = FakeCompletion(
         [
             make_response(
@@ -239,6 +279,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
             ),
             completion=CompletionSettings(model="test-model"),
             complete=complete,
+            recorder=recorder,
         )
     )
 
@@ -286,6 +327,21 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         tool_names
     )
     assert "league_snapshot" in tool_names
+    histories = {
+        path: [
+            mutation
+            for mutation in recorder.artifact_mutations
+            if mutation.path == path
+        ]
+        for path in ("research/brief.md", "article.md")
+    }
+    assert [item.revision for item in histories["research/brief.md"]] == [1, 2, 3]
+    assert histories["research/brief.md"][0].source_tool_call_id is None
+    assert [item.revision for item in histories["article.md"]] == [1, 2]
+    tool_mutations = (
+        histories["research/brief.md"][1:] + histories["article.md"]
+    )
+    assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
 
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:

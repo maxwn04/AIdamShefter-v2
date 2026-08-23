@@ -19,6 +19,10 @@ ModelAttemptStatus = Literal[
 ToolExecutionStatus = Literal["succeeded", "failed", "cancelled"]
 
 
+class ArtifactRecordingError(RuntimeError):
+    """Durable artifact recording failed, so reporter execution must stop."""
+
+
 @dataclass(frozen=True, slots=True)
 class RecordedTokenUsage:
     input_tokens: int | None = None
@@ -72,6 +76,16 @@ class ToolExecutionFinish:
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactMutation:
+    path: str
+    media_type: Literal["text/markdown"]
+    content: str
+    revision: int
+    content_hash: str
+    source_tool_call_id: UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class GenerationProgress:
     current_turn: int
     current_stage: str
@@ -105,11 +119,25 @@ class RunnerRecorder(Protocol):
     def update_progress(self, progress: GenerationProgress) -> None: ...
 
 
-class ExecutionRecorder(CompletionRecorder, RunnerRecorder, Protocol):
+class ArtifactRecorder(Protocol):
+    """Record complete immutable snapshots for one generation."""
+
+    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID: ...
+
+
+class ExecutionRecorder(
+    CompletionRecorder,
+    RunnerRecorder,
+    ArtifactRecorder,
+    Protocol,
+):
     """Complete durable recorder contract used by a generation run."""
 
 
 __all__ = [
+    "ArtifactMutation",
+    "ArtifactRecorder",
+    "ArtifactRecordingError",
     "CompletionRecorder",
     "ExecutionRecorder",
     "GenerationProgress",
