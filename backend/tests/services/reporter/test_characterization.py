@@ -18,15 +18,11 @@ from backend.services.reporter.generator import (
 from backend.services.reporter.generator import generate_article as copied_generate
 from backend.services.reporter.runner.models import ToolCall as CopiedToolCall
 from backend.services.reporter.runner.schemas import (
-    Article,
-    ArticleOutput,
-    ReportBrief,
+    ArtifactSnapshot,
+    ReporterOutput,
 )
-from backend.services.reporter.runner.tools.article_tools import (
-    ARTICLE_TOOL_SPECS as COPIED_ARTICLE_TOOLS,
-)
-from backend.services.reporter.runner.tools.brief_tools import (
-    BRIEF_TOOL_SPECS as COPIED_BRIEF_TOOLS,
+from backend.services.reporter.runner.tools.artifact_tools import (
+    ARTIFACT_TOOL_SPECS as COPIED_ARTIFACT_TOOLS,
 )
 from backend.services.reporter.runner.tools.persistent_tools import (
     PERSISTENT_TOOL_SPECS as COPIED_PERSISTENT_TOOLS,
@@ -43,13 +39,7 @@ from reporter_v2.runner.article_generator import (
 )
 from reporter_v2.runner.article_generator import generate_article as legacy_generate
 from reporter_v2.runner.schemas import (
-    Article as LegacyArticle,
-)
-from reporter_v2.runner.schemas import (
     ArticleOutput as LegacyArticleOutput,
-)
-from reporter_v2.runner.schemas import (
-    ReportBrief as LegacyReportBrief,
 )
 from reporter_v2.runner.tools.article_tools import (
     ARTICLE_TOOL_SPECS as LEGACY_ARTICLE_TOOLS,
@@ -92,7 +82,34 @@ class DualLeagueData:
         return {"columns": [], "rows": [], "row_count": 0}
 
 
-class ScriptedCompletion:
+class CopiedScriptedCompletion:
+    def __init__(self) -> None:
+        self.responses = [
+            _response(
+                CopiedToolCall(
+                    id="create",
+                    name="create_artifact",
+                    arguments={
+                        "path": "article.md",
+                        "content": "# Week 8\n\nTaco won.",
+                    },
+                )
+            ),
+            _response(
+                CopiedToolCall(
+                    id="submit",
+                    name="submit_artifact",
+                    arguments={"path": "article.md", "expected_revision": 1},
+                )
+            ),
+        ]
+
+    async def __call__(self, **kwargs: Any) -> Any:
+        del kwargs
+        return self.responses.pop(0)
+
+
+class LegacyScriptedCompletion:
     def __init__(self) -> None:
         self.responses = [
             _response(
@@ -128,29 +145,15 @@ def _response(call: CopiedToolCall) -> Any:
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
-def _stable_output(output: Any) -> dict[str, Any]:
-    summary = dict(output.run_log_summary)
-    summary.pop("session_id", None)
-    entries = []
-    for entry in output.run_log_entries:
-        data = dict(entry["data"])
-        data.pop("duration_ms", None)
-        entries.append(
-            {
-                "turn": entry["turn"],
-                "event_type": entry["event_type"],
-                "data": data,
-            }
-        )
-    return {
-        "article": output.article,
-        "brief": output.brief.model_dump(mode="json"),
-        "summary": summary,
-        "entries": entries,
-    }
+def _tool_names(output: Any) -> list[str]:
+    return [
+        entry["data"]["tool_name"]
+        for entry in output.run_log_entries
+        if entry["event_type"] == "tool_call"
+    ]
 
 
-def test_public_config_and_artifact_schemas_match_legacy() -> None:
+def test_public_config_matches_legacy_and_artifact_schemas_diverge() -> None:
     config = ReportConfig(
         time_range=TimeRange.range(7, 8),
         focus_hints=["playoff race"],
@@ -161,12 +164,24 @@ def test_public_config_and_artifact_schemas_match_legacy() -> None:
         config.model_dump(mode="json")
     ).model_dump(mode="json")
     assert ReportConfig.model_json_schema() == LegacyReportConfig.model_json_schema()
-    assert ReportBrief.model_json_schema() == LegacyReportBrief.model_json_schema()
-    assert Article.model_json_schema() == LegacyArticle.model_json_schema()
-    assert ArticleOutput.model_json_schema() == LegacyArticleOutput.model_json_schema()
+    assert ReporterOutput.model_json_schema() != LegacyArticleOutput.model_json_schema()
+    assert set(ArtifactSnapshot.model_json_schema()["properties"]) == {
+        "path",
+        "media_type",
+        "content",
+        "revision",
+        "content_hash",
+    }
+    assert set(ReporterOutput.model_json_schema()["properties"]) == {
+        "submitted_path",
+        "artifacts",
+        "run_log_summary",
+        "run_log_entries",
+        "generated_at",
+    }
 
 
-def test_prompts_and_non_data_tool_contracts_match_legacy() -> None:
+def test_non_artifact_contracts_match_legacy_and_artifact_contract_diverges() -> None:
     config = ReportConfig.for_week(
         8,
         voice="deadpan beat writer",
@@ -175,47 +190,76 @@ def test_prompts_and_non_data_tool_contracts_match_legacy() -> None:
         custom_instructions="End with one clean callback.",
     )
 
-    assert copied_system_prompt() == legacy_system_prompt()
     assert copied_user_message(config) == legacy_user_message(
         LegacyReportConfig.model_validate(config.model_dump(mode="json"))
     )
-    assert COPIED_BRIEF_TOOLS == LEGACY_BRIEF_TOOLS
-    assert COPIED_ARTICLE_TOOLS == LEGACY_ARTICLE_TOOLS
+    assert copied_system_prompt() != legacy_system_prompt()
+    assert "research/brief.md" in copied_system_prompt()
+    assert "submit_artifact" in copied_system_prompt()
+
+    copied_artifact_names = [
+        spec["function"]["name"] for spec in COPIED_ARTIFACT_TOOLS
+    ]
+    legacy_artifact_names = {
+        spec["function"]["name"]
+        for spec in (*LEGACY_BRIEF_TOOLS, *LEGACY_ARTICLE_TOOLS)
+    }
+    assert copied_artifact_names == [
+        "list_artifacts",
+        "read_artifact",
+        "create_artifact",
+        "edit_artifact",
+        "submit_artifact",
+    ]
+    assert set(copied_artifact_names).isdisjoint(legacy_artifact_names)
     assert COPIED_PROCEDURE_TOOLS == LEGACY_PROCEDURE_TOOLS
     assert COPIED_PERSISTENT_TOOLS == LEGACY_PERSISTENT_TOOLS
 
 
-def test_prompt_and_procedure_assets_match_legacy() -> None:
+def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() -> None:
     legacy = ROOT / "reporter_v2"
     copied = ROOT / "backend" / "services" / "reporter"
 
-    for relative_path in (
-        "prompts/system.md",
-        "procedures/drafting.md",
-        "procedures/research.md",
-        "procedures/storyline.md",
-        "procedures/verification.md",
-    ):
-        assert (copied / relative_path).read_bytes() == (
-            legacy / relative_path
-        ).read_bytes()
+    expected_markers = {
+        "prompts/system.md": "list_artifacts",
+        "procedures/research.md": "research/brief.md",
+        "procedures/storyline.md": "edit_artifact",
+        "procedures/drafting.md": "create_artifact",
+        "procedures/verification.md": "submit_artifact",
+    }
+    for relative_path, marker in expected_markers.items():
+        copied_text = (copied / relative_path).read_text(encoding="utf-8")
+        legacy_text = (legacy / relative_path).read_text(encoding="utf-8")
+        assert copied_text != legacy_text
+        assert marker in copied_text
 
 
-def test_generator_and_runner_output_match_legacy() -> None:
+def test_generator_preserves_article_result_across_artifact_contract_divergence() -> None:
     data = DualLeagueData()
     copied = asyncio.run(
         copied_generate(
             data,  # type: ignore[arg-type]
             ReportConfig.for_week(8),
-            complete=ScriptedCompletion(),
+            complete=CopiedScriptedCompletion(),
         )
     )
     legacy = asyncio.run(
         legacy_generate(
             data,  # type: ignore[arg-type]
             LegacyReportConfig.for_week(8),
-            complete=ScriptedCompletion(),
+            complete=LegacyScriptedCompletion(),
         )
     )
 
-    assert _stable_output(copied) == _stable_output(legacy)
+    assert copied.article == legacy.article == "# Week 8\n\nTaco won."
+    assert copied.submitted_path == "article.md"
+    assert [artifact.path for artifact in copied.artifacts] == [
+        "article.md",
+        "research/brief.md",
+    ]
+    assert copied.artifacts[0].revision == 1
+    assert "# Research Brief" in copied.artifacts[1].content
+    assert copied.run_log_summary["submitted"] is True
+    assert legacy.run_log_summary["submitted"] is True
+    assert _tool_names(copied) == ["create_artifact", "submit_artifact"]
+    assert _tool_names(legacy) == ["write_section", "submit_article"]

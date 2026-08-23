@@ -11,7 +11,12 @@ from typing import Any
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
 from backend.services.reporter.runner.runner import Runner
-from backend.services.reporter.runner.state import ProcedureHistoryMode, RunnerConfig
+from backend.services.reporter.runner.state import (
+    ArtifactStore,
+    ProcedureHistoryMode,
+    RunnerConfig,
+)
+from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
@@ -126,7 +131,8 @@ def test_runner_simple_text_response() -> None:
 
     output = run(runner.run("system", "user"))
 
-    assert output.article == ""
+    assert output.submitted_path is None
+    assert output.artifacts == ()
     assert output.run_log_summary["total_turns"] == 1
     assert output.run_log_summary["total_tool_calls"] == 0
     assert runner.log.entries[0].event_type == "model_text"
@@ -228,42 +234,117 @@ def test_runner_preserves_reasoning_content_in_tool_call_history() -> None:
     assert assistant_message["reasoning_content"] == "reasoning payload"
 
 
-def test_runner_submit_article_breaks_loop() -> None:
-    def submit_article() -> str:
+def test_runner_submit_artifact_breaks_loop() -> None:
+    def submit_artifact(*, path: str, expected_revision: int) -> str:
+        assert (path, expected_revision) == ("article.md", 2)
         return '{"ok": true}'
 
     complete = FakeCompletion(
         [
-            make_response(tool_calls=[tool_call("submit_article")]),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 2},
+                    )
+                ]
+            ),
             make_response(text="Should not be requested."),
         ]
     )
-    runner = Runner(registry_with("submit_article", submit_article), complete=complete)
+    runner = Runner(
+        registry_with("submit_artifact", submit_artifact), complete=complete
+    )
 
     output = run(runner.run("system", "user"))
 
+    assert output.submitted_path is None
     assert output.run_log_summary["submitted"] is True
     assert output.run_log_summary["total_turns"] == 1
     assert len(complete.requests) == 1
 
 
-def test_runner_failed_submit_article_does_not_break_loop() -> None:
-    def submit_article() -> str:
-        return '{"ok": false, "error": "Cannot submit an empty article."}'
+def test_runner_failed_submit_artifact_does_not_break_loop() -> None:
+    def submit_artifact(*, path: str, expected_revision: int) -> str:
+        del path, expected_revision
+        return '{"ok": false, "error": {"code": "empty_submission"}}'
 
     complete = FakeCompletion(
         [
-            make_response(tool_calls=[tool_call("submit_article")]),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                    )
+                ]
+            ),
             make_response(text="Done."),
         ]
     )
-    runner = Runner(registry_with("submit_article", submit_article), complete=complete)
+    runner = Runner(
+        registry_with("submit_artifact", submit_artifact), complete=complete
+    )
 
     output = run(runner.run("system", "user"))
 
+    assert output.submitted_path is None
     assert output.run_log_summary["submitted"] is False
     assert output.run_log_summary["total_turns"] == 2
     assert len(complete.requests) == 2
+
+
+def test_runner_parallel_edits_with_same_revision_allow_exactly_one_success() -> None:
+    artifacts = ArtifactStore()
+    artifacts.create("article.md", "Alpha beta")
+    registry = ToolRegistry()
+    register_artifact_tools(registry)
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "edit_artifact",
+                        {
+                            "path": "article.md",
+                            "old_text": "Alpha",
+                            "new_text": "First",
+                            "expected_revision": 1,
+                        },
+                        "edit_1",
+                    ),
+                    tool_call(
+                        "edit_artifact",
+                        {
+                            "path": "article.md",
+                            "old_text": "beta",
+                            "new_text": "Second",
+                            "expected_revision": 1,
+                        },
+                        "edit_2",
+                    ),
+                ]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    runner = Runner(registry, complete=complete, artifacts=artifacts)
+
+    output = run(runner.run("system", "user"))
+
+    article = output.artifacts[0]
+    assert article.revision == 2
+    assert article.content == "First beta"
+    tool_results = [
+        json.loads(message["content"])
+        for message in complete.requests[1]["messages"]
+        if message["role"] == "tool"
+    ]
+    assert tool_results[0]["ok"] is True
+    assert tool_results[0]["artifact"]["revision"] == 2
+    assert tool_results[1]["ok"] is False
+    assert tool_results[1]["error"]["code"] == "revision_conflict"
+    assert tool_results[1]["error"]["current_revision"] == 2
 
 
 def test_runner_does_not_limit_tool_calls() -> None:

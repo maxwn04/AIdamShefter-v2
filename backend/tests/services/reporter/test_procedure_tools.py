@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 
 from backend.services.reporter.runner.run_log import RunLog, ProcedureSwitch
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
@@ -85,3 +87,40 @@ def test_procedure_state_updated(tmp_path, monkeypatch) -> None:
 
     load_procedure(ctx, name="verification")
     assert ctx.procedures.active == "verification"
+
+
+def test_prompts_reference_only_generic_artifact_tools() -> None:
+    reporter_root = (
+        Path(__file__).parents[4] / "backend" / "services" / "reporter"
+    )
+    prompt_paths = [
+        reporter_root / "prompts" / "system.md",
+        *(reporter_root / "procedures").glob("*.md"),
+    ]
+    content = "\n".join(path.read_text(encoding="utf-8") for path in prompt_paths)
+
+    removed_tools = {
+        "read_brief",
+        "save_fact",
+        "save_storyline",
+        "set_style",
+        "set_bias",
+        "set_outline",
+        "save_memory_callback",
+        "read_article",
+        "write_section",
+        "rewrite_section",
+        "set_section_order",
+        "submit_article",
+    }
+    for tool_name in removed_tools:
+        assert re.search(rf"`{re.escape(tool_name)}(?:`|\()", content) is None
+
+    for tool_name in {
+        "list_artifacts",
+        "read_artifact",
+        "create_artifact",
+        "edit_artifact",
+        "submit_artifact",
+    }:
+        assert f"`{tool_name}" in content

@@ -405,12 +405,11 @@ def test_plan_memory_verification_returns_hints(store: ContextStore) -> None:
     )
 
 
-def test_record_memory_verification_requires_roles_and_facts(
+def test_record_memory_verification_requires_roles_but_leaves_markdown_fact_checks_to_prompt(
     store: ContextStore,
 ) -> None:
     from backend.services.reporter.runner.run_log import RunLog
     from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
-    from backend.services.reporter.runner.tools.brief_tools import save_fact
     from backend.services.reporter.runner.tools.context import ToolContext
 
     _seed_trade_arc(store)
@@ -436,32 +435,6 @@ def test_record_memory_verification_requires_roles_and_facts(
     assert "origin_receipt" not in missing_roles["missing_roles"]
     assert "current_payoff" in missing_roles["missing_roles"]
 
-    missing_facts = decode(
-        handler(
-            candidate_id="story_trade",
-            status="verified",
-            fact_links=[
-                {"role": "origin_receipt", "fact_id": "fact_old"},
-                {"role": "current_payoff", "fact_id": "fact_now"},
-            ],
-        )
-    )
-    assert missing_facts["ok"] is False
-    assert set(missing_facts["missing_fact_ids"]) == {"fact_old", "fact_now"}
-
-    save_fact(
-        ctx,
-        id="fact_old",
-        claim_text="Team A traded Player X in week 3.",
-        data_refs=["transactions:week=3"],
-    )
-    save_fact(
-        ctx,
-        id="fact_now",
-        claim_text="Player X scored 28 against Team A in week 9.",
-        data_refs=["team_game:Team A:week=9"],
-    )
-
     result = decode(
         handler(
             candidate_id="story_trade",
@@ -470,7 +443,6 @@ def test_record_memory_verification_requires_roles_and_facts(
                 {"role": "origin_receipt", "fact_id": "fact_old"},
                 {"role": "current_payoff", "fact_id": "fact_now"},
             ],
-            reason="Both receipt and payoff confirmed.",
         )
     )
     assert result["ok"] is True

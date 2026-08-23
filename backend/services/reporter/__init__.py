@@ -8,12 +8,12 @@ from backend.services.reporter.config import (
 )
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.runner import Runner
-from backend.services.reporter.runner.schemas import ArticleOutput
+from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ProcedureHistoryMode, RunnerConfig
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 __all__ = [
-    "ArticleOutput",
+    "ReporterOutput",
     "BiasProfile",
     "ProcedureHistoryMode",
     "ReportConfig",
