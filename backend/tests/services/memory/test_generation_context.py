@@ -108,3 +108,19 @@ def test_context_keeps_search_pinned_and_finalizes_its_buffer_once() -> None:
                 query=SearchDocumentQuery(text="buffered fact")
             )
         )
+
+
+def test_discard_closes_an_abandoned_proposal_buffer() -> None:
+    context = GenerationMemoryContext(
+        competition_id=uuid4(),
+        generation_id=uuid4(),
+        pinned_revision_id=uuid4(),
+        retrieval=RecordingRetrieval(),
+    )
+    context.propose_event(_event())
+
+    context.discard()
+    context.discard()
+
+    with pytest.raises(GenerationMemoryContextClosedError):
+        context.take_completed_bundle()

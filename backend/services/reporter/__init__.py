@@ -6,6 +6,12 @@ from backend.services.reporter.config import (
     TimeRange,
     ToneControls,
 )
+from backend.services.reporter.definition import (
+    PreparedProcedure,
+    PreparedReporterDefinition,
+    PreparedTool,
+    prepare_reporter_definition,
+)
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.runner import Runner
 from backend.services.reporter.runner.schemas import ReporterOutput
@@ -16,6 +22,9 @@ __all__ = [
     "ReporterOutput",
     "BiasProfile",
     "ProcedureHistoryMode",
+    "PreparedProcedure",
+    "PreparedReporterDefinition",
+    "PreparedTool",
     "ReportConfig",
     "Runner",
     "RunnerConfig",
@@ -23,4 +32,5 @@ __all__ = [
     "ToneControls",
     "ToolRegistry",
     "generate_article",
+    "prepare_reporter_definition",
 ]

@@ -18,6 +18,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from backend.services.reporter.config import ReportConfig
+from backend.services.reporter.definition import (
+    PreparedReporterDefinition,
+    prepare_reporter_definition,
+)
 from backend.services.reporter.runner.completion import (
     CompletionClient,
     CompletionFn,
@@ -55,6 +59,7 @@ async def generate_article(
     complete: CompletionFn | None = None,
     recorder: ExecutionRecorder | None = None,
     allow_memory_writes: bool = True,
+    definition: PreparedReporterDefinition | None = None,
 ) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
 
@@ -71,11 +76,16 @@ async def generate_article(
         allow_memory_writes: When False (eval mode), skip memory mutations
             while retaining pinned memory search.
     """
+    prepared = definition or prepare_reporter_definition(
+        memory_enabled=memory_context is not None
+    )
     registry = _build_registry(
         data,
         memory_context=memory_context,
         allow_memory_writes=allow_memory_writes,
+        procedures=prepared.procedure_contents,
     )
+    _require_matching_definition(registry, prepared)
     resolved_recorder = recorder
     if resolved_recorder is None and client is not None:
         resolved_recorder = cast(ExecutionRecorder | None, client.recorder)
@@ -114,7 +124,7 @@ async def generate_article(
         recorder=resolved_recorder,
     )
 
-    return await runner.run(_build_system_prompt(), _build_user_message(config))
+    return await runner.run(prepared.system_prompt, _build_user_message(config))
 
 
 def _seed_artifact_recorder(
@@ -144,10 +154,11 @@ def _build_registry(
     *,
     memory_context: GenerationMemoryContext | None,
     allow_memory_writes: bool,
+    procedures: dict[str, str] | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     register_artifact_tools(registry)
-    register_procedure_tools(registry)
+    register_procedure_tools(registry, procedures)
     register_datalayer_tools(registry, data)
     if memory_context is not None:
         register_memory_tools(
@@ -157,6 +168,20 @@ def _build_registry(
             allow_memory_writes=allow_memory_writes,
         )
     return registry
+
+
+def _require_matching_definition(
+    registry: ToolRegistry,
+    definition: PreparedReporterDefinition,
+) -> None:
+    expected_specs = [tool.definition for tool in definition.tools]
+    expected_versions = [
+        (tool.name, tool.implementation_version) for tool in definition.tools
+    ]
+    if registry.tool_specs != expected_specs:
+        raise ValueError("prepared reporter tool definitions differ from execution")
+    if registry.tool_implementation_versions != expected_versions:
+        raise ValueError("prepared reporter tool versions differ from execution")
 
 
 def _resolve_client(

@@ -220,6 +220,21 @@ def test_memory_input_variants_are_explicit() -> None:
     assert live.manifest_hash != evaluation.manifest_hash
 
 
+def test_week_scoped_manifest_allows_no_instant_domain_cutoff() -> None:
+    inputs = _inputs()
+    inputs = inputs.model_copy(
+        update={
+            "cutoffs": inputs.cutoffs.model_copy(
+                update={"domain_cutoff_at": None}
+            )
+        }
+    )
+
+    built = build_generation_manifest(inputs)
+
+    assert built.manifest["cutoffs"]["domain_cutoff_at"] is None
+
+
 def test_manifest_is_input_only_and_submit_schema_is_path_generic() -> None:
     inputs = _inputs()
     built = build_generation_manifest(inputs)

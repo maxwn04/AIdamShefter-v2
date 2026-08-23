@@ -63,7 +63,7 @@ MemoryInput: TypeAlias = Annotated[
 
 class ManifestCutoffs(ContractModel):
     domain_cutoff_week: PositiveWeek
-    domain_cutoff_at: AwareDatetime
+    domain_cutoff_at: AwareDatetime | None = None
     knowledge_cutoff_at: AwareDatetime
 
 
