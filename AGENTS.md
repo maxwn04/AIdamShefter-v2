@@ -16,7 +16,8 @@ The pipeline: `Sleeper API → Normalize → In-Memory SQLite → Query API → 
 ## Setup
 
 ```bash
-pip install -e .                   # Installs datalayer CLI and reporter-v2 CLI
+uv python install                  # Installs the version pinned in .python-version
+uv sync                            # Creates .venv and installs locked dependencies
 ```
 
 Required `.env` file in project root:
@@ -32,21 +33,21 @@ REPORTER_OUTPUT_DIR=.output        # Optional: where articles are saved
 
 ```bash
 # Tests
-pytest                                          # All default tests
-pytest datalayer/tests/                         # All datalayer tests
-pytest reporter_memory/tests/                   # Reporter memory tests
-pytest reporter_v2/tests/                       # Reporter v2 tests
-pytest datalayer/tests/unit/                    # Datalayer unit tests
-pytest datalayer/tests/integration/             # Datalayer integration tests
+uv run pytest                                   # All default tests
+uv run pytest datalayer/tests/                  # All datalayer tests
+uv run pytest reporter_memory/tests/            # Reporter memory tests
+uv run pytest reporter_v2/tests/                # Reporter v2 tests
+uv run pytest datalayer/tests/unit/             # Datalayer unit tests
+uv run pytest datalayer/tests/integration/      # Datalayer integration tests
 
 # Datalayer CLI
-sleeperdl app                                   # Interactive query shell
-sleeperdl load-export --output out.sqlite       # Export to SQLite file
+uv run sleeperdl app                            # Interactive query shell
+uv run sleeperdl load-export --output out.sqlite # Export to SQLite file
 
 # Reporter CLI
-reporter-v2 "weekly recap" --week 8                         # Natural language request
-reporter-v2 "snarky recap, roast Team Taco" --week 8         # With week and style hints
-reporter-v2 "power rankings with analysis" --week 8          # Any article type
+uv run reporter-v2 "weekly recap" --week 8                  # Natural language request
+uv run reporter-v2 "snarky recap, roast Team Taco" --week 8 # With week and style hints
+uv run reporter-v2 "power rankings with analysis" --week 8  # Any article type
 ```
 
 ## Project Structure

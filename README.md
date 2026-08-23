@@ -7,10 +7,13 @@ continuity, and writes data-grounded articles with the reporter v2 runner.
 ## Setup
 
 ```bash
-pip install -e .
+uv python install
+uv sync
 ```
 
-Create a `.env` file in the project root:
+`uv` reads `.python-version`, creates the project-local `.venv`, and installs
+the exact dependency versions recorded in `uv.lock`. Copy `.env.example` to
+`.env`, then provide at least:
 
 ```
 SLEEPER_LEAGUE_ID=<league_id>
@@ -21,14 +24,14 @@ OPENAI_API_KEY=<key>
 
 ```bash
 # Datalayer CLI
-sleeperdl app                                          # Interactive query shell
-sleeperdl load-export --output out.sqlite
+uv run sleeperdl app                                          # Interactive query shell
+uv run sleeperdl load-export --output out.sqlite
 
 # Reporter CLI
-reporter-v2 "weekly recap" --week 8                    # Natural language request
-reporter-v2 "snarky recap, roast Team Taco" --week 8   # With week and style hints
-reporter-v2 "power rankings with analysis" --week 8    # Any article type
-reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
+uv run reporter-v2 "weekly recap" --week 8                    # Natural language request
+uv run reporter-v2 "snarky recap, roast Team Taco" --week 8   # With week and style hints
+uv run reporter-v2 "power rankings with analysis" --week 8    # Any article type
+uv run reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
 ```
 
 ## API Server
@@ -39,7 +42,7 @@ boundary for generation, memory, and Sleeper-data APIs as their services land.
 ```bash
 export AIDAM_DATABASE_URL=postgresql+psycopg://aidam_api:password@localhost/aidam
 export AIDAM_DATABASE_REQUIRE_TLS=false  # isolated local PostgreSQL only
-aidam-api
+uv run aidam-api
 ```
 
 The server listens on `127.0.0.1:8000` by default. Override that with
@@ -50,13 +53,13 @@ database name, runtime role, and TLS policy.
 ## Tests
 
 ```bash
-pytest                                  # All tests
-pytest datalayer/tests/                 # Datalayer tests only
-pytest reporter_memory/tests/           # Reporter memory tests only
-pytest reporter_v2/tests/               # Reporter v2 tests only
-pytest backend/tests/api/                # API boundary tests only
-pytest datalayer/tests/unit/            # Datalayer unit tests
-pytest datalayer/tests/integration/     # Datalayer integration tests
+uv run pytest                                  # All tests
+uv run pytest datalayer/tests/                 # Datalayer tests only
+uv run pytest reporter_memory/tests/           # Reporter memory tests only
+uv run pytest reporter_v2/tests/               # Reporter v2 tests only
+uv run pytest backend/tests/api/               # API boundary tests only
+uv run pytest datalayer/tests/unit/            # Datalayer unit tests
+uv run pytest datalayer/tests/integration/     # Datalayer integration tests
 ```
 
 ## Project Structure
