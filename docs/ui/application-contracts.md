@@ -81,6 +81,12 @@ Season creation must return `409` codes for at least
 after observations exist is out of v1 scope; the API should not expose a broad
 season patch until that lifecycle is designed.
 
+Competition archive is one-way in v1. Active competition lists exclude archived
+rows by default, while direct competition and historical season reads remain
+available. Repeating archive is idempotent; renaming an archived competition or
+attaching another season is rejected. Restore and cascading changes to existing
+generation or memory resources are out of scope.
+
 ## Required Refresh and Data Audit API
 
 | Method and path | Purpose | Status |
