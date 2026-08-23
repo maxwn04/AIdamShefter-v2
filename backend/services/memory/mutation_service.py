@@ -61,18 +61,7 @@ class MemoryMutationService:
     def apply(self, bundle: MemoryMutationBundle) -> MemoryMutationResult:
         """Apply a completed generation bundle exactly as one mutation unit."""
 
-        writes = tuple(_canonical_write(proposal) for proposal in bundle.proposals)
-        revision = self._revision_manager.commit(
-            CanonicalWriteBundle(
-                competition_id=bundle.competition_id,
-                generation_id=bundle.generation_id,
-                expected_revision_id=bundle.expected_revision_id,
-                competition_season_id=bundle.competition_season_id,
-                week=bundle.week,
-                knowledge_cutoff_at=bundle.knowledge_cutoff_at,
-                writes=writes,
-            )
-        )
+        revision = self._revision_manager.commit(prepare_canonical_bundle(bundle))
         return MemoryMutationResult(
             revision=revision,
             changes=tuple(
@@ -252,7 +241,6 @@ class MemoryMutationService:
             metadata=metadata or MemoryMutationMetadata(),
         )
         return self.apply(_single_bundle(self._revision_manager, origin, proposal))
-
     def _single_replace(
         self,
         origin: MemoryMutationOrigin,
@@ -274,6 +262,20 @@ class MemoryMutationService:
             metadata=metadata or MemoryMutationMetadata(),
         )
         return self.apply(_single_bundle(self._revision_manager, origin, proposal))
+
+
+def prepare_canonical_bundle(bundle: MemoryMutationBundle) -> CanonicalWriteBundle:
+    """Translate a completed proposal bundle without opening a transaction."""
+
+    return CanonicalWriteBundle(
+        competition_id=bundle.competition_id,
+        generation_id=bundle.generation_id,
+        expected_revision_id=bundle.expected_revision_id,
+        competition_season_id=bundle.competition_season_id,
+        week=bundle.week,
+        knowledge_cutoff_at=bundle.knowledge_cutoff_at,
+        writes=tuple(_canonical_write(proposal) for proposal in bundle.proposals),
+    )
 
 
 def _single_bundle(

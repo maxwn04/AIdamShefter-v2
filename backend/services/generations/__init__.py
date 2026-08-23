@@ -10,6 +10,14 @@ from backend.services.generations.contracts import (
     GenerationRunnerSettings,
     GenerationSettings,
     GenerationToneSettings,
+    ReconcileResult,
+    RerunGenerationRequest,
+    StaleGenerationPolicy,
+)
+from backend.services.generations.finalization import (
+    GenerationFinalizationError,
+    GenerationFinalizationResult,
+    GenerationFinalizer,
 )
 from backend.services.generations.manifest import (
     MANIFEST_SCHEMA_VERSION,
@@ -43,6 +51,9 @@ __all__ = [
     "GenerationManifestInput",
     "GenerationExecutionRecorder",
     "GenerationExecutionResult",
+    "GenerationFinalizationError",
+    "GenerationFinalizationResult",
+    "GenerationFinalizer",
     "GenerationBiasSettings",
     "GenerationModelSettings",
     "GenerationReportSettings",
@@ -57,8 +68,11 @@ __all__ = [
     "ModelExecutionInput",
     "ProcedureInput",
     "RetryPolicyInput",
+    "ReconcileResult",
+    "RerunGenerationRequest",
     "RunnerExecutionInput",
     "ToolInput",
+    "StaleGenerationPolicy",
     "build_generation_manifest",
     "canonical_json_bytes",
     "canonical_json_sha256",

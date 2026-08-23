@@ -110,69 +110,75 @@ class RevisionManager:
         if not bundle.writes:
             return None
 
-        state_readers = _state_readers()
         with transaction_session(self._session_factory) as session:
-            parent = lock_current_revision(
+            return _commit_canonical_bundle_in_session(
                 session,
                 self._competition_id,
-                bundle.expected_revision_id,
+                bundle,
             )
-            parent_state = _read_state(
-                session,
-                self._competition_id,
-                state_readers,
-            )
-            validate_reference_targets(session, self._competition_id, bundle.writes)
-            revision = MemoryRevision(
-                id=uuid4(),
-                competition_id=self._competition_id,
-                sequence_number=parent.next_sequence_number,
-                previous_revision_id=parent.current_revision_id,
-                producing_generation_id=bundle.generation_id,
-                competition_season_id=bundle.competition_season_id,
-                week=bundle.week,
-                knowledge_cutoff_at=bundle.knowledge_cutoff_at,
-                state_content_hash="pending",
-            )
-            resolved, retired = build_version_envelopes(session, revision, bundle)
-            expected_hash = compute_state_content_hash(
-                self._competition_id,
-                _resulting_state(parent_state, resolved),
-            )
-            revision.state_content_hash = expected_hash
-            persist_version_envelopes(
-                session,
-                revision,
-                new_items=(
-                    item
-                    for write, item, _ in resolved
-                    if write.operation == "create"
-                ),
-                new_versions=(version for _, _, version in resolved),
-                retired_versions=retired,
-            )
-            for write, item, version in sorted(
-                resolved,
-                key=lambda entry: entry[0].dependency_order,
-            ):
-                write.persist_typed(session, item, version)
-                session.flush()
 
-            actual_hash = compute_state_content_hash(
-                self._competition_id,
-                _read_state(session, self._competition_id, state_readers),
-            )
-            if actual_hash != expected_hash:
-                raise CanonicalStateHashMismatchError(expected_hash, actual_hash)
-            advance_current_revision(
-                session,
-                self._competition_id,
-                parent,
-                revision.id,
-            )
-            session.flush()
 
-        return _to_revision(revision)
+def _commit_canonical_bundle_in_session(
+    session: Session,
+    competition_id: UUID,
+    bundle: CanonicalWriteBundle,
+) -> CanonicalRevision | None:
+    """Commit one canonical transition inside a caller-owned transaction."""
+
+    if bundle.competition_id != competition_id:
+        raise ValueError("mutation bundle is outside the manager competition")
+    if not bundle.writes:
+        return None
+    state_readers = _state_readers()
+    parent = lock_current_revision(
+        session,
+        competition_id,
+        bundle.expected_revision_id,
+    )
+    parent_state = _read_state(session, competition_id, state_readers)
+    validate_reference_targets(session, competition_id, bundle.writes)
+    revision = MemoryRevision(
+        id=uuid4(),
+        competition_id=competition_id,
+        sequence_number=parent.next_sequence_number,
+        previous_revision_id=parent.current_revision_id,
+        producing_generation_id=bundle.generation_id,
+        competition_season_id=bundle.competition_season_id,
+        week=bundle.week,
+        knowledge_cutoff_at=bundle.knowledge_cutoff_at,
+        state_content_hash="pending",
+    )
+    resolved, retired = build_version_envelopes(session, revision, bundle)
+    expected_hash = compute_state_content_hash(
+        competition_id,
+        _resulting_state(parent_state, resolved),
+    )
+    revision.state_content_hash = expected_hash
+    persist_version_envelopes(
+        session,
+        revision,
+        new_items=(
+            item for write, item, _ in resolved if write.operation == "create"
+        ),
+        new_versions=(version for _, _, version in resolved),
+        retired_versions=retired,
+    )
+    for write, item, version in sorted(
+        resolved,
+        key=lambda entry: entry[0].dependency_order,
+    ):
+        write.persist_typed(session, item, version)
+        session.flush()
+
+    actual_hash = compute_state_content_hash(
+        competition_id,
+        _read_state(session, competition_id, state_readers),
+    )
+    if actual_hash != expected_hash:
+        raise CanonicalStateHashMismatchError(expected_hash, actual_hash)
+    advance_current_revision(session, competition_id, parent, revision.id)
+    session.flush()
+    return _to_revision(revision)
 
 
 def _to_revision(row: MemoryRevision) -> CanonicalRevision:

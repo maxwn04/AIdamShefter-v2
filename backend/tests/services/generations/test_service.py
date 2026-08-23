@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import UUID
@@ -21,9 +21,14 @@ from backend.services.generations import (
     GenerationRequest,
     GenerationService,
     GenerationSettings,
+    ReconcileResult,
+    RerunGenerationRequest,
+    StaleGenerationPolicy,
 )
+from backend.services.memory import MemoryMutationResult
 from backend.services.reporter import ReporterOutput
 from backend.services.reporter.runner.recording import ArtifactMutation
+from backend.services.reporter.runner.schemas import ArtifactSnapshot
 
 
 NOW = datetime(2026, 10, 29, 19, 30, tzinfo=UTC)
@@ -53,6 +58,7 @@ class FakeGenerationManager:
             week_start=command.week_start,
             week_end=command.week_end,
             model=command.requested_primary_model,
+            rerun_of_generation_id=command.rerun_of_generation_id,
         )
         self.rows[row.id] = row
         return row
@@ -76,11 +82,67 @@ class FakeGenerationManager:
                 "manifest_schema_version": command.manifest_schema_version,
                 "manifest_hash": command.manifest_hash,
                 "current_stage": command.initial_stage,
+                "progress_updated_at": NOW,
                 "started_at": NOW,
             }
         )
         self.rows[row.id] = started
         return started
+
+    def fail(self, command):
+        self.events.append("fail")
+        row = self.rows[command.generation_id]
+        if command.expected_status is not None and row.status is not command.expected_status:
+            raise GenerationLifecycleConflict(row.id, "status changed")
+        failed = row.model_copy(
+            update={
+                "status": GenerationStatus.FAILED,
+                "current_stage": "failed",
+                "failure_category": command.category,
+                "failure_summary": command.summary,
+                "completed_at": NOW,
+            }
+        )
+        self.rows[row.id] = failed
+        return failed
+
+    def cancel(self, command):
+        self.events.append("cancel")
+        row = self.rows[command.generation_id]
+        if command.expected_status is not None and row.status is not command.expected_status:
+            raise GenerationLifecycleConflict(row.id, "status changed")
+        cancelled = row.model_copy(
+            update={
+                "status": GenerationStatus.CANCELLED,
+                "current_stage": "cancelled",
+                "failure_category": "cancelled",
+                "failure_summary": command.summary,
+                "completed_at": NOW,
+            }
+        )
+        self.rows[row.id] = cancelled
+        return cancelled
+
+    def fail_stale_running(self, *, stale_before, limit):
+        self.events.append("reconcile")
+        stale = [
+            row
+            for row in self.rows.values()
+            if row.status is GenerationStatus.RUNNING
+            and row.progress_updated_at is not None
+            and row.progress_updated_at < stale_before
+        ][:limit]
+        return tuple(
+            self.fail(
+                SimpleNamespace(
+                    generation_id=row.id,
+                    expected_status=GenerationStatus.RUNNING,
+                    category="stale_execution",
+                    summary="Generation execution became stale",
+                )
+            )
+            for row in stale
+        )
 
 
 class FakeSnapshots:
@@ -146,6 +208,7 @@ class FakeReporter:
         self.calls = []
         self.error: BaseException | None = None
         self.exercise_recorder = False
+        self.finalizer = None
 
     async def __call__(self, data, config, **kwargs):
         self.events.append("reporter")
@@ -165,7 +228,54 @@ class FakeReporter:
             )
         if self.error is not None:
             raise self.error
-        return ReporterOutput()
+        content = "# Article"
+        return ReporterOutput(
+            submitted_path="article.md",
+            artifacts=(
+                ArtifactSnapshot(
+                    path="article.md",
+                    content=content,
+                    revision=1,
+                    content_hash=(
+                        "1f4d9127a0b36fbb412b83e36f31f7b0"
+                        "6665f13e8694015f0bb2e5cb04976bbe"
+                    ),
+                ),
+            ),
+        )
+
+
+class FakeFinalizer:
+    def __init__(self, manager, events):
+        self.manager = manager
+        self.events = events
+        self.calls = []
+        self.error: Exception | None = None
+
+    def finalize(self, generation_id, output, memory_bundle):
+        self.events.append("finalize")
+        self.calls.append((generation_id, output, memory_bundle))
+        if self.error is not None:
+            raise self.error
+        row = self.manager.rows[generation_id]
+        succeeded = row.model_copy(
+            update={
+                "status": GenerationStatus.SUCCEEDED,
+                "submitted_artifact_version_id": _uuid(500),
+                "current_stage": "succeeded",
+                "completed_at": NOW,
+            }
+        )
+        self.manager.rows[generation_id] = succeeded
+        memory_result = (
+            MemoryMutationResult(revision=None, changes=())
+            if row.kind is GenerationKind.LIVE
+            else None
+        )
+        return SimpleNamespace(
+            generation=succeeded,
+            memory_result=memory_result,
+        )
 
 
 def _generation(
@@ -179,6 +289,7 @@ def _generation(
     week_start: int | None = 7,
     week_end: int | None = 8,
     model: str = "gpt-test",
+    rerun_of_generation_id: UUID | None = None,
 ) -> Generation:
     return Generation(
         id=generation_id,
@@ -190,7 +301,7 @@ def _generation(
         input_memory_artifact_generation_id=None,
         evaluation_workspace_id=None,
         workspace_sequence_number=None,
-        rerun_of_generation_id=None,
+        rerun_of_generation_id=rerun_of_generation_id,
         submitted_artifact_version_id=None,
         kind=kind,
         status=GenerationStatus.PENDING,
@@ -285,6 +396,8 @@ def _service(
         events,
     )
     reporter = FakeReporter(events)
+    finalizer = FakeFinalizer(manager, events)
+    reporter.finalizer = finalizer
     runtime = FakeFrozenData(events)
     service = GenerationService(
         generations=manager,  # type: ignore[arg-type]
@@ -295,8 +408,9 @@ def _service(
         tool_calls=SimpleNamespace(),  # type: ignore[arg-type]
         artifacts=SimpleNamespace(),  # type: ignore[arg-type]
         artifact_versions=SimpleNamespace(),  # type: ignore[arg-type]
-        reporter_revision="reporter-9",
-        generation_revision="generation-9",
+        finalizer=finalizer,
+        reporter_revision="reporter-10",
+        generation_revision="generation-10",
         reporter=reporter,
         open_frozen_data=lambda snapshot: runtime,  # type: ignore[arg-type]
         clock=lambda: NOW,
@@ -339,13 +453,24 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
 
     result = await service.execute(_uuid(3))
 
-    assert events == ["submit", "snapshot", "memory", "start", "open", "reporter", "close"]
+    assert events == [
+        "submit",
+        "snapshot",
+        "memory",
+        "start",
+        "open",
+        "reporter",
+        "close",
+        "finalize",
+    ]
     assert snapshots.requests[0].through_week == 8
     assert snapshots.requests[0].as_of_date == NOW.date()
     assert revisions.current_calls == 1
-    assert result.generation.status is GenerationStatus.RUNNING
-    assert result.memory_bundle.expected_revision_id == _uuid(100)
-    assert result.memory_bundle.proposals == ()
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert result.memory_result == MemoryMutationResult(revision=None, changes=())
+    bundle = reporter.finalizer.calls[0][2]
+    assert bundle.expected_revision_id == _uuid(100)
+    assert bundle.proposals == ()
     assert reporter.calls[0][2]["allow_memory_writes"] is True
     assert runtime.closed is True
     manifest = manager.starts[0].input_manifest
@@ -383,7 +508,8 @@ async def test_backtest_selects_latest_same_season_revision_and_is_read_only(
     assert manager.starts[0].input_memory_revision_id == _uuid(102)
     assert manager.starts[0].knowledge_cutoff_at == cutoff
     assert reporter.calls[0][2]["allow_memory_writes"] is False
-    assert result.memory_bundle.expected_revision_id == _uuid(102)
+    assert reporter.finalizer.calls[0][2].expected_revision_id == _uuid(102)
+    assert result.memory_result is None
 
 
 @pytest.mark.asyncio
@@ -406,15 +532,19 @@ async def test_backtest_falls_back_to_root_revision(tmp_path) -> None:
 
 @pytest.mark.asyncio
 async def test_pre_start_failure_never_calls_reporter(tmp_path) -> None:
-    service, _, snapshots, _, reporter, runtime, events = _service(tmp_path)
-    snapshots.error = RuntimeError("snapshot unavailable")
+    service, manager, snapshots, _, reporter, runtime, events = _service(tmp_path)
+    snapshots.error = RuntimeError("snapshot unavailable sk-secret-value")
 
-    with pytest.raises(RuntimeError, match="snapshot unavailable"):
-        await service.execute(_uuid(3))
+    result = await service.execute(_uuid(3))
 
     assert "start" not in events
     assert reporter.calls == []
     assert runtime.closed is False
+    assert result.generation.status is GenerationStatus.FAILED
+    assert result.reporter_output is None
+    assert result.generation.failure_category == "input_resolution"
+    assert "secret" not in (result.generation.failure_summary or "")
+    assert manager.get(_uuid(3)).status is GenerationStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -424,13 +554,13 @@ async def test_atomic_start_failure_never_opens_runtime_or_calls_reporter(
     service, manager, _, _, reporter, runtime, events = _service(tmp_path)
     manager.start_error = RuntimeError("start rejected")
 
-    with pytest.raises(RuntimeError, match="start rejected"):
-        await service.execute(_uuid(3))
+    result = await service.execute(_uuid(3))
 
-    assert events[-1] == "start"
+    assert events[-1] == "fail"
     assert "open" not in events
     assert reporter.calls == []
     assert runtime.closed is False
+    assert result.generation.status is GenerationStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -456,11 +586,11 @@ async def test_backtest_without_eligible_or_root_memory_never_starts(tmp_path) -
         history=history,
     )
 
-    with pytest.raises(ValueError, match="root revision"):
-        await service.execute(_uuid(3))
+    result = await service.execute(_uuid(3))
 
     assert manager.starts == []
     assert reporter.calls == []
+    assert result.generation.status is GenerationStatus.FAILED
 
 
 @pytest.mark.asyncio
@@ -472,11 +602,17 @@ async def test_reporter_failure_or_cancellation_closes_and_discards_context(
     service, manager, _, _, reporter, runtime, _ = _service(tmp_path)
     reporter.error = error
 
-    with pytest.raises(type(error)):
-        await service.execute(_uuid(3))
+    result = await service.execute(_uuid(3))
 
     assert runtime.closed is True
-    assert manager.get(_uuid(3)).status is GenerationStatus.RUNNING
+    expected = (
+        GenerationStatus.CANCELLED
+        if isinstance(error, asyncio.CancelledError)
+        else GenerationStatus.FAILED
+    )
+    assert result.generation.status is expected
+    assert result.reporter_output is None
+    assert manager.get(_uuid(3)).status is expected
     memory = reporter.calls[0][2]["memory_context"]
     with pytest.raises(GenerationMemoryContextClosedError):
         memory.take_completed_bundle()
@@ -484,16 +620,74 @@ async def test_reporter_failure_or_cancellation_closes_and_discards_context(
 
 @pytest.mark.asyncio
 async def test_recorder_failure_closes_runtime_and_discards_context(tmp_path) -> None:
-    service, _, _, _, reporter, runtime, _ = _service(tmp_path)
+    service, manager, _, _, reporter, runtime, _ = _service(tmp_path)
     reporter.exercise_recorder = True
 
-    with pytest.raises(AttributeError, match="create_artifact"):
-        await service.execute(_uuid(3))
+    result = await service.execute(_uuid(3))
 
     assert runtime.closed is True
+    assert result.generation.status is GenerationStatus.FAILED
+    assert manager.get(_uuid(3)).failure_category == "reporter_execution"
     memory = reporter.calls[0][2]["memory_context"]
     with pytest.raises(GenerationMemoryContextClosedError):
         memory.take_completed_bundle()
+
+
+@pytest.mark.asyncio
+async def test_finalization_failure_returns_failed_without_partial_output(tmp_path) -> None:
+    service, manager, _, _, reporter, runtime, _ = _service(tmp_path)
+    reporter.finalizer.error = RuntimeError("commit failed sk-secret-value")
+
+    result = await service.execute(_uuid(3))
+
+    assert runtime.closed is True
+    assert result.generation.status is GenerationStatus.FAILED
+    assert result.generation.failure_category == "generation_finalization"
+    assert result.reporter_output is None
+    assert "secret" not in (result.generation.failure_summary or "")
+    assert manager.get(_uuid(3)).submitted_artifact_version_id is None
+
+
+def test_rerun_copies_terminal_intent_and_links_fresh_pending_row(tmp_path) -> None:
+    service, manager, _, _, _, _, _ = _service(tmp_path)
+    manager.rows[_uuid(3)] = manager.rows[_uuid(3)].model_copy(
+        update={"status": GenerationStatus.FAILED, "completed_at": NOW}
+    )
+
+    rerun = service.rerun(
+        RerunGenerationRequest(
+            source_generation_id=_uuid(3),
+            generation_id=_uuid(4),
+        )
+    )
+
+    assert rerun.status is GenerationStatus.PENDING
+    assert rerun.rerun_of_generation_id == _uuid(3)
+    assert rerun.request_text == manager.get(_uuid(3)).request_text
+    assert rerun.settings == manager.get(_uuid(3)).settings
+    assert rerun.data_snapshot_id is None
+    assert manager.get(_uuid(3)).status is GenerationStatus.FAILED
+
+
+def test_reconcile_stale_returns_only_bounded_running_rows(tmp_path) -> None:
+    service, manager, _, _, _, _, _ = _service(tmp_path)
+    manager.rows[_uuid(3)] = manager.rows[_uuid(3)].model_copy(
+        update={
+            "status": GenerationStatus.RUNNING,
+            "progress_updated_at": NOW - timedelta(minutes=10),
+        }
+    )
+
+    result = service.reconcile_stale(
+        StaleGenerationPolicy(
+            stale_before=NOW - timedelta(minutes=5),
+            limit=1,
+        )
+    )
+
+    assert isinstance(result, ReconcileResult)
+    assert [row.id for row in result.generations] == [_uuid(3)]
+    assert result.generations[0].failure_category == "stale_execution"
 
 
 def test_request_rejects_duplicate_primary_and_fallback_model() -> None:

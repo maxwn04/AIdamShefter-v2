@@ -249,14 +249,15 @@ cannot switch data snapshot or memory revision mid-flight.
 
 ### `generation-10` — finalization and failure recovery
 
-- Implement the settled selected-artifact/memory/generation finalization
-  boundary.
+- Commit selected-artifact, live-memory, and generation success through one
+  shared PostgreSQL transaction over resource-owned session operations.
 - Finalize the reporter-selected artifact and pin that exact version on the
   generation without appending a final copy.
 - Apply one completed memory bundle after successful reporter submission or
   discard it on failure/cancellation.
 - Preserve partial AI/tool/artifact telemetry on failure.
-- Add stale-running reconciliation and explicit rerun behavior.
+- Return terminal success/failure/cancellation results, add bounded stale-running
+  reconciliation, and create explicit reruns with fresh input resolution.
 - Prove terminal immutability and sanitized failure metadata.
 
 **Exit gate:** failure at every boundary has a deterministic generation state,
@@ -348,16 +349,11 @@ to `unverified` or `inferred` confidence.
 
 ### 3. Finalization atomicity
 
-Choose one documented invariant:
-
-- a composed short transaction atomically seals final reporting output,
-  commits the memory revision, and succeeds the generation; or
-- a deliberately ordered multi-transaction workflow with durable intermediate
-  state and an explicit reconciliation operation.
-
-The current memory service's transaction ownership means the first choice may
-require a narrow shared transaction helper or revised ownership contract. That
-change must be agreed with the memory design rather than bypassed.
+Use one composed short PostgreSQL transaction to commit the canonical memory
+revision when present, finalize the selected existing artifact version, and
+succeed the generation. Resource modules expose narrow session-bound operations
+that retain their validation and SQL ownership; the generation finalizer owns
+only the shared transaction. Any exception rolls back all success outputs.
 
 ## Required Acceptance Coverage
 

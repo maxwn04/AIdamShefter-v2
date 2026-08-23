@@ -284,8 +284,12 @@ submitted output is eligible for success. `GenerationService` then:
 - transitions the generation to succeeded only when its required final outputs
   and memory outcome satisfy the selected finalization contract.
 
-The all-or-nothing boundary between the reporting finalization and canonical
-memory commit remains an explicit open decision.
+One PostgreSQL transaction owns the all-or-nothing boundary between canonical
+memory commit, selected-artifact finalization, and generation success. Resource
+modules retain their SQL and validation through session-bound operations; the
+generation finalizer coordinates only their shared transaction. An exception at
+any boundary rolls back all three success outputs while preserving telemetry and
+working artifact versions committed before finalization began.
 
 ### 6. Failure and cancellation
 
@@ -295,8 +299,10 @@ calls, and artifact versions, discards the uncommitted memory buffer,
 and marks the generation failed. A terminal generation never reopens; a retry
 creates a linked generation.
 
-The baseline does not resume a crashed reporter loop. A stale-running
-reconciliation operation marks it failed.
+The baseline does not resume a crashed reporter loop. A bounded,
+competition-scoped stale-running reconciliation operation marks it failed using
+a caller-supplied cutoff. An explicit rerun creates a linked pending generation
+that copies request intent and settings but resolves fresh immutable inputs.
 
 ## Model and Token Observability
 
