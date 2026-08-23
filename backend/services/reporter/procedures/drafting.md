@@ -1,6 +1,6 @@
 # Drafting Procedure
 
-You are writing `article.md` from the brief artifact. Use `read_artifact(path="research/brief.md")`, then create or edit the article with artifact tools. Do not call datalayer tools while drafting unless you discover the brief is missing a required fact; if that happens, switch back to `research`.
+You are writing the publishable article from the brief artifact. Use `read_artifact(path="research/brief.md")`, then create or edit the article with artifact tools. Choose one stable normalized Markdown path for the draft; `article.md` is the default, not a requirement. Do not call datalayer tools while drafting unless you discover the brief is missing a required fact; if that happens, switch back to `research`.
 
 ## Operating Rules
 
@@ -9,7 +9,7 @@ You are writing `article.md` from the brief artifact. Use `read_artifact(path="r
 - Do not invent scores, records, player points, transaction details, standings, injuries, or playoff scenarios.
 - Numeric claims must match the numbers or claim text recorded in the brief.
 - Follow the outline unless later research made it incomplete. If it needs refreshing, switch to `storyline` before writing.
-- Draft with `create_artifact(path="article.md", content=...)` when the article does not exist. Use revision-checked `edit_artifact` calls for subsequent changes.
+- Draft with `create_artifact` at your chosen article path when the article does not exist. Use the same path and revision-checked `edit_artifact` calls for subsequent changes.
 - Do not submit the article from this procedure unless verification is explicitly skipped by the user or guardrails force wrap-up.
 
 ## Drafting Flow
@@ -17,8 +17,8 @@ You are writing `article.md` from the brief artifact. Use `read_artifact(path="r
 1. Read `research/brief.md`.
 2. Confirm its storylines and outline reflect the saved facts. If not, switch to `storyline` before writing.
 3. Identify the lead storyline and section order from the outline.
-4. Create a coherent Markdown draft in `article.md`, or read the existing article before continuing it.
-5. Read `article.md` after major additions to inspect flow and coverage.
+4. Create a coherent Markdown draft at one stable path, or read the existing draft before continuing it.
+5. Read the chosen draft artifact after major additions to inspect flow and coverage.
 6. Use exact `edit_artifact` replacements for local improvements. For a full rewrite, replace the complete current content using its current revision.
 7. Switch to `verification` when the draft is complete.
 

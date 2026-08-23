@@ -39,6 +39,7 @@ erDiagram
     AI_CALLS ||--o{ TOOL_CALLS : requests
     GENERATIONS ||--o{ ARTIFACTS : owns
     ARTIFACTS ||--o{ ARTIFACT_VERSIONS : versions
+    GENERATIONS }o--o| ARTIFACT_VERSIONS : submitted_output
     EVALUATION_WORKSPACES ||--o{ GENERATIONS : contains
     EVALUATION_WORKSPACES }o--o| ARTIFACT_VERSIONS : current_memory
 ```
@@ -56,6 +57,7 @@ One row represents one submitted execution:
 - nullable `input_memory_artifact_version_id` for a continuing evaluation;
 - nullable `evaluation_workspace_id` and workspace sequence number;
 - nullable `rerun_of_generation_id` self-reference;
+- nullable `submitted_artifact_version_id` selecting the exact primary output;
 - `kind`: initially `live` or `backtest`;
 - `status`: `pending`, `running`, `succeeded`, `failed`, or `cancelled`;
 - original `request_text`;
@@ -85,6 +87,19 @@ Once running, the request, settings, input IDs, cutoffs, and manifest are
 immutable. The status and progress fields remain mutable. A terminal generation
 never reopens; a retry initiated by the user creates another generation linked
 by `rerun_of_generation_id`.
+
+`submitted_artifact_version_id` is null until successful finalization. When
+present, it must identify the finalized version of an artifact owned by that
+same generation and is set atomically with the transition to `succeeded`.
+Application article queries begin from this pointer; they never infer the
+primary output from an artifact path chosen inside the reporter loop.
+
+`GenerationQuery(submitted_only=True)` is the optimized article-history access
+path. It filters to successful generations with a non-null submitted pointer
+and orders by `completed_at DESC, id DESC`, matching
+`ix_generations_competition_submitted_completed`. The reporting manager remains
+competition-scoped; a later user-facing article feed can aggregate authorized
+competitions without changing artifact identity.
 
 There is deliberately no output-memory pointer on the generation. An accepted
 live mutation produces the unique next `memory.memory_revisions` row associated
@@ -218,11 +233,13 @@ an output rather than an operating-system filesystem location. `media_type`
 describes representation and is immutable after creation; semantic categories
 do not belong in a closed artifact-kind enum.
 
-The reporter's required Markdown artifacts are `research/brief.md` and
-`article.md`, both with `media_type = 'text/markdown'`. Outlines, diagnostics,
-or future editorial products use additional paths without requiring schema or
-enum changes. A separate article table is unnecessary; the API can expose the
-finalized `article.md` version as an article-specific resource or view.
+The reporter initially uses Markdown artifacts with `media_type =
+'text/markdown'`. Names such as `research/brief.md` and `article.md` are
+reporter-owned conventions. Outlines, diagnostics, or future editorial products
+use additional paths without requiring schema or enum changes. A separate
+article table is unnecessary while one successful generation represents one
+user-visible article: the API exposes the generation's explicitly submitted
+artifact version as an article-specific resource or view.
 
 An evaluation memory checkpoint uses `memory/workspace.json` with
 `media_type = 'application/json'`. Its deterministic full content allows the
@@ -252,11 +269,11 @@ Constraints:
 
 Persisting complete UTF-8 Markdown after each successful mutation is
 intentionally simple and makes rendering, auditing, and comparison
-straightforward. The reporter uses the same version model for
-`research/brief.md` and `article.md`. `submit_artifact` selects an existing
-revision of `article.md`; generation finalization pins that version and the
-current brief version supplied in `ReporterOutput` rather than appending
-content-identical final copies.
+straightforward. The reporter uses the same version model for every working
+artifact. `submit_artifact` selects an existing revision at any reporter-owned
+path; generation finalization finalizes that artifact and stores the same
+version in `generation.submitted_artifact_version_id` rather than appending a
+content-identical final copy.
 
 ## Token Analytics, Not Stored Pricing
 
@@ -286,6 +303,8 @@ Pub/Sub worker without building a DBOS-style scheduler now.
 Baseline indexes support the actual product queries:
 
 - generations by `(competition_id, created_at desc)`;
+- succeeded submitted outputs by `(competition_id, completed_at desc, id desc)`
+  for article history;
 - generations by `(status, progress_updated_at)` for polling/stale detection;
 - generations by competition season, data snapshot, canonical memory revision,
   evaluation workspace/sequence, and requested model;

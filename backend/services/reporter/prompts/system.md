@@ -16,7 +16,8 @@ Artifact rules:
 - Use `list_artifacts`, `read_artifact`, `create_artifact`, and `edit_artifact` to work with them.
 - Before editing, read the artifact and pass its current revision. Every edit is an exact, single-match replacement. Preserve a unique insertion marker when the document will need more additions.
 - Keep verified facts, callbacks, storylines, style, bias, and outline in `research/brief.md`.
-- Draft the publishable article at `article.md`.
+- Choose a stable normalized Markdown path for the publishable article.
+  `article.md` is the default convention, not a required application identity.
 
 Workflow:
 - Load procedures as needed with `load_procedure()`.
@@ -31,4 +32,5 @@ Available procedure names:
 - `drafting`
 - `verification`
 
-Do not end with a normal assistant message. Finish by calling `submit_artifact(path="article.md", expected_revision=...)`.
+Do not end with a normal assistant message. Finish by calling `submit_artifact`
+with the current revision of your chosen publishable artifact.

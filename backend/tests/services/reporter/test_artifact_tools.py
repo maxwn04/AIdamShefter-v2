@@ -38,6 +38,12 @@ def test_tool_surface_is_generic() -> None:
         "edit_artifact",
         "submit_artifact",
     ]
+    submit_spec = next(
+        spec
+        for spec in ARTIFACT_TOOL_SPECS
+        if spec["function"]["name"] == "submit_artifact"
+    )
+    assert "enum" not in submit_spec["function"]["parameters"]["properties"]["path"]
 
 
 def test_create_list_and_read_artifacts() -> None:
@@ -194,18 +200,27 @@ def test_same_text_edit_is_noop_without_new_snapshot() -> None:
     assert len(ctx.artifacts.artifacts["article.md"].snapshots) == 1
 
 
-def test_submit_requires_article_path_current_revision_and_content() -> None:
-    ctx = make_ctx()
-    create_artifact(ctx, path="draft.md", content="# Draft")
-    create_artifact(ctx, path="article.md", content="   ")
-
-    wrong_path = decode(
-        submit_artifact(ctx, path="draft.md", expected_revision=1)
+def test_submit_accepts_any_artifact_path_and_checks_revision_and_content() -> None:
+    submitted_ctx = make_ctx()
+    create_artifact(submitted_ctx, path="drafts/week-8.md", content="# Draft")
+    submitted = decode(
+        submit_artifact(
+            submitted_ctx,
+            path="drafts/week-8.md",
+            expected_revision=1,
+        )
     )
-    stale = decode(submit_artifact(ctx, path="article.md", expected_revision=2))
-    empty = decode(submit_artifact(ctx, path="article.md", expected_revision=1))
 
-    assert wrong_path["error"]["code"] == "invalid_submission_path"
+    stale_ctx = make_ctx()
+    create_artifact(stale_ctx, path="article.md", content="# Article")
+    stale = decode(submit_artifact(stale_ctx, path="article.md", expected_revision=2))
+
+    empty_ctx = make_ctx()
+    create_artifact(empty_ctx, path="empty.md", content="   ")
+    empty = decode(submit_artifact(empty_ctx, path="empty.md", expected_revision=1))
+
+    assert submitted["ok"] is True
+    assert submitted_ctx.artifacts.submitted_path == "drafts/week-8.md"
     assert stale["error"]["code"] == "revision_conflict"
     assert empty["error"]["code"] == "empty_submission"
 

@@ -23,6 +23,7 @@ from backend.resources.reporting.generations import (
     GenerationQuery,
     GenerationResourceNotFound,
     StartGeneration,
+    SucceedGeneration,
     UpdateGenerationProgress,
 )
 from backend.tests.resources.reporting.generations.conftest import (
@@ -136,6 +137,93 @@ def test_failed_start_rolls_back_all_input_pinning(
     assert stored.status.value == "pending"
     assert stored.data_snapshot_id is None
     assert stored.input_manifest is None
+
+
+def test_success_pins_finalized_output_and_submitted_history_filters_by_it(
+    database_engine: Engine,
+    generation_manager: GenerationManager,
+    generation_domain: GenerationDomain,
+) -> None:
+    submitted = generation_manager.create_pending(_create_command(generation_domain))
+    omitted = generation_manager.create_pending(_create_command(generation_domain))
+    generation_manager.start(_start_command(generation_domain, submitted.id))
+    generation_manager.start(_start_command(generation_domain, omitted.id))
+    artifact_id = uuid4()
+    version_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(Artifact),
+            {
+                "id": artifact_id,
+                "generation_id": submitted.id,
+                "path": "drafts/custom-name.md",
+                "media_type": "text/markdown",
+            },
+        )
+        connection.execute(
+            sa.insert(ArtifactVersion),
+            {
+                "id": version_id,
+                "artifact_id": artifact_id,
+                "generation_id": submitted.id,
+                "revision_number": 1,
+                "content": "# Submitted article\n",
+                "content_hash": (
+                    "503463bc8e496fecd2b0d9f2095f90a475f925ba2867715074b56621a3f1802a"
+                ),
+            },
+        )
+
+    with pytest.raises(GenerationLifecycleConflict, match="finalized artifact"):
+        generation_manager.succeed(
+            SucceedGeneration(
+                generation_id=submitted.id,
+                submitted_artifact_version_id=version_id,
+            )
+        )
+
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(Artifact)
+            .where(Artifact.id == artifact_id)
+            .values(
+                finalized_version_id=version_id,
+                finalized_at=sa.func.now(),
+            )
+        )
+
+    succeeded = generation_manager.succeed(
+        SucceedGeneration(
+            generation_id=submitted.id,
+            submitted_artifact_version_id=version_id,
+        )
+    )
+    assert succeeded.status.value == "succeeded"
+    assert succeeded.submitted_artifact_version_id == version_id
+    assert succeeded.completed_at is not None
+
+    with pytest.raises(GenerationLifecycleConflict, match="owned by the generation"):
+        generation_manager.succeed(
+            SucceedGeneration(
+                generation_id=omitted.id,
+                submitted_artifact_version_id=version_id,
+            )
+        )
+
+    generation_manager.fail(
+        FailGeneration(
+            generation_id=omitted.id,
+            category="test",
+            summary="not submitted",
+        )
+    )
+    page = generation_manager.list(GenerationQuery(submitted_only=True))
+    assert page.total == 1
+    assert page.items[0].id == submitted.id
+    assert page.items[0].submitted_artifact_version_id == version_id
+
+    with pytest.raises(ValueError, match="succeeded status"):
+        GenerationQuery(submitted_only=True, status="failed")
 
 
 def test_reads_reruns_and_history_are_competition_scoped(

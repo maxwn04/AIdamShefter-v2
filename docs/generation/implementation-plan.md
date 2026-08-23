@@ -96,9 +96,10 @@ within their artifact/generation and finalized artifacts cannot change.
 - Add `ReporterOutput` with `submitted_path` and complete current snapshots of
   all artifacts; update prompts, procedures, and characterization tests.
 
-**Exit gate:** the copied reporter produces both required Markdown paths,
-rejects stale or ambiguous edits, submits an exact current `article.md`
-revision, and has no artifact-kind or section-specific persistence contract.
+**Exit gate:** the copied reporter produces its two initial conventional
+Markdown paths, rejects stale or ambiguous edits, and submits an exact current
+draft revision. Generation 4d removes the initial `article.md` submission-path
+restriction while preserving the generic persistence contract.
 
 ### `generation-4a` — generation lifecycle resource
 
@@ -127,6 +128,24 @@ ordinals are typed conflicts, and terminal child telemetry cannot be stranded.
 
 **Exit gate:** concurrent revisions are sequential, identical writes are
 idempotent, media type is immutable, and finalized artifacts reject appends.
+
+### `generation-4d` — submitted generation output
+
+- Keep artifact paths under reporter control and remove the `article.md`
+  restriction from `submit_artifact`.
+- Add nullable `generation.submitted_artifact_version_id` with same-generation
+  finalized-artifact integrity and terminal shape constraints.
+- Add the competition/completion partial index used to list successful article
+  outputs without inspecting artifact paths.
+- Add atomic generation success attachment plus
+  `GenerationQuery(submitted_only=True)` so the resource query matches that
+  index and completion ordering.
+- Update reporter prompts, procedures, durable contracts, and output tests so
+  paths remain internal conventions rather than application roles.
+
+**Exit gate:** any current non-empty Markdown artifact can be submitted, a
+generation can pin only a finalized version that it owns as it succeeds, and
+article-history access begins from the explicit generation pointer.
 
 ### `generation-5` — manifest and model-call instrumentation
 
@@ -160,14 +179,14 @@ equivalent; provider order remains the tool ordinal under parallel completion.
 
 - Add artifact-recorder access to `ToolContext` without changing model-facing
   tool schemas.
-- Persist complete Markdown snapshots after successful creates and edits to
-  `research/brief.md` and `article.md`.
+- Persist complete Markdown snapshots after successful creates and edits at all
+  reporter-selected paths.
 - Return the existing version for content-identical mutations and create no
   versions for reads, failed mutations, or submission.
 - Attach source AI/tool provenance and content hashes.
 
-**Exit gate:** both artifact histories can be reconstructed from immutable
-versions and the submitted article revision is represented exactly once.
+**Exit gate:** all artifact histories can be reconstructed from immutable
+versions and the submitted output revision is represented exactly once.
 
 ### `generation-8` — typed memory reporter adapter
 
@@ -202,8 +221,8 @@ cannot switch data snapshot or memory revision mid-flight.
 
 - Implement the settled selected-artifact/memory/generation finalization
   boundary.
-- Pin the submitted `article.md` version and returned current
-  `research/brief.md` version without appending final copies.
+- Finalize the reporter-selected artifact and pin that exact version on the
+  generation without appending a final copy.
 - Apply one completed memory bundle after successful reporter submission or
   discard it on failure/cancellation.
 - Preserve partial AI/tool/artifact telemetry on failure.
@@ -250,12 +269,14 @@ flowchart LR
     G2 --> G4A["G4a generation lifecycle"]
     G4A --> G4B["G4b execution calls"]
     G4B --> G4C["G4c artifacts"]
+    G3 --> G4D["G4d submitted output"]
+    G4C --> G4D
     G1 --> G5["G5 AI calls/tokens"]
     G4B --> G5
     G5 --> G6["G6 tool/progress"]
     G6 --> G7["G7 artifact persistence"]
     G3 --> G7
-    G4C --> G7
+    G4D --> G7
     G1 --> G8["G8 memory adapter"]
     Memory["Typed memory integration-ready"] --> G8
     Data["Merged frozen datalayer"] --> G1
@@ -265,6 +286,7 @@ flowchart LR
     G7 --> G9
     G8 --> G9
     G9 --> G10["G10 finalization"]
+    G4D --> G10
     G10 --> G11["G11 API/worker"]
     G11 --> G12["G12 cutover"]
 ```
@@ -330,10 +352,10 @@ The complete stack must prove:
 7. every tool call retains exact input, full output, status, timing, and
    provider ordinal;
 8. parallel tool completion does not corrupt ordering or provenance;
-9. `research/brief.md` and `article.md` mutations create reconstructable
-   immutable versions through the generic artifact contract;
-10. one succeeded generation pins the exact submitted article version and
-    returned current brief version without duplicate final copies;
+9. reporter-selected artifact mutations create reconstructable immutable
+   versions through the generic artifact contract;
+10. one succeeded generation pins the exact submitted output version without
+    a duplicate final copy or path-based role inference;
 11. searches remain pinned and buffered memory proposals remain invisible;
 12. failed/cancelled generations discard buffered proposals;
 13. the chosen success finalization contract survives injected failure at each

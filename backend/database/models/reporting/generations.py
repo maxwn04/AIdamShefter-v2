@@ -93,6 +93,16 @@ class Generation(Base):
             use_alter=True,
         ),
         ForeignKeyConstraint(
+            ["submitted_artifact_version_id", "id"],
+            [
+                "reporting.artifacts.finalized_version_id",
+                "reporting.artifacts.generation_id",
+            ],
+            name="fk_generations_submitted_artifact_finalized",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        ForeignKeyConstraint(
             [
                 "input_memory_artifact_generation_id",
                 "evaluation_workspace_id",
@@ -121,6 +131,10 @@ class Generation(Base):
             "evaluation_workspace_id IS NOT NULL))",
             name="unambiguous_memory_input",
         ),
+        CheckConstraint(
+            "submitted_artifact_version_id IS NULL OR status = 'succeeded'",
+            name="submitted_artifact_shape",
+        ),
         Index("ix_generations_competition_created", "competition_id", text("created_at DESC")),
         Index("ix_generations_status_progress", "status", "progress_updated_at"),
         Index("ix_generations_competition_season", "competition_season_id"),
@@ -147,6 +161,16 @@ class Generation(Base):
             "workspace_sequence_number",
         ),
         Index("ix_generations_requested_model", "requested_primary_model"),
+        Index(
+            "ix_generations_competition_submitted_completed",
+            "competition_id",
+            text("completed_at DESC"),
+            text("id DESC"),
+            postgresql_where=text(
+                "status = 'succeeded' "
+                "AND submitted_artifact_version_id IS NOT NULL"
+            ),
+        ),
         {"schema": "reporting"},
     )
 
@@ -176,6 +200,9 @@ class Generation(Base):
         BigInteger, nullable=True
     )
     rerun_of_generation_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), nullable=True
+    )
+    submitted_artifact_version_id: Mapped[UUID | None] = mapped_column(
         PGUUID(as_uuid=True), nullable=True
     )
     kind: Mapped[str] = mapped_column(Text, nullable=False)

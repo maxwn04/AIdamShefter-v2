@@ -95,16 +95,15 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
         "function": {
             "name": "submit_artifact",
             "description": (
-                "Submit article.md as the final reporter output. Submission pins the "
-                "existing revision and makes that artifact immutable."
+                "Submit a Markdown artifact as the final reporter output. Submission "
+                "pins the existing revision and makes that artifact immutable."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Must be article.md.",
-                        "enum": ["article.md"],
+                        "description": "Relative POSIX path of the publishable artifact.",
                     },
                     "expected_revision": {
                         "type": "integer",
