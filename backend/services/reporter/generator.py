@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from backend.services.reporter.config import ReportConfig
 from backend.services.reporter.runner.completion import (
@@ -25,7 +25,7 @@ from backend.services.reporter.runner.completion import (
     make_completion_client,
 )
 from backend.services.reporter.runner.memory_lifecycle import prepare_memory_run
-from backend.services.reporter.runner.recording import CompletionRecorder
+from backend.services.reporter.runner.recording import ExecutionRecorder
 from backend.services.reporter.runner.runner import Runner
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
@@ -50,7 +50,7 @@ async def generate_article(
     runner_config: RunnerConfig | None = None,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
-    recorder: CompletionRecorder | None = None,
+    recorder: ExecutionRecorder | None = None,
     allow_memory_writes: bool = True,
 ) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
@@ -64,7 +64,7 @@ async def generate_article(
         runner_config: Loop policy owned by Runner (max_turns, procedure mode).
         log_path: Optional streaming run-log path.
         complete: Injectable completion fn for tests. Mutually exclusive with client=.
-        recorder: Optional generation-scoped durable completion recorder.
+        recorder: Optional generation-scoped durable execution recorder.
         allow_memory_writes: When False (eval mode), skip memory mutations
             (lifecycle + in-run memory tools).
     """
@@ -81,11 +81,14 @@ async def generate_article(
         week=week,
         allow_memory_writes=allow_memory_writes,
     )
+    resolved_recorder = recorder
+    if resolved_recorder is None and client is not None:
+        resolved_recorder = cast(ExecutionRecorder | None, client.recorder)
     resolved_client = _resolve_client(
         client=client,
         completion=completion,
         complete=complete,
-        recorder=recorder,
+        recorder=resolved_recorder,
     )
 
     if log_path is not None:
@@ -108,6 +111,7 @@ async def generate_article(
         config=runner_config or RunnerConfig(),
         log_path=log_path,
         artifacts=artifacts,
+        recorder=resolved_recorder,
     )
 
     return await runner.run(_build_system_prompt(), _build_user_message(config))
@@ -140,7 +144,7 @@ def _resolve_client(
     client: CompletionClient | None,
     completion: CompletionSettings | None,
     complete: CompletionFn | None,
-    recorder: CompletionRecorder | None,
+    recorder: ExecutionRecorder | None,
 ) -> CompletionClient:
     if client is not None and complete is not None:
         raise ValueError("Pass client= or complete=, not both.")

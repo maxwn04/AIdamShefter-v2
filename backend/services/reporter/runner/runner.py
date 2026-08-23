@@ -12,7 +12,10 @@ import asyncio
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+from uuid import UUID
+
+from pydantic import JsonValue
 
 from backend.services.reporter.runner.completion import (
     CompletionClient,
@@ -27,6 +30,13 @@ from backend.services.reporter.runner.models import (
     extract_tool_calls,
     tool_result_message,
 )
+from backend.services.reporter.runner.provider_telemetry import sanitize_provider_error
+from backend.services.reporter.runner.recording import (
+    GenerationProgress,
+    RunnerRecorder,
+    ToolExecutionFinish,
+    ToolExecutionStart,
+)
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import (
@@ -38,7 +48,14 @@ from backend.services.reporter.runner.state import (
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
-__all__ = ["CompletionFn", "Runner"]
+__all__ = ["CompletionFn", "Runner", "RunnerRecordingError"]
+
+
+_UNKNOWN_TOOL_IMPLEMENTATION_VERSION = "unregistered-v1"
+
+
+class RunnerRecordingError(RuntimeError):
+    """Durable runner recording failed, so execution cannot continue."""
 
 
 class Runner:
@@ -53,6 +70,7 @@ class Runner:
         config: RunnerConfig | None = None,
         log_path: Path | None = None,
         artifacts: ArtifactStore | None = None,
+        recorder: RunnerRecorder | None = None,
     ) -> None:
         if client is not None and complete is not None:
             raise ValueError("Pass client= or complete=, not both.")
@@ -65,6 +83,7 @@ class Runner:
             raise TypeError("Runner requires client= (or complete= for tests).")
 
         self.registry = registry
+        self._recorder = recorder
         self.config = config or RunnerConfig()
         self.artifacts = artifacts or ArtifactStore()
         self.procedures = ProcedureState()
@@ -95,6 +114,7 @@ class Runner:
         try:
             while turn < self.config.max_turns and not self._submitted:
                 turn += 1
+                self._record_progress(turn, self.procedures.active or "running")
                 response = await self._client.complete(
                     turn_number=turn,
                     messages=list(messages),
@@ -105,7 +125,13 @@ class Runner:
                 if calls:
                     self.registry.set_turn(turn)
                     messages.append(assistant_tool_call_message(calls, response))
+                    previous_stage = self.procedures.active
                     results = await self._execute_tool_batch(calls, turn)
+                    if (
+                        self.procedures.active is not None
+                        and self.procedures.active != previous_stage
+                    ):
+                        self._record_progress(turn, self.procedures.active)
                     for call, result_content in zip(calls, results):
                         if call.name == "load_procedure":
                             self._append_procedure_message(messages, call, result_content)
@@ -156,27 +182,84 @@ class Runner:
         turn: int,
     ) -> list[str]:
         executed = await asyncio.gather(
-            *[self._execute_tool(call, turn) for call in calls]
+            *[
+                self._execute_tool(call, turn, ordinal)
+                for ordinal, call in enumerate(calls)
+            ]
         )
         return list(executed)
 
-    async def _execute_tool(self, call: ToolCall, turn: int) -> str:
+    async def _execute_tool(
+        self,
+        call: ToolCall,
+        turn: int,
+        ordinal: int,
+    ) -> str:
         handler = self.registry.get_handler(call.name)
+        implementation_version = (
+            self.registry.get_implementation_version(call.name)
+            or _UNKNOWN_TOOL_IMPLEMENTATION_VERSION
+        )
+        execution_id = self._begin_tool_execution(
+            ToolExecutionStart(
+                turn_number=turn,
+                tool_ordinal=ordinal,
+                provider_tool_call_id=call.id or None,
+                tool_name=call.name,
+                implementation_version=implementation_version,
+                arguments=cast(dict[str, JsonValue], call.arguments),
+            )
+        )
+        start = time.time()
         if handler is None:
-            result: Any = {"error": f"Unknown tool: {call.name}"}
+            message = f"Unknown tool: {call.name}"
+            error: dict[str, JsonValue] = {
+                "type": "UnknownToolError",
+                "message": message,
+            }
+            result: Any = {"error": message}
             result_content = self._as_tool_result_content(result)
-            self.log.add_tool_call(call.name, call.arguments, result_content, 0, turn=turn)
+            duration_ms = self._duration_ms(start)
+            self.log.add_tool_call(
+                call.name,
+                call.arguments,
+                result_content,
+                duration_ms,
+                turn=turn,
+            )
+            self._finish_tool_execution(
+                execution_id,
+                ToolExecutionFinish(
+                    status="failed",
+                    full_result_text=result_content,
+                    structured_result=cast(dict[str, JsonValue], result),
+                    error_text=message,
+                    error=error,
+                ),
+            )
             return result_content
 
-        start = time.time()
         try:
             result = handler(**call.arguments)
             if asyncio.iscoroutine(result):
                 result = await result
+        except asyncio.CancelledError:
+            self._finish_tool_execution(
+                execution_id,
+                ToolExecutionFinish(status="cancelled"),
+            )
+            raise
         except Exception as exc:
-            result = {"error": str(exc)}
+            error = sanitize_provider_error(exc)
+            error_text = str(error.get("message") or type(exc).__name__)
+            result = {"error": error_text}
+            status = "failed"
+        else:
+            error = None
+            error_text = None
+            status = "succeeded"
 
-        duration_ms = int((time.time() - start) * 1000)
+        duration_ms = self._duration_ms(start)
         result_content = self._as_tool_result_content(result)
         self.log.add_tool_call(
             call.name,
@@ -185,11 +268,59 @@ class Runner:
             duration_ms,
             turn=turn,
         )
+        self._finish_tool_execution(
+            execution_id,
+            ToolExecutionFinish(
+                status=status,
+                full_result_text=result_content,
+                structured_result=self._structured_result(result_content),
+                error_text=error_text,
+                error=error,
+            ),
+        )
 
         if call.name == "submit_artifact" and self._is_successful_submit(result_content):
             self._submitted = True
 
         return result_content
+
+    def _begin_tool_execution(self, execution: ToolExecutionStart) -> UUID | None:
+        if self._recorder is None:
+            return None
+        try:
+            return self._recorder.begin_tool_execution(execution)
+        except Exception as exc:
+            raise RunnerRecordingError(
+                f"Could not begin durable tool execution for {execution.tool_name}"
+            ) from exc
+
+    def _finish_tool_execution(
+        self,
+        execution_id: UUID | None,
+        result: ToolExecutionFinish,
+    ) -> None:
+        if self._recorder is None:
+            return
+        if execution_id is None:
+            raise RunnerRecordingError("Durable tool execution ID is missing")
+        try:
+            self._recorder.finish_tool_execution(execution_id, result)
+        except Exception as exc:
+            raise RunnerRecordingError(
+                "Could not finish durable tool execution"
+            ) from exc
+
+    def _record_progress(self, turn: int, stage: str) -> None:
+        if self._recorder is None:
+            return
+        try:
+            self._recorder.update_progress(
+                GenerationProgress(current_turn=turn, current_stage=stage)
+            )
+        except Exception as exc:
+            raise RunnerRecordingError(
+                f"Could not record generation progress for turn {turn}"
+            ) from exc
 
     def _append_procedure_message(
         self,
@@ -221,6 +352,24 @@ class Runner:
         except json.JSONDecodeError:
             return False
         return isinstance(data, dict) and data.get("ok") is True
+
+    @staticmethod
+    def _structured_result(
+        result: str,
+    ) -> dict[str, JsonValue] | list[JsonValue] | None:
+        try:
+            parsed = json.loads(result)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        if isinstance(parsed, dict):
+            return cast(dict[str, JsonValue], parsed)
+        if isinstance(parsed, list):
+            return cast(list[JsonValue], parsed)
+        return None
+
+    @staticmethod
+    def _duration_ms(start: float) -> int:
+        return max(0, int((time.time() - start) * 1000))
 
     @staticmethod
     def _summarize_result(result: str) -> str:
