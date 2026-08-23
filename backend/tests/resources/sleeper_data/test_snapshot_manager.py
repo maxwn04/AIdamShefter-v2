@@ -6,6 +6,7 @@ import pytest
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
+from backend.database.models.core import CompetitionSeason
 from backend.database.models.sleeper import DataSnapshot as StoredDataSnapshot
 from backend.database.models.sleeper import DataSnapshotRequest
 from backend.database.sessions import create_session_factory
@@ -15,6 +16,7 @@ from backend.resources.sleeper_data import (
     BeginSnapshotBuild,
     ClaimedSnapshotBuild,
     DataSnapshotManager,
+    DataSnapshotQuery,
     ExistingBuildingSnapshot,
     ExistingReadySnapshot,
     RefreshRunManager,
@@ -234,3 +236,75 @@ def test_snapshot_reads_are_competition_scoped(
         other_manager.get(claimed.snapshot.id)
     with pytest.raises(DatalayerResourceNotFound):
         other_manager.list_requests(claimed.snapshot.id)
+
+
+def test_snapshot_history_is_season_scoped_newest_first_and_paginated(
+    database_engine: Engine,
+    domain: Domain,
+    snapshot_manager: DataSnapshotManager,
+) -> None:
+    other_season_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(CompetitionSeason),
+            {
+                "id": other_season_id,
+                "competition_id": domain.competition_id,
+                "season_year": 2027,
+                "sequence_number": 2,
+                "sleeper_league_id": f"league-{other_season_id}",
+            },
+        )
+    first = snapshot_manager.begin_or_get(_command(domain, build_key="5" * 64))
+    second = snapshot_manager.begin_or_get(_command(domain, build_key="6" * 64))
+    assert isinstance(first, ClaimedSnapshotBuild)
+    assert isinstance(second, ClaimedSnapshotBuild)
+    snapshot_manager.mark_failed(
+        first.snapshot.id,
+        SnapshotFailure(code="fixture_failed", summary="Fixture failure"),
+    )
+    other_domain = Domain(
+        competition_id=domain.competition_id,
+        season_id=other_season_id,
+        sleeper_league_id=f"league-{other_season_id}",
+        franchise_ids=domain.franchise_ids,
+        roster_ids=domain.roster_ids,
+    )
+    other = snapshot_manager.begin_or_get(_command(other_domain, build_key="7" * 64))
+    assert isinstance(other, ClaimedSnapshotBuild)
+    tied_at = datetime(2026, 8, 23, 12, tzinfo=UTC)
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(StoredDataSnapshot)
+            .where(StoredDataSnapshot.id.in_([first.snapshot.id, second.snapshot.id]))
+            .values(created_at=tied_at)
+        )
+
+    expected = sorted((first.snapshot.id, second.snapshot.id), reverse=True)
+    first_page = snapshot_manager.list_snapshots(
+        DataSnapshotQuery(
+            competition_season_id=domain.season_id,
+            limit=1,
+        )
+    )
+    second_page = snapshot_manager.list_snapshots(
+        DataSnapshotQuery(
+            competition_season_id=domain.season_id,
+            limit=1,
+            offset=1,
+        )
+    )
+
+    assert first_page.total == 2
+    assert [first_page.items[0].id, second_page.items[0].id] == expected
+    assert {first_page.items[0].status, second_page.items[0].status} == {
+        SnapshotStatus.BUILDING,
+        SnapshotStatus.FAILED,
+    }
+    assert snapshot_manager.list_snapshots(
+        DataSnapshotQuery(competition_season_id=other_season_id)
+    ).items[0].id == other.snapshot.id
+    with pytest.raises(DatalayerResourceNotFound):
+        snapshot_manager.list_snapshots(
+            DataSnapshotQuery(competition_season_id=uuid4())
+        )

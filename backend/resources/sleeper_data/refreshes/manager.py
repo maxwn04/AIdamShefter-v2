@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import cast
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -22,7 +23,12 @@ from backend.resources.sleeper_data.refreshes.codec import (
     decode_refresh,
     encode_endpoint_scope,
 )
-from backend.resources.sleeper_data.refreshes.objects import RefreshRun, StartRefresh
+from backend.resources.sleeper_data.refreshes.objects import (
+    RefreshRun,
+    RefreshRunPage,
+    RefreshRunQuery,
+    StartRefresh,
+)
 from backend.services.datalayer.contracts import (
     NormalizationStatus,
     RefreshStatus,
@@ -121,17 +127,71 @@ class RefreshRunManager:
         with read_only_session(self._session_factory) as session:
             return decode_refresh(self._load(session, refresh_id))
 
+    def get_refresh_for_season(
+        self,
+        competition_season_id: UUID,
+        refresh_id: UUID,
+    ) -> RefreshRun:
+        with read_only_session(self._session_factory) as session:
+            self._require_season(session, competition_season_id)
+            return decode_refresh(
+                self._load(
+                    session,
+                    refresh_id,
+                    competition_season_id=competition_season_id,
+                )
+            )
+
+    def list_refreshes(self, query: RefreshRunQuery) -> RefreshRunPage:
+        with read_only_session(self._session_factory) as session:
+            self._require_season(session, query.competition_season_id)
+            where = sa.and_(
+                StoredRefreshRun.competition_id == self._competition_id,
+                StoredRefreshRun.competition_season_id
+                == query.competition_season_id,
+            )
+            total = cast(
+                int,
+                session.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(StoredRefreshRun)
+                    .where(where)
+                ),
+            )
+            rows = session.scalars(
+                sa.select(StoredRefreshRun)
+                .where(where)
+                .order_by(
+                    StoredRefreshRun.started_at.desc(),
+                    StoredRefreshRun.id.desc(),
+                )
+                .limit(query.limit)
+                .offset(query.offset)
+            ).all()
+            return RefreshRunPage(
+                items=tuple(decode_refresh(row) for row in rows),
+                total=total,
+                limit=query.limit,
+                offset=query.offset,
+            )
+
     def _load(
         self,
         session: Session,
         refresh_id: UUID,
         *,
         lock: bool = False,
+        competition_season_id: UUID | None = None,
     ) -> StoredRefreshRun:
-        statement = sa.select(StoredRefreshRun).where(
+        conditions = [
             StoredRefreshRun.id == refresh_id,
             StoredRefreshRun.competition_id == self._competition_id,
-        )
+        ]
+        if competition_season_id is not None:
+            conditions.append(
+                StoredRefreshRun.competition_season_id == competition_season_id
+            )
+        statement = sa.select(StoredRefreshRun).where(*conditions)
         if lock:
             statement = statement.with_for_update()
         stored = session.scalar(statement)

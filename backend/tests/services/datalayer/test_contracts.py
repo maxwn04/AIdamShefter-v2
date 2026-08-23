@@ -97,6 +97,7 @@ def test_refresh_outcome_retains_immutable_scope_results() -> None:
     outcome = RefreshOutcome(
         refresh_run_id=REFRESH_ID,
         status=RefreshStatus.PARTIAL,
+        effective_through_week=8,
         requested_scope_count=2,
         succeeded_scope_count=1,
         failed_scope_count=1,
@@ -104,6 +105,7 @@ def test_refresh_outcome_retains_immutable_scope_results() -> None:
     )
 
     assert outcome.scope_results == (scope_result,)
+    assert outcome.effective_through_week == 8
     assert outcome.scope_results[0].warning_codes == ("late_reference_data",)
 
 

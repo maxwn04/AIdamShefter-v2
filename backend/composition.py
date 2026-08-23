@@ -81,6 +81,12 @@ class CompetitionApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
     session_factory: SessionFactory
 
 
+class DataApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
+    """Runtime capabilities required by data product routes."""
+
+    session_factory: SessionFactory
+
+
 @dataclass(frozen=True, slots=True)
 class ApiRuntime:
     """Long-lived dependencies owned by one API process."""
@@ -166,6 +172,20 @@ class DatalayerRefreshDependencies:
     """One scoped refresh service and its owned source transport."""
 
     refresh: DatalayerRefreshService
+    source: SleeperSourceClient
+
+    def close(self) -> None:
+        self.source.close()
+
+
+@dataclass(frozen=True, slots=True)
+class DataApiDependencies:
+    """One request's scoped refresh and data-audit capabilities."""
+
+    refresh: DatalayerRefreshService
+    refreshes: RefreshRunManager
+    league_seasons: LeagueSeasonManager
+    snapshots: DataSnapshotManager
     source: SleeperSourceClient
 
     def close(self) -> None:
@@ -278,6 +298,44 @@ def build_datalayer_refresh_dependencies(
             retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
             inline_payload_max_bytes=resolved.inline_payload_max_bytes,
         ),
+        source=source,
+    )
+
+
+def build_data_api_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+    *,
+    settings: DatalayerSettings | None = None,
+) -> DataApiDependencies:
+    """Compose one request-scoped manual refresh and audit boundary."""
+
+    resolved = settings or DatalayerSettings.from_environment()
+    source = SleeperSourceClient(
+        base_url=resolved.sleeper_base_url,
+        timeout_seconds=resolved.sleeper_timeout_seconds,
+    )
+    refreshes = RefreshRunManager(session_factory, context)
+    attempts = ApiRequestManager(session_factory, context)
+    scopes = NormalizedScopeManager(session_factory, context)
+    league_seasons = LeagueSeasonManager(session_factory, context)
+    refresh = DatalayerRefreshService(
+        source=source,
+        identities=league_seasons,
+        refreshes=refreshes,
+        attempts=attempts,
+        scopes=scopes,
+        files=LocalDatalayerFileStore(resolved.data_root),
+        code_version=resolved.code_version,
+        max_attempts=resolved.sleeper_max_attempts,
+        retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
+        inline_payload_max_bytes=resolved.inline_payload_max_bytes,
+    )
+    return DataApiDependencies(
+        refresh=refresh,
+        refreshes=refreshes,
+        league_seasons=league_seasons,
+        snapshots=DataSnapshotManager(session_factory, context),
         source=source,
     )
 

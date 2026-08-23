@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from backend.api.errors import (
     REPORTING_APPLICATION_ERRORS,
     core_resource_error_handler,
+    datalayer_error_handler,
     memory_application_error_handler,
     reporting_application_error_handler,
 )
@@ -17,6 +18,7 @@ from backend.api.routes import api_router, health_router
 from backend.composition import ApiRuntimeDependencies, build_api_runtime
 from backend.resources.core import CoreResourceError
 from backend.resources.memory.common import MemoryApplicationError
+from backend.services.datalayer import DatalayerError
 
 RuntimeFactory = Callable[[], ApiRuntimeDependencies]
 
@@ -50,6 +52,10 @@ def create_app(
     application.add_exception_handler(
         CoreResourceError,
         core_resource_error_handler,
+    )
+    application.add_exception_handler(
+        DatalayerError,
+        datalayer_error_handler,
     )
     for error_type in REPORTING_APPLICATION_ERRORS:
         application.add_exception_handler(

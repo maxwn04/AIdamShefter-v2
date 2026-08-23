@@ -106,6 +106,7 @@ class ScopeRefreshResult(_WorkflowValue):
 class RefreshOutcome(_WorkflowValue):
     refresh_run_id: UUID
     status: RefreshStatus
+    effective_through_week: int | None = Field(ge=1, le=18, strict=True)
     requested_scope_count: int = Field(ge=0, strict=True)
     succeeded_scope_count: int = Field(ge=0, strict=True)
     failed_scope_count: int = Field(ge=0, strict=True)
