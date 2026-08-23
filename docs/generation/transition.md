@@ -8,7 +8,8 @@ Reporter V2 already has the desired content engine:
 - one single-loop `Runner`;
 - a lightweight retry/fallback `CompletionClient`;
 - reporter-owned `ToolRegistry` and tool handlers;
-- typed in-memory brief/article artifacts;
+- typed in-memory brief/article state that the platform copy will replace with
+  path-addressed Markdown artifacts;
 - procedure replacement semantics;
 - a diagnostic `RunLog`; and
 - prompt/procedure files with broad test coverage.
@@ -38,11 +39,11 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 - `ToolRegistry` registration and context-tool pattern;
 - `CompletionSettings`, retry classification, delay, and fallback order;
 - message/tool-call normalization helpers;
-- `ReportConfig`, brief/article models, and `ArticleOutput`;
-- brief, article, and procedure tool names/schemas;
+- `ReportConfig` and non-artifact runner models;
+- procedure and other non-artifact tool names/schemas;
 - prompts and procedures;
 - procedure replacement versus append mode;
-- successful `submit_article` as the reporter stop signal; and
+- explicit artifact submission as the reporter stop signal; and
 - local `RunLog` for test/debug visibility.
 
 ### Modify internally
@@ -59,7 +60,8 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
   to the provider;
 - persist full tool results rather than relying on `RunLog` summaries;
 - persist provider token usage per attempt;
-- mirror article mutations to immutable reporting artifact versions; and
+- replace section-specific editing with generic path-addressed artifact tools;
+- mirror complete Markdown mutations to immutable reporting artifact versions;
 - move successful memory commit/discard out of the reporter and into
   `GenerationService`.
 
@@ -68,6 +70,7 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 - `SleeperLeagueData.load()` and source fetching during report generation;
 - private `_query_conn` access for metadata or roster resolution;
 - legacy `ContextStore` reads/writes and memory lifecycle helpers;
+- structured brief/section state and its specialized model-facing tools;
 - week-based article filenames as canonical output identity;
 - production dependence on `.output` run-log JSON files; and
 - CLI ownership of the durable generation lifecycle.
@@ -80,6 +83,7 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 - provider-attempt token/call recording;
 - full tool-call recording;
 - durable versioned artifacts;
+- raw Markdown `research/brief.md` and `article.md` plus `ReporterOutput`;
 - reporter adapters for frozen data and typed memory;
 - API polling/read surfaces; and
 - a thin worker/process entry point.
@@ -92,10 +96,11 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 | `reporter_v2/runner/runner.py` | new `backend/services/reporter/runner/runner.py` copy | Preserve loop; add execution recording calls only in the new package |
 | `reporter_v2/runner/completion.py` | reporter completion adapter | Preserve retry/fallback; instrument every actual attempt and normalize usage |
 | `reporter_v2/runner/models.py` | reporter runner models | Move with minimal changes |
-| `reporter_v2/runner/schemas.py` | reporter artifact schemas | Preserve; add serialization/version metadata only if artifact contract requires it |
-| `reporter_v2/runner/state.py` | reporter runner state | Preserve in-memory store; add recorder reference to tool context rather than database state |
+| `reporter_v2/runner/schemas.py` | reporter artifact schemas | Replace section/brief schemas with generic artifact snapshots and `ReporterOutput` in the artifact-refactor slice |
+| `reporter_v2/runner/state.py` | reporter runner state | Replace specialized state with the path-addressed `ArtifactStore`; add recorder reference to tool context rather than database state |
 | `reporter_v2/runner/run_log.py` | reporter diagnostics | Preserve as non-authoritative local view |
-| brief/article/procedure tools | reporter tools | Preserve model-facing contracts |
+| brief/article tools | generic reporter artifact tools | Replace after copy characterization with the settled path/revision contract |
+| procedure tools | reporter tools | Preserve model-facing contracts |
 | datalayer tools | reporter datalayer adapter | Already adapted to `FrozenLeagueData`; move mechanically |
 | persistent/memory tools | reporter memory adapter | Replace legacy backend; compatibility decided tool by tool below |
 | `reporter_v2/app/runner.py` | API/worker plus temporary CLI | Decompose; no canonical output filenames or direct loading in production |
@@ -103,36 +108,29 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 
 ## Non-Memory Tool Compatibility
 
-### Brief tools
+### Artifact tools
 
-Preserve the seven current interfaces:
+The copied reporter initially preserves its legacy tools only for
+characterization. The artifact-refactor slice then retires the specialized
+brief tools (`save_fact`, `save_memory_callback`, `save_storyline`,
+`set_outline`, `read_brief`, `set_style`, `set_bias`) and article tools
+(`write_section`, `read_article`, `read_section`, `rewrite_section`,
+`set_section_order`, `submit_article`). They are replaced by:
 
-- `save_fact`
-- `save_memory_callback`
-- `save_storyline`
-- `set_outline`
-- `read_brief`
-- `set_style`
-- `set_bias`
+- `list_artifacts()`;
+- `read_artifact(path)`;
+- `create_artifact(path, content)`;
+- `edit_artifact(path, old_text, new_text, expected_revision)`; and
+- `submit_artifact(path, expected_revision)`.
 
-These operate on the reporter's run-local verified brief, not canonical memory.
-Their names do not imply database persistence. Final brief persistence is a
-generation artifact concern.
-
-### Article tools
-
-Preserve the six current interfaces:
-
-- `write_section`
-- `read_article`
-- `read_section`
-- `rewrite_section`
-- `set_section_order`
-- `submit_article`
-
-Their internal mutation callbacks gain artifact recording. `submit_article`
-still ends the reporter loop but does not independently mark the generation
-succeeded.
+The required run-local artifacts are raw UTF-8 Markdown at
+`research/brief.md` and `article.md`. `edit_artifact` is a revision-checked
+literal find-and-replace: `old_text` must occur exactly once, and there is no
+`replace_all` mode. Successful creates and edits record complete immutable
+snapshots. Reads do not mutate state. `submit_artifact` accepts the current
+revision of `article.md`, ends the reporter loop, and produces
+`ReporterOutput(submitted_path, artifacts)`; it does not independently mark the
+generation succeeded or append a final copy.
 
 ### Procedure tool
 
@@ -220,7 +218,7 @@ Required additions are orthogonal:
 - pass turn identity to the completion adapter;
 - receive or resolve the successful AI-call identity for tool provenance;
 - begin/finish each tool call around the existing handler;
-- expose artifact recorder state through `ToolContext`; and
+- expose generic artifact state and recorder access through `ToolContext`; and
 - emit progress updates through the recorder.
 
 The runner must not learn about snapshots, memory revisions, SQLAlchemy,
@@ -236,8 +234,9 @@ production composition. Transition in two steps:
 2. switch the platform CLI/worker to submit/execute durable generations, then
    remove direct `SleeperLeagueData` and `ContextStore` composition.
 
-Generated files may remain a developer convenience, but generation ID plus
-reporting artifacts become the canonical address of an article.
+Generated files may remain a developer convenience, but generation ID plus the
+`article.md` artifact and selected version become the canonical address of an
+article.
 
 ## Exit Criteria
 
@@ -245,12 +244,12 @@ The transition is complete when:
 
 - production imports no `reporter_v2`, legacy datalayer facade, or
   `reporter_memory.ContextStore`;
-- the same fixture request produces compatible brief/article/tool behavior
-  through the moved reporter;
+- the same fixture request produces compatible reporting behavior through the
+  moved reporter before the explicit artifact-contract refactor;
 - the reporter can execute only against its pinned frozen snapshot and pinned
   memory context;
 - every provider attempt and tool call has complete durable telemetry;
-- token usage and final/working article artifacts are persisted;
+- token usage and immutable Markdown artifact versions are persisted;
 - failed runs discard typed memory proposals;
 - succeeded runs follow the settled finalization contract; and
 - the API/worker invoke the same `GenerationService` rather than duplicating

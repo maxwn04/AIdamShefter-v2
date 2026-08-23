@@ -68,20 +68,53 @@ adapters, execution persistence, and finalization.
 unchanged, and new reporter code has no source/PostgreSQL/resource-manager
 imports.
 
-### `generation-2` — reporting resource contracts and manager
+### `generation-2` — reporting artifact storage contract
+
+- Replace reporting artifact `kind`/`name`/`format` identity with normalized
+  generation-scoped `path` plus immutable IANA `media_type`.
+- Replace artifact-version `working`/`final` status with selected-version
+  finalization; finalizing pins an existing version and forbids later appends.
+- Add the reversible legacy-row backfill, composite final-pointer integrity,
+  immutable identity/finalization guards, and post-finalization version guard.
+- Update the durable reporting and generation contracts for the new artifact
+  identity, version, and finalization model.
+
+**Exit gate:** migration upgrade/downgrade preserves legacy content and maps
+known formats to MIME types; live PostgreSQL tests prove selected versions stay
+within their artifact/generation and finalized artifacts cannot change.
+
+### `generation-3` — generic Markdown reporter artifacts
+
+- Refactor only the copied reporter from structured brief/section state to raw
+  UTF-8 Markdown at `research/brief.md` and `article.md`.
+- Replace specialized brief/article tools with `list_artifacts`,
+  `read_artifact(path)`, `create_artifact(path, content)`,
+  `edit_artifact(path, old_text, new_text, expected_revision)`, and
+  `submit_artifact(path, expected_revision)`.
+- Make edits revision-checked, literal, single-match replacements with no
+  `replace_all` mode.
+- Add `ReporterOutput` with `submitted_path` and complete current snapshots of
+  all artifacts; update prompts, procedures, and characterization tests.
+
+**Exit gate:** the copied reporter produces both required Markdown paths,
+rejects stale or ambiguous edits, submits an exact current `article.md`
+revision, and has no artifact-kind or section-specific persistence contract.
+
+### `generation-4` — reporting resource contracts and manager
 
 - Add resource objects for generation summary/detail, AI calls, tool calls,
   artifacts, and artifact versions.
 - Add `GenerationManager` with scoped pending/start/progress/fail/cancel/read
   operations.
-- Add child-call and append-only artifact operations under the same aggregate.
+- Add child-call, path-addressed artifact, append-only version, and
+  selected-version finalization operations under the same aggregate.
 - Add typed lifecycle/concurrency errors and ORM-to-resource conversion.
 - Prove existing reporting schema constraints through real manager behavior.
 
 **Exit gate:** pending-to-running input pinning is atomic, inputs are immutable,
 terminal rows cannot reopen, and concurrent call/artifact allocation is safe.
 
-### `generation-3` — manifest and model-call instrumentation
+### `generation-5` — manifest and model-call instrumentation
 
 - Add immutable manifest contracts, canonical serialization, versioning, and
   hash golden vectors.
@@ -95,7 +128,7 @@ terminal rows cannot reopen, and concurrent call/artifact allocation is safe.
 cancellation, missing usage, cached tokens, and reasoning tokens all produce
 the expected durable attempt rows without changing model-call behavior.
 
-### `generation-4` — tool-call and progress instrumentation
+### `generation-6` — tool-call and progress instrumentation
 
 - Add the generation execution recorder.
 - Instrument `Runner` around every tool handler, including unknown tools,
@@ -109,20 +142,20 @@ the expected durable attempt rows without changing model-call behavior.
 **Exit gate:** tool results sent to the model and persisted results are
 equivalent; provider order remains the tool ordinal under parallel completion.
 
-### `generation-5` — artifact persistence
+### `generation-7` — artifact persistence
 
 - Add artifact-recorder access to `ToolContext` without changing model-facing
   tool schemas.
-- Persist complete working article Markdown after successful article mutations.
-- Persist the final article and final brief JSON through generation
-  finalization.
+- Persist complete Markdown snapshots after successful creates and edits to
+  `research/brief.md` and `article.md`.
+- Return the existing version for content-identical mutations and create no
+  versions for reads, failed mutations, or submission.
 - Attach source AI/tool provenance and content hashes.
-- Avoid versions for reads, failed mutations, and identical consecutive content.
 
-**Exit gate:** article history can be reconstructed from artifact versions and
-one final article exists for a succeeded generation.
+**Exit gate:** both artifact histories can be reconstructed from immutable
+versions and the submitted article revision is represented exactly once.
 
-### `generation-6` — typed memory reporter adapter
+### `generation-8` — typed memory reporter adapter
 
 - Implement only the memory tool mappings settled in `generation-0`.
 - Register tools over `GenerationMemoryContext`, never over managers or legacy
@@ -136,7 +169,7 @@ one final article exists for a succeeded generation.
 **Exit gate:** a run cannot observe its own buffered proposals, invalid typed
 proposals return safe tool errors, and no legacy store is read or written.
 
-### `generation-7` — input lifecycle and reporter execution
+### `generation-9` — input lifecycle and reporter execution
 
 - Add `GenerationService.submit()` and `execute()`.
 - Implement generation-owned live/backtest cutoff policy.
@@ -151,12 +184,15 @@ proposals return safe tool errors, and no legacy store is read or written.
 **Exit gate:** no model call can occur before complete input pinning, and the run
 cannot switch data snapshot or memory revision mid-flight.
 
-### `generation-8` — finalization and failure recovery
+### `generation-10` — finalization and failure recovery
 
-- Implement the settled article/memory/generation finalization boundary.
+- Implement the settled selected-artifact/memory/generation finalization
+  boundary.
+- Pin the submitted `article.md` version and returned current
+  `research/brief.md` version without appending final copies.
 - Apply one completed memory bundle after successful reporter submission or
   discard it on failure/cancellation.
-- Preserve partial AI/tool/working-artifact telemetry on failure.
+- Preserve partial AI/tool/artifact telemetry on failure.
 - Add stale-running reconciliation and explicit rerun behavior.
 - Prove terminal immutability and sanitized failure metadata.
 
@@ -164,7 +200,7 @@ cannot switch data snapshot or memory revision mid-flight.
 does not leak an open resource, and cannot silently commit partial memory under
 the chosen contract.
 
-### `generation-9` — API, worker, and composition
+### `generation-11` — API, worker, and composition
 
 - Add typed generation dependencies to `backend/composition.py`.
 - Add submission, polling, history, call, token, tool-result, artifact, and
@@ -177,7 +213,7 @@ the chosen contract.
 **Exit gate:** API and worker tests prove scoping, polling, error translation,
 and one shared service path.
 
-### `generation-10` — cutover and legacy removal
+### `generation-12` — cutover and legacy removal
 
 - Switch all production entry points to the backend generation service.
 - Remove temporary compatibility imports and direct legacy CLI composition.
@@ -195,22 +231,25 @@ one canonical memory authority, and one reporting audit history.
 ```mermaid
 flowchart LR
     G0["G0 decisions"] --> G1["G1 reporter move"]
-    G0 --> G2["G2 reporting manager"]
-    G1 --> G3["G3 AI calls/tokens"]
-    G2 --> G3
-    G3 --> G4["G4 tool/progress"]
-    G4 --> G5["G5 artifacts"]
-    G1 --> G6["G6 memory adapter"]
-    Memory["Typed memory integration-ready"] --> G6
-    Data["Merged frozen datalayer"] --> G1
-    Data --> G7["G7 generation inputs"]
-    G2 --> G7
+    G1 --> G2["G2 artifact storage"]
+    G2 --> G3["G3 reporter artifacts"]
+    G2 --> G4["G4 reporting manager"]
+    G1 --> G5["G5 AI calls/tokens"]
+    G4 --> G5
+    G5 --> G6["G6 tool/progress"]
+    G6 --> G7["G7 artifact persistence"]
     G3 --> G7
-    G5 --> G7
-    G6 --> G7
-    G7 --> G8["G8 finalization"]
-    G8 --> G9["G9 API/worker"]
-    G9 --> G10["G10 cutover"]
+    G1 --> G8["G8 memory adapter"]
+    Memory["Typed memory integration-ready"] --> G8
+    Data["Merged frozen datalayer"] --> G1
+    Data --> G9["G9 generation inputs"]
+    G4 --> G9
+    G5 --> G9
+    G7 --> G9
+    G8 --> G9
+    G9 --> G10["G10 finalization"]
+    G10 --> G11["G11 API/worker"]
+    G11 --> G12["G12 cutover"]
 ```
 
 ## Decisions Required Before Implementation
@@ -260,12 +299,6 @@ The current memory service's transaction ownership means the first choice may
 require a narrow shared transaction helper or revised ownership contract. That
 change must be agreed with the memory design rather than bypassed.
 
-### 5. Brief artifact granularity
-
-This plan recommends one final JSON brief artifact and complete working article
-versions. Confirm whether working brief versions are valuable enough to store;
-the reporting database design explicitly leaves them optional.
-
 ## Required Acceptance Coverage
 
 The complete stack must prove:
@@ -280,8 +313,10 @@ The complete stack must prove:
 7. every tool call retains exact input, full output, status, timing, and
    provider ordinal;
 8. parallel tool completion does not corrupt ordering or provenance;
-9. article mutations create reconstructable immutable versions;
-10. one succeeded generation has one final article;
+9. `research/brief.md` and `article.md` mutations create reconstructable
+   immutable versions through the generic artifact contract;
+10. one succeeded generation pins the exact submitted article version and
+    returned current brief version without duplicate final copies;
 11. searches remain pinned and buffered memory proposals remain invisible;
 12. failed/cancelled generations discard buffered proposals;
 13. the chosen success finalization contract survives injected failure at each
@@ -293,13 +328,14 @@ The complete stack must prove:
 
 ## Test Layers
 
-- reporter characterization tests for prompt, tool schema, brief, article,
-  procedure, and runner compatibility;
+- reporter characterization tests for prompts, tool schemas, artifact
+  snapshots, procedures, and runner compatibility;
 - pure manifest and token-normalization golden tests;
 - completion adapter tests for retry/fallback/usage/error permutations;
 - runner tests with fake recorder and parallel tools;
 - generation-manager tests against disposable PostgreSQL;
-- artifact concurrency/hash/finality tests against PostgreSQL;
+- artifact path, concurrency, hash, and selected-version finalization tests
+  against PostgreSQL;
 - generation-service tests with fake managers and real fixture frozen SQLite;
 - typed-memory adapter tests with fake and real `GenerationMemoryContext`;
 - cross-resource failure-injection tests for finalization;

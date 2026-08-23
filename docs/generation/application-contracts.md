@@ -75,7 +75,9 @@ shape depends on the unresolved cross-resource memory transaction decision. It
 must at minimum ensure that:
 
 - the generation is still running;
-- a final article version exists and belongs to the generation;
+- the selected `article.md` and `research/brief.md` versions exist and belong to
+  the generation;
+- finalization pins those existing versions without creating copies;
 - input identity remains unchanged;
 - completion timestamps/progress are coherent; and
 - a terminal generation cannot be reopened or modified.
@@ -91,13 +93,17 @@ must at minimum ensure that:
 - full tool result text is retained; structured JSON is additional.
 - artifact revisions are positive, append-only, hash-verified, and allocated
   under concurrency control.
+- artifact identity is unique by normalized `(generation_id, path)`, while
+  immutable `media_type` describes representation rather than semantic role.
+- finalizing an artifact selects its latest existing version and forbids later
+  appends.
 - expected lifecycle conflicts raise typed application errors, never leak
   constraint names.
 
 ## Reporter Generator Contract
 
-The target generator keeps the current entry point and output shape with narrow
-dependency substitutions:
+The target generator keeps the current entry point, adopts `ReporterOutput`,
+and makes the required dependency substitutions:
 
 ```python
 async def generate_article(
@@ -111,7 +117,7 @@ async def generate_article(
     recorder: ReporterExecutionRecorder | None = None,
     complete: CompletionFn | None = None,
     allow_memory_writes: bool = True,
-) -> ArticleOutput: ...
+) -> ReporterOutput: ...
 ```
 
 Changes from Reporter V2 are intentionally limited:
@@ -120,12 +126,37 @@ Changes from Reporter V2 are intentionally limited:
 - legacy `ContextStore` becomes an already-pinned
   `GenerationMemoryContext`;
 - durable execution recording is injected;
+- structured brief/article state becomes path-addressed Markdown artifacts;
 - filesystem log/output ownership leaves the production generator; and
 - legacy memory prepare/finalize calls leave the reporter and move to the
   generation workflow.
 
-The reporter continues to own registry construction, prompt building, brief
-seeding, runner construction, and `ArticleOutput` assembly.
+The reporter continues to own registry construction, prompt building,
+`research/brief.md` seeding, runner construction, and `ReporterOutput` assembly.
+
+The output selects the submitted artifact and returns one complete current
+snapshot for every artifact in deterministic path order:
+
+```python
+class ArtifactSnapshot(BaseModel, frozen=True):
+    path: str
+    media_type: Literal["text/markdown"]
+    content: str
+    revision: int
+    content_hash: str
+
+
+class ReporterOutput(BaseModel, frozen=True):
+    submitted_path: str | None
+    artifacts: tuple[ArtifactSnapshot, ...]
+```
+
+`ReporterOutput` can represent an unsubmitted diagnostic result, but generation
+success requires `submitted_path == "article.md"` plus both
+`research/brief.md` and `article.md`. The snapshot matching `submitted_path` is
+the exact revision selected by `submit_artifact`; the service does not infer a
+later revision. `content_hash` is lowercase SHA-256 over the exact UTF-8
+content.
 
 The production path always supplies a durable recorder. Tests may use an
 in-memory recorder, and a transitional standalone CLI may omit it.
@@ -151,11 +182,11 @@ connection, a source client, or the snapshot artifact path separately.
 
 ### Required metadata/identity seam
 
-Reporter V2 currently seeds brief league metadata and resolves roster keys via
-private SQLite access. That cannot continue. The new runtime already supplies
-league display data through curated snapshot results, but the exact non-tool
-metadata contract used to seed `BriefMeta` must be made public or supplied by
-`GenerationService`.
+Reporter V2 currently seeds structured brief league metadata and resolves
+roster keys via private SQLite access. That cannot continue. The new runtime
+already supplies league display data through curated snapshot results, but the
+exact non-tool metadata contract used to seed `research/brief.md` must be made
+public or supplied by `GenerationService`.
 
 Typed memory proposals involving a team require durable `franchise_id` or
 `season_roster_id`. The datalayer design promises stable core identity in frozen
@@ -240,7 +271,7 @@ messages or tool schemas.
 3. captures full string output plus structured JSON when valid;
 4. records duration and success/failure;
 5. returns the same tool-result content to the model; and
-6. sets local submission state only when `submit_article` returns `ok: true`.
+6. sets local submission state only when `submit_artifact` returns `ok: true`.
 
 Unknown tools and handler exceptions are durable failed tool calls. Sanitized
 error data is persisted, while the model receives the existing safe JSON error
@@ -253,25 +284,35 @@ tool-call row records the implementation version used by that handler.
 
 ## Artifact Contract
 
-Artifact tools retain their current model-facing signatures. Their internal
-context gains a recorder hook that receives complete serialized state after a
-successful mutation.
+The reporter replaces section-specific brief/article tools with one generic,
+path-addressed Markdown contract:
 
-Required mappings:
+```python
+list_artifacts()
+read_artifact(path)
+create_artifact(path, content)
+edit_artifact(path, old_text, new_text, expected_revision)
+submit_artifact(path, expected_revision)
+```
 
-| Tool event | Durable action |
-| --- | --- |
-| `write_section`, `rewrite_section`, `set_section_order` success | append complete `article/main` Markdown as `working` |
-| `submit_article` success | expose submitted content to generation finalization; do not independently succeed the generation |
-| brief mutation | keep in memory; optionally record working brief versions only if later justified |
-| generation finalization | append/finalize `article/main`; append final `brief/main` JSON |
+`research/brief.md` and `article.md` are the required paths and both use
+`text/markdown`. Paths are normalized relative logical names, not host
+filesystem paths. `create_artifact` rejects an existing path.
+`edit_artifact` succeeds only when `expected_revision` is current and
+`old_text` occurs exactly once; zero or multiple matches are typed tool errors.
+It performs one literal replacement and appends the resulting complete content
+as a new immutable version. There is deliberately no `replace_all` mode.
 
-Identical consecutive working mutations should not create meaningless versions.
-The manager may compare the new content hash and status to the current artifact
-version inside its short transaction and return the existing version for a
-working no-op. Finalization always appends a distinct `final` version when the
-latest identical content is only `working`; artifact versions are never promoted
-or mutated in place.
+`list_artifacts` and `read_artifact` never append versions. Failed mutations and
+content-identical edits do not append versions. Each successful create/edit
+passes its complete snapshot to the recorder with source AI/tool provenance.
+
+`submit_artifact` accepts only `article.md`, requires its expected current
+revision, records no content version, and ends the reporter loop. The resulting
+`ReporterOutput` contains `submitted_path` plus current snapshots of all
+artifacts. Generation finalization pins the submitted article version and the
+returned current `research/brief.md` version. It never appends a distinct final
+copy or mutates an artifact version in place.
 
 ## Manifest Contract
 
@@ -318,7 +359,7 @@ The initial API remains polling-oriented:
 - read generation detail and exact manifest;
 - list/read AI calls and token usage;
 - list/read tool calls and full results; and
-- list/read artifact versions and the final article.
+- list/read artifact versions and the finalized `article.md` version.
 
 Routes authenticate/authorize, build context, call manager reads or
 `GenerationService`, and translate typed errors. They do not run model loops,

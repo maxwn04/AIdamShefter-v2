@@ -120,14 +120,13 @@ def _artifact_values(
     generation_id: UUID,
     *,
     artifact_id: UUID | None = None,
-    name: str = "article",
+    path: str = "article.md",
 ) -> dict[str, object]:
     return {
         "id": artifact_id or uuid4(),
         "generation_id": generation_id,
-        "kind": "article",
-        "name": name,
-        "format": "markdown",
+        "path": path,
+        "media_type": "text/markdown",
     }
 
 
@@ -137,7 +136,6 @@ def _artifact_version_values(
     *,
     version_id: UUID | None = None,
     revision_number: int = 1,
-    status: str = "working",
     source_ai_call_id: UUID | None = None,
     source_tool_call_id: UUID | None = None,
 ) -> dict[str, object]:
@@ -150,7 +148,6 @@ def _artifact_version_values(
         "content_hash": f"hash-{uuid4()}",
         "source_ai_call_id": source_ai_call_id,
         "source_tool_call_id": source_tool_call_id,
-        "status": status,
     }
 
 
@@ -176,13 +173,13 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
         "artifact_versions",
     }
     expected_checks = {
+        "ck_artifacts_finalization_shape",
         "ck_generations_workspace_shape",
         "ck_generations_unambiguous_memory_input",
     }
     expected_partial_uniques = {
         "uq_evaluation_workspaces_one_active",
         "uq_ai_calls_one_success_per_turn",
-        "uq_artifact_versions_one_final",
     }
     expected_triggers = {
         "generations_protect_terminal",
@@ -191,6 +188,7 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
         "ai_calls_protect_terminal",
         "tool_calls_protect_terminal",
         "artifact_versions_append_only",
+        "artifacts_protect_identity_and_finalization",
     }
 
     with database_engine.connect() as connection:
@@ -408,7 +406,6 @@ def test_partial_unique_indexes_and_natural_identity(
             _artifact_version_values(
                 artifact_id,
                 generation_id,
-                status="final",
                 revision_number=1,
             ),
         )
@@ -435,13 +432,8 @@ def test_partial_unique_indexes_and_natural_identity(
     )
     _assert_integrity_error(
         database_engine,
-        sa.insert(ArtifactVersion).values(
-            **_artifact_version_values(
-                artifact_id,
-                generation_id,
-                status="final",
-                revision_number=2,
-            )
+        sa.insert(Artifact).values(
+            **_artifact_values(generation_id, path="article.md")
         ),
     )
 
@@ -469,7 +461,6 @@ def test_partial_unique_indexes_and_natural_identity(
             _artifact_version_values(
                 artifact_id,
                 generation_id,
-                status="working",
                 revision_number=2,
             ),
         )
@@ -607,6 +598,151 @@ def test_artifact_versions_are_append_only(database_engine: Engine) -> None:
         database_engine,
         sa.delete(ArtifactVersion).where(ArtifactVersion.id == version_id),
     )
+
+
+def test_artifact_identity_and_finalization_are_immutable(
+    database_engine: Engine,
+) -> None:
+    with database_engine.begin() as connection:
+        domain = _seed_domain(connection, "Finalized Artifact")
+        generation_id = uuid4()
+        artifact_id = uuid4()
+        version_id = uuid4()
+        connection.execute(
+            sa.insert(Generation),
+            _generation_values(domain, generation_id=generation_id),
+        )
+        connection.execute(
+            sa.insert(Artifact),
+            _artifact_values(generation_id, artifact_id=artifact_id),
+        )
+        connection.execute(
+            sa.insert(ArtifactVersion),
+            _artifact_version_values(
+                artifact_id,
+                generation_id,
+                version_id=version_id,
+            ),
+        )
+        connection.execute(
+            sa.update(Artifact)
+            .where(Artifact.id == artifact_id)
+            .values(
+                finalized_version_id=version_id,
+                finalized_at=sa.func.now(),
+            )
+        )
+
+    _assert_database_error(
+        database_engine,
+        sa.update(Artifact)
+        .where(Artifact.id == artifact_id)
+        .values(path="renamed.md"),
+    )
+    _assert_database_error(
+        database_engine,
+        sa.update(Artifact)
+        .where(Artifact.id == artifact_id)
+        .values(finalized_version_id=None, finalized_at=None),
+    )
+    _assert_database_error(
+        database_engine,
+        sa.delete(Artifact).where(Artifact.id == artifact_id),
+    )
+    _assert_database_error(
+        database_engine,
+        sa.insert(ArtifactVersion).values(
+            **_artifact_version_values(
+                artifact_id,
+                generation_id,
+                revision_number=2,
+            )
+        ),
+    )
+
+
+def test_artifact_finalization_requires_its_latest_version(
+    database_engine: Engine,
+) -> None:
+    with database_engine.begin() as connection:
+        domain = _seed_domain(connection, "Finalization Scope")
+        generation_id = uuid4()
+        first_artifact_id = uuid4()
+        second_artifact_id = uuid4()
+        first_version_id = uuid4()
+        latest_version_id = uuid4()
+        other_version_id = uuid4()
+        connection.execute(
+            sa.insert(Generation),
+            _generation_values(domain, generation_id=generation_id),
+        )
+        connection.execute(
+            sa.insert(Artifact),
+            [
+                _artifact_values(
+                    generation_id,
+                    artifact_id=first_artifact_id,
+                    path="article.md",
+                ),
+                _artifact_values(
+                    generation_id,
+                    artifact_id=second_artifact_id,
+                    path="brief.md",
+                ),
+            ],
+        )
+        connection.execute(
+            sa.insert(ArtifactVersion),
+            [
+                _artifact_version_values(
+                    first_artifact_id,
+                    generation_id,
+                    version_id=first_version_id,
+                    revision_number=1,
+                ),
+                _artifact_version_values(
+                    first_artifact_id,
+                    generation_id,
+                    version_id=latest_version_id,
+                    revision_number=2,
+                ),
+                _artifact_version_values(
+                    second_artifact_id,
+                    generation_id,
+                    version_id=other_version_id,
+                    revision_number=1,
+                ),
+            ],
+        )
+
+    _assert_database_error(
+        database_engine,
+        sa.update(Artifact)
+        .where(Artifact.id == first_artifact_id)
+        .values(
+            finalized_version_id=first_version_id,
+            finalized_at=sa.func.now(),
+        ),
+    )
+    _assert_database_error(
+        database_engine,
+        sa.update(Artifact)
+        .where(Artifact.id == first_artifact_id)
+        .values(
+            finalized_version_id=other_version_id,
+            finalized_at=sa.func.now(),
+        ),
+    )
+
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(Artifact)
+            .where(Artifact.id == first_artifact_id)
+            .values(
+                finalized_version_id=latest_version_id,
+                finalized_at=sa.func.now(),
+            )
+        )
 
 
 def test_closed_workspace_and_generation_membership_are_immutable(

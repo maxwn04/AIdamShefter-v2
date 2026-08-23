@@ -21,7 +21,8 @@ unchanged as a characterization baseline until the new path is proven and cut
 over. The target is a thin platform shell around that proven behavior:
 
 - `GenerationService` owns durable workflow and input policy;
-- the reporter owns model-facing prompts, tools, artifacts, and the agent loop;
+- the reporter owns model-facing prompts, generic artifact tools, path-addressed
+  Markdown artifacts, and the agent loop;
 - a frozen `FrozenLeagueData` instance supplies all factual reads;
 - one `GenerationMemoryContext` supplies pinned retrieval and buffered typed
   memory proposals;
@@ -46,9 +47,9 @@ identity changed the meaning of an operation.
 ## One-Sentence Model
 
 A generation seals one factual snapshot and one memory revision, runs the
-mostly unchanged reporter through instrumented model and tool boundaries, then
-persists its final article and applies its buffered memory proposals under the
-generation lifecycle.
+reporter through instrumented model and tool boundaries, then pins the submitted
+`article.md` version, retains `research/brief.md`, and applies its buffered memory
+proposals under the generation lifecycle.
 
 ```mermaid
 flowchart LR
@@ -70,9 +71,9 @@ flowchart LR
 
 ## Settled Direction
 
-- Keep `generate_article`, `Runner`, `CompletionClient`, `ToolRegistry`, the
-  typed brief/article state, prompts, procedures, and model-facing non-memory
-  tool contracts behaviorally intact.
+- Keep `generate_article`, `Runner`, `CompletionClient`, `ToolRegistry`, prompts,
+  procedures, and model-facing non-artifact/non-memory tool contracts
+  behaviorally intact.
 - Create a new reporter copy under `backend/services/reporter/` as the platform
   design already specifies. Copy and characterize first; do not retrofit the
   legacy `reporter_v2` package in place.
@@ -88,9 +89,13 @@ flowchart LR
   fallbacks each produce their own AI-call record and token usage.
 - Record tool execution at the runner boundary. Preserve `RunLog` for local
   diagnostics, but do not use its truncated summaries as durable audit data.
-- Preserve in-memory artifact editing. Mirror article mutations to immutable
-  artifact versions and persist a final brief JSON artifact without changing
-  model-facing artifact tools.
+- Replace section-specific brief/article state with one path-addressed in-memory
+  artifact store. The model-facing contract is `list_artifacts`,
+  `read_artifact`, `create_artifact`, exact-match `edit_artifact`, and
+  revision-checked `submit_artifact`.
+- Use raw UTF-8 Markdown at `research/brief.md` and `article.md`; mirror each
+  successful mutation to an immutable version and finalize by selecting existing
+  versions rather than writing final copies.
 - Keep every database transaction short. No database session stays open during
   Sleeper I/O, model calls, tool execution, or filesystem work.
 - Use the existing resource-manager pattern. Services orchestrate managers and
@@ -104,7 +109,7 @@ flowchart LR
 | Component | Meaning |
 | --- | --- |
 | Generation | Durable product execution: request, ownership/scope, input manifest, state, telemetry, artifacts, and finalization |
-| Reporter | In-process content engine: prompts, loop, tools, brief, article state, and model interaction |
+| Reporter | In-process content engine: prompts, loop, tools, path-addressed Markdown state, and model interaction |
 
 For that reason the design belongs in `docs/generation/`, while the code remains
 split between `services/generations/` and `services/reporter/`. Putting both
@@ -141,10 +146,10 @@ These are explicit design questions, not implied implementation details:
    adapter.
 4. **Cross-resource success atomicity is not yet settled.** The memory contract
    currently commits through `RevisionManager`, while reporting finalization
-   must also seal the final article and succeed the generation. The owner of a
-   single all-or-nothing finalization transaction, or the accepted recovery
-   semantics if it remains multi-transactional, must be decided before that
-   slice is implemented.
+   must also pin the selected reporter outputs and succeed the generation. The
+   owner of a single all-or-nothing finalization transaction, or the accepted
+   recovery semantics if it remains multi-transactional, must be decided before
+   that slice is implemented.
 5. **The closed reporter-adapter PR is prior art, not an upstream dependency.**
    It proved the 18 frozen-data handlers can delegate to `FrozenLeagueData`, but
    the new integration must recreate that adapter under the new backend reporter
