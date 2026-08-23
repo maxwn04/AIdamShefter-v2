@@ -47,8 +47,8 @@ identity changed the meaning of an operation.
 ## One-Sentence Model
 
 A generation seals one factual snapshot and one memory revision, runs the
-reporter through instrumented model and tool boundaries, then pins the submitted
-`article.md` version, retains `research/brief.md`, and applies its buffered memory
+reporter through instrumented model and tool boundaries, then pins the exact
+submitted artifact version on the generation and applies its buffered memory
 proposals under the generation lifecycle.
 
 ```mermaid
@@ -93,9 +93,13 @@ flowchart LR
   artifact store. The model-facing contract is `list_artifacts`,
   `read_artifact`, `create_artifact`, exact-match `edit_artifact`, and
   revision-checked `submit_artifact`.
-- Use raw UTF-8 Markdown at `research/brief.md` and `article.md`; mirror each
-  successful mutation to an immutable version and finalize by selecting existing
-  versions rather than writing final copies.
+- Use raw UTF-8 Markdown artifacts; mirror each successful mutation to an
+  immutable version and finalize by selecting existing versions rather than
+  writing final copies. Paths such as `research/brief.md` and `article.md` are
+  reporter-owned conventions, never application query keys.
+- Store the exact submitted finalized artifact version on the generation. The
+  application discovers generated articles through this pointer, independently
+  of the logical path chosen inside the reporter loop.
 - Keep every database transaction short. No database session stays open during
   Sleeper I/O, model calls, tool execution, or filesystem work.
 - Use the existing resource-manager pattern. Services orchestrate managers and

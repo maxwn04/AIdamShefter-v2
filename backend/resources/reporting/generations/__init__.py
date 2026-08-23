@@ -19,6 +19,7 @@ from backend.resources.reporting.generations.objects import (
     GenerationStatus,
     GenerationSummary,
     StartGeneration,
+    SucceedGeneration,
     UpdateGenerationProgress,
 )
 
@@ -39,5 +40,6 @@ __all__ = [
     "GenerationStatus",
     "GenerationSummary",
     "StartGeneration",
+    "SucceedGeneration",
     "UpdateGenerationProgress",
 ]

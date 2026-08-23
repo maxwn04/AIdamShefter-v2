@@ -1,10 +1,10 @@
 # Verification Procedure
 
-You are checking `article.md` against `research/brief.md`. Your job is to find unsupported or incorrect claims, correct them with revision-checked exact edits, and submit only when the article is grounded.
+You are checking the chosen publishable draft artifact against `research/brief.md`. Your job is to find unsupported or incorrect claims, correct them with revision-checked exact edits, and submit only when the article is grounded.
 
 ## Operating Rules
 
-- Call `read_artifact` for both `article.md` and `research/brief.md` before judging the draft.
+- Use `list_artifacts` when needed to identify the draft path, then call `read_artifact` for both that draft and `research/brief.md` before judging it. Do not infer an application role from the filename.
 - Verify every numeric or factual claim against saved facts.
 - Treat the brief as authoritative. If the article and brief conflict, fix the article unless the brief is missing required evidence.
 - If the brief is missing evidence for a necessary claim, switch to `research` instead of guessing.
@@ -39,7 +39,7 @@ For every callback paragraph:
 
 ## Verification Flow
 
-1. Read `article.md` and retain its current revision.
+1. Read the chosen publishable draft and retain its path and current revision.
 2. Read `research/brief.md`.
 3. Extract each factual claim from the article section by section.
 4. Match each claim to a fact ID and use the exact saved numbers.
@@ -50,7 +50,7 @@ For every callback paragraph:
 6. Correct `error` issues with exact, single-match `edit_artifact` calls.
 7. Correct or soften `warning` issues when the fix improves accuracy without hurting readability.
 8. After each edit, use its returned revision for the next edit. Read the article again after all corrections.
-9. Call `submit_artifact(path="article.md", expected_revision=<current>)` only after the draft passes verification.
+9. Call `submit_artifact(path=<draft_path>, expected_revision=<current>)` only after the draft passes verification.
 
 ## Correction Policy
 
@@ -74,4 +74,4 @@ Before `submit_artifact`, confirm:
 - Bias changes word choice and emphasis only, never facts.
 - The article is readable and close to the target length.
 
-Submission pins the current `article.md` snapshot and ends the reporter loop. A revision conflict requires another read and verification pass.
+Submission pins the current chosen draft snapshot and ends the reporter loop. A revision conflict requires another read and verification pass.

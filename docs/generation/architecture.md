@@ -250,23 +250,24 @@ The reporter:
 - records every provider attempt before/after network I/O;
 - records tool calls before/after handler execution;
 - appends complete artifact versions after successful mutations; and
-- returns `ReporterOutput` with all current snapshots. `submitted_path` is
-  `article.md` only after `submit_artifact` succeeds and is otherwise `null`;
-  an unsubmitted output cannot succeed the generation.
+- returns `ReporterOutput` with all current snapshots. `submitted_path` names
+  the reporter-selected artifact only after `submit_artifact` succeeds and is
+  otherwise `null`; an unsubmitted output cannot succeed the generation.
 
 ### 5. Finalization
 
 `submit_artifact(path, expected_revision)` remains a reporter-level selection
-and stop signal, not the durable generation commit. It accepts only the current
-revision and `article.md` as the submitted output. `ReporterOutput` returns the
-nullable submitted path plus complete snapshots of every in-memory artifact.
-Only a submitted output is eligible for success. `GenerationService` then:
+and stop signal, not the durable generation commit. It accepts any current,
+non-empty Markdown artifact. `ReporterOutput` returns the nullable submitted
+path plus complete snapshots of every in-memory artifact. Artifact paths remain
+inside the reporter contract and carry no application-level role. Only a
+submitted output is eligible for success. `GenerationService` then:
 
 - obtains the complete memory proposal bundle exactly once;
-- verifies that the submitted `article.md` revision and current
-  `research/brief.md` revision already exist durably;
-- pins those existing versions as the generation's finalized outputs without
-  appending content-identical final copies;
+- verifies that the submitted revision already exists durably and belongs to
+  the generation;
+- finalizes that artifact without appending a content-identical copy and pins
+  its exact version in `generation.submitted_artifact_version_id`;
 - applies or deliberately discards the memory bundle according to generation
   kind/policy; and
 - transitions the generation to succeeded only when its required final outputs
@@ -317,23 +318,31 @@ one generic model-facing contract:
 - `create_artifact(path, content)` creates revision 1;
 - `edit_artifact(path, old_text, new_text, expected_revision)` requires the
   expected current revision and exactly one occurrence of `old_text`; and
-- `submit_artifact(path, expected_revision)` selects the current `article.md`
-  revision and ends the reporter loop.
+- `submit_artifact(path, expected_revision)` selects the current revision of
+  any non-empty artifact and ends the reporter loop.
 
 All reporter artifacts are raw UTF-8 Markdown in the initial platform slice.
-Durable reporting artifacts mirror complete snapshots at successful mutation
-boundaries:
+Their paths are reporter-owned logical names. `research/brief.md` and
+`article.md` remain useful defaults, but persistence and application queries do
+not infer semantic roles from either name. Durable reporting artifacts mirror
+complete snapshots at successful mutation boundaries:
 
 | Artifact | Durable behavior |
 | --- | --- |
-| `research/brief.md` (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
-| `article.md` (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision |
+| research or planning artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
+| publishable draft artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision regardless of path |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
 Artifact versions use their source AI call/tool call when available. Reads do
 not append versions. Failed and content-identical mutations do not append
-versions. Durable finalization pins the selected article version and current
-brief version; it does not create another artifact version.
+versions. Durable finalization pins the selected version both on its artifact
+and on the generation; it does not create another artifact version. The
+generation pointer is the application-level article output and supports article
+queries without inspecting reporter-controlled paths.
+The resource query `GenerationQuery(submitted_only=True)` uses that pointer,
+returns newest completed outputs first, and is backed by the partial
+competition/completion index. Product-user aggregation remains above this
+competition-scoped resource boundary until ownership is defined.
 
 ## Dependency Rules
 

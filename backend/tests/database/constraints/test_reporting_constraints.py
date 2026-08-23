@@ -174,6 +174,7 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
     }
     expected_checks = {
         "ck_artifacts_finalization_shape",
+        "ck_generations_submitted_artifact_shape",
         "ck_generations_workspace_shape",
         "ck_generations_unambiguous_memory_input",
     }
@@ -225,6 +226,14 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
                 )
             ).scalars()
         )
+        indexes = set(
+            connection.execute(
+                sa.text(
+                    "SELECT indexname FROM pg_indexes "
+                    "WHERE schemaname = 'reporting'"
+                )
+            ).scalars()
+        )
         triggers = set(
             connection.execute(
                 sa.text(
@@ -266,6 +275,7 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
     assert tables == expected_tables
     assert checks == expected_checks
     assert expected_partial_uniques <= partial_uniques
+    assert "ix_generations_competition_submitted_completed" in indexes
     assert expected_triggers <= triggers
     assert delete_rules == {"RESTRICT"}
     assert all(len(identifier) <= 63 for identifier in identifiers)
@@ -741,6 +751,83 @@ def test_artifact_finalization_requires_its_latest_version(
             .values(
                 finalized_version_id=latest_version_id,
                 finalized_at=sa.func.now(),
+            )
+        )
+
+
+def test_generation_submission_requires_its_own_finalized_artifact(
+    database_engine: Engine,
+) -> None:
+    with database_engine.begin() as connection:
+        domain = _seed_domain(connection, "Submitted Output")
+        source_generation_id = uuid4()
+        other_generation_id = uuid4()
+        artifact_id = uuid4()
+        version_id = uuid4()
+        connection.execute(
+            sa.insert(Generation),
+            [
+                _generation_values(
+                    domain,
+                    generation_id=source_generation_id,
+                    status="running",
+                ),
+                _generation_values(
+                    domain,
+                    generation_id=other_generation_id,
+                    status="running",
+                ),
+            ],
+        )
+        connection.execute(
+            sa.insert(Artifact),
+            _artifact_values(
+                source_generation_id,
+                artifact_id=artifact_id,
+                path="drafts/custom-name.md",
+            ),
+        )
+        connection.execute(
+            sa.insert(ArtifactVersion),
+            _artifact_version_values(
+                artifact_id,
+                source_generation_id,
+                version_id=version_id,
+            ),
+        )
+        connection.execute(
+            sa.update(Artifact)
+            .where(Artifact.id == artifact_id)
+            .values(
+                finalized_version_id=version_id,
+                finalized_at=sa.func.now(),
+            )
+        )
+
+    _assert_integrity_error(
+        database_engine,
+        sa.update(Generation)
+        .where(Generation.id == source_generation_id)
+        .values(submitted_artifact_version_id=version_id),
+    )
+    _assert_integrity_error(
+        database_engine,
+        sa.update(Generation)
+        .where(Generation.id == other_generation_id)
+        .values(
+            status="succeeded",
+            submitted_artifact_version_id=version_id,
+        ),
+    )
+
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(Generation)
+            .where(Generation.id == source_generation_id)
+            .values(
+                status="succeeded",
+                submitted_artifact_version_id=version_id,
+                completed_at=sa.func.now(),
             )
         )
 

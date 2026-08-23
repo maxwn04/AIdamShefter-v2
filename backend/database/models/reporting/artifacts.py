@@ -29,6 +29,11 @@ class Artifact(Base):
         UniqueConstraint(
             "id", "generation_id", name="uq_artifacts_id_generation"
         ),
+        UniqueConstraint(
+            "finalized_version_id",
+            "generation_id",
+            name="uq_artifacts_finalized_version_generation",
+        ),
         CheckConstraint(
             "(finalized_version_id IS NULL) = (finalized_at IS NULL)",
             name="finalization_shape",

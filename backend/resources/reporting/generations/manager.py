@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.database.models.core import CompetitionSeason
 from backend.database.models.memory import MemoryRevision
-from backend.database.models.reporting import EvaluationWorkspace
+from backend.database.models.reporting import Artifact, EvaluationWorkspace
 from backend.database.models.reporting import Generation as StoredGeneration
 from backend.database.models.sleeper import DataSnapshot
 from backend.database.sessions import (
@@ -37,6 +37,7 @@ from backend.resources.reporting.generations.objects import (
     GenerationStatus,
     GenerationSummary,
     StartGeneration,
+    SucceedGeneration,
     UpdateGenerationProgress,
 )
 
@@ -174,6 +175,36 @@ class GenerationManager:
             session.flush()
             return _decode(stored)
 
+    def succeed(self, command: SucceedGeneration) -> Generation:
+        with transaction_session(self._session_factory) as session:
+            stored = self._load(session, command.generation_id, lock=True)
+            self._require_status(stored, GenerationStatus.RUNNING)
+            submitted_artifact = session.scalar(
+                sa.select(Artifact.id).where(
+                    Artifact.generation_id == stored.id,
+                    Artifact.finalized_version_id
+                    == command.submitted_artifact_version_id,
+                )
+            )
+            if submitted_artifact is None:
+                raise GenerationLifecycleConflict(
+                    stored.id,
+                    "submitted output must be a finalized artifact version owned by "
+                    "the generation",
+                    expected_statuses=(GenerationStatus.RUNNING.value,),
+                    actual_status=stored.status,
+                )
+            now = datetime.now(UTC)
+            stored.submitted_artifact_version_id = (
+                command.submitted_artifact_version_id
+            )
+            stored.status = GenerationStatus.SUCCEEDED.value
+            stored.current_stage = "succeeded"
+            stored.progress_updated_at = now
+            stored.completed_at = now
+            session.flush()
+            return _decode(stored)
+
     def fail(self, command: FailGeneration) -> Generation:
         with transaction_session(self._session_factory) as session:
             stored = self._load(session, command.generation_id, lock=True)
@@ -230,6 +261,14 @@ class GenerationManager:
                     StoredGeneration.evaluation_workspace_id
                     == query.evaluation_workspace_id
                 )
+            if query.submitted_only:
+                conditions.extend(
+                    (
+                        StoredGeneration.status
+                        == GenerationStatus.SUCCEEDED.value,
+                        StoredGeneration.submitted_artifact_version_id.is_not(None),
+                    )
+                )
             total = cast(
                 int,
                 session.scalar(
@@ -238,13 +277,21 @@ class GenerationManager:
                     .where(*conditions)
                 ),
             )
-            rows = session.scalars(
-                sa.select(StoredGeneration)
-                .where(*conditions)
-                .order_by(
+            ordering = (
+                (
+                    StoredGeneration.completed_at.desc(),
+                    StoredGeneration.id.desc(),
+                )
+                if query.submitted_only
+                else (
                     StoredGeneration.created_at.desc(),
                     StoredGeneration.id.desc(),
                 )
+            )
+            rows = session.scalars(
+                sa.select(StoredGeneration)
+                .where(*conditions)
+                .order_by(*ordering)
                 .limit(query.limit)
                 .offset(query.offset)
             ).all()
@@ -412,6 +459,7 @@ def _generation_values(stored: StoredGeneration) -> dict[str, object]:
         "evaluation_workspace_id": stored.evaluation_workspace_id,
         "workspace_sequence_number": stored.workspace_sequence_number,
         "rerun_of_generation_id": stored.rerun_of_generation_id,
+        "submitted_artifact_version_id": stored.submitted_artifact_version_id,
         "kind": stored.kind,
         "status": stored.status,
         "request_text": stored.request_text,
@@ -452,6 +500,7 @@ def _decode_summary(stored: StoredGeneration) -> GenerationSummary:
         evaluation_workspace_id=stored.evaluation_workspace_id,
         workspace_sequence_number=stored.workspace_sequence_number,
         rerun_of_generation_id=stored.rerun_of_generation_id,
+        submitted_artifact_version_id=stored.submitted_artifact_version_id,
         kind=stored.kind,
         status=stored.status,
         request_text=stored.request_text,

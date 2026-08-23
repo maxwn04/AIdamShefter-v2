@@ -83,7 +83,7 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 - provider-attempt token/call recording;
 - full tool-call recording;
 - durable versioned artifacts;
-- raw Markdown `research/brief.md` and `article.md` plus `ReporterOutput`;
+- raw path-addressed Markdown artifacts plus `ReporterOutput`;
 - reporter adapters for frozen data and typed memory;
 - API polling/read surfaces; and
 - a thin worker/process entry point.
@@ -123,12 +123,13 @@ brief tools (`save_fact`, `save_memory_callback`, `save_storyline`,
 - `edit_artifact(path, old_text, new_text, expected_revision)`; and
 - `submit_artifact(path, expected_revision)`.
 
-The required run-local artifacts are raw UTF-8 Markdown at
-`research/brief.md` and `article.md`. `edit_artifact` is a revision-checked
-literal find-and-replace: `old_text` must occur exactly once, and there is no
+Run-local artifacts are raw UTF-8 Markdown at reporter-owned logical paths.
+`research/brief.md` and `article.md` remain useful prompt defaults, not durable
+application roles. `edit_artifact` is a revision-checked literal
+find-and-replace: `old_text` must occur exactly once, and there is no
 `replace_all` mode. Successful creates and edits record complete immutable
 snapshots. Reads do not mutate state. `submit_artifact` accepts the current
-revision of `article.md`, ends the reporter loop, and produces
+revision of any non-empty artifact, ends the reporter loop, and produces
 `ReporterOutput(submitted_path, artifacts)`; it does not independently mark the
 generation succeeded or append a final copy.
 
@@ -234,9 +235,9 @@ production composition. Transition in two steps:
 2. switch the platform CLI/worker to submit/execute durable generations, then
    remove direct `SleeperLeagueData` and `ContextStore` composition.
 
-Generated files may remain a developer convenience, but generation ID plus the
-`article.md` artifact and selected version become the canonical address of an
-article.
+Generated files may remain a developer convenience, but generation ID plus its
+explicit `submitted_artifact_version_id` become the canonical address of an
+article. No caller discovers articles by matching an artifact path.
 
 ## Exit Criteria
 

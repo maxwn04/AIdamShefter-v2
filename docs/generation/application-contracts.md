@@ -92,9 +92,10 @@ shape depends on the unresolved cross-resource memory transaction decision. It
 must at minimum ensure that:
 
 - the generation is still running;
-- the selected `article.md` and `research/brief.md` versions exist and belong to
-  the generation;
-- finalization pins those existing versions without creating copies;
+- the reporter-selected version exists, belongs to the generation, and is the
+  latest revision of its artifact;
+- finalization pins that existing version on both the artifact and generation
+  without creating a copy;
 - input identity remains unchanged;
 - completion timestamps/progress are coherent; and
 - a terminal generation cannot be reopened or modified.
@@ -115,6 +116,13 @@ must at minimum ensure that:
   immutable `media_type` describes representation rather than semantic role.
 - finalizing an artifact selects its latest existing version and forbids later
   appends.
+- a generation's nullable `submitted_artifact_version_id` identifies its exact
+  primary output, belongs to a finalized artifact from that same generation,
+  and may be set only as the generation succeeds.
+- `GenerationQuery(submitted_only=True)` returns only those successful outputs,
+  newest completion first, without inspecting artifact paths.
+- artifact paths are reporter-owned logical identity only; application queries
+  and output roles never depend on a particular path value.
 - expected lifecycle conflicts raise typed resource errors, never leak
   constraint names.
 
@@ -184,11 +192,10 @@ class ReporterOutput(BaseModel, frozen=True):
 ```
 
 `ReporterOutput` can represent an unsubmitted diagnostic result, but generation
-success requires `submitted_path == "article.md"` plus both
-`research/brief.md` and `article.md`. The snapshot matching `submitted_path` is
-the exact revision selected by `submit_artifact`; the service does not infer a
-later revision. `content_hash` is lowercase SHA-256 over the exact UTF-8
-content.
+success requires one non-null `submitted_path`. The snapshot matching that path
+is the exact revision selected by `submit_artifact`; the service does not infer
+a later revision or classify the output from its name. `content_hash` is
+lowercase SHA-256 over the exact UTF-8 content.
 
 The production path always supplies a durable recorder. Tests may use an
 in-memory recorder, and a transitional standalone CLI may omit it.
@@ -327,9 +334,10 @@ edit_artifact(path, old_text, new_text, expected_revision)
 submit_artifact(path, expected_revision)
 ```
 
-`research/brief.md` and `article.md` are the required paths and both use
-`text/markdown`. Paths are normalized relative logical names, not host
-filesystem paths. `create_artifact` rejects an existing path.
+Artifacts use `text/markdown`. Paths are normalized relative logical names, not
+host filesystem paths. The reporter may use defaults such as
+`research/brief.md` and `article.md`, but owns those names and may select another
+publishable path. `create_artifact` rejects an existing path.
 `edit_artifact` succeeds only when `expected_revision` is current and
 `old_text` occurs exactly once; zero or multiple matches are typed tool errors.
 It performs one literal replacement and appends the resulting complete content
@@ -339,12 +347,20 @@ as a new immutable version. There is deliberately no `replace_all` mode.
 content-identical edits do not append versions. Each successful create/edit
 passes its complete snapshot to the recorder with source AI/tool provenance.
 
-`submit_artifact` accepts only `article.md`, requires its expected current
+`submit_artifact` accepts any non-empty artifact, requires its expected current
 revision, records no content version, and ends the reporter loop. The resulting
 `ReporterOutput` contains `submitted_path` plus current snapshots of all
-artifacts. Generation finalization pins the submitted article version and the
-returned current `research/brief.md` version. It never appends a distinct final
-copy or mutates an artifact version in place.
+artifacts. Generation finalization finalizes that artifact and sets
+`generation.submitted_artifact_version_id` to the same existing version. It
+never appends a distinct final copy or mutates an artifact version in place.
+
+The reporting resource layer exposes this as
+`GenerationQuery(submitted_only=True)`. That query is the current article
+history read model: it is competition-scoped, orders by `completed_at DESC, id
+DESC`, and can fetch each exact article through the returned submitted version
+ID. A future user-facing API may aggregate competitions authorized for one
+user, but must preserve this explicit pointer contract rather than classify
+artifacts by path.
 
 ## Manifest Contract
 
@@ -391,7 +407,7 @@ The initial API remains polling-oriented:
 - read generation detail and exact manifest;
 - list/read AI calls and token usage;
 - list/read tool calls and full results; and
-- list/read artifact versions and the finalized `article.md` version.
+- list/read artifact versions and the generation's submitted output version.
 
 Routes authenticate/authorize, build context, call manager reads or
 `GenerationService`, and translate typed errors. They do not run model loops,

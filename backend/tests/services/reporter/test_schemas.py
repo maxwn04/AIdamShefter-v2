@@ -137,19 +137,19 @@ def test_edit_reports_typed_conflicts(
 
 def test_submit_pins_existing_current_snapshot_without_new_revision() -> None:
     store = ArtifactStore()
-    current = store.create("article.md", "# Final article")
+    current = store.create("drafts/week-8.md", "# Final article")
 
-    submitted = store.submit("article.md", expected_revision=1)
+    submitted = store.submit("drafts/week-8.md", expected_revision=1)
 
-    working = store.artifacts["article.md"]
+    working = store.artifacts["drafts/week-8.md"]
     assert submitted is current
     assert working.final is current
     assert working.finalized_revision == 1
     assert len(working.snapshots) == 1
-    assert store.submitted_path == "article.md"
+    assert store.submitted_path == "drafts/week-8.md"
     with pytest.raises(ArtifactStoreError) as exc_info:
         store.edit(
-            "article.md",
+            "drafts/week-8.md",
             old_text="Final",
             new_text="Changed",
             expected_revision=1,

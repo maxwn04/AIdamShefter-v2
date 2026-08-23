@@ -117,6 +117,11 @@ class UpdateGenerationProgress(ContractModel):
     current_stage: NonBlankStr
 
 
+class SucceedGeneration(ContractModel):
+    generation_id: UUID
+    submitted_artifact_version_id: UUID
+
+
 class FailGeneration(ContractModel):
     generation_id: UUID
     category: FailureCategory
@@ -134,8 +139,18 @@ class GenerationQuery(ContractModel):
     status: GenerationStatus | None = None
     rerun_of_generation_id: UUID | None = None
     evaluation_workspace_id: UUID | None = None
+    submitted_only: bool = False
     limit: PageLimit = 50
     offset: NonNegativeInt = 0
+
+    @model_validator(mode="after")
+    def validate_submitted_filter(self) -> "GenerationQuery":
+        if self.submitted_only and self.status not in (
+            None,
+            GenerationStatus.SUCCEEDED,
+        ):
+            raise ValueError("submitted_only is compatible only with succeeded status")
+        return self
 
 
 class Generation(ContractModel):
@@ -149,6 +164,7 @@ class Generation(ContractModel):
     evaluation_workspace_id: UUID | None
     workspace_sequence_number: int | None
     rerun_of_generation_id: UUID | None
+    submitted_artifact_version_id: UUID | None
     kind: GenerationKind
     status: GenerationStatus
     request_text: str
@@ -183,6 +199,7 @@ class GenerationSummary(ContractModel):
     evaluation_workspace_id: UUID | None
     workspace_sequence_number: int | None
     rerun_of_generation_id: UUID | None
+    submitted_artifact_version_id: UUID | None
     kind: GenerationKind
     status: GenerationStatus
     request_text: str

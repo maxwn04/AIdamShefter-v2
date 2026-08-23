@@ -131,14 +131,6 @@ class ArtifactStore(BaseModel):
 
     def submit(self, path: str, *, expected_revision: int) -> ArtifactSnapshot:
         normalized = self._normalize_path(path)
-        if normalized != "article.md":
-            raise ArtifactStoreError(
-                "invalid_submission_path",
-                "Reporter submission must use article.md",
-                path=normalized,
-                required_path="article.md",
-            )
-
         artifact = self._get(normalized)
         self._check_revision(artifact, expected_revision)
         if artifact.finalized_revision is not None:
@@ -151,7 +143,7 @@ class ArtifactStore(BaseModel):
         if not artifact.current.content.strip():
             raise ArtifactStoreError(
                 "empty_submission",
-                "article.md must contain non-whitespace Markdown",
+                "submitted artifact must contain non-whitespace Markdown",
                 path=normalized,
                 current_revision=artifact.current.revision,
             )
