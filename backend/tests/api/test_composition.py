@@ -34,6 +34,11 @@ from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.datalayer.snapshot_service import DatalayerSnapshotService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.generations import GenerationService
+from backend.services.model_usage import (
+    GenerationUsageService,
+    LiteLLMModelRegistry,
+    ModelCatalogService,
+)
 
 
 def test_competition_api_composition_builds_global_and_scoped_dependencies() -> None:
@@ -91,6 +96,8 @@ def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
         assert runtime.expected_role == "aidam_api"
         assert runtime.require_tls is False
         assert runtime.session_factory.kw["bind"] is runtime.engine
+        assert isinstance(runtime.model_registry, LiteLLMModelRegistry)
+        assert isinstance(runtime.model_catalog, ModelCatalogService)
     finally:
         runtime.close()
 
@@ -274,5 +281,6 @@ def test_generation_composition_builds_one_scoped_service_without_a_session(
         assert dependencies.tool_calls.competition_id == competition_id
         assert dependencies.artifacts.competition_id == competition_id
         assert dependencies.artifact_versions.competition_id == competition_id
+        assert isinstance(dependencies.usage, GenerationUsageService)
     finally:
         engine.dispose()

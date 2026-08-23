@@ -186,8 +186,9 @@ durable memory policy; the frontend must not imply that a merge/rebase exists.
 The primary model is a combobox sourced from the backend catalog. Fallbacks are
 an ordered list with add, remove, and reorder controls. The primary model cannot
 also appear as a fallback, and fallbacks cannot repeat. Each option shows
-provider, model label/ID, availability, and pricing availability without
-turning the generation form into a pricing calculator.
+provider, model label/ID, default status, and reasoning support. The catalog is
+selection metadata only; the frontend never receives token rates or calculates
+cost.
 
 ### Submission and progress
 
@@ -237,9 +238,8 @@ and is never loaded into the article reading surface by default.
 
 **Usage** shows aggregate input, cached input, output, reasoning, and total
 tokens; model/provider breakdown; attempt count; latency; and estimated cost.
-The pricing revision and “estimated” label are always visible. Unknown price or
-usage produces an incomplete-estimate warning and identifies the affected
-calls.
+The quote time and “estimated” label are always visible. Unknown price or usage
+produces an incomplete-estimate warning and identifies the affected calls.
 
 ## Common States and Guardrails
 

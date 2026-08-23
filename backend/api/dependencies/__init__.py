@@ -13,6 +13,7 @@ from backend.api.dependencies.memory import (
     get_correlation_id,
     get_memory_api_dependencies,
 )
+from backend.api.dependencies.models import get_model_catalog
 from backend.api.dependencies.services import get_api_runtime
 from backend.api.dispatch import get_generation_dispatcher
 
@@ -26,4 +27,5 @@ __all__ = [
     "get_generation_api_dependencies",
     "get_generation_dispatcher",
     "get_memory_api_dependencies",
+    "get_model_catalog",
 ]

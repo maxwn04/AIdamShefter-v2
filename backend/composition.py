@@ -10,6 +10,7 @@ from backend.config import (
     DatabaseSettings,
     DatalayerSettings,
     GenerationRuntimeSettings,
+    ModelCatalogSettings,
 )
 from backend.database.engine import build_runtime_engine
 from backend.database.health import assert_database_ready, read_database_health
@@ -53,6 +54,11 @@ from backend.services.datalayer import (
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.generations import GenerationFinalizer, GenerationService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
+from backend.services.model_usage import (
+    GenerationUsageService,
+    LiteLLMModelRegistry,
+    ModelCatalogService,
+)
 
 
 class ApiRuntimeDependencies(Protocol):
@@ -73,6 +79,13 @@ class GenerationRuntimeDependencies(ApiRuntimeDependencies, Protocol):
     """Runtime capabilities required by generation API and worker boundaries."""
 
     session_factory: SessionFactory
+    model_registry: LiteLLMModelRegistry
+
+
+class ModelApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
+    """Runtime capabilities required by the configured model catalog."""
+
+    model_catalog: ModelCatalogService
 
 
 class CompetitionApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
@@ -96,6 +109,8 @@ class ApiRuntime:
     expected_database: str
     expected_role: str
     require_tls: bool
+    model_registry: LiteLLMModelRegistry
+    model_catalog: ModelCatalogService
 
     def assert_ready(self) -> None:
         """Verify the API's bounded runtime database invariants."""
@@ -209,6 +224,7 @@ class GenerationDependencies:
     tool_calls: ToolCallManager
     artifacts: ArtifactManager
     artifact_versions: ArtifactVersionManager
+    usage: GenerationUsageService
 
 
 def build_competition_catalog_dependencies(
@@ -372,6 +388,7 @@ def build_generation_dependencies(
     *,
     datalayer_settings: DatalayerSettings | None = None,
     runtime_settings: GenerationRuntimeSettings | None = None,
+    model_registry: LiteLLMModelRegistry | None = None,
 ) -> GenerationDependencies:
     """Compose one generation service and its competition-scoped read boundary."""
 
@@ -381,6 +398,7 @@ def build_generation_dependencies(
     tool_calls = ToolCallManager(session_factory, context)
     artifacts = ArtifactManager(session_factory, context)
     artifact_versions = ArtifactVersionManager(session_factory, context)
+    registry = model_registry or LiteLLMModelRegistry()
     memory = build_memory_api_dependencies(session_factory, context)
     snapshots = build_datalayer_snapshot_dependencies(
         session_factory,
@@ -407,6 +425,7 @@ def build_generation_dependencies(
         tool_calls=tool_calls,
         artifacts=artifacts,
         artifact_versions=artifact_versions,
+        usage=GenerationUsageService(ai_calls, registry),
     )
 
 
@@ -418,12 +437,18 @@ def build_api_runtime() -> ApiRuntime:
     if url.database is None or url.username is None:
         raise ValueError("database URL must include a database and runtime user")
     engine = build_runtime_engine(settings.engine_settings("api"))
+    model_registry = LiteLLMModelRegistry()
     return ApiRuntime(
         engine=engine,
         session_factory=create_session_factory(engine),
         expected_database=url.database,
         expected_role=url.username,
         require_tls=settings.require_tls,
+        model_registry=model_registry,
+        model_catalog=ModelCatalogService(
+            ModelCatalogSettings.from_environment(),
+            model_registry,
+        ),
     )
 
 

@@ -20,6 +20,7 @@ from backend.resources.reporting.generations import (
 )
 from backend.resources.reporting.tool_calls import ToolCall, ToolCallPage
 from backend.services.generations import GenerationSettings
+from backend.services.model_usage import GenerationUsage
 
 
 PositiveWeek = Annotated[int, Field(strict=True, ge=1, le=18)]
@@ -55,6 +56,10 @@ class GenerationDetailResponse(GenerationApiModel):
 
 class GenerationPageResponse(GenerationApiModel):
     page: GenerationPage
+
+
+class GenerationUsageResponse(GenerationApiModel):
+    usage: GenerationUsage
 
 
 class AICallResponse(GenerationApiModel):
