@@ -8,6 +8,27 @@ import random
 import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
+from uuid import UUID
+
+from backend.services.reporter.runner.provider_telemetry import (
+    error_provider,
+    error_request_id,
+    json_object,
+    model_provider,
+    normalize_token_usage,
+    response_finish_reason,
+    response_id,
+    response_model,
+    response_provider,
+    response_request_id,
+    sanitize_provider_error,
+    sanitize_provider_response,
+)
+from backend.services.reporter.runner.recording import (
+    CompletionRecorder,
+    ModelAttemptFinish,
+    ModelAttemptStart,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +74,6 @@ _RETRY_AFTER_RE = re.compile(
     re.IGNORECASE,
 )
 
-
 class CompletionFn(Protocol):
     async def __call__(
         self,
@@ -63,6 +83,10 @@ class CompletionFn(Protocol):
         tools: list[Any] | None = None,
         **kwargs: Any,
     ) -> Any: ...
+
+
+class CompletionRecordingError(RuntimeError):
+    """Durable recording failed, so the provider operation cannot continue."""
 
 
 @dataclass(frozen=True)
@@ -107,17 +131,24 @@ class CompletionClient:
         self,
         complete: CompletionFn,
         settings: CompletionSettings,
+        recorder: CompletionRecorder | None = None,
     ) -> None:
         self._complete = complete
         self._settings = settings
+        self._recorder = recorder
 
     @property
     def settings(self) -> CompletionSettings:
         return self._settings
 
+    @property
+    def recorder(self) -> CompletionRecorder | None:
+        return self._recorder
+
     async def complete(
         self,
         *,
+        turn_number: int | None = None,
         messages: list[Any],
         tools: list[Any] | None = None,
         **kwargs: Any,
@@ -131,14 +162,24 @@ class CompletionClient:
         3. If that model is exhausted, move to the next fallback model.
         4. Non-retryable errors are raised immediately.
         """
+        if self._recorder is not None and (
+            isinstance(turn_number, bool)
+            or not isinstance(turn_number, int)
+            or turn_number < 1
+        ):
+            raise ValueError("recorded completions require a positive turn_number")
+
         models = self._settings.model_chain()
         if not models:
+            if self._recorder is not None:
+                raise ValueError("recorded completions require a configured model")
             # Preserve callers that inject fakes without configuring a model.
-            return await self._complete(
-                model=self._settings.model,
+            return await self._complete_once(
+                candidate=self._settings.model,
+                turn_number=turn_number,
                 messages=messages,
                 tools=tools,
-                **kwargs,
+                request_parameters=kwargs,
             )
 
         retry = self._settings.retry
@@ -146,11 +187,12 @@ class CompletionClient:
         for model_index, candidate in enumerate(models):
             for attempt in range(retry.max_retries + 1):
                 try:
-                    return await self._complete(
-                        model=candidate,
+                    return await self._complete_once(
+                        candidate=candidate,
+                        turn_number=turn_number,
                         messages=messages,
                         tools=tools,
-                        **kwargs,
+                        request_parameters=kwargs,
                     )
                 except Exception as exc:
                     if not is_retryable_error(exc):
@@ -194,10 +236,114 @@ class CompletionClient:
         assert last_error is not None
         raise last_error
 
+    async def _complete_once(
+        self,
+        *,
+        candidate: str | None,
+        turn_number: int | None,
+        messages: list[Any],
+        tools: list[Any] | None,
+        request_parameters: dict[str, Any],
+    ) -> Any:
+        parameters = dict(request_parameters)
+        if tools and _requires_none_reasoning_with_tools(candidate):
+            parameters.setdefault("reasoning_effort", "none")
 
-def make_completion_client(settings: CompletionSettings) -> CompletionClient:
+        requested_provider = model_provider(candidate)
+        attempt_id: UUID | None = None
+        if self._recorder is not None:
+            assert candidate is not None
+            assert turn_number is not None
+            try:
+                attempt_id = self._recorder.begin_model_attempt(
+                    ModelAttemptStart(
+                        turn_number=turn_number,
+                        requested_provider=requested_provider,
+                        requested_model=candidate,
+                        input_messages=tuple(
+                            json_object(message, redact_sensitive=False)
+                            for message in messages
+                        ),
+                        tool_definitions=tuple(
+                            json_object(tool, redact_sensitive=False)
+                            for tool in tools or ()
+                        ),
+                        request_parameters=json_object(parameters),
+                    )
+                )
+            except Exception as exc:
+                raise CompletionRecordingError(
+                    "model attempt recording failed before provider invocation"
+                ) from exc
+
+        try:
+            response = await self._complete(
+                model=candidate,
+                messages=messages,
+                tools=tools,
+                **parameters,
+            )
+        except asyncio.CancelledError as exc:
+            self._finish_recorded_attempt(
+                attempt_id,
+                ModelAttemptFinish(
+                    status="unknown_outcome",
+                    actual_provider=requested_provider,
+                    actual_model=candidate,
+                    error=sanitize_provider_error(exc, requested_provider),
+                ),
+            )
+            raise
+        except Exception as exc:
+            status = "retryable_error" if is_retryable_error(exc) else "fatal_error"
+            self._finish_recorded_attempt(
+                attempt_id,
+                ModelAttemptFinish(
+                    status=status,
+                    actual_provider=error_provider(exc) or requested_provider,
+                    actual_model=candidate,
+                    error=sanitize_provider_error(exc, requested_provider),
+                    provider_request_id=error_request_id(exc),
+                ),
+            )
+            raise
+
+        self._finish_recorded_attempt(
+            attempt_id,
+            ModelAttemptFinish(
+                status="succeeded",
+                actual_provider=response_provider(response) or requested_provider,
+                actual_model=response_model(response) or candidate,
+                provider_response=sanitize_provider_response(response),
+                finish_reason=response_finish_reason(response),
+                provider_request_id=response_request_id(response),
+                provider_response_id=response_id(response),
+                usage=normalize_token_usage(response),
+            ),
+        )
+        return response
+
+    def _finish_recorded_attempt(
+        self,
+        attempt_id: UUID | None,
+        result: ModelAttemptFinish,
+    ) -> None:
+        if self._recorder is not None:
+            assert attempt_id is not None
+            try:
+                self._recorder.finish_model_attempt(attempt_id, result)
+            except Exception as exc:
+                raise CompletionRecordingError(
+                    "model attempt recording failed after provider invocation"
+                ) from exc
+
+
+def make_completion_client(
+    settings: CompletionSettings,
+    recorder: CompletionRecorder | None = None,
+) -> CompletionClient:
     """Build a CompletionClient with the default LiteLLM transport."""
-    return CompletionClient(make_litellm_completion(), settings)
+    return CompletionClient(make_litellm_completion(), settings, recorder)
 
 
 def is_retryable_error(exc: BaseException) -> bool:
@@ -285,9 +431,6 @@ def make_litellm_completion() -> CompletionFn:
     import litellm
 
     async def complete(**kwargs: Any) -> Any:
-        model = kwargs.get("model")
-        if kwargs.get("tools") and _requires_none_reasoning_with_tools(model):
-            kwargs.setdefault("reasoning_effort", "none")
         return await litellm.acompletion(**kwargs)
 
     return complete

@@ -14,7 +14,11 @@ import time
 from pathlib import Path
 from typing import Any
 
-from backend.services.reporter.runner.completion import CompletionClient, CompletionFn, CompletionSettings
+from backend.services.reporter.runner.completion import (
+    CompletionClient,
+    CompletionFn,
+    CompletionSettings,
+)
 from backend.services.reporter.runner.models import (
     ChatMessage,
     ToolCall,
@@ -92,6 +96,7 @@ class Runner:
             while turn < self.config.max_turns and not self._submitted:
                 turn += 1
                 response = await self._client.complete(
+                    turn_number=turn,
                     messages=list(messages),
                     tools=self.registry.tool_specs,
                 )
