@@ -114,6 +114,7 @@ reporter_v2/
 
 ### Testing
 
+- **Run targeted tests during implementation**: When building or changing project code, run only the tests that cover the affected module or behavior. Do not run the full test suite unless the user explicitly requests it.
 - **Fixtures**: JSON snapshots from Sleeper API live in `datalayer/tests/fixtures/sleeper/`
 - **conftest.py**: Provides `loaded_data` fixture — a fully loaded `SleeperLeagueData` instance backed by fixture data
 - **Monkeypatching**: Integration tests monkeypatch `SleeperClient` to return fixture data instead of hitting the API
