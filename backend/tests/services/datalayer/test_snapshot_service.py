@@ -23,6 +23,7 @@ from backend.resources.sleeper_data import (
     SnapshotCandidateQuery,
     SnapshotFailure,
     SnapshotPlanningContext,
+    SeasonRosterIdentity,
 )
 from backend.services.datalayer import (
     DatalayerSnapshotService,
@@ -71,6 +72,33 @@ class FakePlanning:
             draft_rounds=0,
             league_average_match=0,
         )
+
+
+class FakeRosterIdentities:
+    def __init__(
+        self,
+        *,
+        roster_ids: tuple[int, ...] = (1, 2),
+        competition_id: UUID = COMPETITION_ID,
+    ) -> None:
+        self.calls: list[UUID] = []
+        self.identities = tuple(
+            SeasonRosterIdentity(
+                competition_id=competition_id,
+                competition_season_id=SEASON_ID,
+                season_roster_id=UUID(int=100 + roster_id),
+                franchise_id=UUID(int=200 + roster_id),
+                sleeper_roster_id=str(roster_id),
+            )
+            for roster_id in roster_ids
+        )
+
+    def list_roster_identities(
+        self,
+        competition_season_id: UUID,
+    ) -> tuple[SeasonRosterIdentity, ...]:
+        self.calls.append(competition_season_id)
+        return self.identities
 
 
 class FakeRequests:
@@ -265,6 +293,7 @@ def _service(
     *,
     snapshots: FakeSnapshots | None = None,
     requests: FakeRequests | None = None,
+    roster_identities: FakeRosterIdentities | None = None,
     monotonic_clock=lambda: 0.0,
     delay=lambda _: None,
 ) -> tuple[
@@ -280,6 +309,7 @@ def _service(
     return (
         DatalayerSnapshotService(
             planning=FakePlanning(),
+            roster_identities=roster_identities or FakeRosterIdentities(),
             requests=reader,
             snapshots=lifecycle,
             materializer=materializer,
@@ -325,6 +355,32 @@ def test_claimed_build_replays_inline_and_object_payloads_then_seals(
     ]
 
 
+@pytest.mark.parametrize(
+    "roster_identities",
+    [
+        FakeRosterIdentities(roster_ids=(1,)),
+        FakeRosterIdentities(
+            competition_id=UUID("33333333-3333-3333-3333-333333333333")
+        ),
+    ],
+)
+def test_invalid_roster_identity_input_fails_the_claim(
+    tmp_path: Path,
+    roster_identities: FakeRosterIdentities,
+) -> None:
+    service, snapshots, materializer, _ = _service(
+        tmp_path,
+        roster_identities=roster_identities,
+    )
+
+    with pytest.raises(InternalDatalayerFailure):
+        service.get_or_create(_request())
+
+    assert snapshots.failed[0].code == "snapshot_build_failed"
+    assert snapshots.sealed is None
+    assert materializer.calls == []
+
+
 def test_healthy_ready_snapshot_is_verified_without_rebuilding(tmp_path: Path) -> None:
     files = LocalDatalayerFileStore(tmp_path / "data")
     receipt = files.store_bytes(LocalArtifactKind.SNAPSHOT, b"ready")
@@ -333,7 +389,7 @@ def test_healthy_ready_snapshot_is_verified_without_rebuilding(tmp_path: Path) -
         through_week=1,
         as_of_date=date(2026, 10, 27),
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         code_version="test",
     )
     stored = _snapshot_from_command(
@@ -363,7 +419,7 @@ def test_corrupt_ready_snapshot_is_expired_before_replacement(tmp_path: Path) ->
         through_week=1,
         as_of_date=date(2026, 10, 27),
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         code_version="test",
     )
     stored = _snapshot_from_command(
@@ -417,7 +473,7 @@ def test_existing_build_times_out_without_stealing_a_healthy_claim(
         through_week=1,
         as_of_date=date(2026, 10, 27),
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         code_version="test",
     )
     building = _snapshot_from_command(command)
@@ -441,7 +497,7 @@ def test_existing_build_waits_for_and_reuses_ready_result(tmp_path: Path) -> Non
         through_week=1,
         as_of_date=date(2026, 10, 27),
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         code_version="test",
     )
     building = _snapshot_from_command(command)
@@ -470,7 +526,7 @@ def test_stale_existing_build_is_failed_before_reclaim(tmp_path: Path) -> None:
         through_week=1,
         as_of_date=date(2026, 10, 27),
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         code_version="test",
     )
     building = _snapshot_from_command(command)

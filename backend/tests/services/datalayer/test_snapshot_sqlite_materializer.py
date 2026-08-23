@@ -17,6 +17,7 @@ from backend.services.datalayer import (
 from backend.tests.services.datalayer.test_snapshot_service import (
     FakePlanning,
     FakeRequests,
+    FakeRosterIdentities,
     FakeSnapshots,
     _request,
 )
@@ -55,6 +56,13 @@ def test_artifact_contains_manifest_warnings_and_no_volatile_state(
         )
         player = dict(connection.execute("SELECT * FROM players LIMIT 1").fetchone())
         context = dict(connection.execute("SELECT * FROM season_context").fetchone())
+        identities = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM roster_identities ORDER BY roster_id"
+            ).fetchall()
+        ]
+        user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         connection.close()
 
         assert metadata["build_key"] == materialization.build_key
@@ -65,6 +73,11 @@ def test_artifact_contains_manifest_warnings_and_no_volatile_state(
         ]
         assert player["nfl_team"] is None
         assert player["status"] is None
+        assert user_version == 2
+        assert [row["roster_id"] for row in identities] == [1, 2]
+        assert identities[0]["season_roster_id"] == (
+            "00000000-0000-0000-0000-000000000065"
+        )
         assert context == {
             "league_id": "123",
             "computed_week": 2,
@@ -104,7 +117,7 @@ def test_corrupt_or_incomplete_sqlite_fails_closed(tmp_path: Path) -> None:
 
 def test_unsupported_projection_version_removes_staged_file(tmp_path: Path) -> None:
     materialization = _fixture_input().model_copy(
-        update={"snapshot_projection_version": "2"}
+        update={"snapshot_projection_version": "1"}
     )
     staging = tmp_path / "staging"
     materializer = SQLiteSnapshotMaterializer(staging)
@@ -127,6 +140,7 @@ def test_real_materializer_runs_through_storage_and_sealing(tmp_path: Path) -> N
     staging = tmp_path / "materializer-staging"
     service = DatalayerSnapshotService(
         planning=FixturePlanning(),
+        roster_identities=FakeRosterIdentities(),
         requests=requests,
         snapshots=snapshots,
         materializer=SQLiteSnapshotMaterializer(staging),

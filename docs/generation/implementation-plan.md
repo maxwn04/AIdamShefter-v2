@@ -199,13 +199,28 @@ equivalent; provider order remains the tool ordinal under parallel completion.
 **Exit gate:** all artifact histories can be reconstructed from immutable
 versions and the submitted output revision is represented exactly once.
 
-### `generation-8` — typed memory reporter adapter
+### `generation-8a` — frozen roster identity seam
+
+- Add stable season-roster and franchise identity reads to the scoped roster
+  resource.
+- Require one exact core identity for every selected Sleeper roster during
+  snapshot materialization.
+- Bump the snapshot projection to v2 and store the mapping in a separate
+  immutable `roster_identities` table.
+- Expose typed resolved, ambiguous, and not-found results through
+  `FrozenLeagueData.resolve_roster_identity()`.
+
+**Exit gate:** missing, duplicate, malformed, or cross-scope mappings fail the
+snapshot build/runtime, and ID/team/manager keys resolve without PostgreSQL or
+private connection access.
+
+### `generation-8b` — typed memory reporter adapter
 
 - Implement only the memory tool mappings settled in `generation-0`.
 - Register tools over `GenerationMemoryContext`, never over managers or legacy
   `ContextStore`.
-- Add authoritative roster/team-to-core identity resolution from the agreed
-  datalayer seam.
+- Resolve model-facing roster/team references through the generation-8a frozen
+  identity seam.
 - Keep searches pinned and writes buffered.
 - Update prompts/procedures to the approved typed tool vocabulary.
 - Remove legacy memory registration in the target package.
@@ -289,14 +304,16 @@ flowchart LR
     G6 --> G7["G7 artifact persistence"]
     G3 --> G7
     G4D --> G7
-    G1 --> G8["G8 memory adapter"]
-    Memory["Typed memory integration-ready"] --> G8
+    Data --> G8A["G8a roster identity"]
+    G1 --> G8B["G8b memory adapter"]
+    G8A --> G8B
+    Memory["Typed memory integration-ready"] --> G8B
     Data["Merged frozen datalayer"] --> G1
     Data --> G9["G9 generation inputs"]
     G4A --> G9
     G5B --> G9
     G7 --> G9
-    G8 --> G9
+    G8B --> G9
     G9 --> G10["G10 finalization"]
     G4D --> G10
     G10 --> G11["G11 API/worker"]
@@ -329,15 +346,7 @@ Approve a final model-facing set for typed memory, including decisions for:
 The matrix in [`transition.md`](transition.md#memory-tool-compatibility) is the
 starting point.
 
-### 3. Frozen identity resolution
-
-The datalayer contract must expose the stable identity needed to translate a
-model-facing roster/team reference into typed memory entity IDs. Confirm the
-authoritative method and return shape with the datalayer design owner. Do not
-reach into `FrozenLeagueData._connection` or query a PostgreSQL manager from a
-reporter tool.
-
-### 4. Finalization atomicity
+### 3. Finalization atomicity
 
 Choose one documented invariant:
 

@@ -228,11 +228,37 @@ exact non-tool metadata contract used to seed `research/brief.md` must be made
 public or supplied by `GenerationService`.
 
 Typed memory proposals involving a team require durable `franchise_id` or
-`season_roster_id`. The datalayer design promises stable core identity in frozen
-snapshots, but the current public `FrozenLeagueData` reporter surface does not
-expose a roster-key-to-core-ID resolver. The datalayer owner must define that
-read-only adapter seam before team-scoped memory tools can be implemented. The
-generation design does not invent its return shape.
+`season_roster_id`. Snapshot projection v2 stores one exact core identity for
+every selected Sleeper roster and `FrozenLeagueData` exposes the typed,
+read-only resolution seam:
+
+```python
+class FrozenRosterIdentity(BaseModel, frozen=True):
+    competition_id: UUID
+    competition_season_id: UUID
+    season_roster_id: UUID
+    franchise_id: UUID
+    sleeper_roster_id: str
+    team_name: str | None
+    manager_name: str | None
+
+
+RosterIdentityResolution = (
+    ResolvedRosterIdentity
+    | AmbiguousRosterIdentity
+    | RosterIdentityNotFound
+)
+
+
+def resolve_roster_identity(
+    roster_key: str | int,
+) -> RosterIdentityResolution: ...
+```
+
+Positive Sleeper roster IDs resolve exactly. Other keys use an exact,
+case-insensitive team-name or manager-name match. Ambiguity and absence are
+typed results rather than exceptions. Resolution reads only the already-open
+immutable snapshot; reporter memory tools never query PostgreSQL for identity.
 
 ## Typed Memory Adapter
 

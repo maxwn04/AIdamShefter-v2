@@ -143,18 +143,13 @@ These are explicit design questions, not implied implementation details:
    generic event payloads, string-key upserts, and candidate expansion do not all
    exist in the new contract. The exact decisions are listed in
    [`transition.md`](transition.md#memory-tool-compatibility).
-3. **Reporter identity resolution is incomplete.** Typed memory writes need
-   durable franchise/season-roster IDs, while the current public
-   `FrozenLeagueData` surface resolves model-facing roster keys only inside
-   curated queries and does not expose the core identity mapping to the memory
-   adapter.
-4. **Cross-resource success atomicity is not yet settled.** The memory contract
+3. **Cross-resource success atomicity is not yet settled.** The memory contract
    currently commits through `RevisionManager`, while reporting finalization
    must also pin the selected reporter outputs and succeed the generation. The
    owner of a single all-or-nothing finalization transaction, or the accepted
    recovery semantics if it remains multi-transactional, must be decided before
    that slice is implemented.
-5. **The closed reporter-adapter PR is prior art, not an upstream dependency.**
+4. **The closed reporter-adapter PR is prior art, not an upstream dependency.**
    It proved the 18 frozen-data handlers can delegate to `FrozenLeagueData`, but
    the new integration must recreate that adapter under the new backend reporter
    package and verify it against current `main`.

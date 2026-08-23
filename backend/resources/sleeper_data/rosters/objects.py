@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import Field
 
-from backend.resources._contracts import ContractModel
+from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.resources.sleeper_data.players.objects import Player
 from backend.services.datalayer.canonical_json import JsonValue
 
@@ -23,6 +23,16 @@ class RosterManagerAssignment(ContractModel):
 class RosterPlayer(ContractModel):
     player: Player
     role: Literal["starter", "bench", "taxi", "reserve", "ir", "unknown"]
+
+
+class SeasonRosterIdentity(ContractModel):
+    """Stable core identity for one provider roster in a competition season."""
+
+    competition_id: UUID
+    competition_season_id: UUID
+    season_roster_id: UUID
+    franchise_id: UUID
+    sleeper_roster_id: NonBlankStr
 
 
 class SeasonRosterState(ContractModel):

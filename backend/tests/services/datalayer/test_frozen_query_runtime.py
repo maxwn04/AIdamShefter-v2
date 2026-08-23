@@ -12,9 +12,12 @@ from uuid import UUID
 import pytest
 
 from backend.services.datalayer import (
+    AmbiguousRosterIdentity,
     FrozenLeagueData,
     FrozenSnapshotInvalid,
     ReadyDataSnapshot,
+    ResolvedRosterIdentity,
+    RosterIdentityNotFound,
     SnapshotRequest,
     VerifiedLocalArtifact,
 )
@@ -46,6 +49,7 @@ from backend.tests.services.datalayer.test_snapshot_source_projection import (
     FIXTURES,
     _context,
     _fixture_input,
+    _roster_identities,
 )
 
 
@@ -264,6 +268,87 @@ def test_name_resolvers_preserve_ambiguity_results(
     assert len(player["matches"]) == 2
 
 
+def test_typed_roster_identity_resolution_uses_only_frozen_snapshot(
+    ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with FrozenLeagueData.open(ready_snapshot) as data:
+        by_id = data.resolve_roster_identity(1)
+        by_team = data.resolve_roster_identity(" alpha ")
+        by_manager = data.resolve_roster_identity("ALICE")
+        missing = data.resolve_roster_identity("missing")
+        invalid = data.resolve_roster_identity("01")
+
+    assert isinstance(by_id, ResolvedRosterIdentity)
+    assert by_team == by_id.model_copy(update={"roster_key": "alpha"})
+    assert by_manager == by_id.model_copy(update={"roster_key": "ALICE"})
+    assert by_id.identity.model_dump(mode="json") == {
+        "competition_id": "22222222-2222-2222-2222-222222222222",
+        "competition_season_id": "11111111-1111-1111-1111-111111111111",
+        "season_roster_id": "00000000-0000-0000-0000-000000000065",
+        "franchise_id": "00000000-0000-0000-0000-0000000000c9",
+        "sleeper_roster_id": "1",
+        "team_name": "Alpha",
+        "manager_name": "Alice",
+    }
+    assert missing == RosterIdentityNotFound(roster_key="missing")
+    assert invalid == RosterIdentityNotFound(roster_key="01")
+
+
+def test_typed_roster_identity_resolution_preserves_name_ambiguity(
+    ready_snapshot: ReadyDataSnapshot,
+    tmp_path: Path,
+) -> None:
+    ambiguous = _mutated_copy(
+        ready_snapshot.artifact.path,
+        tmp_path / "ambiguous-identity.sqlite",
+        "UPDATE team_profiles SET team_name = 'Alpha' WHERE roster_id = 2",
+    )
+    with FrozenLeagueData.open(
+        ready_snapshot.model_copy(update={"artifact": ambiguous})
+    ) as data:
+        resolution = data.resolve_roster_identity("Alpha")
+
+    assert isinstance(resolution, AmbiguousRosterIdentity)
+    assert [match.sleeper_roster_id for match in resolution.matches] == ["1", "2"]
+
+
+@pytest.mark.parametrize(
+    ("statement", "message"),
+    [
+        (
+            "UPDATE roster_identities SET season_roster_id = 'not-a-uuid' "
+            "WHERE roster_id = 1",
+            "season_roster_id",
+        ),
+        (
+            "UPDATE roster_identities SET competition_id = "
+            "'33333333-3333-3333-3333-333333333333' WHERE roster_id = 1",
+            "scope",
+        ),
+        (
+            "DELETE FROM roster_identities WHERE roster_id = 1",
+            "match snapshot rosters",
+        ),
+    ],
+)
+def test_invalid_frozen_roster_identity_rows_fail_closed(
+    ready_snapshot: ReadyDataSnapshot,
+    tmp_path: Path,
+    statement: str,
+    message: str,
+) -> None:
+    changed = _mutated_copy(
+        ready_snapshot.artifact.path,
+        tmp_path / f"invalid-identity-{message}.sqlite",
+        statement,
+    )
+
+    with pytest.raises(FrozenSnapshotInvalid, match=message):
+        FrozenLeagueData.open(
+            ready_snapshot.model_copy(update={"artifact": changed})
+        )
+
+
 def test_context_exit_closes_runtime_deterministically(
     ready_snapshot: ReadyDataSnapshot,
 ) -> None:
@@ -273,6 +358,8 @@ def test_context_exit_closes_runtime_deterministically(
 
     with pytest.raises(RuntimeError, match="closed"):
         data.get_league_snapshot()
+    with pytest.raises(RuntimeError, match="closed"):
+        data.resolve_roster_identity("Alpha")
 
 
 @pytest.mark.parametrize(
@@ -283,7 +370,7 @@ def test_context_exit_closes_runtime_deterministically(
         ("primary_competition_season_id", "44444444-4444-4444-4444-444444444444"),
         ("through_week", 1),
         ("as_of_date", "2024-09-18"),
-        ("snapshot_projection_version", "2"),
+        ("snapshot_projection_version", "1"),
     ],
 )
 def test_internal_identity_mismatches_fail_closed(
@@ -346,7 +433,7 @@ def test_unavailable_and_unsupported_snapshots_fail_before_querying(
         FrozenLeagueData.open(ready_snapshot.model_copy(update={"artifact": missing}))
     with pytest.raises(FrozenSnapshotInvalid, match="unsupported"):
         FrozenLeagueData.open(
-            ready_snapshot.model_copy(update={"snapshot_projection_version": "2"})
+            ready_snapshot.model_copy(update={"snapshot_projection_version": "1"})
         )
 
 
@@ -441,9 +528,10 @@ def _fixture_input_for_week(through_week: int) -> SnapshotMaterializationInput:
         request=request,
         planning_context=context,
         build_key="c" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         manifest=SelectedRequestManifest(entries=tuple(manifest)),
         endpoint_records=tuple(endpoints),
+        roster_identities=_roster_identities(),
     )
 
 

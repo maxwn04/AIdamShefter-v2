@@ -6,7 +6,8 @@ import hashlib
 from pathlib import Path
 import sqlite3
 import tempfile
-from typing import Any
+from typing import Any, Mapping
+from uuid import UUID
 
 from sqlalchemy import create_engine
 
@@ -40,6 +41,7 @@ _DERIVED_TABLES = {
     "team_profiles",
     "draft_picks",
     "season_context",
+    "roster_identities",
 }
 
 
@@ -185,6 +187,17 @@ def verify_snapshot_file(
                 raise SnapshotArtifactInvalid(
                     "snapshot contains post-cutoff bracket facts"
                 )
+        identity_rows = [
+            dict(row)
+            for row in connection.execute(
+                "SELECT * FROM roster_identities ORDER BY roster_id"
+            ).fetchall()
+        ]
+        roster_ids = {
+            row[0]
+            for row in connection.execute("SELECT roster_id FROM rosters").fetchall()
+        }
+        _validate_roster_identities(materialization, identity_rows, roster_ids)
     except sqlite3.Error as error:
         raise SnapshotArtifactInvalid("snapshot SQLite verification failed") from error
     finally:
@@ -227,6 +240,11 @@ def _validate_projection(
     if seasons - {str(context.season_year)}:
         raise SnapshotArtifactInvalid("snapshot combines multiple competition seasons")
     roster_ids = {row["roster_id"] for row in projection.rows_for("rosters")}
+    _validate_roster_identities(
+        materialization,
+        projection.rows_for("roster_identities"),
+        roster_ids,
+    )
     roster_tables = (
         "matchups",
         "player_performances",
@@ -240,6 +258,47 @@ def _validate_projection(
         ):
             raise SnapshotArtifactInvalid(
                 "snapshot contains an unknown roster reference"
+            )
+
+
+def _validate_roster_identities(
+    materialization: SnapshotMaterializationInput,
+    rows: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
+    roster_ids: set[int],
+) -> None:
+    context = materialization.planning_context
+    if {row["roster_id"] for row in rows} != roster_ids:
+        raise SnapshotArtifactInvalid(
+            "snapshot roster identities do not match snapshot rosters"
+        )
+    expected_scope = (
+        context.sleeper_league_id,
+        str(context.competition_id),
+        str(context.competition_season_id),
+    )
+    if any(
+        (
+            row["league_id"],
+            row["competition_id"],
+            row["competition_season_id"],
+        )
+        != expected_scope
+        for row in rows
+    ):
+        raise SnapshotArtifactInvalid(
+            "snapshot roster identities are outside the snapshot scope"
+        )
+    for field in ("season_roster_id", "franchise_id"):
+        values = [row[field] for row in rows]
+        try:
+            canonical = [str(UUID(value)) for value in values]
+        except (AttributeError, TypeError, ValueError) as error:
+            raise SnapshotArtifactInvalid(
+                f"snapshot roster identity {field} is invalid"
+            ) from error
+        if values != canonical or len(values) != len(set(values)):
+            raise SnapshotArtifactInvalid(
+                f"snapshot roster identity {field} is invalid"
             )
 
 

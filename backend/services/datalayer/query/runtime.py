@@ -12,6 +12,10 @@ from uuid import UUID
 
 from backend.services.datalayer.canonical_json import canonical_json_bytes, parse_json_bytes
 from backend.services.datalayer.contracts import ReadyDataSnapshot
+from backend.services.datalayer.query.identity import (
+    RosterIdentityResolution,
+    resolve_roster_identity,
+)
 from backend.services.datalayer.query.curated import (
     get_bench_analysis,
     get_league_snapshot,
@@ -59,6 +63,8 @@ class FrozenLeagueData:
         self._connection: sqlite3.Connection | None = None
         self._league_id = ""
         self._season = ""
+        self._competition_id: UUID | None = None
+        self._competition_season_id: UUID | None = None
         self._through_week = 0
         self._allowed_tables: frozenset[str] = frozenset()
 
@@ -76,6 +82,10 @@ class FrozenLeagueData:
             instance._connection = connection
             instance._league_id = metadata["sleeper_league_id"]
             instance._season = str(metadata["season_year"])
+            instance._competition_id = UUID(metadata["competition_id"])
+            instance._competition_season_id = UUID(
+                metadata["primary_competition_season_id"]
+            )
             instance._through_week = int(metadata["through_week"])
             instance._allowed_tables = frozenset(schema.tables)
             return instance
@@ -286,6 +296,21 @@ class FrozenLeagueData:
     def get_roster_at_cutoff(self, roster_key: Any) -> dict[str, Any]:
         return get_roster_at_cutoff(self._conn(), self._league_id, roster_key)
 
+    def resolve_roster_identity(
+        self,
+        roster_key: str | int,
+    ) -> RosterIdentityResolution:
+        connection = self._conn()
+        if self._competition_id is None or self._competition_season_id is None:
+            raise RuntimeError("FrozenLeagueData identity scope is unavailable")
+        return resolve_roster_identity(
+            connection,
+            competition_id=self._competition_id,
+            competition_season_id=self._competition_season_id,
+            league_id=self._league_id,
+            roster_key=roster_key,
+        )
+
     def get_roster_snapshot(self, roster_key: Any, week: int) -> dict[str, Any]:
         return get_roster_snapshot(
             self._conn(),
@@ -408,7 +433,59 @@ def _validate_artifact(
         raise FrozenSnapshotInvalid("snapshot league metadata is inconsistent")
     if context[0]["effective_week"] != metadata["through_week"]:
         raise FrozenSnapshotInvalid("snapshot cutoff metadata is inconsistent")
+    _validate_roster_identities(connection, metadata)
     return metadata
+
+
+def _validate_roster_identities(
+    connection: sqlite3.Connection,
+    metadata: dict[str, Any],
+) -> None:
+    try:
+        roster_ids = {
+            row[0]
+            for row in connection.execute("SELECT roster_id FROM rosters").fetchall()
+        }
+        identities = connection.execute(
+            "SELECT * FROM roster_identities ORDER BY roster_id"
+        ).fetchall()
+    except sqlite3.Error as error:
+        raise FrozenSnapshotInvalid(
+            "snapshot roster identities are unreadable"
+        ) from error
+    if {row["roster_id"] for row in identities} != roster_ids:
+        raise FrozenSnapshotInvalid(
+            "snapshot roster identities do not match snapshot rosters"
+        )
+    expected_scope = (
+        metadata["sleeper_league_id"],
+        metadata["competition_id"],
+        metadata["primary_competition_season_id"],
+    )
+    if any(
+        (
+            row["league_id"],
+            row["competition_id"],
+            row["competition_season_id"],
+        )
+        != expected_scope
+        for row in identities
+    ):
+        raise FrozenSnapshotInvalid(
+            "snapshot roster identities are outside the snapshot scope"
+        )
+    for field in ("season_roster_id", "franchise_id"):
+        values = [row[field] for row in identities]
+        try:
+            canonical = [str(UUID(value)) for value in values]
+        except (AttributeError, TypeError, ValueError) as error:
+            raise FrozenSnapshotInvalid(
+                f"snapshot roster identity {field} is invalid"
+            ) from error
+        if values != canonical or len(values) != len(set(values)):
+            raise FrozenSnapshotInvalid(
+                f"snapshot roster identity {field} is invalid"
+            )
 
 
 def _validate_canonical_json(value: Any, *, expected_list: bool) -> Any:

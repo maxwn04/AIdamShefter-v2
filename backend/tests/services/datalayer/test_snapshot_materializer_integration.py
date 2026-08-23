@@ -10,6 +10,7 @@ from backend.resources.sleeper_data import (
     LeagueSeasonManager,
     NormalizedScopeManager,
     RefreshRunManager,
+    RosterManager,
 )
 from backend.services.datalayer import (
     DatalayerSnapshotService,
@@ -60,6 +61,7 @@ def test_refresh_to_materialization_and_atomic_seal(
     )
     service = DatalayerSnapshotService(
         planning=planning,
+        roster_identities=RosterManager(sessions, context),
         requests=requests,
         snapshots=snapshots,
         materializer=SQLiteSnapshotMaterializer(tmp_path / "staging"),

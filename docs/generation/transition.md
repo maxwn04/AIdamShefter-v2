@@ -190,10 +190,10 @@ state or weakened validation.
 | V2 tool | Typed-memory capability | Decision status |
 | --- | --- | --- |
 | `save_persistent_storyline` | typed storyline create/replace | Prefer removal after migrating prompts to the richer typed tool; preserving alias/upsert semantics would hide revision conflicts |
-| `save_team_context` | franchise-scoped `ContextNoteContent` | Adaptable only after an authoritative roster-key-to-franchise resolver exists |
+| `save_team_context` | franchise-scoped `ContextNoteContent` | Adaptable through the frozen typed roster-identity resolver |
 | `save_league_note` | competition-scoped `ContextNoteContent` | Adaptable, but key/value input must map explicitly to typed identity plus narrative/status/tags |
 | `load_persistent_storylines` | filter-only pinned search for storyline kind | Adaptable with a documented response-shape change |
-| `load_team_context` | filter-only pinned search for context-note kind/entity | Adaptable after durable team identity resolution is available |
+| `load_team_context` | filter-only pinned search for context-note kind/entity | Adaptable through the frozen typed roster-identity resolver |
 | `load_league_notes` | filter-only pinned search for competition context notes | Adaptable with a documented response-shape change |
 
 No implementation should register both legacy and new write handlers against

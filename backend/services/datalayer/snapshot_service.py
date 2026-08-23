@@ -21,6 +21,7 @@ from backend.resources.sleeper_data.requests import (
     SnapshotCandidateQuery,
     VerifiedPayload,
 )
+from backend.resources.sleeper_data.rosters import SeasonRosterIdentity
 from backend.resources.sleeper_data.snapshots import (
     ArtifactFailure,
     BeginSnapshotBuild,
@@ -63,6 +64,7 @@ from backend.services.datalayer.snapshot_selection import (
 )
 from backend.services.datalayer.sleeper.endpoints import (
     EndpointRecords,
+    LeagueRostersEndpointRecords,
     normalize_league,
     normalize_league_rosters,
     normalize_league_users,
@@ -99,6 +101,13 @@ class SnapshotRequestReader(Protocol):
         self,
         request_ids: Collection[UUID],
     ) -> tuple[VerifiedPayload, ...]: ...
+
+
+class SnapshotRosterIdentityReader(Protocol):
+    def list_roster_identities(
+        self,
+        competition_season_id: UUID,
+    ) -> tuple[SeasonRosterIdentity, ...]: ...
 
 
 class SnapshotLifecycle(Protocol):
@@ -151,6 +160,7 @@ class SnapshotMaterializationInput(ContractModel):
     snapshot_projection_version: str
     manifest: SelectedRequestManifest
     endpoint_records: tuple[SnapshotEndpointRecords, ...]
+    roster_identities: tuple[SeasonRosterIdentity, ...]
 
     @model_validator(mode="after")
     def validate_records(self) -> "SnapshotMaterializationInput":
@@ -160,6 +170,45 @@ class SnapshotMaterializationInput(ContractModel):
         ]
         if record_ids != manifest_ids:
             raise ValueError("snapshot endpoint records must follow manifest order")
+        expected_scope = (
+            self.planning_context.competition_id,
+            self.planning_context.competition_season_id,
+        )
+        if any(
+            (
+                identity.competition_id,
+                identity.competition_season_id,
+            )
+            != expected_scope
+            for identity in self.roster_identities
+        ):
+            raise ValueError("snapshot roster identities must match the planning scope")
+        _require_distinct(
+            [identity.sleeper_roster_id for identity in self.roster_identities],
+            "Sleeper roster IDs",
+        )
+        _require_distinct(
+            [identity.season_roster_id for identity in self.roster_identities],
+            "season-roster IDs",
+        )
+        _require_distinct(
+            [identity.franchise_id for identity in self.roster_identities],
+            "franchise IDs",
+        )
+        selected_roster_ids = tuple(
+            roster.sleeper_roster_id
+            for endpoint in self.endpoint_records
+            if isinstance(endpoint.records, LeagueRostersEndpointRecords)
+            for roster in endpoint.records.rosters
+        )
+        if (
+            len(selected_roster_ids) != len(set(selected_roster_ids))
+            or set(selected_roster_ids)
+            != {identity.sleeper_roster_id for identity in self.roster_identities}
+        ):
+            raise ValueError(
+                "snapshot roster identities must exactly match selected rosters"
+            )
         return self
 
 
@@ -190,6 +239,7 @@ class DatalayerSnapshotService:
         self,
         *,
         planning: SnapshotPlanningReader,
+        roster_identities: SnapshotRosterIdentityReader,
         requests: SnapshotRequestReader,
         snapshots: SnapshotLifecycle,
         materializer: SnapshotMaterializer,
@@ -218,6 +268,7 @@ class DatalayerSnapshotService:
             poll_interval_seconds, "poll_interval_seconds"
         )
         self._planning = planning
+        self._roster_identities = roster_identities
         self._requests = requests
         self._snapshots = snapshots
         self._materializer = materializer
@@ -265,6 +316,9 @@ class DatalayerSnapshotService:
             context = self._planning.get_snapshot_planning_context(
                 request.competition_season_id
             )
+            roster_identities = self._roster_identities.list_roster_identities(
+                request.competition_season_id
+            )
             requirements = plan_snapshot_requirements(request, context)
             candidates = self._requests.list_snapshot_candidates(
                 SnapshotCandidateQuery(
@@ -286,6 +340,7 @@ class DatalayerSnapshotService:
                     snapshot_projection_version=self._projection_version,
                     manifest=manifest,
                     endpoint_records=records,
+                    roster_identities=roster_identities,
                 )
             )
             receipt = self._files.store_file(
@@ -499,3 +554,8 @@ def _positive_number(value: float, name: str) -> float:
     ):
         raise ValueError(f"{name} must be positive")
     return float(value)
+
+
+def _require_distinct(values: list[object], label: str) -> None:
+    if len(values) != len(set(values)):
+        raise ValueError(f"snapshot roster identities contain duplicate {label}")

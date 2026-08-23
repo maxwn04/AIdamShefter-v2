@@ -11,6 +11,7 @@ from backend.resources.sleeper_data.rosters import (
     RosterManager,
     RosterManagerAssignment,
     RosterPlayer,
+    SeasonRosterIdentity,
     SeasonRosterState,
 )
 from backend.services.datalayer.errors import DatalayerResourceNotFound
@@ -98,3 +99,31 @@ def test_roster_read_reports_not_found_and_enforces_competition_scope(
         manager.get_roster(uuid4())
     with pytest.raises(DatalayerResourceNotFound, match="season_roster"):
         other_manager.get_roster(projected_season.domain.roster_ids[0])
+
+
+def test_roster_identity_list_is_stable_ordered_and_competition_scoped(
+    database_engine: Engine,
+    session_factory: SessionFactory,
+    projected_season: ProjectedSeason,
+) -> None:
+    domain = projected_season.domain
+    manager = RosterManager(session_factory, manager_context(domain))
+
+    identities = manager.list_roster_identities(domain.season_id)
+
+    assert identities == tuple(
+        SeasonRosterIdentity(
+            competition_id=domain.competition_id,
+            competition_season_id=domain.season_id,
+            season_roster_id=domain.roster_ids[index],
+            franchise_id=domain.franchise_ids[index],
+            sleeper_roster_id=str(index + 1),
+        )
+        for index in range(2)
+    )
+    other = seed_domain(database_engine, label="Identity Scope")
+    other_manager = RosterManager(
+        create_session_factory(database_engine),
+        manager_context(other),
+    )
+    assert other_manager.list_roster_identities(domain.season_id) == ()

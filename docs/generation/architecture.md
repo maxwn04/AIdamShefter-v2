@@ -241,6 +241,9 @@ are immutable.
 
 The service opens the frozen snapshot with a context manager, creates
 `GenerationMemoryContext` at the pinned revision, and calls the reporter.
+Snapshot projection v2 also exposes typed roster/team-to-core identity
+resolution from that same immutable runtime; memory tools do not consult a
+separate live identity source.
 
 The reporter:
 

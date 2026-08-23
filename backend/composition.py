@@ -24,6 +24,7 @@ from backend.resources.sleeper_data import (
     LeagueSeasonManager,
     NormalizedScopeManager,
     RefreshRunManager,
+    RosterManager,
 )
 from backend.services.datalayer import (
     DatalayerSnapshotService,
@@ -185,9 +186,11 @@ def build_datalayer_snapshot_dependencies(
 
     resolved = settings or DatalayerSettings.from_environment()
     files = LocalDatalayerFileStore(resolved.data_root)
+    planning = LeagueSeasonManager(session_factory, context)
     return DatalayerSnapshotDependencies(
         snapshot=DatalayerSnapshotService(
-            planning=LeagueSeasonManager(session_factory, context),
+            planning=planning,
+            roster_identities=RosterManager(session_factory, context),
             requests=ApiRequestManager(session_factory, context),
             snapshots=DataSnapshotManager(session_factory, context),
             materializer=SQLiteSnapshotMaterializer(
