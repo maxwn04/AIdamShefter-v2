@@ -6,7 +6,11 @@ from typing import Protocol
 from sqlalchemy import Engine
 from sqlalchemy.engine import make_url
 
-from backend.config import DatabaseSettings, DatalayerSettings
+from backend.config import (
+    DatabaseSettings,
+    DatalayerSettings,
+    GenerationRuntimeSettings,
+)
 from backend.database.engine import build_runtime_engine
 from backend.database.health import assert_database_ready, read_database_health
 from backend.database.sessions import SessionFactory, create_session_factory
@@ -18,6 +22,11 @@ from backend.resources.memory.revisions import RevisionManager
 from backend.resources.memory.search_documents import SearchDocumentManager
 from backend.resources.memory.storylines import StorylineManager
 from backend.resources.memory.triggers import TriggerManager
+from backend.resources.reporting.ai_calls import AICallManager
+from backend.resources.reporting.artifact_versions import ArtifactVersionManager
+from backend.resources.reporting.artifacts import ArtifactManager
+from backend.resources.reporting.generations import GenerationManager
+from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.resources.sleeper_data import (
     ApiRequestManager,
     DataSnapshotManager,
@@ -33,6 +42,7 @@ from backend.services.datalayer import (
     SleeperSourceClient,
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
+from backend.services.generations import GenerationFinalizer, GenerationService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 
 
@@ -46,6 +56,12 @@ class ApiRuntimeDependencies(Protocol):
 
 class MemoryApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
     """Runtime capabilities required by competition-scoped memory routes."""
+
+    session_factory: SessionFactory
+
+
+class GenerationRuntimeDependencies(ApiRuntimeDependencies, Protocol):
+    """Runtime capabilities required by generation API and worker boundaries."""
 
     session_factory: SessionFactory
 
@@ -74,6 +90,29 @@ class ApiRuntime:
     def close(self) -> None:
         """Release process-owned connection-pool resources."""
 
+        self.engine.dispose()
+
+
+@dataclass(frozen=True, slots=True)
+class WorkerRuntime:
+    """Long-lived dependencies owned by one worker process."""
+
+    engine: Engine
+    session_factory: SessionFactory
+    expected_database: str
+    expected_role: str
+    require_tls: bool
+
+    def assert_ready(self) -> None:
+        health = read_database_health(self.engine)
+        assert_database_ready(
+            health,
+            expected_database=self.expected_database,
+            expected_role=self.expected_role,
+            require_tls=self.require_tls,
+        )
+
+    def close(self) -> None:
         self.engine.dispose()
 
 
@@ -107,6 +146,18 @@ class DatalayerSnapshotDependencies:
     """One competition-scoped immutable snapshot capability."""
 
     snapshot: DatalayerSnapshotService
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationDependencies:
+    """One competition-scoped generation workflow and its read managers."""
+
+    service: GenerationService
+    generations: GenerationManager
+    ai_calls: AICallManager
+    tool_calls: ToolCallManager
+    artifacts: ArtifactManager
+    artifact_versions: ArtifactVersionManager
 
 
 def build_memory_api_dependencies(
@@ -202,6 +253,50 @@ def build_datalayer_snapshot_dependencies(
     )
 
 
+def build_generation_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+    *,
+    datalayer_settings: DatalayerSettings | None = None,
+    runtime_settings: GenerationRuntimeSettings | None = None,
+) -> GenerationDependencies:
+    """Compose one generation service and its competition-scoped read boundary."""
+
+    runtime_revisions = runtime_settings or GenerationRuntimeSettings.from_environment()
+    generations = GenerationManager(session_factory, context)
+    ai_calls = AICallManager(session_factory, context)
+    tool_calls = ToolCallManager(session_factory, context)
+    artifacts = ArtifactManager(session_factory, context)
+    artifact_versions = ArtifactVersionManager(session_factory, context)
+    memory = build_memory_api_dependencies(session_factory, context)
+    snapshots = build_datalayer_snapshot_dependencies(
+        session_factory,
+        context,
+        settings=datalayer_settings,
+    )
+    service = GenerationService(
+        generations=generations,
+        snapshots=snapshots.snapshot,
+        revisions=memory.revisions,
+        retrieval=memory.retrieval,
+        ai_calls=ai_calls,
+        tool_calls=tool_calls,
+        artifacts=artifacts,
+        artifact_versions=artifact_versions,
+        finalizer=GenerationFinalizer(session_factory, context),
+        reporter_revision=runtime_revisions.reporter_revision,
+        generation_revision=runtime_revisions.generation_revision,
+    )
+    return GenerationDependencies(
+        service=service,
+        generations=generations,
+        ai_calls=ai_calls,
+        tool_calls=tool_calls,
+        artifacts=artifacts,
+        artifact_versions=artifact_versions,
+    )
+
+
 def build_api_runtime() -> ApiRuntime:
     """Construct the API runtime from environment-backed configuration."""
 
@@ -211,6 +306,23 @@ def build_api_runtime() -> ApiRuntime:
         raise ValueError("database URL must include a database and runtime user")
     engine = build_runtime_engine(settings.engine_settings("api"))
     return ApiRuntime(
+        engine=engine,
+        session_factory=create_session_factory(engine),
+        expected_database=url.database,
+        expected_role=url.username,
+        require_tls=settings.require_tls,
+    )
+
+
+def build_worker_runtime() -> WorkerRuntime:
+    """Construct the worker runtime from environment-backed configuration."""
+
+    settings = DatabaseSettings.from_environment("worker")
+    url = make_url(settings.runtime_url)
+    if url.database is None or url.username is None:
+        raise ValueError("database URL must include a database and runtime user")
+    engine = build_runtime_engine(settings.engine_settings("worker"))
+    return WorkerRuntime(
         engine=engine,
         session_factory=create_session_factory(engine),
         expected_database=url.database,

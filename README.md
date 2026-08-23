@@ -36,8 +36,9 @@ uv run reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
 
 ## API Server
 
-The product API exposes process health now and provides the versioned route
-boundary for generation, memory, and Sleeper-data APIs as their services land.
+The product API exposes process health, canonical memory, and the polling-oriented
+generation boundary. Generation submission creates a pending row; reporter
+execution stays in the separate one-shot worker process.
 
 ```bash
 export AIDAM_DATABASE_URL=postgresql+psycopg://aidam_api:password@localhost/aidam
@@ -50,6 +51,20 @@ The server listens on `127.0.0.1:8000` by default. Override that with
 `/health/live`; readiness at `/health/ready` also verifies the configured
 database name, runtime role, and TLS policy.
 
+Submit a generation under
+`/api/v1/generations/competitions/{competition_id}`, then execute the returned
+generation ID explicitly:
+
+```bash
+export AIDAM_WORKER_DATABASE_URL=postgresql+psycopg://aidam_worker:password@localhost/aidam
+uv run aidam-worker execute --competition-id <uuid> --generation-id <uuid>
+uv run aidam-worker reconcile-stale --competition-id <uuid> \
+  --stale-before 2026-08-23T09:00:00Z --limit 100
+```
+
+The initial API is single-local-user and does not claim durable per-user
+ownership. The worker has no queue, lease, heartbeat, or automatic resume.
+
 ## Tests
 
 ```bash
@@ -58,6 +73,7 @@ uv run pytest datalayer/tests/                 # Datalayer tests only
 uv run pytest reporter_memory/tests/           # Reporter memory tests only
 uv run pytest reporter_v2/tests/               # Reporter v2 tests only
 uv run pytest backend/tests/api/               # API boundary tests only
+uv run pytest backend/tests/worker/            # Worker boundary tests only
 uv run pytest datalayer/tests/unit/            # Datalayer unit tests
 uv run pytest datalayer/tests/integration/     # Datalayer integration tests
 ```

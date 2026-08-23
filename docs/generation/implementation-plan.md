@@ -273,6 +273,10 @@ the chosen contract.
 - Add authentication/permission seams using the settled local/multi-user
   decision.
 - Keep routes and worker free of workflow logic and sessions.
+- Use local-user HTTP contexts and a named system-process worker context, both
+  competition scoped; do not claim durable product-user ownership.
+- Persist pending submissions in HTTP and execute only through the explicit
+  one-shot worker; do not add API background tasks or queue semantics.
 
 **Exit gate:** API and worker tests prove scoping, polling, error translation,
 and one shared service path.

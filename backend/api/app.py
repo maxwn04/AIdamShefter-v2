@@ -7,7 +7,11 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 
-from backend.api.errors import memory_application_error_handler
+from backend.api.errors import (
+    REPORTING_APPLICATION_ERRORS,
+    memory_application_error_handler,
+    reporting_application_error_handler,
+)
 from backend.api.routes import api_router, health_router
 from backend.composition import ApiRuntimeDependencies, build_api_runtime
 from backend.resources.memory.common import MemoryApplicationError
@@ -41,6 +45,11 @@ def create_app(
         MemoryApplicationError,
         memory_application_error_handler,
     )
+    for error_type in REPORTING_APPLICATION_ERRORS:
+        application.add_exception_handler(
+            error_type,
+            reporting_application_error_handler,
+        )
     return application
 
 

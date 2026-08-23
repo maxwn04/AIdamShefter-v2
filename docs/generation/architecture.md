@@ -201,6 +201,12 @@ copy. The legacy `reporter_v2` tree is not edited during that copy. The boundary
 split is the contract: resources persist, generation service orchestrates,
 reporter generates, and routes/workers invoke.
 
+The initial process split is explicit: HTTP submission creates only a pending
+generation, and a one-shot worker executes a supplied competition/generation
+UUID pair. A second worker command reconciles a bounded stale-running batch from
+an explicit aware cutoff. Neither boundary adds queue, lease, heartbeat,
+automatic-resume, or API background-task behavior.
+
 ## End-to-End Lifecycle
 
 ### 1. Submission
@@ -210,8 +216,9 @@ The API authenticates the caller, authorizes the competition, constructs a
 submit. The service creates a pending generation before doing long-running
 input resolution.
 
-The unresolved product-user question affects requester attribution here but does
-not change the rest of the reporter architecture.
+Generation-11 uses the existing single-local-user actor and competition scope.
+It deliberately makes no durable product-user ownership or membership claim;
+that future decision does not change the rest of the reporter architecture.
 
 ### 2. Input resolution
 

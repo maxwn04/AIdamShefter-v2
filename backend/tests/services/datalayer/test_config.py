@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.config import DatalayerSettings
+from backend.config import DatalayerSettings, GenerationRuntimeSettings
 
 
 _ENVIRONMENT_NAMES = (
@@ -82,3 +82,28 @@ def test_datalayer_settings_reject_empty_data_root(
 
     with pytest.raises(ValueError, match="must not be empty"):
         DatalayerSettings.from_environment()
+
+
+def test_generation_runtime_settings_default_to_code_revision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AIDAM_CODE_VERSION", "stack-sha")
+    monkeypatch.delenv("AIDAM_REPORTER_REVISION", raising=False)
+    monkeypatch.delenv("AIDAM_GENERATION_REVISION", raising=False)
+
+    settings = GenerationRuntimeSettings.from_environment()
+
+    assert settings.reporter_revision == "stack-sha"
+    assert settings.generation_revision == "stack-sha"
+
+
+def test_generation_runtime_settings_accept_independent_revisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AIDAM_REPORTER_REVISION", "reporter-sha")
+    monkeypatch.setenv("AIDAM_GENERATION_REVISION", "generation-sha")
+
+    settings = GenerationRuntimeSettings.from_environment()
+
+    assert settings.reporter_revision == "reporter-sha"
+    assert settings.generation_revision == "generation-sha"

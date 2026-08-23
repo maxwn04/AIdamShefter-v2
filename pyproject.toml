@@ -32,6 +32,7 @@ dev = [
 sleeperdl = "datalayer.cli.main:main"
 reporter-v2 = "reporter_v2.app.runner:main"
 aidam-api = "backend.api.app:main"
+aidam-worker = "backend.worker.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
