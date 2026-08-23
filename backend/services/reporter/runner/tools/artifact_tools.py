@@ -13,6 +13,9 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "1"
+
+
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
     {
         "type": "function",
@@ -128,7 +131,12 @@ def register_artifact_tools(registry: ToolRegistry) -> None:
     }
     for spec in ARTIFACT_TOOL_SPECS:
         name = spec["function"]["name"]
-        registry.register_context_tool(name, handlers[name], spec)
+        registry.register_context_tool(
+            name,
+            handlers[name],
+            spec,
+            ARTIFACT_TOOL_IMPLEMENTATION_VERSION,
+        )
 
 
 def list_artifacts(ctx: ToolContext) -> str:

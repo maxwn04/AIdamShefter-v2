@@ -12,6 +12,7 @@ from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 PROCEDURE_DIR = Path(__file__).parent.parent.parent / "procedures"
 VALID_PROCEDURES = {"research", "storyline", "drafting", "verification"}
+PROCEDURE_TOOL_IMPLEMENTATION_VERSION = "1"
 
 PROCEDURE_TOOL_SPECS: list[ToolDef] = [
     {
@@ -43,6 +44,7 @@ def register_procedure_tools(registry: ToolRegistry) -> None:
         "load_procedure",
         load_procedure,
         PROCEDURE_TOOL_SPECS[0],
+        PROCEDURE_TOOL_IMPLEMENTATION_VERSION,
     )
 
 

@@ -18,6 +18,9 @@ from backend.services.reporter.runner.tools.memory_tools import (
 )
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
+
+PERSISTENT_TOOL_IMPLEMENTATION_VERSION = "1"
+
 if TYPE_CHECKING:
     from reporter_memory.context_store import ContextStore
 
@@ -249,7 +252,12 @@ def register_persistent_tools(
     }
     for spec in LEGACY_PERSISTENT_TOOLS:
         name = spec["function"]["name"]
-        registry.register(name, handlers[name], spec)
+        registry.register(
+            name,
+            handlers[name],
+            spec,
+            PERSISTENT_TOOL_IMPLEMENTATION_VERSION,
+        )
 
     register_memory_tools(
         registry,
