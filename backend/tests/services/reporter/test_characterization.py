@@ -24,8 +24,8 @@ from backend.services.reporter.runner.schemas import (
 from backend.services.reporter.runner.tools.artifact_tools import (
     ARTIFACT_TOOL_SPECS as COPIED_ARTIFACT_TOOLS,
 )
-from backend.services.reporter.runner.tools.persistent_tools import (
-    PERSISTENT_TOOL_SPECS as COPIED_PERSISTENT_TOOLS,
+from backend.services.reporter.runner.tools.memory_tools import (
+    MEMORY_TOOL_SPECS as COPIED_MEMORY_TOOLS,
 )
 from backend.services.reporter.runner.tools.procedure_tools import (
     PROCEDURE_TOOL_SPECS as COPIED_PROCEDURE_TOOLS,
@@ -46,9 +46,6 @@ from reporter_v2.runner.tools.article_tools import (
 )
 from reporter_v2.runner.tools.brief_tools import (
     BRIEF_TOOL_SPECS as LEGACY_BRIEF_TOOLS,
-)
-from reporter_v2.runner.tools.persistent_tools import (
-    PERSISTENT_TOOL_SPECS as LEGACY_PERSISTENT_TOOLS,
 )
 from reporter_v2.runner.tools.procedure_tools import (
     PROCEDURE_TOOL_SPECS as LEGACY_PROCEDURE_TOOLS,
@@ -181,7 +178,7 @@ def test_public_config_matches_legacy_and_artifact_schemas_diverge() -> None:
     }
 
 
-def test_non_artifact_contracts_match_legacy_and_artifact_contract_diverges() -> None:
+def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
     config = ReportConfig.for_week(
         8,
         voice="deadpan beat writer",
@@ -213,7 +210,19 @@ def test_non_artifact_contracts_match_legacy_and_artifact_contract_diverges() ->
     ]
     assert set(copied_artifact_names).isdisjoint(legacy_artifact_names)
     assert COPIED_PROCEDURE_TOOLS == LEGACY_PROCEDURE_TOOLS
-    assert COPIED_PERSISTENT_TOOLS == LEGACY_PERSISTENT_TOOLS
+    assert [spec["function"]["name"] for spec in COPIED_MEMORY_TOOLS] == [
+        "search_memory",
+        "propose_fact",
+        "replace_fact",
+        "propose_event",
+        "replace_event",
+        "propose_storyline",
+        "replace_storyline",
+        "propose_trigger",
+        "replace_trigger",
+        "propose_context_note",
+        "replace_context_note",
+    ]
 
 
 def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() -> None:
@@ -221,9 +230,9 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     copied = ROOT / "backend" / "services" / "reporter"
 
     expected_markers = {
-        "prompts/system.md": "list_artifacts",
-        "procedures/research.md": "research/brief.md",
-        "procedures/storyline.md": "edit_artifact",
+        "prompts/system.md": "search_memory",
+        "procedures/research.md": "search_memory",
+        "procedures/storyline.md": "propose_storyline",
         "procedures/drafting.md": "create_artifact",
         "procedures/verification.md": "submit_artifact",
     }

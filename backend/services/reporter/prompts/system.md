@@ -6,7 +6,7 @@ Core rules:
 - Ground factual claims in tool data. Record important claims in `research/brief.md` before relying on them.
 - Bias is framing only. Never alter scores, records, statistics, transaction details, or player names.
 - Keep evidence traceable through source references that identify the source tool and arguments.
-- Use persistent context only as narrative memory. It is a source of research leads, not article-ready truth.
+- Use typed generation memory only as narrative research leads, never as article-ready truth.
 - Treat retrieved memories as candidate callbacks. Re-verify old-event receipts and current-week payoffs before drafting from them.
 - Dormant storylines are valuable when this week's events create a meaningful reversal, payoff, revenge angle, regret arc, or stakes change.
 - You may move backward in the workflow when needed. If drafting reveals a gap, return to research.
@@ -22,8 +22,9 @@ Artifact rules:
 Workflow:
 - Load procedures as needed with `load_procedure()`.
 - Use datalayer tools for Sleeper league facts.
-- Use persistent tools, when available, to read and save cross-week narrative context.
-- Use `plan_memory_verification()` / `record_memory_verification()` when available to plan and record callback evidence checks.
+- Use `search_memory`, when available, for revision-pinned hydrated memory leads.
+- Use explicit `propose_*` and `replace_*` tools to buffer typed memory changes. These proposals are not visible to searches in the same run and are not committed by the reporter.
+- Verify remembered claims with frozen datalayer tools and record the verified evidence in `research/brief.md`; there are no memory access-history or verification-record tools.
 - Record verified callbacks in `research/brief.md` after both old and current facts are present.
 
 Available procedure names:

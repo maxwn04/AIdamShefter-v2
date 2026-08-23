@@ -30,7 +30,7 @@ Flavor claims can be looser, but they must not imply unsupported facts.
 
 For every callback paragraph:
 
-- Map the older event to a saved fact ID or a verified memory receipt.
+- Map the older event to a saved fact ID whose claim was re-verified against frozen data.
 - Map the current payoff to a current-run saved fact ID.
 - Confirm both sides of every verified callback exist in the brief.
 - Confirm the paragraph explains what happened then, what happened now, and why the meaning changed.

@@ -104,7 +104,7 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 | datalayer tools | reporter datalayer adapter | Already adapted to `FrozenLeagueData`; move mechanically |
 | persistent/memory tools | reporter memory adapter | Replace legacy backend; compatibility decided tool by tool below |
 | `reporter_v2/app/runner.py` | API/worker plus temporary CLI | Decompose; no canonical output filenames or direct loading in production |
-| `memory_lifecycle.py` | `GenerationService` finalization | Remove after typed-memory cutover |
+| `memory_lifecycle.py` | `GenerationService` finalization | Removed from the copied reporter in generation-8b |
 
 ## Non-Memory Tool Compatibility
 
@@ -172,32 +172,38 @@ The typed memory redesign changes canonical meaning. A compatibility wrapper is
 valid only when it can produce the same user-visible semantics without hidden
 state or weakened validation.
 
-### Rich memory tools
+### Generation-8b decision
 
 | V2 tool | Typed-memory capability | Decision status |
 | --- | --- | --- |
-| `search_story_memory` | `GenerationMemoryContext.search(MemoryRetrievalRequest)` | Preserve name if the old query fields can be narrowed explicitly; current events, trigger hints, filters, and result shape need a written mapping |
-| `get_memory_candidate` | Search already returns hydrated canonical matches and optional expansions | Open: context has no exact candidate-fetch operation and old owner string IDs do not match UUID item/version identity |
-| `save_memory_event` | `propose_event(EventContent)` | Change required: typed v1 accepts only trade and matchup payloads and different confidence/receipt rules |
-| `upsert_storyline_memory_card` | `propose_storyline` or `replace_storyline` | Change required: typed memory uses explicit create/replace, UUID identity, exact expected revision, and typed evidence |
-| `save_storyline_trigger` | `propose_trigger` or `replace_trigger` | Change required: typed trigger discriminators and target IDs are stricter than the legacy generic condition object |
-| `mark_memory_used` | No canonical access-history resource in the new design | Cannot preserve as a durable write; remove, redefine as non-canonical telemetry, or add a separately approved feature |
-| `plan_memory_verification` | No memory-service equivalent; verification can remain reporter-local | Open: decide whether it remains a pure brief/datalayer planning tool and define inputs over typed hydrated memory |
-| `record_memory_verification` | No access-history/verification-record resource; brief callbacks remain run-local | Open: decide whether it mutates only the brief, proposes typed fact/storyline changes, or is removed |
+| `search_story_memory` | `search_memory` over `GenerationMemoryContext.search()` | Replaced by one pinned typed search that returns hydrated matches and optional exact/stable expansions |
+| `get_memory_candidate` | Hydrated search results | Removed; search already returns canonical content and UUID identity |
+| `save_memory_event` | `propose_event` / `replace_event` | Replaced by explicit typed trade/matchup operations |
+| `upsert_storyline_memory_card` | `propose_storyline` / `replace_storyline` | Replaced; updates require UUID identity and exact expected item revision |
+| `save_storyline_trigger` | `propose_trigger` / `replace_trigger` | Replaced by discriminated rematch/trade-evaluation operations |
+| `mark_memory_used` | No canonical capability | Removed; no access-history state is synthesized |
+| `plan_memory_verification` | Reporter procedure guidance | Removed; the reporter plans frozen-data verification directly |
+| `record_memory_verification` | Run-local Markdown brief | Removed; verified callbacks remain in `research/brief.md` |
 
 ### Legacy persistent tools
 
 | V2 tool | Typed-memory capability | Decision status |
 | --- | --- | --- |
-| `save_persistent_storyline` | typed storyline create/replace | Prefer removal after migrating prompts to the richer typed tool; preserving alias/upsert semantics would hide revision conflicts |
-| `save_team_context` | franchise-scoped `ContextNoteContent` | Adaptable through the frozen typed roster-identity resolver |
-| `save_league_note` | competition-scoped `ContextNoteContent` | Adaptable, but key/value input must map explicitly to typed identity plus narrative/status/tags |
-| `load_persistent_storylines` | filter-only pinned search for storyline kind | Adaptable with a documented response-shape change |
-| `load_team_context` | filter-only pinned search for context-note kind/entity | Adaptable through the frozen typed roster-identity resolver |
-| `load_league_notes` | filter-only pinned search for competition context notes | Adaptable with a documented response-shape change |
+| `save_persistent_storyline` | typed storyline create/replace | Removed in favor of explicit propose/replace tools |
+| `save_team_context` | `propose_context_note` / `replace_context_note` | Replaced; franchise scope resolves through frozen roster identity |
+| `save_league_note` | `propose_context_note` / `replace_context_note` | Replaced by complete typed identity and content |
+| `load_persistent_storylines` | `search_memory(kinds=["storyline"])` | Replaced by typed pinned search |
+| `load_team_context` | `search_memory(kinds=["context_note"], team_keys=[...])` | Replaced by typed pinned search |
+| `load_league_notes` | `search_memory(kinds=["context_note"])` | Replaced by typed pinned search |
 
 No implementation should register both legacy and new write handlers against
 different stores. The cutover uses typed memory as the only canonical authority.
+
+The accepted model-facing vocabulary is `search_memory` plus per-kind
+`propose_*` and `replace_*` tools for facts, events, storylines, triggers, and
+context notes. Fact and event proposals accept only `unverified` or `inferred`
+confidence in this slice. Model-addressable durable source receipts require a
+separate reporter/tool-result contract and are deliberately deferred.
 
 ## Minimal Runner Changes
 

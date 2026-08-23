@@ -29,6 +29,10 @@ from backend.services.reporter.runner.tools.artifact_tools import (
     ARTIFACT_TOOL_IMPLEMENTATION_VERSION,
     ARTIFACT_TOOL_SPECS,
 )
+from backend.services.reporter.runner.tools.memory_tools import (
+    MEMORY_TOOL_IMPLEMENTATION_VERSION,
+    MEMORY_TOOL_SPECS,
+)
 
 
 def _uuid(value: int) -> UUID:
@@ -238,6 +242,26 @@ def test_manifest_is_input_only_and_submit_schema_is_path_generic() -> None:
         update={"tools": (fixed_path_tool, *inputs.tools[1:])}
     )
     assert built.manifest_hash != build_generation_manifest(fixed_path).manifest_hash
+
+
+def test_typed_memory_tool_bundle_is_manifest_safe_and_versioned() -> None:
+    memory_tools = tuple(
+        ToolInput(
+            name=spec["function"]["name"],
+            definition=spec,
+            implementation_version=MEMORY_TOOL_IMPLEMENTATION_VERSION,
+        )
+        for spec in MEMORY_TOOL_SPECS
+    )
+    inputs = _inputs().model_copy(update={"tools": memory_tools})
+
+    built = build_generation_manifest(inputs)
+
+    names = [tool["name"] for tool in built.manifest["tools"]["implementations"]]
+    assert names == [spec["function"]["name"] for spec in MEMORY_TOOL_SPECS]
+    assert "search_memory" in names
+    assert "search_story_memory" not in names
+    assert built.manifest["tools"]["schema_bundle_sha256"]
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])

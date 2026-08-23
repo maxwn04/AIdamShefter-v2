@@ -14,6 +14,7 @@ def test_reporter_does_not_import_legacy_or_persistence_layers() -> None:
         "backend.database",
         "backend.resources",
         "datalayer",
+        "reporter_memory",
         "reporter_v2",
         "sqlalchemy",
     )

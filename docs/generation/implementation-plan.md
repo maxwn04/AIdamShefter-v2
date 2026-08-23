@@ -333,18 +333,14 @@ generation stack is:
 
 Do not use Sleeper user IDs as authenticated product-user IDs.
 
-### 2. Memory tool contract
+### 2. Memory tool contract — settled for generation-8b
 
-Approve a final model-facing set for typed memory, including decisions for:
-
-- exact candidate hydration;
-- generic versus typed event writes;
-- explicit create/replace versus legacy upsert;
-- `mark_memory_used` after removal of access-history state; and
-- verification planning/recording ownership.
-
-The matrix in [`transition.md`](transition.md#memory-tool-compatibility) is the
-starting point.
+Use hydrated pinned `search_memory` plus explicit per-kind `propose_*` and
+`replace_*` tools. Remove candidate-fetch, legacy upsert aliases, access-history
+writes, and verification-record writes. Reporter procedures own verification
+planning and the Markdown brief owns run-local verified callbacks. Durable
+source-backed receipt addressing is deferred; fact/event proposals are limited
+to `unverified` or `inferred` confidence.
 
 ### 3. Finalization atomicity
 

@@ -5,7 +5,7 @@ Owns product wiring that the Runner must not know about:
 - CompletionClient construction from settings / injectable fakes
 - Markdown brief seeding from league data + ReportConfig
 - system/user prompt construction
-- pre-run memory lifecycle
+- typed memory capability wiring
 
 The Runner only receives a registry, client, RunnerConfig, and optional
 pre-seeded ArtifactStore.
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 from backend.services.reporter.config import ReportConfig
 from backend.services.reporter.runner.completion import (
@@ -24,7 +24,6 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
-from backend.services.reporter.runner.memory_lifecycle import prepare_memory_run
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecordingError,
@@ -35,20 +34,20 @@ from backend.services.reporter.runner.schemas import ArtifactSnapshot, ReporterO
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
-from backend.services.reporter.runner.tools.persistent_tools import register_persistent_tools
+from backend.services.reporter.runner.tools.memory_tools import register_memory_tools
 from backend.services.reporter.runner.tools.procedure_tools import register_procedure_tools
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
-    from reporter_memory.context_store import ContextStore
+    from backend.services.memory import GenerationMemoryContext
 
 
 async def generate_article(
     data: FrozenLeagueData,
     config: ReportConfig,
     *,
-    context_store: ContextStore | None = None,
+    memory_context: GenerationMemoryContext | None = None,
     client: CompletionClient | None = None,
     completion: CompletionSettings | None = None,
     runner_config: RunnerConfig | None = None,
@@ -62,7 +61,7 @@ async def generate_article(
     Args:
         data: Already-open immutable league snapshot runtime.
         config: Article intent (weeks, voice, tone, bias, instructions).
-        context_store: Optional persistent memory; enables memory tools.
+        memory_context: Optional pinned typed memory; enables memory tools.
         client: Pre-built completion client. Mutually exclusive with complete=.
         completion: Settings used when constructing a client (or wrapping complete=).
         runner_config: Loop policy owned by Runner (max_turns, procedure mode).
@@ -70,19 +69,11 @@ async def generate_article(
         complete: Injectable completion fn for tests. Mutually exclusive with client=.
         recorder: Optional generation-scoped durable execution recorder.
         allow_memory_writes: When False (eval mode), skip memory mutations
-            (lifecycle + in-run memory tools).
+            while retaining pinned memory search.
     """
-    week = config.time_range.week_end
-    prepare_memory_run(
-        context_store,
-        week=week,
-        allow_writes=allow_memory_writes,
-    )
-
     registry = _build_registry(
         data,
-        context_store=context_store,
-        week=week,
+        memory_context=memory_context,
         allow_memory_writes=allow_memory_writes,
     )
     resolved_recorder = recorder
@@ -151,20 +142,18 @@ def _seed_artifact_recorder(
 def _build_registry(
     data: FrozenLeagueData,
     *,
-    context_store: ContextStore | None,
-    week: int,
+    memory_context: GenerationMemoryContext | None,
     allow_memory_writes: bool,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     register_artifact_tools(registry)
     register_procedure_tools(registry)
     register_datalayer_tools(registry, data)
-    if context_store is not None:
-        register_persistent_tools(
+    if memory_context is not None:
+        register_memory_tools(
             registry,
-            context_store,
-            week=week,
-            resolve_roster_fn=_make_roster_resolver(data),
+            memory_context,
+            data,
             allow_memory_writes=allow_memory_writes,
         )
     return registry
@@ -310,56 +299,6 @@ def _markdown_list_value(values: list[str]) -> str:
 def _append_list(lines: list[str], label: str, values: list[str]) -> None:
     if values:
         lines.append(f"- {label}: {', '.join(values)}")
-
-
-def _make_roster_resolver(
-    data: FrozenLeagueData,
-) -> Callable[[str], dict[str, Any]]:
-    def resolve(roster_key: str) -> dict[str, Any]:
-        key = str(roster_key).strip()
-        if not key:
-            return {"found": False, "roster_key": roster_key}
-
-        if key.isdigit():
-            query = """
-                SELECT r.roster_id, tp.team_name
-                FROM rosters AS r
-                LEFT JOIN team_profiles AS tp
-                  ON tp.league_id = r.league_id
-                 AND tp.roster_id = r.roster_id
-                WHERE r.roster_id = :roster_id
-            """
-            params: dict[str, Any] = {"roster_id": int(key)}
-        else:
-            query = """
-                SELECT roster_id, team_name
-                FROM team_profiles
-                WHERE (team_name IS NOT NULL AND lower(team_name) = lower(:key))
-                   OR (manager_name IS NOT NULL AND lower(manager_name) = lower(:key))
-                ORDER BY team_name ASC, manager_name ASC
-            """
-            params = {"key": key}
-
-        try:
-            result = data.run_sql(query, params, limit=2)
-        except (RuntimeError, TypeError, ValueError):
-            return {"found": False, "roster_key": roster_key}
-
-        matches = [
-            dict(zip(result.get("columns", ()), row, strict=True))
-            for row in result.get("rows", ())
-        ]
-        if not matches:
-            return {"found": False, "roster_key": roster_key}
-        if len(matches) > 1:
-            return {
-                "found": False,
-                "roster_key": roster_key,
-                "matches": matches,
-            }
-        return {"found": True, **matches[0]}
-
-    return resolve
 
 
 def _get_league_metadata(data: FrozenLeagueData) -> tuple[str, str]:

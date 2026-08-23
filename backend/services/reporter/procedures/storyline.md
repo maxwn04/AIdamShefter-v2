@@ -71,17 +71,16 @@ Default weekly recap structure:
 
 For power rankings, build one section per rank or rank tier. For team deep dives, build sections around record, recent games, roster strengths or weaknesses, transactions, and outlook.
 
-## Persistent Context
+## Typed Memory Proposals
 
-If persistent context tools are available, save narrative state before drafting:
+If typed memory proposal tools are available, buffer narrative state before drafting:
 
-- Prefer `upsert_storyline_memory_card` for durable arcs, with evidence events and trigger specs when available. `save_persistent_storyline` remains a thinner compatibility wrapper.
-- Use `save_memory_event` for source-backed evidence and `save_storyline_trigger` for dormant callbacks.
-- Use `save_team_context` for researched teams whose trajectory changed.
-- Use `save_league_note` for league-wide context such as season themes, trade activity, or rivalries.
+- Use `propose_storyline` for new durable arcs and `replace_storyline` only for canonical items returned by `search_memory` with an exact expected revision.
+- Use `propose_event` for inferred matchup or trade evidence and `propose_trigger` for typed rematch or trade-evaluation callbacks.
+- Use `propose_context_note` for franchise, season, or competition context.
+- Use `propose_fact` for reusable claims. Fact and event proposals are `unverified` or `inferred`; source-backed receipts are not available in this tool version.
 - Record verified callbacks in `research/brief.md` if they were not already saved during research.
-- Use `plan_memory_verification` / `record_memory_verification` when researching whether a retrieved lead is draftable.
-- Use `mark_memory_used` when a retrieved candidate is drafted, used as research context, or discarded.
+- Proposal results may be referenced by later proposals in the same bundle, but buffered proposals do not appear in `search_memory` and cannot be replaced during the same run.
 
 Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:
 
@@ -96,7 +95,7 @@ Persist an arc only if it has either a plausible future callback condition or cl
 - `rivalry_escalation`
 - `lineup_mistake_repeat`
 
-When persistent tool fields do not exist for arc metadata, use structured text in the persistent storyline summary:
+Keep complete typed arc metadata in the proposal content. Use a concise structured summary when narrative context needs more explanation:
 
 ```text
 Arc type: trade_regret
