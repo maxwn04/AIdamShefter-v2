@@ -36,12 +36,13 @@ jobs:
       AIDAM_MIGRATION_REQUIRE_TLS: "true"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v10
         with:
+          version: "0.12.5"
           python-version: "3.11"
-          cache: pip
+          enable-cache: true
       - name: Install project
-        run: python -m pip install --editable '.[dev]'
+        run: uv sync --locked
       - name: Install trusted database CA
         env:
           DATABASE_CA_PEM: ${{ secrets.AIDAM_DATABASE_CA_PEM }}
@@ -51,37 +52,37 @@ jobs:
           chmod 600 "$RUNNER_TEMP/aidam-database/root.crt"
           echo "AIDAM_DATABASE_CA_FILE=$RUNNER_TEMP/aidam-database/root.crt" >> "$GITHUB_ENV"
       - name: Verify single Alembic head
-        run: test "$(alembic -c backend/migrations/alembic.ini heads | wc -l)" -eq 1
+        run: test "$(uv run --no-sync alembic -c backend/migrations/alembic.ini heads | wc -l)" -eq 1
       - name: Apply migration history
-        run: alembic -c backend/migrations/alembic.ini upgrade head
+        run: uv run --no-sync alembic -c backend/migrations/alembic.ini upgrade head
       - name: Verify database is at head
-        run: alembic -c backend/migrations/alembic.ini current --check-heads
+        run: uv run --no-sync alembic -c backend/migrations/alembic.ini current --check-heads
       - name: Verify migrator and hosted boundaries
         run: >-
-          python -m infra.database.verify_database
+          uv run --no-sync python -m infra.database.verify_database
           --url-environment AIDAM_MIGRATION_DATABASE_URL
           --expected-database "$AIDAM_EXPECTED_DATABASE"
           --expected-role aidam_migrator
           --profile migrator
       - name: Verify API role and TLS
         run: >-
-          python -m infra.database.verify_database
+          uv run --no-sync python -m infra.database.verify_database
           --url-environment AIDAM_DATABASE_URL
           --expected-database "$AIDAM_EXPECTED_DATABASE"
           --expected-role aidam_api
           --profile runtime
       - name: Verify worker role and TLS
         run: >-
-          python -m infra.database.verify_database
+          uv run --no-sync python -m infra.database.verify_database
           --url-environment AIDAM_WORKER_DATABASE_URL
           --expected-database "$AIDAM_EXPECTED_DATABASE"
           --expected-role aidam_worker
           --profile runtime
       - name: Check ORM and migration drift
-        run: alembic -c backend/migrations/alembic.ini check
+        run: uv run --no-sync alembic -c backend/migrations/alembic.ini check
       - name: Write credential-free schema report
         run: >-
-          python -m infra.database.schema_report
+          uv run --no-sync python -m infra.database.schema_report
           --url-environment AIDAM_MIGRATION_DATABASE_URL
           > "$RUNNER_TEMP/schema-report.json"
       - uses: actions/upload-artifact@v4
