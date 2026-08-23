@@ -98,9 +98,8 @@ class ArtifactVersionManager:
     ) -> ArtifactVersion: ...
 ```
 
-Successful finalization requires one additional service operation whose exact
-shape depends on the unresolved cross-resource memory transaction decision. It
-must at minimum ensure that:
+Successful finalization uses one transaction-coordination operation over
+session-bound resource writes. It ensures that:
 
 - the generation is still running;
 - the reporter-selected version exists, belongs to the generation, and is the
@@ -449,10 +448,22 @@ This keeps a clean queue seam without introducing job/lease infrastructure.
 that is not eligible to start; it does not resume or replay a partially executed
 agent loop. An explicit rerun creates another generation.
 
-In generation-9, a successful execution result contains the still-running
-generation, reporter output, and completed in-memory proposal bundle. Durable
-artifact selection, memory application/discard, and the terminal transition are
-the generation-10 finalization boundary.
+`execute()` returns only terminal generations. A successful result includes the
+reporter output and canonical memory mutation result when applicable. Failed or
+cancelled results contain no ephemeral reporter or memory payload; durable call,
+tool, and working-artifact records remain available for diagnostics.
+
+Finalization verifies the reporter snapshot against the exact existing durable
+path, media type, revision, content, and hash. It then commits live canonical
+memory proposals, finalizes that version, and succeeds the generation in one
+PostgreSQL transaction. Backtests require an empty proposal bundle and do not
+write canonical memory.
+
+Stale reconciliation accepts an aware cutoff plus a bounded batch size, locks
+only matching running generations in competition scope, and marks them failed
+without resuming the agent loop. Explicit reruns copy a terminal source's
+request and settings into a linked pending generation; they never copy pinned
+inputs, telemetry, or artifacts.
 
 ## API Boundary
 

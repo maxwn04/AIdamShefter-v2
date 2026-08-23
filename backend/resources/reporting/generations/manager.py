@@ -177,38 +177,19 @@ class GenerationManager:
 
     def succeed(self, command: SucceedGeneration) -> Generation:
         with transaction_session(self._session_factory) as session:
-            stored = self._load(session, command.generation_id, lock=True)
-            self._require_status(stored, GenerationStatus.RUNNING)
-            submitted_artifact = session.scalar(
-                sa.select(Artifact.id).where(
-                    Artifact.generation_id == stored.id,
-                    Artifact.finalized_version_id
-                    == command.submitted_artifact_version_id,
-                )
+            return _succeed_generation_in_session(
+                session,
+                self._competition_id,
+                command,
             )
-            if submitted_artifact is None:
-                raise GenerationLifecycleConflict(
-                    stored.id,
-                    "submitted output must be a finalized artifact version owned by "
-                    "the generation",
-                    expected_statuses=(GenerationStatus.RUNNING.value,),
-                    actual_status=stored.status,
-                )
-            now = datetime.now(UTC)
-            stored.submitted_artifact_version_id = (
-                command.submitted_artifact_version_id
-            )
-            stored.status = GenerationStatus.SUCCEEDED.value
-            stored.current_stage = "succeeded"
-            stored.progress_updated_at = now
-            stored.completed_at = now
-            session.flush()
-            return _decode(stored)
 
     def fail(self, command: FailGeneration) -> Generation:
         with transaction_session(self._session_factory) as session:
             stored = self._load(session, command.generation_id, lock=True)
-            self._require_active(stored)
+            if command.expected_status is None:
+                self._require_active(stored)
+            else:
+                self._require_status(stored, command.expected_status)
             now = datetime.now(UTC)
             stored.status = GenerationStatus.FAILED.value
             stored.current_stage = "failed"
@@ -222,7 +203,10 @@ class GenerationManager:
     def cancel(self, command: CancelGeneration) -> Generation:
         with transaction_session(self._session_factory) as session:
             stored = self._load(session, command.generation_id, lock=True)
-            self._require_active(stored)
+            if command.expected_status is None:
+                self._require_active(stored)
+            else:
+                self._require_status(stored, command.expected_status)
             now = datetime.now(UTC)
             stored.status = GenerationStatus.CANCELLED.value
             stored.current_stage = "cancelled"
@@ -232,6 +216,44 @@ class GenerationManager:
             stored.completed_at = now
             session.flush()
             return _decode(stored)
+
+    def fail_stale_running(
+        self,
+        *,
+        stale_before: datetime,
+        limit: int,
+    ) -> tuple[Generation, ...]:
+        """Fail one bounded, competition-scoped batch of stale running rows."""
+
+        if stale_before.tzinfo is None or stale_before.utcoffset() is None:
+            raise ValueError("stale_before must be timezone-aware")
+        if limit < 1 or limit > 200:
+            raise ValueError("stale reconciliation limit must be between 1 and 200")
+        with transaction_session(self._session_factory) as session:
+            rows = session.scalars(
+                sa.select(StoredGeneration)
+                .where(
+                    StoredGeneration.competition_id == self._competition_id,
+                    StoredGeneration.status == GenerationStatus.RUNNING.value,
+                    StoredGeneration.progress_updated_at < stale_before,
+                )
+                .order_by(
+                    StoredGeneration.progress_updated_at.asc(),
+                    StoredGeneration.id.asc(),
+                )
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            ).all()
+            now = datetime.now(UTC)
+            for stored in rows:
+                stored.status = GenerationStatus.FAILED.value
+                stored.current_stage = "failed"
+                stored.failure_category = "stale_execution"
+                stored.failure_summary = "Generation execution became stale"
+                stored.progress_updated_at = now
+                stored.completed_at = now
+            session.flush()
+            return tuple(_decode(stored) for stored in rows)
 
     def get(self, generation_id: UUID) -> GenerationDetail:
         with read_only_session(self._session_factory) as session:
@@ -370,16 +392,12 @@ class GenerationManager:
         *,
         lock: bool = False,
     ) -> StoredGeneration:
-        statement = sa.select(StoredGeneration).where(
-            StoredGeneration.id == generation_id,
-            StoredGeneration.competition_id == self._competition_id,
+        return _load_generation_in_session(
+            session,
+            self._competition_id,
+            generation_id,
+            lock=lock,
         )
-        if lock:
-            statement = statement.with_for_update()
-        stored = session.scalar(statement)
-        if stored is None:
-            raise GenerationResourceNotFound("generation", generation_id)
-        return stored
 
     def _load_workspace(
         self,
@@ -443,6 +461,65 @@ def _lifecycle(
         expected_statuses=expected_statuses,
         actual_status=stored.status,
     )
+
+
+def _load_generation_in_session(
+    session: Session,
+    competition_id: UUID,
+    generation_id: UUID,
+    *,
+    lock: bool = False,
+) -> StoredGeneration:
+    statement = sa.select(StoredGeneration).where(
+        StoredGeneration.id == generation_id,
+        StoredGeneration.competition_id == competition_id,
+    )
+    if lock:
+        statement = statement.with_for_update()
+    stored = session.scalar(statement)
+    if stored is None:
+        raise GenerationResourceNotFound("generation", generation_id)
+    return stored
+
+
+def _succeed_generation_in_session(
+    session: Session,
+    competition_id: UUID,
+    command: SucceedGeneration,
+    *,
+    completed_at: datetime | None = None,
+) -> Generation:
+    """Pin one finalized output and succeed inside a caller-owned transaction."""
+
+    stored = _load_generation_in_session(
+        session,
+        competition_id,
+        command.generation_id,
+        lock=True,
+    )
+    GenerationManager._require_status(stored, GenerationStatus.RUNNING)
+    submitted_artifact = session.scalar(
+        sa.select(Artifact.id).where(
+            Artifact.generation_id == stored.id,
+            Artifact.finalized_version_id == command.submitted_artifact_version_id,
+        )
+    )
+    if submitted_artifact is None:
+        raise GenerationLifecycleConflict(
+            stored.id,
+            "submitted output must be a finalized artifact version owned by "
+            "the generation",
+            expected_statuses=(GenerationStatus.RUNNING.value,),
+            actual_status=stored.status,
+        )
+    now = completed_at or datetime.now(UTC)
+    stored.submitted_artifact_version_id = command.submitted_artifact_version_id
+    stored.status = GenerationStatus.SUCCEEDED.value
+    stored.current_stage = "succeeded"
+    stored.progress_updated_at = now
+    stored.completed_at = now
+    session.flush()
+    return _decode(stored)
 
 
 def _generation_values(stored: StoredGeneration) -> dict[str, object]:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 import hashlib
@@ -15,7 +16,9 @@ from backend.resources.reporting.ai_calls import AICallManager
 from backend.resources.reporting.artifact_versions import ArtifactVersionManager
 from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import (
+    CancelGeneration,
     CreateGeneration,
+    FailGeneration,
     Generation,
     GenerationKind,
     GenerationLifecycleConflict,
@@ -34,7 +37,11 @@ from backend.services.generations.contracts import (
     GenerationExecutionResult,
     GenerationRequest,
     GenerationSettings,
+    ReconcileResult,
+    RerunGenerationRequest,
+    StaleGenerationPolicy,
 )
+from backend.services.generations.finalization import GenerationFinalizationResult
 from backend.services.generations.manifest import (
     BuiltGenerationManifest,
     CanonicalMemoryInput,
@@ -53,6 +60,7 @@ from backend.services.generations.manifest import (
 from backend.services.generations.recorder import GenerationExecutionRecorder
 from backend.services.memory import (
     GenerationMemoryContext,
+    MemoryMutationBundle,
     MemoryRetrievalService,
 )
 from backend.services.reporter import (
@@ -87,6 +95,15 @@ class SnapshotResolver(Protocol):
     def get_or_create(self, request: SnapshotRequest) -> ReadyDataSnapshot: ...
 
 
+class Finalizer(Protocol):
+    def finalize(
+        self,
+        generation_id: UUID,
+        output: ReporterOutput,
+        memory_bundle: MemoryMutationBundle,
+    ) -> GenerationFinalizationResult: ...
+
+
 class GenerationService:
     """Submit durable requests and execute one fully pinned reporter run."""
 
@@ -101,6 +118,7 @@ class GenerationService:
         tool_calls: ToolCallManager,
         artifacts: ArtifactManager,
         artifact_versions: ArtifactVersionManager,
+        finalizer: Finalizer,
         reporter_revision: str,
         generation_revision: str,
         reporter: ReporterCallable = generate_article,
@@ -116,6 +134,7 @@ class GenerationService:
         self._tool_calls = tool_calls
         self._artifacts = artifacts
         self._artifact_versions = artifact_versions
+        self._finalizer = finalizer
         self._reporter_revision = _nonblank(reporter_revision, "reporter_revision")
         self._generation_revision = _nonblank(
             generation_revision, "generation_revision"
@@ -145,7 +164,7 @@ class GenerationService:
         )
 
     async def execute(self, generation_id: UUID) -> GenerationExecutionResult:
-        """Resolve immutable inputs, start atomically, and call the reporter once."""
+        """Resolve, execute, and return one durably terminal generation."""
 
         pending = self._generations.get(generation_id)
         if pending.status is not GenerationStatus.PENDING:
@@ -155,56 +174,79 @@ class GenerationService:
                 expected_statuses=(GenerationStatus.PENDING.value,),
                 actual_status=pending.status.value,
             )
-        if pending.week_start is None or pending.week_end is None:
-            raise ValueError("generation execution requires a resolved week range")
-
-        execution_at = _aware_utc(self._clock())
-        settings = _decode_settings(pending.settings)
-        snapshot = self._snapshots.get_or_create(
-            SnapshotRequest(
-                competition_season_id=pending.competition_season_id,
-                through_week=pending.week_end,
-                as_of_date=execution_at.date(),
+        try:
+            if pending.week_start is None or pending.week_end is None:
+                raise ValueError("generation execution requires a resolved week range")
+            execution_at = _aware_utc(self._clock())
+            settings = _decode_settings(pending.settings)
+            snapshot = self._snapshots.get_or_create(
+                SnapshotRequest(
+                    competition_season_id=pending.competition_season_id,
+                    through_week=pending.week_end,
+                    as_of_date=execution_at.date(),
+                )
             )
-        )
-        if (
-            snapshot.competition_id != pending.competition_id
-            or snapshot.primary_competition_season_id
-            != pending.competition_season_id
-            or snapshot.through_week != pending.week_end
-        ):
-            raise ValueError("resolved snapshot differs from generation scope or cutoff")
-
-        revision = self._select_memory_revision(pending)
-        knowledge_cutoff_at = (
-            execution_at
-            if pending.kind is GenerationKind.LIVE
-            else revision.knowledge_cutoff_at or revision.created_at
-        )
-        definition = self._prepare_definition(memory_enabled=True)
-        manifest = _build_manifest(
-            generation=pending,
-            settings=settings,
-            resolved_settings=pending.settings,
-            snapshot=snapshot,
-            revision=revision,
-            knowledge_cutoff_at=knowledge_cutoff_at,
-            definition=definition,
-            reporter_revision=self._reporter_revision,
-            generation_revision=self._generation_revision,
-        )
-        self._generations.start(
-            StartGeneration(
-                generation_id=pending.id,
-                data_snapshot_id=snapshot.id,
-                input_memory_revision_id=revision.revision_id,
+            if (
+                snapshot.competition_id != pending.competition_id
+                or snapshot.primary_competition_season_id
+                != pending.competition_season_id
+                or snapshot.through_week != pending.week_end
+            ):
+                raise ValueError(
+                    "resolved snapshot differs from generation scope or cutoff"
+                )
+            revision = self._select_memory_revision(pending)
+            knowledge_cutoff_at = (
+                execution_at
+                if pending.kind is GenerationKind.LIVE
+                else revision.knowledge_cutoff_at or revision.created_at
+            )
+            definition = self._prepare_definition(memory_enabled=True)
+            manifest = _build_manifest(
+                generation=pending,
+                settings=settings,
+                resolved_settings=pending.settings,
+                snapshot=snapshot,
+                revision=revision,
                 knowledge_cutoff_at=knowledge_cutoff_at,
-                input_manifest=manifest.manifest,
-                manifest_schema_version=manifest.schema_version,
-                manifest_hash=manifest.manifest_hash,
-                initial_stage="starting",
+                definition=definition,
+                reporter_revision=self._reporter_revision,
+                generation_revision=self._generation_revision,
             )
-        )
+        except asyncio.CancelledError:
+            return self._cancel_result(pending.id, GenerationStatus.PENDING)
+        except Exception as exc:
+            return self._failure_result(
+                pending.id,
+                GenerationStatus.PENDING,
+                "input_resolution",
+                exc,
+            )
+
+        try:
+            self._generations.start(
+                StartGeneration(
+                    generation_id=pending.id,
+                    data_snapshot_id=snapshot.id,
+                    input_memory_revision_id=revision.revision_id,
+                    knowledge_cutoff_at=knowledge_cutoff_at,
+                    input_manifest=manifest.manifest,
+                    manifest_schema_version=manifest.schema_version,
+                    manifest_hash=manifest.manifest_hash,
+                    initial_stage="starting",
+                )
+            )
+        except asyncio.CancelledError:
+            return self._cancel_result(pending.id, GenerationStatus.PENDING)
+        except GenerationLifecycleConflict:
+            raise
+        except Exception as exc:
+            return self._failure_result(
+                pending.id,
+                GenerationStatus.PENDING,
+                "input_resolution",
+                exc,
+            )
 
         memory = GenerationMemoryContext(
             competition_id=pending.competition_id,
@@ -236,15 +278,126 @@ class GenerationService:
                     definition=definition,
                 )
             bundle = memory.take_completed_bundle()
+        except asyncio.CancelledError:
+            memory.discard()
+            return self._cancel_result(pending.id, GenerationStatus.RUNNING)
+        except Exception as exc:
+            memory.discard()
+            return self._failure_result(
+                pending.id,
+                GenerationStatus.RUNNING,
+                "reporter_execution",
+                exc,
+            )
         except BaseException:
             memory.discard()
             raise
 
+        try:
+            finalized = self._finalizer.finalize(pending.id, output, bundle)
+        except Exception as exc:
+            return self._failure_result(
+                pending.id,
+                GenerationStatus.RUNNING,
+                "generation_finalization",
+                exc,
+            )
         return GenerationExecutionResult(
-            generation=self._generations.get(pending.id),
+            generation=finalized.generation,
             reporter_output=output,
-            memory_bundle=bundle,
+            memory_result=finalized.memory_result,
         )
+
+    def rerun(self, request: RerunGenerationRequest) -> Generation:
+        """Copy one terminal generation's intent into a fresh linked request."""
+
+        source = self._generations.get(request.source_generation_id)
+        if source.status not in {
+            GenerationStatus.SUCCEEDED,
+            GenerationStatus.FAILED,
+            GenerationStatus.CANCELLED,
+        }:
+            raise GenerationLifecycleConflict(
+                source.id,
+                "reruns require a terminal source generation",
+                expected_statuses=("succeeded", "failed", "cancelled"),
+                actual_status=source.status.value,
+            )
+        if source.week_start is None or source.week_end is None:
+            raise ValueError("rerun source requires a resolved week range")
+        return self.submit(
+            GenerationRequest(
+                generation_id=request.generation_id,
+                competition_id=source.competition_id,
+                competition_season_id=source.competition_season_id,
+                kind=source.kind,
+                request_text=source.request_text,
+                week_start=source.week_start,
+                week_end=source.week_end,
+                requested_primary_model=source.requested_primary_model,
+                settings=_decode_settings(source.settings),
+                rerun_of_generation_id=source.id,
+            )
+        )
+
+    def reconcile_stale(self, policy: StaleGenerationPolicy) -> ReconcileResult:
+        """Fail a bounded batch of stale running generations without resuming them."""
+
+        stale = self._generations.fail_stale_running(
+            stale_before=policy.stale_before,
+            limit=policy.limit,
+        )
+        return ReconcileResult(
+            stale_before=policy.stale_before,
+            generations=stale,
+        )
+
+    def _failure_result(
+        self,
+        generation_id: UUID,
+        expected_status: GenerationStatus,
+        category: str,
+        exc: Exception,
+    ) -> GenerationExecutionResult:
+        try:
+            generation = self._generations.fail(
+                FailGeneration(
+                    generation_id=generation_id,
+                    category=category,
+                    summary=_failure_summary(category, exc),
+                    expected_status=expected_status,
+                )
+            )
+        except GenerationLifecycleConflict:
+            generation = self._generations.get(generation_id)
+            if generation.status not in {
+                GenerationStatus.FAILED,
+                GenerationStatus.CANCELLED,
+            }:
+                raise
+        return GenerationExecutionResult(generation=generation)
+
+    def _cancel_result(
+        self,
+        generation_id: UUID,
+        expected_status: GenerationStatus,
+    ) -> GenerationExecutionResult:
+        try:
+            generation = self._generations.cancel(
+                CancelGeneration(
+                    generation_id=generation_id,
+                    summary="Generation execution was cancelled",
+                    expected_status=expected_status,
+                )
+            )
+        except GenerationLifecycleConflict:
+            generation = self._generations.get(generation_id)
+            if generation.status not in {
+                GenerationStatus.FAILED,
+                GenerationStatus.CANCELLED,
+            }:
+                raise
+        return GenerationExecutionResult(generation=generation)
 
     def _select_memory_revision(self, generation: Generation) -> CanonicalRevision:
         if generation.kind is GenerationKind.LIVE:
@@ -440,6 +593,11 @@ def _nonblank(value: str, field: str) -> str:
     if not value or value.strip() != value:
         raise ValueError(f"{field} must be non-blank and trimmed")
     return value
+
+
+def _failure_summary(category: str, exc: Exception) -> str:
+    label = category.replace("_", " ").capitalize()
+    return f"{label} failed ({type(exc).__name__})"[:500]
 
 
 __all__ = [

@@ -126,11 +126,13 @@ class FailGeneration(ContractModel):
     generation_id: UUID
     category: FailureCategory
     summary: FailureSummary
+    expected_status: GenerationStatus | None = None
 
 
 class CancelGeneration(ContractModel):
     generation_id: UUID
     summary: FailureSummary | None = None
+    expected_status: GenerationStatus | None = None
 
 
 class GenerationQuery(ContractModel):

@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -119,6 +119,64 @@ def test_pending_start_progress_and_terminal_lifecycle_are_atomic(
         generation_manager.get(pending.id).data_snapshot_id
         == running.data_snapshot_id
     )
+
+
+def test_terminal_compare_and_set_does_not_overwrite_another_worker(
+    generation_manager: GenerationManager,
+    generation_domain: GenerationDomain,
+) -> None:
+    pending = generation_manager.create_pending(_create_command(generation_domain))
+    generation_manager.start(_start_command(generation_domain, pending.id))
+
+    with pytest.raises(GenerationLifecycleConflict):
+        generation_manager.fail(
+            FailGeneration(
+                generation_id=pending.id,
+                category="input_resolution",
+                summary="late pre-start failure",
+                expected_status="pending",
+            )
+        )
+    with pytest.raises(GenerationLifecycleConflict):
+        generation_manager.cancel(
+            CancelGeneration(
+                generation_id=pending.id,
+                expected_status="pending",
+            )
+        )
+    assert generation_manager.get(pending.id).status.value == "running"
+
+
+def test_stale_reconciliation_is_scoped_bounded_and_running_only(
+    database_engine: Engine,
+    generation_manager: GenerationManager,
+    generation_domain: GenerationDomain,
+) -> None:
+    first = generation_manager.create_pending(_create_command(generation_domain))
+    second = generation_manager.create_pending(_create_command(generation_domain))
+    fresh = generation_manager.create_pending(_create_command(generation_domain))
+    generation_manager.start(_start_command(generation_domain, first.id))
+    generation_manager.start(_start_command(generation_domain, second.id))
+    generation_manager.start(_start_command(generation_domain, fresh.id))
+    cutoff = datetime.now(UTC) - timedelta(minutes=5)
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(StoredGeneration)
+            .where(StoredGeneration.id.in_((first.id, second.id)))
+            .values(progress_updated_at=cutoff - timedelta(minutes=5))
+        )
+
+    reconciled = generation_manager.fail_stale_running(
+        stale_before=cutoff,
+        limit=1,
+    )
+
+    assert len(reconciled) == 1
+    assert reconciled[0].status.value == "failed"
+    assert reconciled[0].failure_category == "stale_execution"
+    remaining = {first.id, second.id} - {reconciled[0].id}
+    assert generation_manager.get(remaining.pop()).status.value == "running"
+    assert generation_manager.get(fresh.id).status.value == "running"
 
 
 def test_failed_start_rolls_back_all_input_pinning(

@@ -5,11 +5,15 @@ from __future__ import annotations
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from backend.resources._contracts import ContractModel, NonBlankStr
-from backend.resources.reporting.generations import Generation, GenerationKind
-from backend.services.memory import MemoryMutationBundle
+from backend.resources.reporting.generations import (
+    Generation,
+    GenerationKind,
+    GenerationStatus,
+)
+from backend.services.memory import MemoryMutationResult
 from backend.services.reporter import ReporterOutput
 
 
@@ -104,8 +108,46 @@ class GenerationRequest(ContractModel):
 
 class GenerationExecutionResult(ContractModel):
     generation: Generation
-    reporter_output: ReporterOutput
-    memory_bundle: MemoryMutationBundle
+    reporter_output: ReporterOutput | None = None
+    memory_result: MemoryMutationResult | None = None
+
+    @model_validator(mode="after")
+    def validate_terminal_shape(self) -> "GenerationExecutionResult":
+        if self.generation.status is GenerationStatus.SUCCEEDED:
+            if self.reporter_output is None:
+                raise ValueError("successful execution requires reporter output")
+            if self.generation.submitted_artifact_version_id is None:
+                raise ValueError("successful execution requires a submitted version")
+            return self
+        if self.generation.status not in {
+            GenerationStatus.FAILED,
+            GenerationStatus.CANCELLED,
+        }:
+            raise ValueError("execution result requires a terminal generation")
+        if self.reporter_output is not None or self.memory_result is not None:
+            raise ValueError("unsuccessful execution cannot expose ephemeral output")
+        return self
+
+
+class RerunGenerationRequest(ContractModel):
+    source_generation_id: UUID
+    generation_id: UUID
+
+    @model_validator(mode="after")
+    def validate_distinct_ids(self) -> "RerunGenerationRequest":
+        if self.source_generation_id == self.generation_id:
+            raise ValueError("rerun generation ID must differ from its source")
+        return self
+
+
+class StaleGenerationPolicy(ContractModel):
+    stale_before: AwareDatetime
+    limit: int = Field(default=100, strict=True, ge=1, le=200)
+
+
+class ReconcileResult(ContractModel):
+    stale_before: AwareDatetime
+    generations: tuple[Generation, ...]
 
 
 __all__ = [
@@ -114,8 +156,11 @@ __all__ = [
     "GenerationModelSettings",
     "GenerationReportSettings",
     "GenerationRequest",
+    "ReconcileResult",
+    "RerunGenerationRequest",
     "GenerationRetrySettings",
     "GenerationRunnerSettings",
     "GenerationSettings",
     "GenerationToneSettings",
+    "StaleGenerationPolicy",
 ]
