@@ -155,6 +155,7 @@ def test_runner_simple_text_response() -> None:
     assert complete.requests[0]["messages"][0]["role"] == "system"
     assert complete.requests[0]["messages"][1]["role"] == "user"
     assert complete.requests[0]["model"] is None
+    assert "turn_number" not in complete.requests[0]
 
 
 def test_runner_passes_explicit_model_override() -> None:

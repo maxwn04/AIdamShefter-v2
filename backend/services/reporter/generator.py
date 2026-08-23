@@ -25,6 +25,7 @@ from backend.services.reporter.runner.completion import (
     make_completion_client,
 )
 from backend.services.reporter.runner.memory_lifecycle import prepare_memory_run
+from backend.services.reporter.runner.recording import CompletionRecorder
 from backend.services.reporter.runner.runner import Runner
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
@@ -49,6 +50,7 @@ async def generate_article(
     runner_config: RunnerConfig | None = None,
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
+    recorder: CompletionRecorder | None = None,
     allow_memory_writes: bool = True,
 ) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
@@ -62,6 +64,7 @@ async def generate_article(
         runner_config: Loop policy owned by Runner (max_turns, procedure mode).
         log_path: Optional streaming run-log path.
         complete: Injectable completion fn for tests. Mutually exclusive with client=.
+        recorder: Optional generation-scoped durable completion recorder.
         allow_memory_writes: When False (eval mode), skip memory mutations
             (lifecycle + in-run memory tools).
     """
@@ -82,6 +85,7 @@ async def generate_article(
         client=client,
         completion=completion,
         complete=complete,
+        recorder=recorder,
     )
 
     if log_path is not None:
@@ -136,16 +140,19 @@ def _resolve_client(
     client: CompletionClient | None,
     completion: CompletionSettings | None,
     complete: CompletionFn | None,
+    recorder: CompletionRecorder | None,
 ) -> CompletionClient:
     if client is not None and complete is not None:
         raise ValueError("Pass client= or complete=, not both.")
     if client is not None:
+        if recorder is not None and client.recorder is not recorder:
+            raise ValueError("A supplied client must already use the supplied recorder.")
         return client
 
     settings = completion or CompletionSettings()
     if complete is not None:
-        return CompletionClient(complete, settings)
-    return make_completion_client(settings)
+        return CompletionClient(complete, settings, recorder)
+    return make_completion_client(settings, recorder)
 
 
 def _build_system_prompt() -> str:

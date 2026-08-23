@@ -2,16 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
 from typing import Any
+from uuid import UUID, uuid4
 
 import pytest
 
+from backend.services.reporter.generator import _resolve_client
 from backend.services.reporter.runner.completion import (
     CompletionClient,
     CompletionSettings,
     RetryPolicy,
     is_retryable_error,
+    normalize_token_usage,
     retry_delay_seconds,
+    sanitize_provider_error,
+    sanitize_provider_response,
+)
+from backend.services.reporter.runner.recording import (
+    ModelAttemptFinish,
+    ModelAttemptStart,
 )
 from backend.services.reporter.runner.runner import Runner
 from backend.services.reporter.runner.tools.registry import ToolRegistry
@@ -43,12 +54,53 @@ class SequenceCompletion:
         return outcome
 
 
+class RecordingProbe:
+    def __init__(
+        self,
+        *,
+        fail_begin: bool = False,
+        fail_finish: bool = False,
+    ) -> None:
+        self.fail_begin = fail_begin
+        self.fail_finish = fail_finish
+        self.started: list[tuple[UUID, ModelAttemptStart]] = []
+        self.finished: list[tuple[UUID, ModelAttemptFinish]] = []
+        self.successful: dict[int, UUID] = {}
+
+    def begin_model_attempt(self, attempt: ModelAttemptStart) -> UUID:
+        if self.fail_begin:
+            raise RateLimitError("recorder timeout")
+        attempt_id = uuid4()
+        self.started.append((attempt_id, attempt))
+        return attempt_id
+
+    def finish_model_attempt(
+        self,
+        attempt_id: UUID,
+        result: ModelAttemptFinish,
+    ) -> None:
+        if self.fail_finish:
+            raise RateLimitError("recorder finish timeout")
+        self.finished.append((attempt_id, result))
+        if result.status == "succeeded":
+            turn = next(
+                attempt.turn_number
+                for started_id, attempt in self.started
+                if started_id == attempt_id
+            )
+            self.successful[turn] = attempt_id
+
+    def successful_ai_call_id(self, turn_number: int) -> UUID | None:
+        return self.successful.get(turn_number)
+
+
 def make_client(
     complete: SequenceCompletion,
     *,
     model: str | None = None,
     fallback_models: tuple[str, ...] = (),
     retry: RetryPolicy | None = None,
+    recorder: RecordingProbe | None = None,
 ) -> CompletionClient:
     return CompletionClient(
         complete,
@@ -57,6 +109,7 @@ def make_client(
             fallback_models=fallback_models,
             retry=retry or RetryPolicy(),
         ),
+        recorder,
     )
 
 
@@ -276,3 +329,296 @@ def test_runner_uses_fallback_model_on_rate_limits(monkeypatch) -> None:
         "gpt-primary",
         "gpt-fallback",
     ]
+
+
+def test_recorded_success_retains_exact_response_and_normalized_usage() -> None:
+    response = {
+        "id": "response-1",
+        "model": "actual-model",
+        "provider": "openai",
+        "choices": [{"finish_reason": "tool_calls", "message": {"content": None}}],
+        "usage": {
+            "prompt_tokens": 20,
+            "completion_tokens": 8,
+            "total_tokens": 28,
+            "prompt_tokens_details": {"cached_tokens": 3},
+            "completion_tokens_details": {"reasoning_tokens": 2},
+        },
+        "authorization": "Bearer provider-secret",
+    }
+    complete = SequenceCompletion([response])
+    recorder = RecordingProbe()
+    client = make_client(complete, model="openai/requested-model", recorder=recorder)
+
+    returned = run(
+        client.complete(
+            turn_number=3,
+            messages=[{"role": "user", "content": "hello"}],
+            tools=[{"type": "function", "function": {"name": "lookup"}}],
+            temperature=0.25,
+        )
+    )
+
+    assert returned is response
+    assert len(recorder.started) == 1
+    _, started = recorder.started[0]
+    assert started.turn_number == 3
+    assert started.requested_provider == "openai"
+    assert started.requested_model == "openai/requested-model"
+    assert started.request_parameters == {"temperature": 0.25}
+    _, finished = recorder.finished[0]
+    assert finished.status == "succeeded"
+    assert finished.actual_model == "actual-model"
+    assert finished.provider_response["authorization"] == "[REDACTED]"
+    assert finished.usage.input_tokens == 20
+    assert finished.usage.cached_input_tokens == 3
+    assert finished.usage.output_tokens == 8
+    assert finished.usage.reasoning_tokens == 2
+    assert finished.usage.total_tokens == 28
+    assert recorder.successful_ai_call_id(3) is not None
+
+
+def test_every_retry_and_fallback_is_recorded_as_its_own_attempt(monkeypatch) -> None:
+    async def fake_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr("backend.services.reporter.runner.completion.asyncio.sleep", fake_sleep)
+    complete = SequenceCompletion(
+        [
+            RateLimitError("primary retry"),
+            RateLimitError("primary exhausted"),
+            {"model": "fallback", "choices": [{"finish_reason": "stop"}]},
+        ]
+    )
+    recorder = RecordingProbe()
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=1, base_delay=0.01, max_delay=0.01),
+        recorder=recorder,
+    )
+
+    run(client.complete(turn_number=1, messages=[]))
+
+    assert [attempt.requested_model for _, attempt in recorder.started] == [
+        "primary",
+        "primary",
+        "fallback",
+    ]
+    assert [result.status for _, result in recorder.finished] == [
+        "retryable_error",
+        "retryable_error",
+        "succeeded",
+    ]
+
+
+def test_retry_exhaustion_leaves_every_attempt_terminal() -> None:
+    complete = SequenceCompletion([RateLimitError("primary"), RateLimitError("fallback")])
+    recorder = RecordingProbe()
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=0),
+        recorder=recorder,
+    )
+
+    with pytest.raises(RateLimitError, match="fallback"):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert len(recorder.started) == 2
+    assert [result.status for _, result in recorder.finished] == [
+        "retryable_error",
+        "retryable_error",
+    ]
+
+
+def test_fatal_error_is_sanitized_and_recorded_once() -> None:
+    error = ValueError("invalid api_key=super-secret Bearer bearer-secret")
+    complete = SequenceCompletion([error])
+    recorder = RecordingProbe()
+    client = make_client(complete, model="primary", recorder=recorder)
+
+    with pytest.raises(ValueError, match="invalid"):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert len(recorder.started) == 1
+    result = recorder.finished[0][1]
+    assert result.status == "fatal_error"
+    assert "super-secret" not in result.error["message"]
+    assert "bearer-secret" not in result.error["message"]
+
+
+def test_inflight_cancellation_records_unknown_outcome() -> None:
+    class CancelledCompletion:
+        async def __call__(self, **_kwargs: Any) -> Any:
+            raise asyncio.CancelledError("caller cancelled")
+
+    recorder = RecordingProbe()
+    client = CompletionClient(
+        CancelledCompletion(),
+        CompletionSettings(model="primary"),
+        recorder,
+    )
+
+    with pytest.raises(asyncio.CancelledError):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert recorder.finished[0][1].status == "unknown_outcome"
+
+
+def test_recorder_begin_failure_prevents_provider_call() -> None:
+    complete = SequenceCompletion([{"model": "unused", "choices": []}])
+    client = make_client(
+        complete,
+        model="primary",
+        recorder=RecordingProbe(fail_begin=True),
+    )
+
+    with pytest.raises(RuntimeError, match="before provider invocation"):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert complete.requests == []
+
+
+def test_recorder_finish_failure_prevents_success_from_escaping() -> None:
+    response = {"model": "primary", "choices": [{"finish_reason": "stop"}]}
+    complete = SequenceCompletion([response])
+    client = make_client(
+        complete,
+        model="primary",
+        recorder=RecordingProbe(fail_finish=True),
+    )
+
+    with pytest.raises(RuntimeError, match="after provider invocation"):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert len(complete.requests) == 1
+
+
+def test_recording_requires_model_and_positive_turn() -> None:
+    complete = SequenceCompletion([])
+    recorder = RecordingProbe()
+
+    with pytest.raises(ValueError, match="configured model"):
+        run(make_client(complete, recorder=recorder).complete(turn_number=1, messages=[]))
+    with pytest.raises(ValueError, match="positive turn"):
+        run(
+            make_client(complete, model="primary", recorder=recorder).complete(
+                messages=[]
+            )
+        )
+    assert complete.requests == []
+
+
+def test_generator_client_resolution_preserves_recorder_identity() -> None:
+    complete = SequenceCompletion([])
+    recorder = RecordingProbe()
+    resolved = _resolve_client(
+        client=None,
+        completion=CompletionSettings(model="primary"),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    assert resolved.recorder is recorder
+    with pytest.raises(ValueError, match="already use"):
+        _resolve_client(
+            client=CompletionClient(complete, CompletionSettings(model="primary")),
+            completion=None,
+            complete=None,
+            recorder=recorder,
+        )
+
+
+def test_token_normalization_preserves_zero_and_missing_categories() -> None:
+    usage = normalize_token_usage(
+        {
+            "usage": {
+                "input_tokens": 0,
+                "output_tokens": 4,
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 0},
+            }
+        }
+    )
+
+    assert usage.input_tokens == 0
+    assert usage.cached_input_tokens == 0
+    assert usage.output_tokens == 4
+    assert usage.reasoning_tokens == 0
+    assert usage.total_tokens is None
+    assert normalize_token_usage({}).raw_provider_usage is None
+
+
+def test_litellm_style_object_metadata_and_usage_are_recorded() -> None:
+    response = SimpleNamespace(
+        id="response-object",
+        model="provider-model",
+        choices=[SimpleNamespace(finish_reason="stop")],
+        usage=SimpleNamespace(
+            prompt_tokens=11,
+            completion_tokens=6,
+            total_tokens=17,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=4),
+            completion_tokens_details=SimpleNamespace(reasoning_tokens=2),
+        ),
+        _hidden_params={
+            "custom_llm_provider": "azure",
+            "additional_headers": {"X-Request-ID": "request-object"},
+        },
+    )
+    recorder = RecordingProbe()
+    client = make_client(
+        SequenceCompletion([response]),
+        model="openai/requested",
+        recorder=recorder,
+    )
+
+    run(client.complete(turn_number=1, messages=[]))
+
+    result = recorder.finished[0][1]
+    assert result.actual_provider == "azure"
+    assert result.actual_model == "provider-model"
+    assert result.provider_request_id == "request-object"
+    assert result.provider_response_id == "response-object"
+    assert result.finish_reason == "stop"
+    assert result.usage.cached_input_tokens == 4
+    assert result.usage.reasoning_tokens == 2
+    assert result.usage.raw_provider_usage["prompt_tokens"] == 11
+
+
+def test_error_sanitizer_keeps_only_bounded_scalar_metadata() -> None:
+    error = RateLimitError("Bearer top-secret " + ("x" * 3000))
+    error.code = "rate_limit"
+    error.request_id = "request-7"
+    error.headers = {"authorization": "secret"}
+
+    sanitized = sanitize_provider_error(error, "openai")
+
+    assert sanitized["type"] == "RateLimitError"
+    assert sanitized["status_code"] == 429
+    assert sanitized["code"] == "rate_limit"
+    assert sanitized["request_id"] == "request-7"
+    assert sanitized["provider"] == "openai"
+    assert "top-secret" not in sanitized["message"]
+    assert len(sanitized["message"]) == 2000
+    assert "headers" not in sanitized
+
+
+def test_response_sanitizer_falls_back_when_provider_dump_fails() -> None:
+    class BrokenDump:
+        visible = "kept"
+
+        def __init__(self) -> None:
+            self.payload = {"api_key": "secret", "value": 7}
+
+        def model_dump(self, **_kwargs: Any) -> dict[str, Any]:
+            raise RuntimeError("provider serializer failed")
+
+    sanitized = sanitize_provider_response(BrokenDump())
+
+    assert sanitized == {
+        "payload": {"api_key": "[REDACTED]", "value": 7}
+    }

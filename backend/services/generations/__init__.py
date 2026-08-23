@@ -19,6 +19,7 @@ from backend.services.generations.manifest import (
     canonical_json_bytes,
     canonical_json_sha256,
 )
+from backend.services.generations.recorder import GenerationExecutionRecorder
 
 __all__ = [
     "MANIFEST_SCHEMA_VERSION",
@@ -28,6 +29,7 @@ __all__ = [
     "DataSnapshotInput",
     "EvaluationArtifactMemoryInput",
     "GenerationManifestInput",
+    "GenerationExecutionRecorder",
     "GenerationRequestInput",
     "ManifestCutoffs",
     "ModelExecutionInput",
