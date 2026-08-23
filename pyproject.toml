@@ -39,6 +39,7 @@ include = ["backend*", "datalayer*", "reporter_v2*", "reporter_memory*"]
 
 [tool.setuptools.package-data]
 reporter_v2 = ["procedures/*.md", "prompts/*.md"]
+"backend.services.reporter" = ["procedures/*.md", "prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests", "datalayer/tests", "reporter_memory/tests", "reporter_v2/tests"]
