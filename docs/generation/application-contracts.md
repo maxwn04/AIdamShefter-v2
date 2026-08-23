@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | API | generation request/response schemas | authentication, authorization, transport validation, polling |
 | Worker/process | `GenerationService` | execute one durable generation and reconcile stale runs |
-| Generation service | generation manager | scoped lifecycle, call telemetry, artifacts, and terminal state |
+| Generation service | reporting resource managers | scoped lifecycle, call telemetry, artifacts, and terminal state |
 | Generation service | datalayer services | optional refresh and ready snapshot resolution |
 | Generation service | memory services | revision pin, generation context, and proposal finalization |
 | Generation service | reporter generator | produce one article from already-resolved capabilities |
@@ -44,10 +44,10 @@ The exact live-versus-backtest mapping to `SnapshotRequest.as_of_date` and
 knowledge cutoff is owned by generation policy. It must be specified with
 golden tests rather than inferred inside the datalayer.
 
-## Generation Manager Contract
+## Reporting Resource Manager Contracts
 
 The generation manager is competition-scoped through `ManagerContext`. Its
-public operations are aggregate operations, not generic table CRUD.
+public operations own only generation lifecycle state, not generic table CRUD.
 
 Required semantic operations:
 
@@ -59,18 +59,31 @@ class GenerationManager:
     def fail(self, command: FailGeneration) -> Generation: ...
     def cancel(self, command: CancelGeneration) -> Generation: ...
     def get(self, generation_id: UUID) -> GenerationDetail: ...
-    def list(self, query: GenerationQuery) -> Page[GenerationSummary]: ...
+    def list(self, query: GenerationQuery) -> GenerationPage: ...
+```
 
+Child reporting resources use the same competition scope through independent
+manager boundaries:
+
+```python
+class AICallManager:
     def begin_ai_call(self, command: BeginAICall) -> AICall: ...
     def finish_ai_call(self, command: FinishAICall) -> AICall: ...
+
+class ToolCallManager:
     def begin_tool_call(self, command: BeginToolCall) -> ToolCall: ...
     def finish_tool_call(self, command: FinishToolCall) -> ToolCall: ...
+
+class ArtifactManager:
+    def finalize_artifact(self, command: FinalizeArtifact) -> Artifact: ...
+
+class ArtifactVersionManager:
     def append_artifact_version(
         self, command: AppendArtifactVersion
     ) -> ArtifactVersion: ...
 ```
 
-Successful finalization requires one additional aggregate operation whose exact
+Successful finalization requires one additional service operation whose exact
 shape depends on the unresolved cross-resource memory transaction decision. It
 must at minimum ensure that:
 
@@ -82,13 +95,14 @@ must at minimum ensure that:
 - completion timestamps/progress are coherent; and
 - a terminal generation cannot be reopened or modified.
 
-### Manager invariants
+### Cross-manager invariants
 
 - Every ID belongs to the manager's competition scope.
 - `create_pending` durably captures the original request before external work.
 - `start` atomically pins all required inputs and manifest fields.
 - input fields are immutable after start.
-- AI-call `(turn, attempt)` and tool ordinal identity are manager-controlled.
+- AI-call `(turn, attempt)` and tool ordinal identity are controlled by their
+  resource managers.
 - a tool call references the successful AI call for its turn.
 - full tool result text is retained; structured JSON is additional.
 - artifact revisions are positive, append-only, hash-verified, and allocated
@@ -97,7 +111,7 @@ must at minimum ensure that:
   immutable `media_type` describes representation rather than semantic role.
 - finalizing an artifact selects its latest existing version and forbids later
   appends.
-- expected lifecycle conflicts raise typed application errors, never leak
+- expected lifecycle conflicts raise typed resource errors, never leak
   constraint names.
 
 ## Reporter Generator Contract

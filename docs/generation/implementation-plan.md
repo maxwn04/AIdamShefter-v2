@@ -24,7 +24,7 @@ adopted:
   of the generation service and the frozen reporter adapter in the new package;
 - this generation stack supplies reporting resources, reporter execution,
   observability, artifacts, memory lifecycle, API, and worker integration; and
-- neither stack introduces a second generation manager or alternate start path.
+- neither stack introduces an alternate generation start path.
 
 Memory's reporter-retrieval and reporter-mutation tail likewise lands through
 the single reporter memory adapter and `GenerationService` finalization path.
@@ -100,19 +100,33 @@ within their artifact/generation and finalized artifacts cannot change.
 rejects stale or ambiguous edits, submits an exact current `article.md`
 revision, and has no artifact-kind or section-specific persistence contract.
 
-### `generation-4` — reporting resource contracts and manager
+### `generation-4a` — generation lifecycle resource
 
-- Add resource objects for generation summary/detail, AI calls, tool calls,
-  artifacts, and artifact versions.
-- Add `GenerationManager` with scoped pending/start/progress/fail/cancel/read
-  operations.
-- Add child-call, path-addressed artifact, append-only version, and
-  selected-version finalization operations under the same aggregate.
+- Add immutable generation summary/detail, command, query, and paging contracts.
+- Add a competition-scoped `GenerationManager` for pending creation,
+  atomic start/input pinning, progress, failure, cancellation, and reads.
 - Add typed lifecycle/concurrency errors and ORM-to-resource conversion.
-- Prove existing reporting schema constraints through real manager behavior.
 
-**Exit gate:** pending-to-running input pinning is atomic, inputs are immutable,
-terminal rows cannot reopen, and concurrent call/artifact allocation is safe.
+**Exit gate:** pending-to-running input pinning is atomic, request and input
+fields are immutable, scope is masked on reads, and terminal rows cannot reopen.
+
+### `generation-4b` — execution-call resources
+
+- Add AI-call and tool-call contracts in resource-specific packages.
+- Add separate `AICallManager` and `ToolCallManager` boundaries for start/finish
+  operations, attempt allocation, provider ordinals, and provenance checks.
+
+**Exit gate:** concurrent attempt allocation is sequential, duplicate tool
+ordinals are typed conflicts, and terminal child telemetry cannot be stranded.
+
+### `generation-4c` — artifact resources
+
+- Add artifact and artifact-version contracts in resource-specific packages.
+- Add separate `ArtifactManager` and `ArtifactVersionManager` boundaries for
+  stable paths, append-only versions, and selected-version finalization.
+
+**Exit gate:** concurrent revisions are sequential, identical writes are
+idempotent, media type is immutable, and finalized artifacts reject appends.
 
 ### `generation-5` — manifest and model-call instrumentation
 
@@ -233,17 +247,20 @@ flowchart LR
     G0["G0 decisions"] --> G1["G1 reporter move"]
     G1 --> G2["G2 artifact storage"]
     G2 --> G3["G3 reporter artifacts"]
-    G2 --> G4["G4 reporting manager"]
+    G2 --> G4A["G4a generation lifecycle"]
+    G4A --> G4B["G4b execution calls"]
+    G4B --> G4C["G4c artifacts"]
     G1 --> G5["G5 AI calls/tokens"]
-    G4 --> G5
+    G4B --> G5
     G5 --> G6["G6 tool/progress"]
     G6 --> G7["G7 artifact persistence"]
     G3 --> G7
+    G4C --> G7
     G1 --> G8["G8 memory adapter"]
     Memory["Typed memory integration-ready"] --> G8
     Data["Merged frozen datalayer"] --> G1
     Data --> G9["G9 generation inputs"]
-    G4 --> G9
+    G4A --> G9
     G5 --> G9
     G7 --> G9
     G8 --> G9

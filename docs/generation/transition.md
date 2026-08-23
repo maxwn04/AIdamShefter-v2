@@ -77,7 +77,7 @@ Snapshot resolution and generation pinning remain outside the reporter adapter.
 
 ### Add
 
-- reporting resource objects and `GenerationManager`;
+- per-resource reporting objects and managers;
 - deterministic manifest construction and hashing;
 - `GenerationService` submission/start/execute/finalize/fail workflow;
 - provider-attempt token/call recording;

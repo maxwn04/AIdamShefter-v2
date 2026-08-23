@@ -1,0 +1,41 @@
+"""Typed reporting resources grouped by resource kind."""
+
+from backend.resources.reporting.generations import (
+    CancelGeneration,
+    CreateGeneration,
+    FailGeneration,
+    Generation,
+    GenerationConcurrencyConflict,
+    GenerationDetail,
+    GenerationKind,
+    GenerationLifecycleConflict,
+    GenerationManager,
+    GenerationPage,
+    GenerationQuery,
+    GenerationResourceError,
+    GenerationResourceNotFound,
+    GenerationStatus,
+    GenerationSummary,
+    StartGeneration,
+    UpdateGenerationProgress,
+)
+
+__all__ = [
+    "CancelGeneration",
+    "CreateGeneration",
+    "FailGeneration",
+    "Generation",
+    "GenerationConcurrencyConflict",
+    "GenerationDetail",
+    "GenerationKind",
+    "GenerationLifecycleConflict",
+    "GenerationManager",
+    "GenerationPage",
+    "GenerationQuery",
+    "GenerationResourceError",
+    "GenerationResourceNotFound",
+    "GenerationStatus",
+    "GenerationSummary",
+    "StartGeneration",
+    "UpdateGenerationProgress",
+]
