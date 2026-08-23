@@ -434,9 +434,8 @@ def test_artifact_memory_inputs_and_workspace_pointer_are_scope_safe(
             {
                 "id": artifact_id,
                 "generation_id": producer,
-                "kind": "memory",
-                "name": "memory",
-                "format": "json",
+                "path": "memory.json",
+                "media_type": "application/json",
             },
         )
         connection.execute(
@@ -448,7 +447,6 @@ def test_artifact_memory_inputs_and_workspace_pointer_are_scope_safe(
                 "revision_number": 1,
                 "content": "{}",
                 "content_hash": f"hash-{uuid4()}",
-                "status": "test",
             },
         )
         connection.execute(

@@ -8,9 +8,10 @@
 
 DB-028 governs implementation. PostgreSQL enforces generation identity and
 scope, essential natural/partial uniqueness, exactly one resolved memory-input
-shape, and final/terminal history immutability. Pydantic objects and generation
-workflows validate status/type values, ranges, JSON shapes, timestamps, lifecycle
-transitions, snapshot readiness, article completion, and fast-forward promotion.
+shape, selected artifact-version finality, and terminal history immutability.
+Pydantic objects and generation workflows validate status/type values, ranges,
+JSON shapes, timestamps, lifecycle transitions, snapshot readiness, required
+reporter outputs, and fast-forward promotion.
 
 ## Purpose
 
@@ -88,7 +89,8 @@ by `rerun_of_generation_id`.
 There is deliberately no output-memory pointer on the generation. An accepted
 live mutation produces the unique next `memory.memory_revisions` row associated
 with that generation. An evaluation mutation produces a generic
-`memory_workspace` artifact version and advances only its workspace pointer.
+`memory/workspace.json` artifact version and advances only its workspace
+pointer.
 
 The frontend polls this row and then fetches newly created AI calls, tool calls,
 and artifact versions. No jobs, leases, heartbeat protocol, event stream, or SSE
@@ -201,26 +203,31 @@ duplicating today's nearly one-to-one tool history.
 
 ### `reporting.artifacts`
 
-A stable named artifact inside a generation:
+A stable path-addressed artifact inside a generation:
 
 - `id uuid` primary key;
 - `generation_id`;
-- `kind` and `name`;
-- `format`: initially `markdown`, `json`, or `text`;
-- `created_at`.
+- normalized relative `path`;
+- IANA `media_type` such as `text/markdown` or `application/json`;
+- nullable `finalized_version_id` selecting one existing immutable version;
+- `created_at` and nullable `finalized_at`.
 
-Unique `(generation_id, kind, name)`.
+Unique `(generation_id, path)`. Paths use `/` separators, cannot be absolute,
+cannot contain empty, `.` or `..` segments, and are the programmatic identity of
+an output rather than an operating-system filesystem location. `media_type`
+describes representation and is immutable after creation; semantic categories
+do not belong in a closed artifact-kind enum.
 
-The article is an artifact with `kind = 'article'`. Briefs, outlines, diagnostics,
-or future editorial products use the same table only when they are worth
-persisting. A separate article table is unnecessary while article identity is
-already one-to-one with an artifact; the API can expose an article-specific
-resource or view.
+The reporter's required Markdown artifacts are `research/brief.md` and
+`article.md`, both with `media_type = 'text/markdown'`. Outlines, diagnostics,
+or future editorial products use additional paths without requiring schema or
+enum changes. A separate article table is unnecessary; the API can expose the
+finalized `article.md` version as an article-specific resource or view.
 
-An evaluation memory checkpoint is an artifact with
-`kind = 'memory_workspace'` and `format = 'json'`. Its deterministic full content
-allows the next simulated week to resume without querying alternative versions
-from the canonical memory schema.
+An evaluation memory checkpoint uses `memory/workspace.json` with
+`media_type = 'application/json'`. Its deterministic full content allows the
+next simulated week to resume without querying alternative versions from the
+canonical memory schema.
 
 ### `reporting.artifact_versions`
 
@@ -232,21 +239,24 @@ One complete immutable artifact revision:
 - complete content text;
 - SHA-256 content hash;
 - nullable source AI call and tool call;
-- status: `working` or `final`;
 - `created_at`.
 
 Constraints:
 
 - unique `(artifact_id, revision_number)`;
-- at most one final version per artifact;
-- a generation succeeds only with a final article artifact version;
-- revisions are append-only.
+- revisions are append-only;
+- `finalized_version_id`, when present, belongs to the same artifact;
+- finalization selects the latest existing version and never duplicates or
+  mutates its content; and
+- no new version may be appended after an artifact is finalized.
 
-Persisting complete Markdown after each article mutation is intentionally simple
-and makes rendering, auditing, and comparison straightforward. The current
-structured brief can stay inside the reporter; its mutations are already visible
-through tool calls. If desired, its final form can be stored as a generic JSON or
-Markdown artifact.
+Persisting complete UTF-8 Markdown after each successful mutation is
+intentionally simple and makes rendering, auditing, and comparison
+straightforward. The reporter uses the same version model for
+`research/brief.md` and `article.md`. `submit_artifact` selects an existing
+revision of `article.md`; generation finalization pins that version and the
+current brief version supplied in `ReporterOutput` rather than appending
+content-identical final copies.
 
 ## Token Analytics, Not Stored Pricing
 
@@ -282,8 +292,8 @@ Baseline indexes support the actual product queries:
 - AI calls by `(generation_id, turn_number, attempt_number)` and
   `(actual_model, completed_at)`;
 - tool calls by generation/AI call/ordinal and by `(tool_name, started_at)`;
-- artifacts by generation/kind;
-- artifact versions by `(artifact_id, revision_number desc)` and final status.
+- artifacts by `(generation_id, path)` and finalized version;
+- artifact versions by `(artifact_id, revision_number desc)`.
 - evaluation workspaces by competition/status and base revision.
 
 These indexes support browsing history, live progress, model-token aggregation,

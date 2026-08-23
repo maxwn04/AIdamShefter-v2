@@ -6,7 +6,7 @@
 - Make one generation reproducible from immutable data, memory, prompt, tool,
   model, and runner inputs.
 - Persist every provider attempt, full tool execution, token category, and
-  versioned article mutation at the boundary where it occurs.
+  versioned artifact mutation at the boundary where it occurs.
 - Keep resource persistence, workflow policy, and reporter behavior in separate
   layers.
 - Make live generation, explicit reruns, and later evaluation workspaces use the
@@ -33,7 +33,7 @@ flowchart TB
         Runner["Runner"]
         Completion["CompletionClient"]
         Registry["ToolRegistry"]
-        ArtifactState["In-memory ArtifactStore"]
+        ArtifactState["Path-addressed ArtifactStore"]
         DataTools["Frozen-data tool adapter"]
         MemoryTools["Typed-memory tool adapter"]
     end
@@ -83,7 +83,7 @@ The generation service owns the durable application workflow:
 - construct one frozen data runtime, one generation memory context, one
   execution recorder, and one reporter call;
 - update progress through the generation manager;
-- coordinate article finalization, memory proposal handling, and terminal
+- coordinate selected-version finalization, memory proposal handling, and terminal
   generation state; and
 - translate expected workflow failures into sanitized durable failure metadata.
 
@@ -98,7 +98,7 @@ The reporter owns content generation:
 - prompt and user-message construction;
 - runner loop and procedure replacement behavior;
 - tool registration and model-facing schemas;
-- in-memory brief and article state;
+- path-addressed in-memory Markdown artifact state;
 - model retry/fallback adapter behavior; and
 - a local `RunLog` diagnostic view.
 
@@ -126,7 +126,8 @@ centralized reporting ORM models
 - progress and terminal transitions;
 - AI-call attempt start/finish;
 - tool-call start/finish;
-- stable artifact creation and append-only artifact versions; and
+- stable path-addressed artifact creation, append-only versions, and
+  selected-version finalization; and
 - generation detail/history reads.
 
 Separate public managers for AI calls, tool calls, and artifact versions are not
@@ -183,8 +184,7 @@ backend/
 │       │   └── tools/
 │       │       ├── registry.py
 │       │       ├── context.py
-│       │       ├── brief.py
-│       │       ├── article.py
+│       │       ├── artifacts.py
 │       │       ├── procedures.py
 │       │       ├── datalayer.py
 │       │       └── memory.py
@@ -247,23 +247,29 @@ The service opens the frozen snapshot with a context manager, creates
 
 The reporter:
 
-- registers brief, article, procedure, frozen-data, and typed-memory tools;
-- seeds the same brief/config shape where equivalent metadata is available;
+- registers generic artifact, procedure, frozen-data, and typed-memory tools;
+- seeds `research/brief.md` with equivalent league/config metadata;
 - runs the same turn loop and procedure replacement behavior;
 - records every provider attempt before/after network I/O;
 - records tool calls before/after handler execution;
-- appends working article artifact versions after successful mutations; and
-- returns only after `submit_article` succeeds, the loop ends, or a failure
-  escapes.
+- appends complete artifact versions after successful mutations; and
+- returns `ReporterOutput` with all current snapshots. `submitted_path` is
+  `article.md` only after `submit_artifact` succeeds and is otherwise `null`;
+  an unsubmitted output cannot succeed the generation.
 
 ### 5. Finalization
 
-`submit_article` remains a reporter-level signal, not the durable generation
-commit. After reporter success, `GenerationService`:
+`submit_artifact(path, expected_revision)` remains a reporter-level selection
+and stop signal, not the durable generation commit. It accepts only the current
+revision and `article.md` as the submitted output. `ReporterOutput` returns the
+nullable submitted path plus complete snapshots of every in-memory artifact.
+Only a submitted output is eligible for success. `GenerationService` then:
 
 - obtains the complete memory proposal bundle exactly once;
-- persists the final article artifact version;
-- persists the final brief JSON artifact;
+- verifies that the submitted `article.md` revision and current
+  `research/brief.md` revision already exist durably;
+- pins those existing versions as the generation's finalized outputs without
+  appending content-identical final copies;
 - applies or deliberately discards the memory bundle according to generation
   kind/policy; and
 - transitions the generation to succeeded only when its required final outputs
@@ -276,7 +282,7 @@ memory commit remains an explicit open decision.
 
 A pre-start failure leaves a terminal generation without pinned inputs and
 records the failure stage. A running failure preserves completed AI calls, tool
-calls, and working artifact versions, discards the uncommitted memory buffer,
+calls, and artifact versions, discards the uncommitted memory buffer,
 and marks the generation failed. A terminal generation never reopens; a retry
 creates a linked generation.
 
@@ -306,17 +312,31 @@ Dollar pricing remains an application-time analytic over recorded usage.
 
 ## Artifact Model
 
-The in-memory `ArtifactStore` remains the reporter's fast working state. Durable
-reporting artifacts mirror it at meaningful mutation boundaries:
+The in-memory `ArtifactStore` is the reporter's fast working state. It exposes
+one generic model-facing contract:
+
+- `list_artifacts()` lists paths, media types, and current revisions;
+- `read_artifact(path)` returns one current snapshot;
+- `create_artifact(path, content)` creates revision 1;
+- `edit_artifact(path, old_text, new_text, expected_revision)` requires the
+  expected current revision and exactly one occurrence of `old_text`; and
+- `submit_artifact(path, expected_revision)` selects the current `article.md`
+  revision and ends the reporter loop.
+
+All reporter artifacts are raw UTF-8 Markdown in the initial platform slice.
+Durable reporting artifacts mirror complete snapshots at successful mutation
+boundaries:
 
 | Artifact | Durable behavior |
 | --- | --- |
-| `article/main` Markdown | append a complete `working` version after each successful write/rewrite/order mutation; append one complete `final` version at successful finalization |
-| `brief/main` JSON | persist one complete final version; persisting every brief mutation is optional and not required by the database baseline |
+| `research/brief.md` (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
+| `article.md` (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
 Artifact versions use their source AI call/tool call when available. Reads do
-not append versions. Failed tool mutations do not append versions.
+not append versions. Failed and content-identical mutations do not append
+versions. Durable finalization pins the selected article version and current
+brief version; it does not create another artifact version.
 
 ## Dependency Rules
 
