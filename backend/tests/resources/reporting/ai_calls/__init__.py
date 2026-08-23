@@ -1,0 +1,1 @@
+"""AI-call resource tests."""

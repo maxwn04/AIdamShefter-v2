@@ -69,10 +69,14 @@ manager boundaries:
 class AICallManager:
     def begin_ai_call(self, command: BeginAICall) -> AICall: ...
     def finish_ai_call(self, command: FinishAICall) -> AICall: ...
+    def get(self, ai_call_id: UUID) -> AICall: ...
+    def list(self, query: AICallQuery) -> AICallPage: ...
 
 class ToolCallManager:
     def begin_tool_call(self, command: BeginToolCall) -> ToolCall: ...
     def finish_tool_call(self, command: FinishToolCall) -> ToolCall: ...
+    def get(self, tool_call_id: UUID) -> ToolCall: ...
+    def list(self, query: ToolCallQuery) -> ToolCallPage: ...
 
 class ArtifactManager:
     def finalize_artifact(self, command: FinalizeArtifact) -> Artifact: ...
@@ -113,6 +117,20 @@ must at minimum ensure that:
   appends.
 - expected lifecycle conflicts raise typed resource errors, never leak
   constraint names.
+
+AI-call attempts are zero-based within each positive generation turn. Beginning
+an attempt locks the competition-scoped parent generation, requires it to be
+running, and allocates one more than the greatest existing attempt for that
+turn. Tool ordinals are the provider's zero-based request order; beginning a
+tool call requires the referenced AI call to belong to the same generation and
+to have succeeded. Duplicate ordinals and competing successful attempts surface
+as typed concurrency conflicts.
+
+Finishing an already-started AI or tool call does not require the parent
+generation to remain running. This lets cancellation or failure race safely
+with an in-flight external operation without leaving its durable telemetry open.
+No new child call may begin after the parent becomes terminal, and terminal
+child rows cannot be finished again.
 
 ## Reporter Generator Contract
 
