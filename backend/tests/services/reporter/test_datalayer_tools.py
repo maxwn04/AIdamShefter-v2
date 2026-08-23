@@ -9,11 +9,13 @@ from typing import Any
 
 import pytest
 
-from backend.services.datalayer import FrozenLeagueData, ReadyDataSnapshot
-from backend.services.reporter.generator import (
-    _get_league_metadata,
-    _make_roster_resolver,
+from backend.services.datalayer import (
+    FrozenLeagueData,
+    ReadyDataSnapshot,
+    ResolvedRosterIdentity,
+    RosterIdentityNotFound,
 )
+from backend.services.reporter.generator import _get_league_metadata
 from backend.tests.services.datalayer.test_frozen_query_runtime import (
     _without_volatile_player_state,
     ready_snapshot,
@@ -467,32 +469,24 @@ def test_missing_entities_remain_safe_tool_results(
     assert all(result["found"] is False for result in missing.values())
 
 
-def test_generator_metadata_and_legacy_roster_resolution_use_public_frozen_sql(
+def test_generator_metadata_and_typed_roster_resolution_use_frozen_runtime(
     ready_snapshot: ReadyDataSnapshot,
 ) -> None:
     with FrozenLeagueData.open(ready_snapshot) as data:
-        resolve_roster = _make_roster_resolver(data)
-
         assert _get_league_metadata(data) == ("123", "Test League")
-        assert resolve_roster("Alpha") == {
-            "found": True,
-            "roster_id": 1,
-            "team_name": "Alpha",
-        }
-        assert resolve_roster("Alice") == {
-            "found": True,
-            "roster_id": 1,
-            "team_name": "Alpha",
-        }
-        assert resolve_roster("2") == {
-            "found": True,
-            "roster_id": 2,
-            "team_name": "Beta",
-        }
-        assert resolve_roster("missing") == {
-            "found": False,
-            "roster_key": "missing",
-        }
+        for roster_key, roster_id, team_name in (
+            ("Alpha", "1", "Alpha"),
+            ("Alice", "1", "Alpha"),
+            ("2", "2", "Beta"),
+        ):
+            result = data.resolve_roster_identity(roster_key)
+            assert isinstance(result, ResolvedRosterIdentity)
+            assert result.identity.sleeper_roster_id == roster_id
+            assert result.identity.team_name == team_name
+
+        missing = data.resolve_roster_identity("missing")
+        assert isinstance(missing, RosterIdentityNotFound)
+        assert missing.roster_key == "missing"
 
 
 def test_reporter_adapter_and_datalayer_import_boundaries() -> None:

@@ -219,6 +219,14 @@ class GenerationMemoryContext:
         self._closed = True
         return bundle
 
+    def discard(self) -> None:
+        """Close and erase an abandoned proposal buffer without persistence."""
+
+        if self._closed:
+            return
+        self._proposals.clear()
+        self._closed = True
+
     def _create(
         self,
         kind: MemoryKind,

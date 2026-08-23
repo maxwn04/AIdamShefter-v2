@@ -219,9 +219,17 @@ The service translates generation intent into a datalayer `SnapshotRequest`.
 If policy requires refresh, it invokes refresh first and interprets the typed
 outcome. It then calls `get_or_create()` and receives a `ReadyDataSnapshot`.
 
-In parallel policy terms—but not necessarily parallel code—it pins the canonical
-memory revision and resolves model, fallback, prompt, procedure, tool, runner,
-and code-version inputs.
+The initial generation policy never refreshes implicitly. It uses already
+recorded or backfilled inputs, `week_end` as the factual cutoff, and the
+execution clock's UTC date as the snapshot build/reuse label. Backtests are
+therefore retrospective cutoff reconstructions with completeness warnings,
+not historical-observation simulations.
+
+In parallel policy terms—but not necessarily parallel code—it pins the current
+canonical memory revision for live runs. Backtests select the newest revision
+for the same season at or before the cutoff week, with root fallback, and expose
+it read-only. The service also resolves model, fallback, prompt, frozen
+procedure content, tool, runner, and code-version inputs.
 
 ### 3. Atomic start
 

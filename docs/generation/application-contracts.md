@@ -40,9 +40,20 @@ The service derives snapshot dates/cutoffs and does not accept a raw snapshot
 build key, data artifact path, memory revision selected by an untrusted caller,
 or unhashed manifest.
 
-The exact live-versus-backtest mapping to `SnapshotRequest.as_of_date` and
-knowledge cutoff is owned by generation policy. It must be specified with
-golden tests rather than inferred inside the datalayer.
+Generation v1 uses a generation-owned, never-refresh policy. Both live and
+backtest requests resolve recorded Sleeper inputs with `through_week` equal to
+the request's `week_end`; `as_of_date` is the injected execution clock's UTC
+date and is only a snapshot build/reuse label. A later `resolve_snapshot`
+workflow may replace this fixed policy without changing the datalayer snapshot
+contract.
+
+Live runs pin the current canonical memory revision and use the execution time
+as their knowledge cutoff. Backtests pin the highest-sequence canonical
+revision associated with the same competition season whose week is at or
+before `week_end`, falling back to the competition root revision. They retain
+pinned retrieval but disable proposal writes. This is a best-effort cutoff
+reconstruction, not an exact simulation of what was observable at the
+historical instant.
 
 ## Reporting Resource Manager Contracts
 
@@ -429,7 +440,7 @@ initial API performs both in one process:
 ```python
 class GenerationService:
     def submit(self, request: GenerationRequest) -> Generation: ...
-    async def execute(self, generation_id: UUID) -> GenerationResult: ...
+    async def execute(self, generation_id: UUID) -> GenerationExecutionResult: ...
     def reconcile_stale(self, policy: StaleGenerationPolicy) -> ReconcileResult: ...
 ```
 
@@ -437,6 +448,11 @@ This keeps a clean queue seam without introducing job/lease infrastructure.
 `execute` is idempotent only in the narrow sense that it refuses a generation
 that is not eligible to start; it does not resume or replay a partially executed
 agent loop. An explicit rerun creates another generation.
+
+In generation-9, a successful execution result contains the still-running
+generation, reporter output, and completed in-memory proposal bundle. Durable
+artifact selection, memory application/discard, and the terminal transition are
+the generation-10 finalization boundary.
 
 ## API Boundary
 

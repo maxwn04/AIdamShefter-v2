@@ -231,13 +231,17 @@ proposals return safe tool errors, and no legacy store is read or written.
 ### `generation-9` — input lifecycle and reporter execution
 
 - Add `GenerationService.submit()` and `execute()`.
-- Implement generation-owned live/backtest cutoff policy.
-- Invoke refresh only under explicit policy.
+- Implement the generation-owned live/backtest cutoff policy over recorded
+  inputs without implicit refresh.
+- Use the execution UTC date only as the snapshot build/reuse label.
 - Resolve/reuse a ready snapshot through
   `DatalayerSnapshotService.get_or_create()`.
-- Pin memory input, construct/hash the manifest, and atomically start.
+- Pin current live memory or the latest same-season backtest revision at or
+  before the cutoff week, construct/hash the manifest, and atomically start.
 - Open `FrozenLeagueData`, create `GenerationMemoryContext` and recorder, and
   call the reporter once.
+- Freeze prompt/procedure/tool inputs before start and return the completed
+  in-memory proposal bundle without applying it.
 - Close the SQLite runtime deterministically on success or failure.
 
 **Exit gate:** no model call can occur before complete input pinning, and the run

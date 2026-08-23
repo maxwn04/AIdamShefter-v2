@@ -1,5 +1,16 @@
 """Generation workflow helpers that do not own resource persistence."""
 
+from backend.services.generations.contracts import (
+    GenerationBiasSettings,
+    GenerationExecutionResult,
+    GenerationModelSettings,
+    GenerationReportSettings,
+    GenerationRequest,
+    GenerationRetrySettings,
+    GenerationRunnerSettings,
+    GenerationSettings,
+    GenerationToneSettings,
+)
 from backend.services.generations.manifest import (
     MANIFEST_SCHEMA_VERSION,
     BuiltGenerationManifest,
@@ -20,6 +31,7 @@ from backend.services.generations.manifest import (
     canonical_json_sha256,
 )
 from backend.services.generations.recorder import GenerationExecutionRecorder
+from backend.services.generations.service import GenerationService
 
 __all__ = [
     "MANIFEST_SCHEMA_VERSION",
@@ -30,7 +42,17 @@ __all__ = [
     "EvaluationArtifactMemoryInput",
     "GenerationManifestInput",
     "GenerationExecutionRecorder",
+    "GenerationExecutionResult",
+    "GenerationBiasSettings",
+    "GenerationModelSettings",
+    "GenerationReportSettings",
+    "GenerationRequest",
     "GenerationRequestInput",
+    "GenerationRetrySettings",
+    "GenerationRunnerSettings",
+    "GenerationService",
+    "GenerationSettings",
+    "GenerationToneSettings",
     "ManifestCutoffs",
     "ModelExecutionInput",
     "ProcedureInput",
