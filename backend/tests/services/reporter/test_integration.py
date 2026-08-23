@@ -8,6 +8,12 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+from backend.services.datalayer import FrozenRosterIdentity, ResolvedRosterIdentity
+from backend.services.memory import (
+    GenerationMemoryContext,
+    MemoryRetrievalRequest,
+    MemoryRetrievalResult,
+)
 from backend.services.reporter.config import ReportConfig, TimeRange
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.completion import CompletionSettings
@@ -97,6 +103,36 @@ class FakeFrozenLeagueData:
                 "row_count": 1,
             }
         return {"columns": [], "rows": [], "row_count": 0}
+
+    def resolve_roster_identity(self, roster_key: str) -> ResolvedRosterIdentity:
+        return ResolvedRosterIdentity(
+            roster_key=roster_key,
+            identity=FrozenRosterIdentity(
+                competition_id=UUID(int=1),
+                competition_season_id=UUID(int=2),
+                season_roster_id=UUID(int=3),
+                franchise_id=UUID(int=4),
+                sleeper_roster_id="1",
+                team_name="Team Taco",
+                manager_name="Alice",
+            ),
+        )
+
+
+class EmptyMemoryRetrieval:
+    def search(
+        self,
+        *,
+        competition_id: UUID,
+        revision_id: UUID,
+        request: MemoryRetrievalRequest,
+    ) -> MemoryRetrievalResult:
+        del request
+        return MemoryRetrievalResult(
+            competition_id=competition_id,
+            revision_id=revision_id,
+            matches=(),
+        )
 
 
 def make_response(
@@ -342,6 +378,81 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         histories["research/brief.md"][1:] + histories["article.md"]
     )
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
+
+
+def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
+    recorder = ExecutionRecordingProbe()
+    memory_context = GenerationMemoryContext(
+        competition_id=UUID(int=1),
+        generation_id=uuid4(),
+        pinned_revision_id=uuid4(),
+        retrieval=EmptyMemoryRetrieval(),
+        competition_season_id=UUID(int=2),
+        week=8,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "propose_fact",
+                        {
+                            "content": {
+                                "claim": "Team Taco won in Week 8.",
+                                "category": "matchup_result",
+                                "numbers": {"week": 8},
+                                "confidence": "inferred",
+                                "subjects": [
+                                    {
+                                        "kind": "franchise",
+                                        "roster_key": "Team Taco",
+                                        "role": "subject",
+                                    }
+                                ],
+                            }
+                        },
+                        "memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nTaco won."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+        )
+    )
+
+    assert output.submitted_path == "article.md"
+    bundle = memory_context.take_completed_bundle()
+    assert len(bundle.proposals) == 1
+    proposal = bundle.proposals[0]
+    assert proposal.content.subjects[0].id == UUID(int=4)
+    assert proposal.metadata.creating_tool_call_id in recorder.tool_ai_calls
 
 
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:

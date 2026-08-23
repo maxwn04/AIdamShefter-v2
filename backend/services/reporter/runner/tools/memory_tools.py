@@ -1,838 +1,819 @@
-"""Agent-facing storyline memory search and write tools."""
+"""Typed reporter tools over one generation-scoped memory context."""
 
 from __future__ import annotations
 
-import json
-import uuid
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from datetime import datetime
+from typing import TYPE_CHECKING, Annotated, Any, Literal
+from uuid import UUID
 
-from reporter_memory.search import (
-    get_memory_candidate,
-    normalize_verification_fact_links,
-    plan_memory_verification,
-    search_story_memory,
-    validate_verified_fact_links,
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
+
+from backend.services.memory import (
+    ContextNoteContent,
+    EventContent,
+    FactContent,
+    GenerationMemoryContext,
+    MemoryKind,
+    MemoryMutationMetadata,
+    MemoryRetrievalRequest,
+    SearchDocumentQuery,
+    StorylineContent,
+    TriggerContent,
 )
 from backend.services.reporter.runner.models import ToolDef
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "1"
-
 if TYPE_CHECKING:
-    from reporter_memory.context_store import ContextStore
+    from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_story_memory",
-            "description": (
-                "Search persistent story memory for ranked leads relevant to the "
-                "current article. Returns candidates with score components, matched "
-                "triggers/entities, and verification hints. Leads are not article-"
-                "ready facts."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "week": {
-                        "type": "integer",
-                        "description": "Article week. Defaults to the current run week.",
-                    },
-                    "query": {
-                        "type": "string",
-                        "description": "Free-text memory search query.",
-                    },
-                    "article_request": {
-                        "type": "string",
-                        "description": "Optional article request text for lexical hints.",
-                    },
-                    "current_entities": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                        "description": (
-                            "Entities involved this week. Prefer "
-                            "{entity_type, entity_id, display_name?}."
-                        ),
-                    },
-                    "current_events": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                        "description": (
-                            "Current-week events with optional event_type, "
-                            "transaction_id, matchup_id, and entities."
-                        ),
-                    },
-                    "trigger_types": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "filters": {"type": "object"},
-                    "include_resolved": {"type": "boolean", "default": False},
-                    "limit": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 25,
-                        "default": 10,
-                    },
-                },
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_memory_candidate",
-            "description": (
-                "Expand one memory candidate with linked events, persisted facts, "
-                "history, triggers, and source refs. Use after search_story_memory."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "owner_type": {
-                        "type": "string",
-                        "enum": ["storyline", "event", "trigger", "story_event"],
-                    },
-                    "owner_id": {"type": "string"},
-                },
-                "required": ["owner_type", "owner_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "save_memory_event",
-            "description": (
-                "Save source-backed event evidence for later callbacks. "
-                "confidence=verified requires at least one source_ref."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "event_type": {"type": "string"},
-                    "week": {"type": "integer"},
-                    "headline": {"type": "string"},
-                    "summary": {"type": "string"},
-                    "importance": {"type": "integer"},
-                    "confidence": {
-                        "type": "string",
-                        "enum": ["verified", "inferred", "needs_verification"],
-                    },
-                    "source_refs": {
-                        "type": "array",
-                        "items": {},
-                    },
-                    "numbers": {"type": "object"},
-                    "entities": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                    },
-                    "transaction_id": {"type": "string"},
-                    "matchup_id": {"type": "string"},
-                },
-                "required": ["id", "event_type", "week", "headline", "summary"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "upsert_storyline_memory_card",
-            "description": (
-                "Create or update a storyline memory card with optional evidence "
-                "event links and trigger specs."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "headline": {"type": "string"},
-                    "summary": {"type": "string"},
-                    "status": {
-                        "type": "string",
-                        "enum": ["active", "stale", "resolved"],
-                    },
-                    "priority": {"type": "integer", "minimum": 1, "maximum": 5},
-                    "importance": {"type": "integer"},
-                    "arc_type": {"type": "string"},
-                    "origin_week": {"type": "integer"},
-                    "future_callback_condition": {"type": "string"},
-                    "tags": {"type": "array", "items": {"type": "string"}},
-                    "team_keys": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "entities": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                        "description": "Optional entities; team entities become team_ids.",
-                    },
-                    "evidence_event_ids": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "trigger_specs": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                    },
-                },
-                "required": ["id", "headline", "summary", "status"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "save_storyline_trigger",
-            "description": "Save or update a dormant callback trigger.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "storyline_id": {"type": "string"},
-                    "event_id": {"type": "string"},
-                    "trigger_type": {"type": "string"},
-                    "target_week": {"type": "integer"},
-                    "condition": {"type": "object"},
-                    "fire_policy": {
-                        "type": "string",
-                        "enum": ["one_shot", "recurring", "until_resolved"],
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": ["open", "fired", "expired", "resolved"],
-                    },
-                },
-                "required": ["trigger_type"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "mark_memory_used",
-            "description": (
-                "Record how a memory candidate was used this week. For one-shot "
-                "triggers, article_callback marks fired and discarded marks resolved."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "candidate_id": {"type": "string"},
-                    "owner_type": {
-                        "type": "string",
-                        "enum": ["storyline", "event", "trigger", "story_event"],
-                        "default": "storyline",
-                    },
-                    "week": {"type": "integer"},
-                    "usage": {
-                        "type": "string",
-                        "enum": [
-                            "article_callback",
-                            "research_context",
-                            "discarded",
-                        ],
-                    },
-                    "linked_storyline_id": {"type": "string"},
-                    "fact_links": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                    },
-                    "reason": {"type": "string"},
-                },
-                "required": ["candidate_id", "usage"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "plan_memory_verification",
-            "description": (
-                "Plan how to verify a memory candidate callback. Returns required "
-                "fact roles and suggested datalayer calls. Does not verify claims."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "candidate_id": {
-                        "type": "string",
-                        "description": "Memory owner ID from search_story_memory.",
-                    },
-                    "owner_type": {
-                        "type": "string",
-                        "enum": ["storyline", "event", "trigger", "story_event"],
-                        "default": "storyline",
-                    },
-                    "current_week": {
-                        "type": "integer",
-                        "description": "Current article week. Defaults to run week.",
-                    },
-                    "callback_id": {
-                        "type": "string",
-                        "description": "Optional brief callback ID being planned.",
-                    },
-                    "intended_callback_claim": {
-                        "type": "string",
-                        "description": "Optional claim the agent hopes to verify.",
-                    },
-                },
-                "required": ["candidate_id"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "record_memory_verification",
-            "description": (
-                "Record verification outcome for a memory candidate. status="
-                "verified requires origin_receipt and current_payoff fact links "
-                "that already exist in the brief."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "candidate_id": {"type": "string"},
-                    "owner_type": {
-                        "type": "string",
-                        "enum": ["storyline", "event", "trigger", "story_event"],
-                        "default": "storyline",
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": [
-                            "verified",
-                            "rejected",
-                            "needs_more_evidence",
-                        ],
-                    },
-                    "fact_links": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "role": {
-                                    "type": "string",
-                                    "description": (
-                                        "Fact role such as origin_receipt or "
-                                        "current_payoff."
-                                    ),
-                                },
-                                "fact_id": {"type": "string"},
-                            },
-                            "required": ["fact_id"],
-                        },
-                        "description": (
-                            "Linked brief fact IDs. Prefer objects with role + "
-                            "fact_id. Strings are accepted as unscoped fact IDs."
-                        ),
-                    },
-                    "reason": {"type": "string"},
-                    "week": {"type": "integer"},
-                    "callback_id": {
-                        "type": "string",
-                        "description": "Optional brief memory callback ID.",
-                    },
-                    "linked_storyline_id": {"type": "string"},
-                },
-                "required": ["candidate_id", "status"],
-            },
-        },
-    },
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "1"
+_READ_TOOL = "search_memory"
+_WRITE_TOOLS = (
+    "propose_fact",
+    "replace_fact",
+    "propose_event",
+    "replace_event",
+    "propose_storyline",
+    "replace_storyline",
+    "propose_trigger",
+    "replace_trigger",
+    "propose_context_note",
+    "replace_context_note",
+)
+
+
+class _StrictModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class FactFranchiseSubject(_StrictModel):
+    kind: Literal["franchise"]
+    roster_key: str = Field(min_length=1)
+    role: Literal["subject"] = "subject"
+    display_name: str | None = None
+
+
+class FactSeasonRosterSubject(_StrictModel):
+    kind: Literal["season_roster"]
+    roster_key: str = Field(min_length=1)
+    role: Literal["subject"] = "subject"
+    display_name: str | None = None
+
+
+class FactPlayerSubject(_StrictModel):
+    kind: Literal["player"]
+    id: str = Field(min_length=1)
+    role: Literal["subject"] = "subject"
+    display_name: str | None = None
+
+
+class FactSeasonSubject(_StrictModel):
+    kind: Literal["season"]
+    id: UUID
+    role: Literal["subject"] = "subject"
+    display_name: str | None = None
+
+
+class FactSleeperUserSubject(_StrictModel):
+    kind: Literal["sleeper_user"]
+    id: str = Field(min_length=1)
+    role: Literal["subject"] = "subject"
+    display_name: str | None = None
+
+
+FactSubject = Annotated[
+    FactFranchiseSubject
+    | FactSeasonRosterSubject
+    | FactPlayerSubject
+    | FactSeasonSubject
+    | FactSleeperUserSubject,
+    Field(discriminator="kind"),
 ]
 
 
-MEMORY_TOOL_SPECS: list[ToolDef] = MEMORY_TOOLS
+class StorylineFranchiseSubject(_StrictModel):
+    kind: Literal["franchise"]
+    roster_key: str = Field(min_length=1)
+    role: Literal["focus", "counterparty"]
+    display_name: str | None = None
 
 
-def memory_write_blocked_result(tool_name: str) -> str:
-    """JSON result returned when eval mode disables memory writes."""
-    return json.dumps(
-        {
-            "ok": True,
-            "saved": False,
-            "persisted": False,
-            "recorded": False,
-            "eval_mode": True,
-            "message": (
-                f"{tool_name} skipped: memory writes disabled in eval mode"
+class StorylineSeasonRosterSubject(_StrictModel):
+    kind: Literal["season_roster"]
+    roster_key: str = Field(min_length=1)
+    role: Literal["focus", "counterparty"]
+    display_name: str | None = None
+
+
+class StorylinePlayerSubject(_StrictModel):
+    kind: Literal["player"]
+    id: str = Field(min_length=1)
+    role: Literal["focus", "counterparty"]
+    display_name: str | None = None
+
+
+class StorylineSeasonSubject(_StrictModel):
+    kind: Literal["season"]
+    id: UUID
+    role: Literal["focus", "counterparty"]
+    display_name: str | None = None
+
+
+class StorylineSleeperUserSubject(_StrictModel):
+    kind: Literal["sleeper_user"]
+    id: str = Field(min_length=1)
+    role: Literal["focus", "counterparty"]
+    display_name: str | None = None
+
+
+StorylineSubject = Annotated[
+    StorylineFranchiseSubject
+    | StorylineSeasonRosterSubject
+    | StorylinePlayerSubject
+    | StorylineSeasonSubject
+    | StorylineSleeperUserSubject,
+    Field(discriminator="kind"),
+]
+
+
+class ReporterFactContent(_StrictModel):
+    claim: str = Field(min_length=1)
+    category: str = Field(min_length=1)
+    numbers: dict[str, JsonValue] = Field(default_factory=dict)
+    confidence: Literal["unverified", "inferred"]
+    status: Literal["active", "superseded", "rejected", "archived"] = "active"
+    subjects: list[FactSubject] = Field(default_factory=list)
+    originating_event_version_ids: list[UUID] = Field(default_factory=list)
+    source_hints: dict[str, JsonValue] | None = None
+
+
+class PlayerTradeAsset(_StrictModel):
+    kind: Literal["player"]
+    direction: Literal["sender_to_receiver", "receiver_to_sender"]
+    player_id: str = Field(min_length=1)
+
+
+class DraftPickTradeAsset(_StrictModel):
+    kind: Literal["draft_pick"]
+    direction: Literal["sender_to_receiver", "receiver_to_sender"]
+    draft_pick_id: UUID
+
+
+class BudgetTradeAsset(_StrictModel):
+    kind: Literal["budget"]
+    direction: Literal["sender_to_receiver", "receiver_to_sender"]
+    amount: int = Field(ge=0)
+
+
+TradeAsset = Annotated[
+    PlayerTradeAsset | DraftPickTradeAsset | BudgetTradeAsset,
+    Field(discriminator="kind"),
+]
+
+
+class ReporterTradeDetails(_StrictModel):
+    kind: Literal["trade"]
+    sender_roster_key: str = Field(min_length=1)
+    receiver_roster_key: str = Field(min_length=1)
+    assets: list[TradeAsset] = Field(min_length=1)
+
+
+class ReporterMatchupDetails(_StrictModel):
+    kind: Literal["matchup"]
+    winner_roster_key: str = Field(min_length=1)
+    loser_roster_key: str = Field(min_length=1)
+    sleeper_matchup_id: str = Field(min_length=1)
+
+
+ReporterEventDetails = Annotated[
+    ReporterTradeDetails | ReporterMatchupDetails,
+    Field(discriminator="kind"),
+]
+
+
+class ReporterEventContent(_StrictModel):
+    event_type: Literal["trade", "matchup"]
+    headline: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    salience: int = Field(ge=1, le=5)
+    confidence: Literal["unverified", "inferred"]
+    status: Literal["active", "superseded", "rejected", "archived"] = "active"
+    details: ReporterEventDetails
+    source_hints: dict[str, JsonValue] | None = None
+
+
+class StorylineEvidence(_StrictModel):
+    kind: Literal["fact", "event"]
+    version_id: UUID
+    role: Literal["origin", "support", "update", "payoff"]
+
+
+class RelatedStoryline(_StrictModel):
+    item_id: UUID
+    role: Literal["related_arc", "continuation", "counterpoint"]
+
+
+class ReporterStorylineContent(_StrictModel):
+    headline: str = Field(min_length=1)
+    summary: str = Field(min_length=1)
+    status: Literal["active", "dormant", "resolved", "archived"] = "active"
+    arc_type: str | None = None
+    salience: int = Field(ge=1, le=5)
+    tags: list[str] = Field(default_factory=list)
+    subjects: list[StorylineSubject] = Field(default_factory=list)
+    evidence: list[StorylineEvidence] = Field(default_factory=list)
+    related_storylines: list[RelatedStoryline] = Field(default_factory=list)
+    callback_condition: str | None = None
+    resolution_summary: str | None = None
+
+
+class ReporterRematchCondition(_StrictModel):
+    kind: Literal["rematch"]
+    roster_keys: tuple[str, str]
+
+
+class ReporterTradeEvaluationCondition(_StrictModel):
+    kind: Literal["trade_evaluation"]
+
+
+ReporterTriggerCondition = Annotated[
+    ReporterRematchCondition | ReporterTradeEvaluationCondition,
+    Field(discriminator="kind"),
+]
+
+
+class ReporterTriggerContent(_StrictModel):
+    trigger_type: Literal["rematch", "trade_evaluation"]
+    status: Literal["open", "fired", "satisfied", "expired", "archived"] = "open"
+    fire_policy: Literal["one_shot", "recurring", "until_resolved"]
+    target_competition_season_id: UUID | None = None
+    target_storyline_item_id: UUID | None = None
+    origin_event_item_id: UUID | None = None
+    target_week: int | None = Field(default=None, ge=0)
+    target_at: datetime | None = None
+    condition: ReporterTriggerCondition
+    resolution_reason: str | None = None
+
+
+class CompetitionNoteIdentity(_StrictModel):
+    scope: Literal["competition"]
+    note_key: str = Field(min_length=1)
+
+
+class CompetitionSeasonNoteIdentity(_StrictModel):
+    scope: Literal["competition_season"]
+    competition_season_id: UUID
+    note_key: str = Field(min_length=1)
+
+
+class FranchiseNoteIdentity(_StrictModel):
+    scope: Literal["franchise"]
+    roster_key: str = Field(min_length=1)
+    note_key: str = Field(min_length=1)
+
+
+ReporterContextNoteIdentity = Annotated[
+    CompetitionNoteIdentity | CompetitionSeasonNoteIdentity | FranchiseNoteIdentity,
+    Field(discriminator="scope"),
+]
+
+
+class ReporterContextNoteContent(_StrictModel):
+    narrative: str = Field(min_length=1)
+    outlook: str | None = None
+    status: Literal["active", "archived"] = "active"
+    tags: list[str] = Field(default_factory=list)
+
+
+class SearchMemoryArgs(_StrictModel):
+    text: str | None = None
+    team_keys: list[str] = Field(default_factory=list)
+    entity_keys: list[str] = Field(default_factory=list)
+    evidence_version_ids: list[UUID] = Field(default_factory=list)
+    related_item_ids: list[UUID] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    kinds: list[MemoryKind] = Field(default_factory=list)
+    statuses: list[str] = Field(default_factory=list)
+    week: int | None = Field(default=None, ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+    expand_exact_references: bool = False
+    expand_stable_references: bool = False
+
+
+class ProposeFactArgs(_StrictModel):
+    content: ReporterFactContent
+
+
+class ReplaceFactArgs(ProposeFactArgs):
+    item_id: UUID
+    expected_item_revision: int = Field(gt=0)
+
+
+class ProposeEventArgs(_StrictModel):
+    content: ReporterEventContent
+
+
+class ReplaceEventArgs(ProposeEventArgs):
+    item_id: UUID
+    expected_item_revision: int = Field(gt=0)
+
+
+class ProposeStorylineArgs(_StrictModel):
+    content: ReporterStorylineContent
+
+
+class ReplaceStorylineArgs(ProposeStorylineArgs):
+    item_id: UUID
+    expected_item_revision: int = Field(gt=0)
+
+
+class ProposeTriggerArgs(_StrictModel):
+    content: ReporterTriggerContent
+
+
+class ReplaceTriggerArgs(ProposeTriggerArgs):
+    item_id: UUID
+    expected_item_revision: int = Field(gt=0)
+
+
+class ProposeContextNoteArgs(_StrictModel):
+    identity: ReporterContextNoteIdentity
+    content: ReporterContextNoteContent
+
+
+class ReplaceContextNoteArgs(_StrictModel):
+    item_id: UUID
+    expected_item_revision: int = Field(gt=0)
+    content: ReporterContextNoteContent
+
+
+def _tool(name: str, description: str, arguments: type[BaseModel]) -> ToolDef:
+    parameters = arguments.model_json_schema()
+    parameters.pop("title", None)
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+MEMORY_TOOL_SPECS: list[ToolDef] = [
+    _tool(
+        _READ_TOOL,
+        "Search fully hydrated canonical memory at this generation's pinned revision. "
+        "Returned memories are research leads and must be verified against frozen data.",
+        SearchMemoryArgs,
+    ),
+    _tool("propose_fact", "Buffer a new typed fact.", ProposeFactArgs),
+    _tool("replace_fact", "Buffer a complete replacement for a canonical fact.", ReplaceFactArgs),
+    _tool("propose_event", "Buffer a new typed matchup or trade event.", ProposeEventArgs),
+    _tool(
+        "replace_event",
+        "Buffer a complete replacement for a canonical event.",
+        ReplaceEventArgs,
+    ),
+    _tool("propose_storyline", "Buffer a new typed storyline.", ProposeStorylineArgs),
+    _tool(
+        "replace_storyline",
+        "Buffer a complete replacement for a canonical storyline.",
+        ReplaceStorylineArgs,
+    ),
+    _tool("propose_trigger", "Buffer a new typed callback trigger.", ProposeTriggerArgs),
+    _tool(
+        "replace_trigger",
+        "Buffer a complete replacement for a canonical trigger.",
+        ReplaceTriggerArgs,
+    ),
+    _tool("propose_context_note", "Buffer a new typed context note.", ProposeContextNoteArgs),
+    _tool(
+        "replace_context_note",
+        "Buffer a complete replacement for a canonical context note.",
+        ReplaceContextNoteArgs,
+    ),
+]
+
+
+class MemoryToolInputError(ValueError):
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class TypedMemoryAdapter:
+    """Translate model-facing inputs into canonical typed memory proposals."""
+
+    def __init__(
+        self,
+        memory_context: GenerationMemoryContext,
+        data: FrozenLeagueData,
+    ) -> None:
+        self._memory_context = memory_context
+        self._data = data
+        self._proposed_item_ids: set[UUID] = set()
+
+    def search(self, arguments: SearchMemoryArgs) -> dict[str, Any]:
+        entity_keys = list(arguments.entity_keys)
+        for roster_key in arguments.team_keys:
+            identity = self._resolve_roster(roster_key)
+            entity_keys.extend(
+                (
+                    f"franchise:{identity.franchise_id}",
+                    f"season_roster:{identity.season_roster_id}",
+                )
+            )
+        query = SearchDocumentQuery(
+            text=arguments.text,
+            entity_keys=tuple(dict.fromkeys(entity_keys)),
+            evidence_version_ids=tuple(arguments.evidence_version_ids),
+            related_item_ids=tuple(arguments.related_item_ids),
+            tags=tuple(arguments.tags),
+            kinds=tuple(arguments.kinds),
+            statuses=tuple(arguments.statuses),
+            week=arguments.week,
+            limit=arguments.limit,
+        )
+        result = self._memory_context.search(
+            MemoryRetrievalRequest(
+                query=query,
+                expand_exact_references=arguments.expand_exact_references,
+                expand_stable_references=arguments.expand_stable_references,
+            )
+        )
+        return {"ok": True, **result.model_dump(mode="json")}
+
+    def propose_fact(
+        self,
+        context: ToolContext,
+        content: ReporterFactContent,
+    ) -> dict[str, Any]:
+        canonical = FactContent.model_validate(
+            {
+                **content.model_dump(mode="python", exclude={"subjects"}),
+                "subjects": [self._fact_subject(item) for item in content.subjects],
+            }
+        )
+        return self._proposed(
+            self._memory_context.propose_fact(
+                canonical,
+                metadata=self._metadata(context),
+            )
+        )
+
+    def replace_fact(
+        self,
+        context: ToolContext,
+        arguments: ReplaceFactArgs,
+    ) -> dict[str, Any]:
+        self._require_canonical_target(arguments.item_id)
+        canonical = FactContent.model_validate(
+            {
+                **arguments.content.model_dump(mode="python", exclude={"subjects"}),
+                "subjects": [
+                    self._fact_subject(item) for item in arguments.content.subjects
+                ],
+            }
+        )
+        return self._replacement(
+            self._memory_context.replace_fact(
+                arguments.item_id,
+                arguments.expected_item_revision,
+                canonical,
+                metadata=self._metadata(context),
+            )
+        )
+
+    def propose_event(
+        self,
+        context: ToolContext,
+        content: ReporterEventContent,
+    ) -> dict[str, Any]:
+        return self._proposed(
+            self._memory_context.propose_event(
+                self._event(content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def replace_event(
+        self,
+        context: ToolContext,
+        arguments: ReplaceEventArgs,
+    ) -> dict[str, Any]:
+        self._require_canonical_target(arguments.item_id)
+        return self._replacement(
+            self._memory_context.replace_event(
+                arguments.item_id,
+                arguments.expected_item_revision,
+                self._event(arguments.content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def propose_storyline(
+        self,
+        context: ToolContext,
+        content: ReporterStorylineContent,
+    ) -> dict[str, Any]:
+        return self._proposed(
+            self._memory_context.propose_storyline(
+                self._storyline(content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def replace_storyline(
+        self,
+        context: ToolContext,
+        arguments: ReplaceStorylineArgs,
+    ) -> dict[str, Any]:
+        self._require_canonical_target(arguments.item_id)
+        return self._replacement(
+            self._memory_context.replace_storyline(
+                arguments.item_id,
+                arguments.expected_item_revision,
+                self._storyline(arguments.content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def propose_trigger(
+        self,
+        context: ToolContext,
+        content: ReporterTriggerContent,
+    ) -> dict[str, Any]:
+        return self._proposed(
+            self._memory_context.propose_trigger(
+                self._trigger(content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def replace_trigger(
+        self,
+        context: ToolContext,
+        arguments: ReplaceTriggerArgs,
+    ) -> dict[str, Any]:
+        self._require_canonical_target(arguments.item_id)
+        return self._replacement(
+            self._memory_context.replace_trigger(
+                arguments.item_id,
+                arguments.expected_item_revision,
+                self._trigger(arguments.content),
+                metadata=self._metadata(context),
+            )
+        )
+
+    def propose_context_note(
+        self,
+        context: ToolContext,
+        arguments: ProposeContextNoteArgs,
+    ) -> dict[str, Any]:
+        identity = arguments.identity.model_dump(mode="python")
+        if isinstance(arguments.identity, FranchiseNoteIdentity):
+            roster = self._resolve_roster(arguments.identity.roster_key)
+            identity.pop("roster_key")
+            identity["franchise_id"] = roster.franchise_id
+        canonical = ContextNoteContent.model_validate(
+            arguments.content.model_dump(mode="python")
+        )
+        return self._proposed(
+            self._memory_context.propose_context_note(
+                identity,
+                canonical,
+                metadata=self._metadata(context),
+            )
+        )
+
+    def replace_context_note(
+        self,
+        context: ToolContext,
+        arguments: ReplaceContextNoteArgs,
+    ) -> dict[str, Any]:
+        self._require_canonical_target(arguments.item_id)
+        canonical = ContextNoteContent.model_validate(
+            arguments.content.model_dump(mode="python")
+        )
+        return self._replacement(
+            self._memory_context.replace_context_note(
+                arguments.item_id,
+                arguments.expected_item_revision,
+                canonical,
+                metadata=self._metadata(context),
+            )
+        )
+
+    def _event(self, content: ReporterEventContent) -> EventContent:
+        details = content.details.model_dump(mode="python")
+        if isinstance(content.details, ReporterTradeDetails):
+            sender = self._resolve_roster(content.details.sender_roster_key)
+            receiver = self._resolve_roster(content.details.receiver_roster_key)
+            details.pop("sender_roster_key")
+            details.pop("receiver_roster_key")
+            details["sender_franchise_id"] = sender.franchise_id
+            details["receiver_franchise_id"] = receiver.franchise_id
+        else:
+            winner = self._resolve_roster(content.details.winner_roster_key)
+            loser = self._resolve_roster(content.details.loser_roster_key)
+            details.pop("winner_roster_key")
+            details.pop("loser_roster_key")
+            details["winner_franchise_id"] = winner.franchise_id
+            details["loser_franchise_id"] = loser.franchise_id
+        return EventContent.model_validate(
+            {
+                **content.model_dump(mode="python", exclude={"details"}),
+                "details": details,
+            }
+        )
+
+    def _storyline(self, content: ReporterStorylineContent) -> StorylineContent:
+        return StorylineContent.model_validate(
+            {
+                **content.model_dump(mode="python", exclude={"subjects"}),
+                "subjects": [
+                    self._storyline_subject(item) for item in content.subjects
+                ],
+            }
+        )
+
+    def _trigger(self, content: ReporterTriggerContent) -> TriggerContent:
+        condition = content.condition.model_dump(mode="python")
+        values = content.model_dump(mode="python", exclude={"condition"})
+        if isinstance(content.condition, ReporterRematchCondition):
+            first = self._resolve_roster(content.condition.roster_keys[0])
+            second = self._resolve_roster(content.condition.roster_keys[1])
+            condition.pop("roster_keys")
+            condition["franchise_ids"] = (
+                first.franchise_id,
+                second.franchise_id,
+            )
+            supplied_season = content.target_competition_season_id
+            if (
+                supplied_season is not None
+                and supplied_season != first.competition_season_id
+            ):
+                raise MemoryToolInputError(
+                    "competition_season_mismatch",
+                    "Target season does not match the frozen roster identity",
+                )
+            values["target_competition_season_id"] = first.competition_season_id
+        return TriggerContent.model_validate({**values, "condition": condition})
+
+    def _fact_subject(self, subject: FactSubject) -> dict[str, Any]:
+        return self._subject(subject)
+
+    def _storyline_subject(self, subject: StorylineSubject) -> dict[str, Any]:
+        return self._subject(subject)
+
+    def _subject(self, subject: BaseModel) -> dict[str, Any]:
+        values = subject.model_dump(mode="python", exclude_none=True)
+        if isinstance(
+            subject,
+            (
+                FactFranchiseSubject,
+                FactSeasonRosterSubject,
+                StorylineFranchiseSubject,
+                StorylineSeasonRosterSubject,
             ),
-        }
-    )
+        ):
+            roster = self._resolve_roster(subject.roster_key)
+            values.pop("roster_key")
+            values["id"] = (
+                roster.franchise_id
+                if subject.kind == "franchise"
+                else roster.season_roster_id
+            )
+        return values
+
+    def _resolve_roster(self, roster_key: str) -> Any:
+        resolution = self._data.resolve_roster_identity(roster_key)
+        if resolution.status == "not_found":
+            raise MemoryToolInputError(
+                "roster_not_found",
+                f"Could not resolve roster key: {roster_key}",
+            )
+        if resolution.status == "ambiguous":
+            raise MemoryToolInputError(
+                "roster_ambiguous",
+                f"Roster key matches multiple teams: {roster_key}",
+            )
+        return resolution.identity
+
+    def _require_canonical_target(self, item_id: UUID) -> None:
+        if item_id in self._proposed_item_ids:
+            raise MemoryToolInputError(
+                "proposal_local_replacement",
+                "A proposal created in this run cannot also be replaced",
+            )
+
+    def _proposed(self, reference: Any) -> dict[str, Any]:
+        self._proposed_item_ids.add(reference.item_id)
+        return {"ok": True, "proposal": reference.model_dump(mode="json")}
+
+    @staticmethod
+    def _replacement(reference: Any) -> dict[str, Any]:
+        return {"ok": True, "proposal": reference.model_dump(mode="json")}
+
+    @staticmethod
+    def _metadata(context: ToolContext) -> MemoryMutationMetadata:
+        return MemoryMutationMetadata(
+            creating_tool_call_id=context.current_tool_call_id,
+        )
+
+
+def memory_write_blocked_result(tool_name: str) -> dict[str, Any]:
+    return {
+        "ok": True,
+        "proposed": False,
+        "eval_mode": True,
+        "message": f"{tool_name} skipped: memory writes disabled in eval mode",
+    }
+
+
+def _safe_error(error: ValidationError | MemoryToolInputError) -> dict[str, Any]:
+    if isinstance(error, MemoryToolInputError):
+        code = error.code
+        message = str(error)
+    else:
+        code = "invalid_memory_input"
+        message = "Memory input did not match the typed contract"
+    return {"ok": False, "error": {"code": code, "message": message}}
 
 
 def register_memory_tools(
     registry: ToolRegistry,
-    context_store: ContextStore,
-    week: int,
-    resolve_roster_fn: Callable[[str], dict[str, Any]] | None = None,
+    memory_context: GenerationMemoryContext,
+    data: FrozenLeagueData,
     *,
     allow_memory_writes: bool = True,
 ) -> None:
-    """Register search and write/usage memory tools."""
-    week_default = week
+    """Register pinned retrieval and buffered typed proposal tools."""
 
-    def search_story_memory_tool(
-        *,
-        week: int | None = None,
-        query: str | None = None,
-        article_request: str | None = None,
-        current_entities: list[dict[str, Any]] | None = None,
-        current_events: list[dict[str, Any]] | None = None,
-        trigger_types: list[str] | None = None,
-        filters: dict[str, Any] | None = None,
-        include_resolved: bool = False,
-        limit: int = 10,
-    ) -> str:
-        results = search_story_memory(
-            context_store,
-            week=week if week is not None else week_default,
-            query=query,
-            article_request=article_request,
-            current_entities=current_entities,
-            current_events=current_events,
-            trigger_types=trigger_types,
-            filters=filters,
-            include_resolved=include_resolved,
-            limit=limit,
-        )
-        return _json({"ok": True, "candidates": results, "count": len(results)})
+    adapter = TypedMemoryAdapter(memory_context, data)
 
-    def get_memory_candidate_tool(*, owner_type: str, owner_id: str) -> str:
-        candidate = get_memory_candidate(context_store, owner_type, owner_id)
-        if candidate is None:
-            return _json(
-                {
-                    "ok": False,
-                    "found": False,
-                    "error": f"No candidate for {owner_type}:{owner_id}",
-                }
-            )
-        return _json({"ok": True, "found": True, "candidate": candidate})
-
-    def save_memory_event(
-        *,
-        id: str,
-        event_type: str,
-        week: int,
-        headline: str,
-        summary: str,
-        importance: int = 1,
-        confidence: str = "needs_verification",
-        source_refs: list[Any] | None = None,
-        numbers: dict[str, Any] | None = None,
-        entities: list[dict[str, Any]] | None = None,
-        transaction_id: str | None = None,
-        matchup_id: str | None = None,
-    ) -> str:
-        if not allow_memory_writes:
-            return memory_write_blocked_result("save_memory_event")
+    def search_memory(**kwargs: Any) -> dict[str, Any]:
         try:
-            context_store.upsert_story_event(
-                {
-                    "id": id,
-                    "event_type": event_type,
-                    "week": week,
-                    "headline": headline,
-                    "summary": summary,
-                    "importance": importance,
-                    "confidence": confidence,
-                    "source_refs": source_refs or [],
-                    "numbers": numbers or {},
-                    "transaction_id": transaction_id,
-                    "matchup_id": matchup_id,
-                }
-            )
-        except ValueError as exc:
-            return _json({"ok": False, "saved": False, "error": str(exc)})
+            return adapter.search(SearchMemoryArgs.model_validate(kwargs))
+        except (ValidationError, MemoryToolInputError) as error:
+            return _safe_error(error)
 
-        if entities is not None:
-            context_store.replace_story_event_entities(id, entities)
-        return _json({"ok": True, "saved": True, "id": id, "confidence": confidence})
+    registry.register(
+        _READ_TOOL,
+        search_memory,
+        MEMORY_TOOL_SPECS[0],
+        MEMORY_TOOL_IMPLEMENTATION_VERSION,
+    )
 
-    def upsert_storyline_memory_card(
-        *,
-        id: str,
-        headline: str,
-        summary: str,
-        status: str,
-        priority: int = 2,
-        importance: int | None = None,
-        arc_type: str | None = None,
-        origin_week: int | None = None,
-        future_callback_condition: str | None = None,
-        tags: list[str] | None = None,
-        team_keys: list[str] | None = None,
-        entities: list[dict[str, Any]] | None = None,
-        evidence_event_ids: list[str] | None = None,
-        trigger_specs: list[dict[str, Any]] | None = None,
-    ) -> str:
-        if not allow_memory_writes:
-            return memory_write_blocked_result("upsert_storyline_memory_card")
-        team_ids, unresolved_team_keys = _resolve_team_keys(
-            team_keys or [], resolve_roster_fn
-        )
-        for entity in entities or []:
-            entity_type = entity.get("entity_type", entity.get("type"))
-            if entity_type != "team":
-                continue
-            entity_id = entity.get("entity_id", entity.get("id"))
-            try:
-                team_ids.append(int(entity_id))
-            except (TypeError, ValueError):
-                unresolved_team_keys.append(str(entity_id))
-
-        # Deduplicate while preserving order.
-        deduped_team_ids = list(dict.fromkeys(team_ids))
-
-        storyline: dict[str, Any] = {
-            "id": id,
-            "headline": headline,
-            "summary": summary,
-            "status": status,
-            "priority": priority,
-            "tags": tags or [],
-            "team_ids": deduped_team_ids,
-        }
-        if importance is not None:
-            storyline["importance"] = importance
-        if arc_type is not None:
-            storyline["arc_type"] = arc_type
-        if origin_week is not None:
-            storyline["origin_week"] = origin_week
-        if future_callback_condition is not None:
-            storyline["future_callback_condition"] = future_callback_condition
-
-        context_store.upsert_storyline(storyline, week=week_default)
-
-        linked_events: list[str] = []
-        for event_id in evidence_event_ids or []:
-            context_store.link_storyline_event(id, event_id, "evidence")
-            linked_events.append(event_id)
-
-        saved_triggers: list[str] = []
-        for spec in trigger_specs or []:
-            trigger_id = spec.get("id") or f"trigger_{id}_{uuid.uuid4().hex[:8]}"
-            context_store.upsert_storyline_trigger(
-                {
-                    "id": trigger_id,
-                    "storyline_id": id,
-                    "event_id": spec.get("event_id"),
-                    "trigger_type": spec["trigger_type"],
-                    "target_week": spec.get("target_week"),
-                    "condition": spec.get("condition", {}),
-                    "fire_policy": spec.get("fire_policy", "one_shot"),
-                    "status": spec.get("status", "open"),
-                }
-            )
-            saved_triggers.append(trigger_id)
-
-        payload: dict[str, Any] = {
-            "ok": True,
-            "saved": True,
-            "id": id,
-            "status": status,
-            "team_ids": deduped_team_ids,
-            "linked_events": linked_events,
-            "triggers": saved_triggers,
-        }
-        if unresolved_team_keys:
-            payload["unresolved_team_keys"] = unresolved_team_keys
-        return _json(payload)
-
-    def save_storyline_trigger(
-        *,
-        trigger_type: str,
-        id: str | None = None,
-        storyline_id: str | None = None,
-        event_id: str | None = None,
-        target_week: int | None = None,
-        condition: dict[str, Any] | None = None,
-        fire_policy: str = "one_shot",
-        status: str = "open",
-    ) -> str:
-        if not allow_memory_writes:
-            return memory_write_blocked_result("save_storyline_trigger")
-        trigger_id = id or f"trigger_{uuid.uuid4().hex[:12]}"
-        context_store.upsert_storyline_trigger(
-            {
-                "id": trigger_id,
-                "storyline_id": storyline_id,
-                "event_id": event_id,
-                "trigger_type": trigger_type,
-                "target_week": target_week,
-                "condition": condition or {},
-                "fire_policy": fire_policy,
-                "status": status,
-            }
-        )
-        return _json(
-            {
-                "ok": True,
-                "saved": True,
-                "id": trigger_id,
-                "trigger_type": trigger_type,
-                "status": status,
-            }
-        )
-
-    def mark_memory_used(
-        *,
-        candidate_id: str,
-        usage: str,
-        owner_type: str = "storyline",
-        week: int | None = None,
-        linked_storyline_id: str | None = None,
-        fact_links: list[str] | None = None,
-        reason: str | None = None,
-    ) -> str:
-        if not allow_memory_writes:
-            return memory_write_blocked_result("mark_memory_used")
-        used_week = week if week is not None else week_default
-        normalized_type = (
-            "event" if owner_type == "story_event" else owner_type
-        )
-        access_id = context_store.record_memory_access(
-            owner_type=normalized_type,
-            owner_id=candidate_id,
-            week=used_week,
-            usage=usage,
-            linked_storyline_id=linked_storyline_id,
-            fact_links=fact_links,
-            reason=reason,
-        )
-
-        trigger_update = None
-        if normalized_type == "trigger":
-            trigger = context_store.get_trigger(candidate_id)
-            if trigger and trigger.get("fire_policy", "one_shot") == "one_shot":
-                if usage == "article_callback":
-                    context_store.update_trigger_status(
-                        candidate_id, status="fired", fired_week=used_week
-                    )
-                    trigger_update = "fired"
-                elif usage == "discarded":
-                    context_store.update_trigger_status(
-                        candidate_id, status="resolved", fired_week=used_week
-                    )
-                    trigger_update = "resolved"
-
-        return _json(
-            {
-                "ok": True,
-                "recorded": True,
-                "access_id": access_id,
-                "candidate_id": candidate_id,
-                "owner_type": normalized_type,
-                "usage": usage,
-                "trigger_update": trigger_update,
-            }
-        )
-
-    def plan_memory_verification_tool(
-        *,
-        candidate_id: str,
-        owner_type: str = "storyline",
-        current_week: int | None = None,
-        callback_id: str | None = None,
-        intended_callback_claim: str | None = None,
-    ) -> str:
-        plan = plan_memory_verification(
-            context_store,
-            candidate_id=candidate_id,
-            owner_type=owner_type,
-            current_week=current_week if current_week is not None else week_default,
-            callback_id=callback_id,
-            intended_callback_claim=intended_callback_claim,
-        )
-        if plan is None:
-            return _json(
-                {
-                    "ok": False,
-                    "found": False,
-                    "error": f"No candidate for {owner_type}:{candidate_id}",
-                }
-            )
-        return _json({"ok": True, **plan})
-
-    def record_memory_verification(
-        ctx: ToolContext,
-        *,
-        candidate_id: str,
-        status: str,
-        owner_type: str = "storyline",
-        fact_links: list[Any] | None = None,
-        reason: str | None = None,
-        week: int | None = None,
-        callback_id: str | None = None,
-        linked_storyline_id: str | None = None,
-    ) -> str:
-        if status not in {"verified", "rejected", "needs_more_evidence"}:
-            return _json(
-                {
-                    "ok": False,
-                    "recorded": False,
-                    "error": (
-                        "status must be verified, rejected, or needs_more_evidence"
-                    ),
-                }
-            )
-
-        normalized_type = (
-            "event" if owner_type == "story_event" else owner_type
-        )
-        candidate = get_memory_candidate(
-            context_store, normalized_type, candidate_id
-        )
-        if candidate is None:
-            return _json(
-                {
-                    "ok": False,
-                    "recorded": False,
-                    "error": f"No candidate for {owner_type}:{candidate_id}",
-                }
-            )
-
-        normalized_links = normalize_verification_fact_links(fact_links)
-        if status == "verified":
-            missing_roles = validate_verified_fact_links(normalized_links)
-            if missing_roles:
-                return _json(
-                    {
-                        "ok": False,
-                        "recorded": False,
-                        "error": (
-                            "verified callbacks require origin_receipt and "
-                            "current_payoff fact links"
-                        ),
-                        "missing_roles": missing_roles,
-                    }
-                )
-
-            # The platform reporter keeps its brief as raw Markdown. Fact and
-            # callback references are therefore governed by the research and
-            # verification procedures instead of an in-memory typed brief.
-
-        if not allow_memory_writes:
-            return _json(
-                {
-                    "ok": True,
-                    "recorded": False,
-                    "persisted": False,
-                    "eval_mode": True,
-                    "candidate_id": candidate_id,
-                    "owner_type": normalized_type,
-                    "status": status,
-                    "fact_links": normalized_links,
-                    "callback_id": callback_id,
-                    "message": (
-                        "record_memory_verification validated but skipped "
-                        "persistent access write in eval mode"
-                    ),
-                }
-            )
-
-        used_week = week if week is not None else week_default
-        access_reason = reason
-        if callback_id:
-            suffix = f"callback_id={callback_id}"
-            access_reason = f"{reason}; {suffix}" if reason else suffix
-
-        access_id = context_store.record_memory_access(
-            owner_type=normalized_type,
-            owner_id=candidate_id,
-            week=used_week,
-            usage=f"verification_{status}",
-            linked_storyline_id=linked_storyline_id,
-            fact_links=[
-                (
-                    f"{link['role']}:{link['fact_id']}"
-                    if link["role"]
-                    else link["fact_id"]
-                )
-                for link in normalized_links
-            ],
-            reason=access_reason,
-        )
-
-        return _json(
-            {
-                "ok": True,
-                "recorded": True,
-                "access_id": access_id,
-                "candidate_id": candidate_id,
-                "owner_type": normalized_type,
-                "status": status,
-                "fact_links": normalized_links,
-                "callback_id": callback_id,
-            }
-        )
-
-    handlers = {
-        "search_story_memory": search_story_memory_tool,
-        "get_memory_candidate": get_memory_candidate_tool,
-        "save_memory_event": save_memory_event,
-        "upsert_storyline_memory_card": upsert_storyline_memory_card,
-        "save_storyline_trigger": save_storyline_trigger,
-        "mark_memory_used": mark_memory_used,
-        "plan_memory_verification": plan_memory_verification_tool,
+    write_models: dict[str, type[BaseModel]] = {
+        "propose_fact": ProposeFactArgs,
+        "replace_fact": ReplaceFactArgs,
+        "propose_event": ProposeEventArgs,
+        "replace_event": ReplaceEventArgs,
+        "propose_storyline": ProposeStorylineArgs,
+        "replace_storyline": ReplaceStorylineArgs,
+        "propose_trigger": ProposeTriggerArgs,
+        "replace_trigger": ReplaceTriggerArgs,
+        "propose_context_note": ProposeContextNoteArgs,
+        "replace_context_note": ReplaceContextNoteArgs,
     }
-    for spec in MEMORY_TOOL_SPECS:
-        name = spec["function"]["name"]
-        if name == "record_memory_verification":
-            registry.register_context_tool(
-                name,
-                record_memory_verification,
-                spec,
-                MEMORY_TOOL_IMPLEMENTATION_VERSION,
-            )
-            continue
-        registry.register(
-            name,
-            handlers[name],
-            spec,
+
+    def make_handler(tool_name: str, arguments_model: type[BaseModel]) -> Any:
+        def handler(context: ToolContext, **kwargs: Any) -> dict[str, Any]:
+            if not allow_memory_writes:
+                return memory_write_blocked_result(tool_name)
+            try:
+                arguments = arguments_model.model_validate(kwargs)
+                method = getattr(adapter, tool_name)
+                if (
+                    tool_name.startswith("propose_")
+                    and tool_name != "propose_context_note"
+                ):
+                    return method(context, arguments.content)
+                return method(context, arguments)
+            except (ValidationError, MemoryToolInputError) as error:
+                return _safe_error(error)
+
+        return handler
+
+    specs_by_name = {spec["function"]["name"]: spec for spec in MEMORY_TOOL_SPECS}
+    for tool_name in _WRITE_TOOLS:
+        registry.register_context_tool(
+            tool_name,
+            make_handler(tool_name, write_models[tool_name]),
+            specs_by_name[tool_name],
             MEMORY_TOOL_IMPLEMENTATION_VERSION,
         )
 
 
-def _resolve_team_keys(
-    team_keys: list[str],
-    resolve_roster_fn: Callable[[str], dict[str, Any]] | None,
-) -> tuple[list[int], list[str]]:
-    team_ids: list[int] = []
-    unresolved_team_keys: list[str] = []
-    for key in team_keys:
-        roster_id = _resolve_roster_id(key, resolve_roster_fn)
-        if roster_id is None:
-            unresolved_team_keys.append(key)
-        else:
-            team_ids.append(roster_id)
-    return team_ids, unresolved_team_keys
-
-
-def _resolve_roster_id(
-    roster_key: str,
-    resolve_roster_fn: Callable[[str], dict[str, Any]] | None,
-) -> int | None:
-    if resolve_roster_fn is not None:
-        result = resolve_roster_fn(roster_key)
-        if result.get("found"):
-            return int(result["roster_id"])
-        return None
-
-    try:
-        return int(roster_key)
-    except (TypeError, ValueError):
-        return None
-
-
-def _json(payload: Any) -> str:
-    return json.dumps(payload, default=str)
+__all__ = [
+    "MEMORY_TOOL_IMPLEMENTATION_VERSION",
+    "MEMORY_TOOL_SPECS",
+    "TypedMemoryAdapter",
+    "memory_write_blocked_result",
+    "register_memory_tools",
+]

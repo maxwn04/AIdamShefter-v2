@@ -61,3 +61,9 @@ class ToolContext:
             raise ArtifactRecordingError(
                 f"Could not record artifact mutation for {snapshot.path}"
             ) from exc
+
+    @property
+    def current_tool_call_id(self) -> UUID | None:
+        """Return durable provenance for the tool handler currently executing."""
+
+        return self._source_tool_call_id.get()

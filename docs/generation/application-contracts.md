@@ -284,9 +284,22 @@ It may not:
 and decides whether to apply or discard it. The reporter tool adapter never
 calls `MemoryMutationService.apply()`.
 
-Exact model-facing memory tool compatibility is intentionally deferred to the
-matrix in [`transition.md`](transition.md#memory-tool-compatibility). Tools with
-changed meaning need an explicit contract decision before implementation.
+The model-facing memory tool mapping is recorded in the matrix in
+[`transition.md`](transition.md#memory-tool-compatibility). Generation 8b
+settles that contract as `search_memory` plus explicit per-kind `propose_*`
+and `replace_*` operations. Search returns hydrated canonical matches and
+optional exact/stable expansions, so there is no candidate-fetch tool.
+
+Team-facing arguments use frozen roster keys. The adapter resolves franchise or
+season-roster UUIDs according to the canonical field being populated and fails
+closed on ambiguous or absent identities. Proposal-local IDs may be used by
+later proposals as relationship targets, but may not themselves be replaced in
+the same bundle.
+
+Facts and events are limited to `unverified` or `inferred` confidence until a
+separate model-addressable durable receipt contract exists. The proposal tool's
+own call ID is recorded as creation provenance, never misrepresented as the
+primary factual receipt.
 
 ## Model Completion and AI-Call Contract
 

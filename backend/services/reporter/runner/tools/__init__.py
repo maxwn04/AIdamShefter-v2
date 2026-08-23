@@ -18,10 +18,6 @@ from backend.services.reporter.runner.tools.memory_tools import (
     MEMORY_TOOL_SPECS,
     register_memory_tools,
 )
-from backend.services.reporter.runner.tools.persistent_tools import (
-    PERSISTENT_TOOL_SPECS,
-    register_persistent_tools,
-)
 from backend.services.reporter.runner.tools.procedure_tools import (
     PROCEDURE_TOOL_SPECS,
     load_procedure,
@@ -33,7 +29,6 @@ __all__ = [
     "ARTIFACT_TOOL_SPECS",
     "DATALAYER_TOOL_SPECS",
     "MEMORY_TOOL_SPECS",
-    "PERSISTENT_TOOL_SPECS",
     "PROCEDURE_TOOL_SPECS",
     "ToolContext",
     "ToolRegistry",
@@ -45,7 +40,6 @@ __all__ = [
     "register_artifact_tools",
     "register_datalayer_tools",
     "register_memory_tools",
-    "register_persistent_tools",
     "register_procedure_tools",
     "submit_artifact",
 ]
