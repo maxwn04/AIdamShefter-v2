@@ -1,6 +1,6 @@
 # Memory Redesign Implementation Map
 
-**Status:** Database schema implemented in the current `gh stack`; application work pending
+**Status:** Accepted transition contract
 
 ## Starting Point
 
@@ -12,9 +12,8 @@ The original in-flight database baseline had:
 - generic canonical `version_entities` and `version_relationships`;
 - full-text indexes distributed across typed version text.
 
-The memory-layer commit in the current stack now preserves the revision model
-while replacing the generic canonical graph with typed storage plus a derived
-retrieval projection.
+The typed-memory design preserves the revision model while replacing the
+generic canonical graph with typed storage plus a derived retrieval projection.
 
 ## Target Changes
 
@@ -56,8 +55,7 @@ must have a planned removal point.
 
 ## Implementation Order
 
-The database portion of steps 3, 5, and 7 is complete. The remaining application
-work should proceed in this order:
+Implementation follows this dependency order:
 
 1. **Settle resource contracts.** Define the Pydantic content and reference
    models, including exact-version versus stable-item semantics.
@@ -108,11 +106,11 @@ historically safe:
   memory;
 - schema-evolution tests decoding every retained content-schema version.
 
-## Remaining Application Decisions
+## Deferred Application Decisions
 
-The typed v1 contracts settled the role enums, reference cardinalities, and
-initial trade/matchup event payloads. Remaining decisions are tracked in
-[`status.md`](status.md), including:
-
-- projection rebuild command/API ownership; and
-- embedding provider, model, and retention policy.
+The typed v1 contracts settle the role enums, reference cardinalities, and
+initial trade/matchup event payloads. Operator-facing projection rebuild
+exposure and embedding provider, model, and retention policy remain deferred.
+Mutable execution questions belong in the local, gitignored
+`.context/memory/` workspace; a settled choice belongs in the relevant durable
+design document.
