@@ -37,8 +37,8 @@ uv run reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
 ## API Server
 
 The product API exposes process health, canonical memory, and the polling-oriented
-generation boundary. Generation submission creates a pending row; reporter
-execution stays in the separate one-shot worker process.
+generation boundary. Generation submission creates a pending row and schedules
+worker-scoped execution as a FastAPI background task after sending the response.
 
 ```bash
 export AIDAM_DATABASE_URL=postgresql+psycopg://aidam_api:password@localhost/aidam
@@ -52,8 +52,8 @@ The server listens on `127.0.0.1:8000` by default. Override that with
 database name, runtime role, and TLS policy.
 
 Submit a generation under
-`/api/v1/generations/competitions/{competition_id}`, then execute the returned
-generation ID explicitly:
+`/api/v1/generations/competitions/{competition_id}` to schedule it automatically.
+The one-shot worker command remains available for manual execution and recovery:
 
 ```bash
 export AIDAM_WORKER_DATABASE_URL=postgresql+psycopg://aidam_worker:password@localhost/aidam
@@ -63,7 +63,9 @@ uv run aidam-worker reconcile-stale --competition-id <uuid> \
 ```
 
 The initial API is single-local-user and does not claim durable per-user
-ownership. The worker has no queue, lease, heartbeat, or automatic resume.
+ownership. Background dispatch runs in the API process with worker-scoped
+dependencies and is not durable across a hard API-process failure. There is no
+queue, lease, heartbeat, or automatic resume.
 
 ## Tests
 

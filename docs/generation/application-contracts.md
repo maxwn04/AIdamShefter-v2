@@ -482,16 +482,24 @@ open sessions, access artifact paths, or calculate generation policy.
 
 The initial HTTP boundary is rooted at
 `/api/v1/generations/competitions/{competition_id}`. Submission and explicit
-rerun routes create pending rows and return `201`; they never invoke the model
-loop. Collection/detail routes expose polling and history, while nested AI-call,
+rerun routes create pending rows, schedule local background execution, and
+return `201`. Collection/detail routes expose polling and history, while nested AI-call,
 tool-call, artifact, and artifact-version routes retain the generation parent in
 their scope. Article history and exact article reads follow
 `submitted_artifact_version_id`, never an artifact path. AI-call summaries and
 details carry recorded token categories without synthesizing totals or pricing.
 
-Execution is an explicit one-shot worker command. Stale reconciliation is a
-separate worker command with an aware cutoff and bounded limit. The database
-baseline requires polling but does not require SSE or a durable queue.
+The FastAPI background callback is synchronous at the transport boundary so
+Starlette runs it in a threadpool. It invokes the same async one-generation
+function as the CLI, constructs worker-scoped dependencies and credentials, and
+closes that runtime deterministically. A one-shot worker command remains the
+manual/recovery entry point. Stale reconciliation is a separate worker command
+with an aware cutoff and bounded limit.
+
+This local dispatch is deliberately non-durable: a hard API-process failure can
+leave a generation pending before execution begins, or running until stale
+reconciliation. The database baseline still requires polling but does not add
+SSE, a durable queue, leases, heartbeats, or automatic resume.
 
 ## User Attribution Gap
 

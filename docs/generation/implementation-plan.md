@@ -275,8 +275,9 @@ the chosen contract.
 - Keep routes and worker free of workflow logic and sessions.
 - Use local-user HTTP contexts and a named system-process worker context, both
   competition scoped; do not claim durable product-user ownership.
-- Persist pending submissions in HTTP and execute only through the explicit
-  one-shot worker; do not add API background tasks or queue semantics.
+- Persist pending submissions before scheduling local FastAPI background
+  execution through the same worker function. Retain the explicit one-shot
+  worker for recovery and do not claim durable queue semantics.
 
 **Exit gate:** API and worker tests prove scoping, polling, error translation,
 and one shared service path.

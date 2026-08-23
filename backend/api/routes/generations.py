@@ -5,7 +5,11 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Query, status
 
-from backend.api.dependencies import get_generation_api_dependencies
+from backend.api.dependencies import (
+    get_generation_api_dependencies,
+    get_generation_dispatcher,
+)
+from backend.api.dispatch import GenerationDispatcher
 from backend.api.schemas.generations import (
     AICallPageResponse,
     AICallResponse,
@@ -57,6 +61,10 @@ GenerationApi = Annotated[
     GenerationDependencies,
     Depends(get_generation_api_dependencies),
 ]
+GenerationDispatch = Annotated[
+    GenerationDispatcher,
+    Depends(get_generation_dispatcher),
+]
 PageLimit = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]
 
@@ -66,6 +74,7 @@ def submit_generation(
     competition_id: UUID,
     body: SubmitGenerationBody,
     dependencies: GenerationApi,
+    dispatcher: GenerationDispatch,
 ) -> GenerationResponse:
     generation = dependencies.service.submit(
         GenerationRequest(
@@ -80,6 +89,7 @@ def submit_generation(
             settings=body.settings,
         )
     )
+    dispatcher.dispatch(competition_id, generation.id)
     return GenerationResponse(generation=generation)
 
 
@@ -89,8 +99,10 @@ def submit_generation(
     response_model=GenerationResponse,
 )
 def rerun_generation(
+    competition_id: UUID,
     generation_id: UUID,
     dependencies: GenerationApi,
+    dispatcher: GenerationDispatch,
 ) -> GenerationResponse:
     generation = dependencies.service.rerun(
         RerunGenerationRequest(
@@ -98,6 +110,7 @@ def rerun_generation(
             generation_id=uuid4(),
         )
     )
+    dispatcher.dispatch(competition_id, generation.id)
     return GenerationResponse(generation=generation)
 
 

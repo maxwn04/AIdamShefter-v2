@@ -9,6 +9,7 @@ import pytest
 
 from backend.api.app import create_app
 from backend.api.dependencies import get_generation_api_dependencies
+from backend.api.dispatch import get_generation_dispatcher
 from backend.composition import ApiRuntimeDependencies
 from backend.resources.reporting.ai_calls import (
     AICall,
@@ -83,6 +84,14 @@ class StubService:
             self.season_id,
             rerun_of=request.source_generation_id,
         )
+
+
+class StubDispatcher:
+    def __init__(self) -> None:
+        self.dispatched: list[tuple[UUID, UUID]] = []
+
+    def dispatch(self, competition_id: UUID, generation_id: UUID) -> None:
+        self.dispatched.append((competition_id, generation_id))
 
 
 class StubManager:
@@ -252,6 +261,7 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
     )
     return SimpleNamespace(
         service=StubService(competition_id, season_id),
+        dispatcher=StubDispatcher(),
         generations=StubManager(
             exact=generation,
             page=GenerationPage(
@@ -284,6 +294,9 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
 async def _client(dependencies: SimpleNamespace) -> tuple[Any, AsyncClient]:
     app = create_app(runtime_factory=runtime_factory())
     app.dependency_overrides[get_generation_api_dependencies] = lambda: dependencies
+    app.dependency_overrides[get_generation_dispatcher] = (
+        lambda: dependencies.dispatcher
+    )
     client = AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
@@ -318,6 +331,12 @@ async def test_submission_and_rerun_create_pending_requests_without_execution() 
     assert rerun.status_code == 201
     assert rerun.json()["generation"]["rerun_of_generation_id"] == str(source_id)
     assert dependencies.service.reruns[0].source_generation_id == source_id
+    submitted_id = UUID(submitted.json()["generation"]["id"])
+    rerun_id = UUID(rerun.json()["generation"]["id"])
+    assert dependencies.dispatcher.dispatched == [
+        (competition_id, submitted_id),
+        (competition_id, rerun_id),
+    ]
 
 
 @pytest.mark.asyncio

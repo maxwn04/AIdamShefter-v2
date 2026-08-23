@@ -74,6 +74,7 @@ def test_worker_dependency_uses_system_actor_and_competition(
 @pytest.mark.parametrize(
     "relative_path",
     [
+        "backend/api/dispatch/generations.py",
         "backend/api/dependencies/generations.py",
         "backend/api/routes/generations.py",
         "backend/worker/dependencies.py",
