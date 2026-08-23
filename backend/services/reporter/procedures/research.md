@@ -1,17 +1,24 @@
 # Research Procedure
 
-You are gathering verified fantasy football facts for the article brief. Use datalayer tools to inspect the league, then save only confirmed claims with `save_fact`. Do not draft article prose in this procedure.
+You are gathering verified fantasy football facts for the article brief. Use datalayer tools to inspect the league, then record only confirmed claims in `research/brief.md`. Do not draft article prose in this procedure.
+
+## Artifact Editing
+
+- Call `read_artifact(path="research/brief.md")` before editing and retain its revision.
+- Add material with `edit_artifact`, passing the current revision and replacing a unique insertion marker with the new Markdown plus the same marker.
+- If the edit reports a revision conflict or a non-unique match, read the brief again and retry from current content.
+- Every fact entry should have a stable ID, precise claim, exact numbers, category, and source references naming the supporting tool calls.
 
 ## Operating Rules
 
-- If you are returning to research after another procedure has run, call `read_brief` first so you know which facts already exist and what is stale.
+- If you are returning to research after another procedure has run, read the brief first so you know which facts already exist.
 - Start broad, then drill down. Prefer `league_snapshot` for the requested week before targeted team or player calls.
-- Every saved fact must be traceable to one or more tool calls through `data_refs`.
+- Every recorded fact must be traceable to one or more datalayer tool calls.
 - Save specific, reusable facts rather than commentary. The article voice comes later.
 - Do not invent standings, scores, records, player points, transactions, injuries, or playoff implications.
-- Bias can guide what you investigate, but it must not change which facts you save.
+- Bias can guide what you investigate, but it must not change which facts you record.
 - If persistent context tools are available and the request may depend on league history, load relevant storylines, team context, and league notes as research leads only.
-- Retrieved persistent memories are not facts. Verify both the older receipt and the current-week payoff before saving a callback fact or storyline.
+- Retrieved persistent memories are not facts. Verify both the older receipt and the current-week payoff before recording a callback fact or storyline.
 - If the runner announces the hard tool limit, stop researching and move directly toward submitting the best article possible with the artifacts already available.
 
 ## Default Research Flow
@@ -25,7 +32,7 @@ You are gathering verified fantasy football facts for the article brief. Use dat
    - Prefer `search_story_memory` with current entities/events, then `get_memory_candidate` for promising leads. Use `load_persistent_storylines` only for a broad dump.
    - Call `plan_memory_verification` on promising candidates to get required fact roles and suggested datalayer calls.
    - Verify the old event with datalayer tools or a verified memory receipt, and verify the current event with current-run datalayer facts.
-   - Save old-event and current-event facts with `save_fact`, then use `record_memory_verification` and `save_memory_callback` if available.
+   - Record old-event and current-event facts in the brief, then use `record_memory_verification` if available and record the verified callback in the brief.
    - Promote only the best verified callbacks into storylines and outline inputs.
    - Persist durable evidence with `save_memory_event`, `upsert_storyline_memory_card`, and `save_storyline_trigger` when an arc should matter later. Mark usage with `mark_memory_used`.
 5. Call targeted tools for the strongest leads:
@@ -35,7 +42,7 @@ You are gathering verified fantasy football facts for the article brief. Use dat
    - `transactions(week_from=N, week_to=N)` or `team_transactions(...)` for trade, waiver, or roster-move angles.
    - `player_weekly_log(...)` or `player_summary(...)` for trend checks on a featured player.
    - `playoff_bracket(...)` and `team_playoff_path(...)` when the article has playoff stakes.
-6. Save the strongest facts with `save_fact`. Aim for enough evidence to support the article, not every possible data point.
+6. Record the strongest facts in the brief. Aim for enough evidence to support the article, not every possible data point.
 7. When the evidence base is ready, switch to `storyline` to organize facts into narrative threads and an outline.
 
 ## Memory Scout Requirements
@@ -58,21 +65,15 @@ Evaluate candidate callbacks for interestingness separately from retrieval relev
 
 ## Fact Quality
 
-Good facts are precise, sourced, and useful in more than one sentence. Include the exact numbers the writer will need.
+Good facts are precise, sourced, and useful in more than one sentence. Include the exact numbers the writer will need. A useful Markdown entry looks like:
 
-```json
-{
-  "id": "fact_week8_taco_win",
-  "claim_text": "Team Taco defeated The Waiver Wire 142.3-98.7 in Week 8.",
-  "data_refs": ["league_snapshot:week=8", "team_game:Team Taco:week=8"],
-  "numbers": {
-    "week": 8,
-    "team_score": 142.3,
-    "opponent_score": 98.7,
-    "margin": 43.6
-  },
-  "category": "score"
-}
+```markdown
+### fact_week8_taco_win
+
+- Claim: Team Taco defeated The Waiver Wire 142.3-98.7 in Week 8.
+- Sources: `league_snapshot(week=8)`, `team_game(Team Taco, week=8)`
+- Numbers: week=8; team_score=142.3; opponent_score=98.7; margin=43.6
+- Category: score
 ```
 
 Use stable IDs that describe the fact. Prefer categories such as `score`, `standing`, `transaction`, `player`, `streak`, `playoff`, and `general`.
@@ -97,4 +98,4 @@ Move to `storyline` when you have enough verified facts to support the requested
 - Standard weekly recap: 10-20 strong facts.
 - Deep dive or power rankings: enough facts to support each featured team or section.
 
-If tool limits are approaching, stop researching, save the best facts you already have, and switch to `storyline`. If the hard limit has already been reached, do not make more research calls.
+If tool limits are approaching, stop researching, record the best facts you already have, and switch to `storyline`. If the hard limit has already been reached, do not make more research calls.

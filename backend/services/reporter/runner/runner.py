@@ -1,7 +1,7 @@
 """Core v2 runner loop.
 
 The Runner is the agent engine: it owns the message loop, tool execution,
-procedure-message compaction, and ArticleOutput assembly. It does not know
+procedure-message compaction, and ReporterOutput assembly. It does not know
 about Sleeper, ReportConfig, memory, or which tools are registered — callers
 (typically generate_article) wire those in.
 """
@@ -24,7 +24,7 @@ from backend.services.reporter.runner.models import (
     tool_result_message,
 )
 from backend.services.reporter.runner.run_log import RunLog
-from backend.services.reporter.runner.schemas import ArticleOutput
+from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import (
     ArtifactStore,
     ProcedureHistoryMode,
@@ -81,7 +81,7 @@ class Runner:
     def client(self) -> CompletionClient:
         return self._client
 
-    async def run(self, system_prompt: str, user_message: str) -> ArticleOutput:
+    async def run(self, system_prompt: str, user_message: str) -> ReporterOutput:
         messages: list[ChatMessage] = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_message},
@@ -125,9 +125,9 @@ class Runner:
                 },
                 turn=turn,
             )
-            return ArticleOutput(
-                article=self.artifacts.article.to_markdown(),
-                brief=self.artifacts.brief,
+            return ReporterOutput(
+                submitted_path=self.artifacts.submitted_path,
+                artifacts=self.artifacts.list(),
                 run_log_summary={
                     "session_id": self.log.session_id,
                     "total_tool_calls": self.log.tool_call_count,
@@ -181,7 +181,7 @@ class Runner:
             turn=turn,
         )
 
-        if call.name == "submit_article" and self._is_successful_submit(result_content):
+        if call.name == "submit_artifact" and self._is_successful_submit(result_content):
             self._submitted = True
 
         return result_content

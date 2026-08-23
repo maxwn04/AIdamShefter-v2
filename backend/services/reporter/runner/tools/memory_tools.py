@@ -714,32 +714,9 @@ def register_memory_tools(
                     }
                 )
 
-            brief = ctx.artifacts.brief
-            missing_fact_ids = [
-                link["fact_id"]
-                for link in normalized_links
-                if brief.get_fact(link["fact_id"]) is None
-            ]
-            if missing_fact_ids:
-                return _json(
-                    {
-                        "ok": False,
-                        "recorded": False,
-                        "error": "verification fact_links must exist in the brief",
-                        "missing_fact_ids": missing_fact_ids,
-                    }
-                )
-
-            if callback_id:
-                callback = brief.get_memory_callback(callback_id)
-                if callback is None:
-                    return _json(
-                        {
-                            "ok": False,
-                            "recorded": False,
-                            "error": f"Unknown brief callback_id: {callback_id}",
-                        }
-                    )
+            # The platform reporter keeps its brief as raw Markdown. Fact and
+            # callback references are therefore governed by the research and
+            # verification procedures instead of an in-memory typed brief.
 
         if not allow_memory_writes:
             return _json(

@@ -1,24 +1,25 @@
 # Drafting Procedure
 
-You are writing the article from the brief artifact. Use `read_brief`, then write article sections with article tools. Do not call datalayer tools while drafting unless you discover the brief is missing a required fact; if that happens, switch back to `research`.
+You are writing `article.md` from the brief artifact. Use `read_artifact(path="research/brief.md")`, then create or edit the article with artifact tools. Do not call datalayer tools while drafting unless you discover the brief is missing a required fact; if that happens, switch back to `research`.
 
 ## Operating Rules
 
 - The brief is the source of truth. Use only saved facts, storylines, outline, style, and bias.
-- Treat `memory_callbacks` as verified brief material, but still name the old event and current payoff in prose.
+- Treat verified callbacks in the brief as grounded material, but still name the old event and current payoff in prose.
 - Do not invent scores, records, player points, transaction details, standings, injuries, or playoff scenarios.
-- Numeric claims must match the fact `numbers` values or the fact `claim_text`.
-- Follow the outline unless it is stale or incomplete. If it is stale, switch to `storyline` to refresh it.
-- Write in sections with `write_section`. Do not submit the article from this procedure unless verification is explicitly skipped by the user or guardrails force wrap-up.
+- Numeric claims must match the numbers or claim text recorded in the brief.
+- Follow the outline unless later research made it incomplete. If it needs refreshing, switch to `storyline` before writing.
+- Draft with `create_artifact(path="article.md", content=...)` when the article does not exist. Use revision-checked `edit_artifact` calls for subsequent changes.
+- Do not submit the article from this procedure unless verification is explicitly skipped by the user or guardrails force wrap-up.
 
 ## Drafting Flow
 
-1. Call `read_brief`.
-2. Check staleness information. If the outline or storylines are stale, switch to `storyline` before writing.
+1. Read `research/brief.md`.
+2. Confirm its storylines and outline reflect the saved facts. If not, switch to `storyline` before writing.
 3. Identify the lead storyline and section order from the outline.
-4. Write one focused section at a time with `write_section(name, content)`.
-5. Use `read_article` after major sections to inspect flow and coverage.
-6. Use `rewrite_section` for local improvements instead of rewriting the full article.
+4. Create a coherent Markdown draft in `article.md`, or read the existing article before continuing it.
+5. Read `article.md` after major additions to inspect flow and coverage.
+6. Use exact `edit_artifact` replacements for local improvements. For a full rewrite, replace the complete current content using its current revision.
 7. Switch to `verification` when the draft is complete.
 
 ## Writing Standards
@@ -30,7 +31,7 @@ You are writing the article from the brief artifact. Use `read_brief`, then writ
 - Do not use vague continuity phrases such as "this has been brewing," "the storyline continues," or "it came full circle" unless the paragraph names the old event and the new payoff.
 - Keep paragraphs focused. Standard sections should usually be 2-5 paragraphs.
 - Use Markdown:
-  - `#` for the headline if the opening section includes one.
+  - `#` for the headline.
   - `##` for major section headings.
   - `**bold**` for emphasis when useful.
 - Match the requested target length. As a practical guide:
@@ -40,7 +41,7 @@ You are writing the article from the brief artifact. Use `read_brief`, then writ
 
 ## Voice And Bias
 
-Apply `style` consistently:
+Apply the recorded style consistently:
 
 - Sports columnist: informed, sharp, and personable.
 - Snarky columnist: witty and irreverent, with playful jabs.
@@ -48,22 +49,22 @@ Apply `style` consistently:
 - Beat reporter: factual, measured, and analysis-heavy.
 - Custom voices: satisfy the user's request while preserving factual grounding.
 
-Apply `bias` as framing only:
+Apply bias as framing only:
 
 - Favored teams can get more enthusiastic language, more prominent placement, and more charitable framing.
 - Disfavored teams can get skepticism or playful roasting.
 - The score, record, ranking, transaction, and player points must remain exactly what the facts say.
 
-## Section Naming
+## Section Organization
 
-Use stable, descriptive section names for article tools, such as:
+Use stable, descriptive Markdown headings for article sections, such as:
 
-- `headline_and_lead`
-- `lead_story`
-- `standings_shift`
-- `quick_hits`
-- `transactions`
-- `playoff_picture`
-- `closing`
+- Headline and lead
+- Lead story
+- Standings shift
+- Quick hits
+- Transactions
+- Playoff picture
+- Closing
 
-Before switching to verification, make sure each required outline fact appears in an article section and the article has a coherent opening, body, and close.
+Before switching to verification, make sure each required outline fact appears in the article and the document has a coherent opening, body, and close.

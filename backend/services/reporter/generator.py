@@ -1,11 +1,11 @@
 """Composition root for platform reporter article generation.
 
 Owns product wiring that the Runner must not know about:
-- tool registration (brief, article, procedure, datalayer, memory)
+- tool registration (artifacts, procedure, datalayer, memory)
 - CompletionClient construction from settings / injectable fakes
-- brief meta seeding from league data + ReportConfig
+- Markdown brief seeding from league data + ReportConfig
 - system/user prompt construction
-- memory run lifecycle (mark_stale / persist-on-submit via memory_lifecycle)
+- pre-run memory lifecycle
 
 The Runner only receives a registry, client, RunnerConfig, and optional
 pre-seeded ArtifactStore.
@@ -24,15 +24,11 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
-from backend.services.reporter.runner.memory_lifecycle import (
-    finalize_memory_run,
-    prepare_memory_run,
-)
+from backend.services.reporter.runner.memory_lifecycle import prepare_memory_run
 from backend.services.reporter.runner.runner import Runner
-from backend.services.reporter.runner.schemas import ArticleOutput, BriefMeta, ReportBrief
+from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
-from backend.services.reporter.runner.tools.article_tools import register_article_tools
-from backend.services.reporter.runner.tools.brief_tools import register_brief_tools
+from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
 from backend.services.reporter.runner.tools.persistent_tools import register_persistent_tools
 from backend.services.reporter.runner.tools.procedure_tools import register_procedure_tools
@@ -54,7 +50,7 @@ async def generate_article(
     log_path: Path | None = None,
     complete: CompletionFn | None = None,
     allow_memory_writes: bool = True,
-) -> ArticleOutput:
+) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
 
     Args:
@@ -92,15 +88,14 @@ async def generate_article(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
     league_id, league_name = _get_league_metadata(data)
-    artifacts = ArtifactStore(
-        brief=ReportBrief(
-            meta=BriefMeta(
-                league_id=league_id,
-                league_name=league_name,
-                week_start=config.time_range.week_start,
-                week_end=config.time_range.week_end,
-            )
-        )
+    artifacts = ArtifactStore()
+    artifacts.create(
+        "research/brief.md",
+        _build_brief_seed(
+            config,
+            league_id=league_id,
+            league_name=league_name,
+        ),
     )
 
     runner = Runner(
@@ -111,14 +106,7 @@ async def generate_article(
         artifacts=artifacts,
     )
 
-    output = await runner.run(_build_system_prompt(), _build_user_message(config))
-    finalize_memory_run(
-        context_store,
-        output,
-        week=week,
-        allow_writes=allow_memory_writes,
-    )
-    return output
+    return await runner.run(_build_system_prompt(), _build_user_message(config))
 
 
 def _build_registry(
@@ -129,8 +117,7 @@ def _build_registry(
     allow_memory_writes: bool,
 ) -> ToolRegistry:
     registry = ToolRegistry()
-    register_brief_tools(registry)
-    register_article_tools(registry)
+    register_artifact_tools(registry)
     register_procedure_tools(registry)
     register_datalayer_tools(registry, data)
     if context_store is not None:
@@ -202,6 +189,80 @@ def _build_user_message(config: ReportConfig) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _build_brief_seed(
+    config: ReportConfig,
+    *,
+    league_id: str,
+    league_name: str,
+) -> str:
+    """Create the raw Markdown workspace document used throughout a run."""
+    bias = config.bias_profile
+    lines = [
+        "# Research Brief",
+        "",
+        "## Context",
+        "",
+        f"- League: {league_name or '(unknown)'}",
+        f"- League ID: {league_id or '(unknown)'}",
+        (
+            "- Coverage weeks: "
+            f"{config.time_range.week_start}-{config.time_range.week_end}"
+        ),
+        f"- Target length: about {config.length_target} words",
+        f"- Evidence policy: {config.evidence_policy}",
+        "",
+        "## Request",
+        "",
+        f"- Focus hints: {_markdown_list_value(config.focus_hints)}",
+        f"- Focus teams: {_markdown_list_value(config.focus_teams)}",
+        f"- Avoid topics: {_markdown_list_value(config.avoid_topics)}",
+        (
+            "- Custom instructions: "
+            f"{config.custom_instructions.strip() or '(none)'}"
+        ),
+        "",
+        "## Style and Bias",
+        "",
+        f"- Voice: {config.voice}",
+        f"- Snark level: {config.tone.snark_level}",
+        f"- Hype level: {config.tone.hype_level}",
+        f"- Seriousness: {config.tone.seriousness}",
+        f"- Profanity policy: {config.profanity_policy}",
+        (
+            "- Favored teams: "
+            f"{_markdown_list_value(bias.favored_teams if bias else [])}"
+        ),
+        (
+            "- Disfavored teams: "
+            f"{_markdown_list_value(bias.disfavored_teams if bias else [])}"
+        ),
+        f"- Bias intensity: {bias.intensity if bias else 0}",
+        "- Bias rule: framing only; never change facts.",
+        "",
+        "## Verified Facts",
+        "",
+        "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
+        "",
+        "## Verified Callbacks",
+        "",
+        "<!-- INSERT VERIFIED CALLBACKS ABOVE THIS LINE -->",
+        "",
+        "## Storylines",
+        "",
+        "<!-- INSERT STORYLINES ABOVE THIS LINE -->",
+        "",
+        "## Outline",
+        "",
+        "<!-- INSERT OUTLINE ABOVE THIS LINE -->",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _markdown_list_value(values: list[str]) -> str:
+    return ", ".join(values) if values else "(none)"
 
 
 def _append_list(lines: list[str], label: str, values: list[str]) -> None:

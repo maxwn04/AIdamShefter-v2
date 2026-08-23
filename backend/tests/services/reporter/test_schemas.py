@@ -1,199 +1,183 @@
-"""Tests for reporter v2 schemas and state containers."""
+"""Tests for generic reporter artifact schemas and state."""
+
+from __future__ import annotations
+
+import hashlib
 
 import pytest
 from pydantic import ValidationError
 
 from backend.services.reporter.runner.schemas import (
-    Article,
-    ArticleOutput,
-    Fact,
-    ReportBrief,
-    Storyline,
+    ArtifactSnapshot,
+    ReporterOutput,
+    WorkingArtifact,
 )
 from backend.services.reporter.runner.state import (
     ArtifactStore,
+    ArtifactStoreError,
     ProcedureHistoryMode,
     ProcedureState,
     RunnerConfig,
 )
 
 
-class TestFact:
-    def test_basic_fact(self):
-        fact = Fact(
-            id="fact_001",
-            claim_text="Team Taco scored 142.3 points",
-            data_refs=["week_games:week=8"],
-            numbers={"points": 142.3},
-            category="score",
+def test_working_artifact_keeps_immutable_snapshot_history() -> None:
+    artifact = WorkingArtifact.create(path="research/brief.md", content="# Brief")
+    first = artifact.current
+
+    second = artifact.append("# Brief\n\nMore evidence.")
+
+    assert artifact.media_type == "text/markdown"
+    assert artifact.snapshots == (first, second)
+    assert first.revision == 1
+    assert first.content == "# Brief"
+    assert second.revision == 2
+    assert second.media_type == "text/markdown"
+    assert second.content_hash == hashlib.sha256(
+        second.content.encode("utf-8")
+    ).hexdigest()
+    with pytest.raises(ValidationError):
+        first.content = "changed"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "",
+        "/article.md",
+        "../article.md",
+        "research/../article.md",
+        "./article.md",
+        "research\\brief.md",
+        "research//brief.md",
+        "C:/article.md",
+        "article.txt",
+        "article.MD",
+        " article.md",
+    ],
+)
+def test_artifact_paths_are_safe_portable_markdown_paths(path: str) -> None:
+    with pytest.raises(ValidationError):
+        WorkingArtifact.create(path=path, content="content")
+
+
+def test_working_artifact_rejects_invalid_history() -> None:
+    with pytest.raises(ValidationError, match="content_hash"):
+        WorkingArtifact(
+            path="article.md",
+            snapshots=(
+                ArtifactSnapshot(
+                    path="article.md",
+                    content="content",
+                    revision=1,
+                    content_hash="0" * 64,
+                ),
+            ),
         )
 
-        assert fact.id == "fact_001"
-        assert fact.claim_text == "Team Taco scored 142.3 points"
-        assert fact.data_refs == ["week_games:week=8"]
-        assert fact.numbers["points"] == 142.3
-        assert fact.category == "score"
 
-    def test_fact_defaults(self):
-        fact = Fact(id="fact_002", claim_text="Something happened")
+def test_artifact_store_create_read_list_and_casefold_collision() -> None:
+    store = ArtifactStore()
 
-        assert fact.category == "general"
-        assert fact.data_refs == []
-        assert fact.numbers == {}
+    article = store.create("article.md", "# Article")
+    brief = store.create("research/brief.md", "# Brief")
+
+    assert store.read("article.md") is article
+    assert store.list() == (article, brief)
+    with pytest.raises(ArtifactStoreError) as exc_info:
+        store.create("ARTICLE.md", "duplicate")
+    assert exc_info.value.code == "artifact_exists"
 
 
-class TestStoryline:
-    def test_basic_storyline(self):
-        storyline = Storyline(
-            id="story_001",
-            headline="Upset Alert",
-            summary="The underdog pulled off an upset.",
-            supporting_fact_ids=["fact_001", "fact_002"],
-            priority=1,
-            revision_at_set=3,
+def test_edit_appends_revision_and_preserves_prior_snapshot() -> None:
+    store = ArtifactStore()
+    first = store.create("article.md", "Alpha beta")
+
+    second, changed = store.edit(
+        "article.md",
+        old_text="beta",
+        new_text="gamma",
+        expected_revision=1,
+    )
+
+    working = store.artifacts["article.md"]
+    assert changed is True
+    assert working.snapshots == (first, second)
+    assert first.content == "Alpha beta"
+    assert second.content == "Alpha gamma"
+    assert second.revision == 2
+
+
+@pytest.mark.parametrize(
+    ("old_text", "expected_revision", "code"),
+    [
+        ("missing", 1, "match_not_found"),
+        ("same", 1, "match_not_unique"),
+        ("same", 2, "revision_conflict"),
+        ("", 1, "invalid_edit"),
+    ],
+)
+def test_edit_reports_typed_conflicts(
+    old_text: str,
+    expected_revision: int,
+    code: str,
+) -> None:
+    store = ArtifactStore()
+    store.create("article.md", "same and same")
+
+    with pytest.raises(ArtifactStoreError) as exc_info:
+        store.edit(
+            "article.md",
+            old_text=old_text,
+            new_text="new",
+            expected_revision=expected_revision,
         )
-
-        assert storyline.priority == 1
-        assert storyline.revision_at_set == 3
-        assert len(storyline.supporting_fact_ids) == 2
-
-    @pytest.mark.parametrize("priority", [0, 6])
-    def test_priority_bounds(self, priority):
-        with pytest.raises(ValidationError):
-            Storyline(
-                id="story_001",
-                headline="Invalid Priority",
-                summary="This priority is outside the allowed range.",
-                priority=priority,
-            )
+    assert exc_info.value.code == code
 
 
-class TestReportBrief:
-    def test_from_dict(self, sample_v2_brief_dict):
-        brief = ReportBrief.model_validate(sample_v2_brief_dict)
+def test_submit_pins_existing_current_snapshot_without_new_revision() -> None:
+    store = ArtifactStore()
+    current = store.create("article.md", "# Final article")
 
-        assert brief.revision == 2
-        assert brief.meta.league_name == "Test League"
-        assert len(brief.facts) == 2
-        assert len(brief.storylines) == 1
-        assert len(brief.outline.sections) == 1
+    submitted = store.submit("article.md", expected_revision=1)
 
-    def test_get_fact(self, sample_v2_brief_dict):
-        brief = ReportBrief.model_validate(sample_v2_brief_dict)
-
-        fact = brief.get_fact("fact_001")
-        assert fact is not None
-        assert fact.claim_text == "Team Taco defeated The Waiver Wire 142.3-98.7"
-        assert brief.get_fact("nonexistent") is None
-
-    def test_bump_revision(self):
-        brief = ReportBrief()
-
-        assert brief.revision == 0
-        assert brief.bump_revision() == 1
-        assert brief.revision == 1
-
-    def test_staleness_info_empty_when_artifacts_are_current(
-        self, sample_v2_brief_dict
-    ):
-        brief = ReportBrief.model_validate(sample_v2_brief_dict)
-
-        assert brief.staleness_info() == {}
-
-    def test_staleness_info_reports_stale_outline_and_storylines(
-        self, sample_v2_brief_dict
-    ):
-        brief = ReportBrief.model_validate(sample_v2_brief_dict)
-        brief.bump_revision()
-
-        assert brief.staleness_info() == {
-            "outline_stale": True,
-            "outline_gap": "1 mutation(s) since outline was set",
-            "stale_storyline_ids": ["story_001"],
-        }
-
-    def test_staleness_info_skips_empty_outline(self):
-        brief = ReportBrief(revision=2)
-
-        assert brief.staleness_info() == {}
-
-
-class TestArticle:
-    def test_set_and_get_section(self):
-        article = Article()
-
-        article.set_section("opening", "# Opening\n\nHello.")
-        section = article.get_section("opening")
-
-        assert section is not None
-        assert section.content == "# Opening\n\nHello."
-        assert article.section_order == ["opening"]
-
-    def test_set_section_updates_existing_without_duplicate_order(self):
-        article = Article()
-
-        article.set_section("opening", "First draft")
-        article.set_section("opening", "Second draft")
-
-        assert len(article.sections) == 1
-        assert article.get_section("opening").content == "Second draft"
-        assert article.section_order == ["opening"]
-
-    def test_to_markdown_uses_section_order(self):
-        article = Article()
-        article.set_section("opening", "# Opening")
-        article.set_section("closing", "# Closing")
-        article.section_order = ["closing", "opening"]
-
-        assert article.to_markdown() == "# Closing\n\n# Opening"
-
-    def test_to_markdown_uses_section_list_when_order_empty(self):
-        article = Article()
-        article.set_section("opening", "# Opening")
-        article.set_section("closing", "# Closing")
-        article.section_order = []
-
-        assert article.to_markdown() == "# Opening\n\n# Closing"
-
-
-class TestArticleOutput:
-    def test_roundtrip_serialization(self, sample_v2_brief_dict):
-        brief = ReportBrief.model_validate(sample_v2_brief_dict)
-        output = ArticleOutput(
-            article="# Week 8 Recap\n\nContent here...",
-            brief=brief,
-            run_log_summary={"tool_calls": 3},
-            run_log_entries=[
-                {
-                    "event_type": "tool_call",
-                    "data": {"tool_name": "standings", "params": {"week": 8}},
-                }
-            ],
+    working = store.artifacts["article.md"]
+    assert submitted is current
+    assert working.final is current
+    assert working.finalized_revision == 1
+    assert len(working.snapshots) == 1
+    assert store.submitted_path == "article.md"
+    with pytest.raises(ArtifactStoreError) as exc_info:
+        store.edit(
+            "article.md",
+            old_text="Final",
+            new_text="Changed",
+            expected_revision=1,
         )
-
-        roundtripped = ArticleOutput.model_validate(output.model_dump())
-
-        assert roundtripped.article.startswith("# Week 8")
-        assert roundtripped.brief.meta.league_name == "Test League"
-        assert roundtripped.run_log_summary == {"tool_calls": 3}
-        assert roundtripped.run_log_entries[0]["data"]["params"] == {"week": 8}
-        assert roundtripped.generated_at is not None
+    assert exc_info.value.code == "artifact_finalized"
 
 
-class TestRunnerState:
-    def test_artifact_store_defaults(self):
-        store = ArtifactStore()
+def test_reporter_output_exposes_submitted_content_and_all_artifacts() -> None:
+    store = ArtifactStore()
+    store.create("research/brief.md", "# Brief")
+    store.create("article.md", "# Article")
+    store.submit("article.md", expected_revision=1)
 
-        assert isinstance(store.brief, ReportBrief)
-        assert isinstance(store.article, Article)
+    output = ReporterOutput(
+        submitted_path=store.submitted_path,
+        artifacts=store.list(),
+    )
 
-    def test_procedure_state_defaults(self):
-        state = ProcedureState()
+    assert output.article == "# Article"
+    assert output.submitted_artifact == store.submitted_artifact
+    assert [artifact.path for artifact in output.artifacts] == [
+        "article.md",
+        "research/brief.md",
+    ]
 
-        assert state.active is None
 
-    def test_runner_config_defaults(self):
-        config = RunnerConfig()
-
-        assert config.max_turns == 60
-        assert config.procedure_history_mode == ProcedureHistoryMode.REPLACE
+def test_state_defaults() -> None:
+    assert ArtifactStore().artifacts == {}
+    assert ProcedureState().active is None
+    assert RunnerConfig().max_turns == 60
+    assert RunnerConfig().procedure_history_mode == ProcedureHistoryMode.REPLACE
