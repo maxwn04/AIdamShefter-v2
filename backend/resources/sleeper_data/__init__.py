@@ -38,6 +38,7 @@ from backend.resources.sleeper_data.rosters import (
     RosterManager,
     RosterManagerAssignment,
     RosterPlayer,
+    SeasonRosterIdentity,
     SeasonRosterState,
 )
 from backend.resources.sleeper_data.snapshots import (
@@ -95,6 +96,7 @@ __all__ = [
     "RosterPlayer",
     "SealSnapshot",
     "SeasonRosterState",
+    "SeasonRosterIdentity",
     "SnapshotCandidateQuery",
     "SnapshotBuildState",
     "SnapshotFailure",

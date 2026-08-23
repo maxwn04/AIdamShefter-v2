@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from backend.resources.sleeper_data import SnapshotPlanningContext
+from backend.resources.sleeper_data import SeasonRosterIdentity, SnapshotPlanningContext
 from backend.services.datalayer import SnapshotRequest
 from backend.services.datalayer.canonical_json import parse_json_bytes
 from backend.services.datalayer.snapshot_selection import (
@@ -35,6 +35,19 @@ from backend.services.datalayer.sleeper.scope import EndpointKind
 SEASON_ID = UUID("11111111-1111-1111-1111-111111111111")
 COMPETITION_ID = UUID("22222222-2222-2222-2222-222222222222")
 FIXTURES = Path(__file__).parents[4] / "datalayer" / "tests" / "fixtures" / "sleeper"
+
+
+def _roster_identities() -> tuple[SeasonRosterIdentity, ...]:
+    return tuple(
+        SeasonRosterIdentity(
+            competition_id=COMPETITION_ID,
+            competition_season_id=SEASON_ID,
+            season_roster_id=UUID(int=100 + roster_id),
+            franchise_id=UUID(int=200 + roster_id),
+            sleeper_roster_id=str(roster_id),
+        )
+        for roster_id in (1, 2)
+    )
 
 
 def _context(*, playoff_start_week: int | None = 15) -> SnapshotPlanningContext:
@@ -106,9 +119,10 @@ def _fixture_input() -> SnapshotMaterializationInput:
         request=request,
         planning_context=context,
         build_key="a" * 64,
-        snapshot_projection_version="1",
+        snapshot_projection_version="2",
         manifest=SelectedRequestManifest(entries=tuple(manifest)),
         endpoint_records=tuple(endpoints),
+        roster_identities=_roster_identities(),
     )
 
 
@@ -196,3 +210,17 @@ def test_non_numeric_roster_ids_fail_closed() -> None:
         project_source_records(
             materialization.model_copy(update={"endpoint_records": tuple(endpoints)})
         )
+
+
+def test_duplicate_stable_roster_identities_are_rejected() -> None:
+    materialization = _fixture_input()
+    duplicate = materialization.roster_identities[1].model_copy(
+        update={
+            "season_roster_id": materialization.roster_identities[0].season_roster_id
+        }
+    )
+    payload = materialization.model_dump()
+    payload["roster_identities"] = (materialization.roster_identities[0], duplicate)
+
+    with pytest.raises(ValueError, match="duplicate season-roster IDs"):
+        SnapshotMaterializationInput.model_validate(payload)

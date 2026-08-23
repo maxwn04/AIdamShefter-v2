@@ -20,7 +20,7 @@ from sqlalchemy import (
 
 
 SQLITE_APPLICATION_ID = 0x41494441
-SQLITE_USER_VERSION = 1
+SQLITE_USER_VERSION = 2
 
 
 SNAPSHOT_TABLE_ORDER = (
@@ -28,6 +28,7 @@ SNAPSHOT_TABLE_ORDER = (
     "season_context",
     "users",
     "rosters",
+    "roster_identities",
     "team_profiles",
     "draft_picks",
     "players",
@@ -51,7 +52,7 @@ class SnapshotSchema:
     table_order: tuple[str, ...]
 
 
-def _build_v1() -> SnapshotSchema:
+def _build_v2() -> SnapshotSchema:
     metadata = MetaData()
 
     Table(
@@ -95,6 +96,18 @@ def _build_v1() -> SnapshotSchema:
         Column("record_string", Text),
         PrimaryKeyConstraint("league_id", "roster_id"),
         Index("idx_rosters_league_roster", "league_id", "roster_id"),
+    )
+    Table(
+        "roster_identities",
+        metadata,
+        Column("league_id", Text, nullable=False),
+        Column("roster_id", Integer, nullable=False),
+        Column("competition_id", Text, nullable=False),
+        Column("competition_season_id", Text, nullable=False),
+        Column("season_roster_id", Text, nullable=False, unique=True),
+        Column("franchise_id", Text, nullable=False, unique=True),
+        PrimaryKeyConstraint("league_id", "roster_id"),
+        Index("idx_roster_identities_franchise", "franchise_id"),
     )
     Table(
         "team_profiles",
@@ -290,17 +303,17 @@ def _build_v1() -> SnapshotSchema:
         CheckConstraint("singleton_id = 1", name="ck_snapshot_metadata_singleton"),
     )
     tables = MappingProxyType(dict(metadata.tables))
-    return SnapshotSchema("1", metadata, tables, SNAPSHOT_TABLE_ORDER)
+    return SnapshotSchema("2", metadata, tables, SNAPSHOT_TABLE_ORDER)
 
 
-_V1 = _build_v1()
+_V2 = _build_v2()
 
 
 def get_snapshot_schema(projection_version: str) -> SnapshotSchema:
     """Return the exact schema owned by a supported projection version."""
 
-    if projection_version != "1":
+    if projection_version != "2":
         raise ValueError(
             f"unsupported snapshot projection version: {projection_version!r}"
         )
-    return _V1
+    return _V2

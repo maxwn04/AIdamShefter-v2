@@ -20,6 +20,7 @@ from backend.resources.sleeper_data.players.codec import decode_player
 from backend.resources.sleeper_data.rosters.objects import (
     RosterManagerAssignment,
     RosterPlayer,
+    SeasonRosterIdentity,
     SeasonRosterState,
 )
 from backend.services.datalayer.errors import DatalayerResourceNotFound
@@ -35,6 +36,32 @@ class RosterManager:
     ) -> None:
         self._session_factory = session_factory
         self._competition_id = context.scope.competition_id
+
+    def list_roster_identities(
+        self,
+        competition_season_id: UUID,
+    ) -> tuple[SeasonRosterIdentity, ...]:
+        """Return stable identities for every roster in one scoped season."""
+
+        with read_only_session(self._session_factory) as session:
+            rows = session.execute(
+                sa.select(SeasonRoster)
+                .where(
+                    SeasonRoster.competition_season_id == competition_season_id,
+                    SeasonRoster.competition_id == self._competition_id,
+                )
+                .order_by(SeasonRoster.sleeper_roster_id, SeasonRoster.id)
+            ).scalars()
+            return tuple(
+                SeasonRosterIdentity(
+                    competition_id=identity.competition_id,
+                    competition_season_id=identity.competition_season_id,
+                    season_roster_id=identity.id,
+                    franchise_id=identity.franchise_id,
+                    sleeper_roster_id=identity.sleeper_roster_id,
+                )
+                for identity in rows
+            )
 
     def get_roster(self, season_roster_id: UUID) -> SeasonRosterState:
         with read_only_session(self._session_factory) as session:

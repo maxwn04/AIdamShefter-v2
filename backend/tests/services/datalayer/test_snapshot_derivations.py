@@ -66,6 +66,24 @@ def test_derives_profiles_picks_and_deterministic_season_context() -> None:
             "generated_at": None,
         },
     )
+    assert projection.rows_for("roster_identities") == (
+        {
+            "league_id": "123",
+            "roster_id": 1,
+            "competition_id": "22222222-2222-2222-2222-222222222222",
+            "competition_season_id": "11111111-1111-1111-1111-111111111111",
+            "season_roster_id": "00000000-0000-0000-0000-000000000065",
+            "franchise_id": "00000000-0000-0000-0000-0000000000c9",
+        },
+        {
+            "league_id": "123",
+            "roster_id": 2,
+            "competition_id": "22222222-2222-2222-2222-222222222222",
+            "competition_season_id": "11111111-1111-1111-1111-111111111111",
+            "season_roster_id": "00000000-0000-0000-0000-000000000066",
+            "franchise_id": "00000000-0000-0000-0000-0000000000ca",
+        },
+    )
 
 
 def test_malformed_matchup_group_is_omitted_with_warning() -> None:

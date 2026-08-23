@@ -110,6 +110,7 @@ from backend.services.datalayer.versions import (
 )
 
 __all__ = [
+    "AmbiguousRosterIdentity",
     "ApplyDisposition",
     "BracketMatchupRecord",
     "CompletenessWarning",
@@ -126,6 +127,7 @@ __all__ = [
     "EndpointPayloadRejected",
     "FailedSourceAttempt",
     "FrozenLeagueData",
+    "FrozenRosterIdentity",
     "FrozenSnapshotInvalid",
     "INGESTION_NORMALIZER_VERSION",
     "InternalDatalayerFailure",
@@ -153,6 +155,9 @@ __all__ = [
     "RefreshRequest",
     "RefreshStatus",
     "RefreshTrigger",
+    "ResolvedRosterIdentity",
+    "RosterIdentityNotFound",
+    "RosterIdentityResolution",
     "RosterManagerRecord",
     "RosterPlayerRecord",
     "RosterRecord",
@@ -245,17 +250,40 @@ def __getattr__(name: str) -> Any:
         "select_snapshot_requests",
         "SQLiteSnapshotMaterializer",
         "FrozenLeagueData",
+        "FrozenRosterIdentity",
         "FrozenSnapshotInvalid",
+        "AmbiguousRosterIdentity",
+        "ResolvedRosterIdentity",
+        "RosterIdentityNotFound",
+        "RosterIdentityResolution",
     }:
-        if name in {"FrozenLeagueData", "FrozenSnapshotInvalid"}:
+        if name in {
+            "AmbiguousRosterIdentity",
+            "FrozenLeagueData",
+            "FrozenRosterIdentity",
+            "FrozenSnapshotInvalid",
+            "ResolvedRosterIdentity",
+            "RosterIdentityNotFound",
+            "RosterIdentityResolution",
+        }:
             from backend.services.datalayer.query import (
+                AmbiguousRosterIdentity,
                 FrozenLeagueData,
+                FrozenRosterIdentity,
                 FrozenSnapshotInvalid,
+                ResolvedRosterIdentity,
+                RosterIdentityNotFound,
+                RosterIdentityResolution,
             )
 
             return {
+                "AmbiguousRosterIdentity": AmbiguousRosterIdentity,
                 "FrozenLeagueData": FrozenLeagueData,
+                "FrozenRosterIdentity": FrozenRosterIdentity,
                 "FrozenSnapshotInvalid": FrozenSnapshotInvalid,
+                "ResolvedRosterIdentity": ResolvedRosterIdentity,
+                "RosterIdentityNotFound": RosterIdentityNotFound,
+                "RosterIdentityResolution": RosterIdentityResolution,
             }[name]
         if name == "SQLiteSnapshotMaterializer":
             from backend.services.datalayer.snapshot_sqlite import (

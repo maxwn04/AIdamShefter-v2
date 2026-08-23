@@ -8,6 +8,7 @@ consists of:
 
 - an explicit cutoff contract;
 - one selected complete API request per required endpoint scope;
+- one exact stable core identity for every selected Sleeper roster;
 - one snapshot projection version covering normalization, derivation, and
   SQLite compatibility;
 - a content-addressed, read-only SQLite artifact;
@@ -64,7 +65,7 @@ Selection is endpoint-aware:
   comes from the selected Week 8 matchup payload, not from a Week 10 rosters
   response.
 
-V1 does not accept an instant-based domain or observation cutoff. The source
+V2 does not accept an instant-based domain or observation cutoff. The source
 data needed to reconstruct matchups, transactions, lineups, and standings is
 week-scoped, and the datalayer does not need timestamp-level simulation
 precision. Exact knowledge-time replay is deliberately outside this contract.
@@ -100,6 +101,8 @@ sequenceDiagram
     else this caller claimed the build
         Service->>Obs: get season-stable planning settings
         Obs-->>Service: SnapshotPlanningContext
+        Service->>Obs: list stable roster identities
+        Obs-->>Service: SeasonRosterIdentity rows
         Service->>Require: plan(spec, season settings)
         Require-->>Service: SnapshotRequirements
         Service->>Obs: list candidate metadata for required season/scopes
@@ -137,12 +140,12 @@ The manager operations that claim/reuse identity and seal readiness are atomic;
 the overall build is intentionally not one database transaction. Candidate
 reads, payload verification, normalization, SQLite work, and local-file writes
 happen between those operations. If the content-addressed file write succeeds
-but sealing fails, the file is a harmless unreferenced orphan. V1 retains it
+but sealing fails, the file is a harmless unreferenced orphan. V2 retains it
 rather than adding a reference-aware cleanup workflow.
 
 ## Required Request Set
 
-V1 assumes structural league settings remain stable within one competition
+V2 assumes structural league settings remain stable within one competition
 season. `LeagueSeasonManager` returns a season-scoped `SnapshotPlanningContext`
 from the current normalized league configuration; a pure planner expands that
 context and the `SnapshotRequest` into explicit `SnapshotRequirements` using
@@ -153,7 +156,7 @@ artifact's league content and provenance.
 
 The selector never infers that a conditional scope was optional merely because
 no request candidate exists. Historical midseason settings changes are
-deliberately unsupported in v1; supporting them later requires versioned
+deliberately unsupported in v2; supporting them later requires versioned
 settings observations and a snapshot-projection-version change.
 
 For the initial single-season artifact:
@@ -326,6 +329,7 @@ so existing curated SQL can be moved with minimal change:
 - `season_context`;
 - `users`;
 - `rosters`;
+- `roster_identities`;
 - `roster_players`;
 - `team_profiles`;
 - `draft_picks`;
@@ -337,10 +341,11 @@ so existing curated SQL can be moved with minimal change:
 - `transactions`;
 - `transaction_moves`;
 - `playoff_matchups`;
-- `snapshot_metadata` (new).
+- `snapshot_metadata`.
 
-Internal UUID columns may be added alongside the existing `league_id`,
-`roster_id`, and `player_id` columns:
+Projection v2 keeps provider-facing `rosters` compatible and adds a separate
+one-to-one `roster_identities` relation. Each row binds `league_id` plus
+`roster_id` to:
 
 - `competition_id`;
 - `competition_season_id`;
@@ -348,8 +353,10 @@ Internal UUID columns may be added alongside the existing `league_id`,
 - `season_roster_id`.
 
 The initial curated queries continue to scope to one Sleeper league/season.
-Internal IDs support unambiguous tool results and future queries without
-silently combining multiple seasons now.
+The snapshot service reads these UUIDs from the scoped core roster resource and
+requires an exact match with the selected Sleeper roster response before the
+artifact can be built. The materializer and frozen runtime both reject missing,
+duplicate, malformed, or cross-scope mappings.
 
 ### Snapshot metadata table
 
@@ -373,7 +380,8 @@ The materializer:
 
 1. creates a new file using the declared snapshot projection version;
 2. inserts endpoint records in stable key order;
-3. derives snapshot-only facts from explicit selected endpoint records;
+3. derives snapshot-only facts and stable roster identity rows from explicit
+   selected inputs;
 4. inserts snapshot metadata;
 5. runs integrity and leakage checks;
 6. closes the connection and computes file hash/size;
@@ -433,7 +441,7 @@ The reporter does not receive a database storage key. Before
 4. makes the verified immutable file available for the duration of the run;
 5. returns `ReadyDataSnapshot` with a `VerifiedLocalArtifact`.
 
-In v1 the content-addressed file is already local, so resolution does not copy or
+In v2 the content-addressed file is already local, so resolution does not copy or
 download it. If API and worker processes are separated, they must share the
 configured data directory. A future hosted deployment can replace this seam
 with shared storage without changing snapshot identity or query runtime.
@@ -456,6 +464,14 @@ effective week and all identity come from sealed metadata.
 The existing `get_roster_current()` name should become
 `get_roster_at_cutoff()` because “current” inside this runtime always means the
 snapshot boundary, not current PostgreSQL state.
+
+`resolve_roster_identity(roster_key)` is the typed, non-model-facing identity
+seam used by later memory tools. It accepts a positive Sleeper roster ID or an
+exact case-insensitive team/manager name and returns one of
+`ResolvedRosterIdentity`, `AmbiguousRosterIdentity`, or
+`RosterIdentityNotFound`. A resolved value contains the frozen competition,
+competition-season, season-roster, franchise, Sleeper roster, team-name, and
+manager-name identity. It never consults PostgreSQL or source APIs.
 
 ## Curated Query Compatibility
 
@@ -494,7 +510,7 @@ statements, oversized results, and attempts to inspect attached databases.
 
 ## Retention
 
-Ready snapshot membership and meaning are immutable. V1 performs no proactive
+Ready snapshot membership and meaning are immutable. V2 performs no proactive
 snapshot or orphan deletion: healthy ready artifacts and benign unreferenced
 content-addressed files are retained. If a ready artifact is missing or corrupt,
 the service marks its snapshot expired while preserving request membership,

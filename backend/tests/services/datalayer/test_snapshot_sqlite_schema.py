@@ -12,6 +12,7 @@ EXPECTED_TABLES = {
     "season_context",
     "users",
     "rosters",
+    "roster_identities",
     "roster_players",
     "team_profiles",
     "draft_picks",
@@ -27,8 +28,8 @@ EXPECTED_TABLES = {
 }
 
 
-def test_v1_schema_is_snapshot_only_and_complete() -> None:
-    schema = get_snapshot_schema("1")
+def test_v2_schema_is_snapshot_only_and_complete() -> None:
+    schema = get_snapshot_schema("2")
 
     assert set(schema.tables) == EXPECTED_TABLES
     assert set(schema.table_order) == EXPECTED_TABLES
@@ -37,7 +38,7 @@ def test_v1_schema_is_snapshot_only_and_complete() -> None:
 
 
 def test_metadata_omits_volatile_snapshot_instance_fields() -> None:
-    columns = set(get_snapshot_schema("1").tables["snapshot_metadata"].c.keys())
+    columns = set(get_snapshot_schema("2").tables["snapshot_metadata"].c.keys())
 
     assert {
         "build_key",
@@ -47,8 +48,19 @@ def test_metadata_omits_volatile_snapshot_instance_fields() -> None:
     assert not {"snapshot_id", "created_at", "completed_at", "code_version"} & columns
 
 
+def test_roster_identity_table_has_stable_one_to_one_keys() -> None:
+    table = get_snapshot_schema("2").tables["roster_identities"]
+
+    assert [column.name for column in table.primary_key.columns] == [
+        "league_id",
+        "roster_id",
+    ]
+    assert table.c.season_roster_id.unique
+    assert table.c.franchise_id.unique
+
+
 def test_playoff_nodes_have_stable_key_and_legacy_matchup_seam() -> None:
-    table = get_snapshot_schema("1").tables["playoff_matchups"]
+    table = get_snapshot_schema("2").tables["playoff_matchups"]
 
     assert [column.name for column in table.primary_key.columns] == [
         "league_id",
@@ -61,7 +73,7 @@ def test_playoff_nodes_have_stable_key_and_legacy_matchup_seam() -> None:
 
 def test_real_sqlite_ddl_enforces_singleton_metadata(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'schema.sqlite'}")
-    schema = get_snapshot_schema("1")
+    schema = get_snapshot_schema("2")
     schema.metadata.create_all(engine)
     try:
         assert set(inspect(engine).get_table_names()) == EXPECTED_TABLES
@@ -79,7 +91,7 @@ def test_real_sqlite_ddl_enforces_singleton_metadata(tmp_path: Path) -> None:
                     "season_year": 2026,
                     "through_week": 8,
                     "as_of_date": "2026-10-27",
-                    "snapshot_projection_version": "1",
+                    "snapshot_projection_version": "2",
                     "selected_requests_json": "[]",
                     "completeness_warnings_json": "[]",
                 },
@@ -100,7 +112,7 @@ def test_real_sqlite_ddl_enforces_singleton_metadata(tmp_path: Path) -> None:
         engine.dispose()
 
 
-@pytest.mark.parametrize("version", ["", "2", " 1"])
+@pytest.mark.parametrize("version", ["", "1", " 2", "3"])
 def test_unknown_projection_version_is_rejected(version: str) -> None:
     with pytest.raises(ValueError, match="unsupported"):
         get_snapshot_schema(version)

@@ -28,6 +28,7 @@ _DERIVED_TABLES = {
     "team_profiles",
     "draft_picks",
     "season_context",
+    "roster_identities",
 }
 
 
@@ -52,6 +53,7 @@ def derive_snapshot_rows(
     rows["standings"] = standings
     warnings.extend(standing_warnings)
     rows["team_profiles"] = _derive_profiles(materialization, source)
+    rows["roster_identities"] = _derive_roster_identities(materialization)
     rows["draft_picks"] = _derive_draft_picks(materialization, source)
     rows["season_context"] = [
         {
@@ -78,6 +80,26 @@ def derive_snapshot_rows(
         )
     )
     return SnapshotProjection(frozen_rows, ordered_warnings, source.provenance)
+
+
+def _derive_roster_identities(
+    materialization: SnapshotMaterializationInput,
+) -> list[dict[str, Any]]:
+    context = materialization.planning_context
+    return [
+        {
+            "league_id": context.sleeper_league_id,
+            "roster_id": _numeric_roster_id(identity.sleeper_roster_id),
+            "competition_id": str(identity.competition_id),
+            "competition_season_id": str(identity.competition_season_id),
+            "season_roster_id": str(identity.season_roster_id),
+            "franchise_id": str(identity.franchise_id),
+        }
+        for identity in sorted(
+            materialization.roster_identities,
+            key=lambda item: _numeric_roster_id(item.sleeper_roster_id),
+        )
+    ]
 
 
 def _derive_games(
