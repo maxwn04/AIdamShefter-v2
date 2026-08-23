@@ -8,6 +8,8 @@ from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
+
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
 from backend.services.reporter.runner.runner import Runner
@@ -79,7 +81,7 @@ def registry_with(
     description: str = "Test tool",
 ) -> ToolRegistry:
     registry = ToolRegistry()
-    registry.register(name, handler, tool_def(name, description))
+    registry.register(name, handler, tool_def(name, description), "test-v1")
     return registry
 
 
@@ -96,8 +98,17 @@ def test_tool_registry_exposes_specs_and_names() -> None:
 
     assert registry.tool_names == ["lookup"]
     assert registry.tool_specs == [tool_def("lookup")]
+    assert registry.tool_implementation_versions == [("lookup", "test-v1")]
     assert registry.get_handler("lookup") is not None
     assert registry.get_handler("missing") is None
+
+
+def test_tool_registry_requires_an_explicit_implementation_version() -> None:
+    registry = ToolRegistry()
+
+    for invalid in ("", " untrimmed"):
+        with pytest.raises(ValueError, match="implementation version"):
+            registry.register("lookup", lambda: "{}", tool_def("lookup"), invalid)
 
 
 def test_runner_context_tool_dispatch_updates_turn() -> None:
@@ -108,7 +119,12 @@ def test_runner_context_tool_dispatch_updates_turn() -> None:
         return "{}"
 
     registry = ToolRegistry()
-    registry.register_context_tool("context_tool", context_tool, tool_def("context_tool"))
+    registry.register_context_tool(
+        "context_tool",
+        context_tool,
+        tool_def("context_tool"),
+        "test-v1",
+    )
     complete = FakeCompletion(
         [
             make_response(tool_calls=[tool_call("context_tool")]),

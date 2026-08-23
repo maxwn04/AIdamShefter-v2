@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
+DATALAYER_TOOL_IMPLEMENTATION_VERSION = "1"
+
+
 def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
     return {"type": "integer", "description": description}
 
@@ -262,7 +265,12 @@ def register_datalayer_tools(
     handlers = _create_tool_handlers(data)
     for spec in DATALAYER_TOOL_SPECS:
         name = spec["function"]["name"]
-        registry.register(name, _json_handler(handlers[name]), spec)
+        registry.register(
+            name,
+            _json_handler(handlers[name]),
+            spec,
+            DATALAYER_TOOL_IMPLEMENTATION_VERSION,
+        )
 
 
 def _create_tool_handlers(

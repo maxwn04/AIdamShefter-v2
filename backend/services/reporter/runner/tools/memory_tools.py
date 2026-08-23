@@ -18,6 +18,9 @@ from backend.services.reporter.runner.models import ToolDef
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
+
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "1"
+
 if TYPE_CHECKING:
     from reporter_memory.context_store import ContextStore
 
@@ -786,10 +789,18 @@ def register_memory_tools(
         name = spec["function"]["name"]
         if name == "record_memory_verification":
             registry.register_context_tool(
-                name, record_memory_verification, spec
+                name,
+                record_memory_verification,
+                spec,
+                MEMORY_TOOL_IMPLEMENTATION_VERSION,
             )
             continue
-        registry.register(name, handlers[name], spec)
+        registry.register(
+            name,
+            handlers[name],
+            spec,
+            MEMORY_TOOL_IMPLEMENTATION_VERSION,
+        )
 
 
 def _resolve_team_keys(

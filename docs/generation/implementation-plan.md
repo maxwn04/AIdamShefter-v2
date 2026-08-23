@@ -147,10 +147,21 @@ idempotent, media type is immutable, and finalized artifacts reject appends.
 generation can pin only a finalized version that it owns as it succeeds, and
 article-history access begins from the explicit generation pointer.
 
-### `generation-5` — manifest and model-call instrumentation
+### `generation-5a` — generation manifest
 
 - Add immutable manifest contracts, canonical serialization, versioning, and
   hash golden vectors.
+- Add ordered, explicit implementation versions to every registered reporter
+  tool so the manifest seals both schemas and implementations.
+- Keep the manifest input-only: reporter-selected paths and the eventual
+  submitted artifact-version pointer are execution outputs, not sealed inputs.
+
+**Exit gate:** mapping order cannot change manifest identity, ordered tool or
+version changes do, both memory-input variants are explicit, and the generic
+submission schema introduces no path-based output role.
+
+### `generation-5b` — model-call instrumentation
+
 - Extend `CompletionClient` with generation-scoped attempt recording.
 - Record retries and fallbacks as distinct AI calls.
 - Normalize LiteLLM/provider usage into the existing token columns while
@@ -271,9 +282,10 @@ flowchart LR
     G4B --> G4C["G4c artifacts"]
     G3 --> G4D["G4d submitted output"]
     G4C --> G4D
-    G1 --> G5["G5 AI calls/tokens"]
-    G4B --> G5
-    G5 --> G6["G6 tool/progress"]
+    G4D --> G5A["G5a manifest"]
+    G5A --> G5B["G5b AI calls/tokens"]
+    G4B --> G5B
+    G5B --> G6["G6 tool/progress"]
     G6 --> G7["G7 artifact persistence"]
     G3 --> G7
     G4D --> G7
@@ -282,7 +294,7 @@ flowchart LR
     Data["Merged frozen datalayer"] --> G1
     Data --> G9["G9 generation inputs"]
     G4A --> G9
-    G5 --> G9
+    G5B --> G9
     G7 --> G9
     G8 --> G9
     G9 --> G10["G10 finalization"]
