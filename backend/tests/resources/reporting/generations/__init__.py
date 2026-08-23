@@ -1,0 +1,1 @@
+"""Generation lifecycle resource tests."""

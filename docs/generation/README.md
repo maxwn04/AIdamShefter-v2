@@ -3,8 +3,8 @@
 **Status:** Proposed architecture contract for the generation implementation stack
 
 **Scope:** `backend/services/generations`, `backend/services/reporter`, the
-reporting resource aggregate, generation API/worker boundaries, and the adapters
-to frozen datalayer and typed memory
+reporting resource layer, generation API/worker boundaries, and the adapters to
+frozen datalayer and typed memory
 
 **Authoritative persistence baseline:**
 [`docs/database/reporting.md`](../database/reporting.md)

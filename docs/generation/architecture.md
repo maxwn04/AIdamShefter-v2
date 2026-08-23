@@ -39,7 +39,7 @@ flowchart TB
     end
 
     subgraph Resources["backend/resources"]
-        GenerationManager["GenerationManager aggregate"]
+        ReportingManagers["Reporting resource managers"]
         MemoryManagers["Memory managers"]
         SnapshotManager["Datalayer managers"]
     end
@@ -58,8 +58,8 @@ flowchart TB
     Completion --> Recorder
     Runner --> Recorder
     ArtifactState --> Recorder
-    Recorder --> GenerationManager
-    Service --> GenerationManager
+    Recorder --> ReportingManagers
+    Service --> ReportingManagers
     SnapshotService --> SnapshotManager
     MemoryContext --> MemoryManagers
 ```
@@ -106,39 +106,35 @@ It receives capabilities; it does not discover platform state. Specifically, it
 must not import snapshot or refresh services, memory managers, generation ORM
 models, session factories, API dependencies, or worker code.
 
-### Generation resource aggregate
+### Reporting resource managers
 
-The platform architecture permits one manager to own the generation aggregate,
-including its child AI calls, tool calls, artifacts, and versions. That is the
-simplest baseline:
+Reporting persistence follows the resource-per-manager convention used by the
+rest of the backend:
 
 ```text
 centralized reporting ORM models
     -> reporting resource objects
-    -> GenerationManager
+    -> per-resource reporting managers
     -> GenerationService / execution recorder
 ```
 
-`GenerationManager` owns short, scope-checked operations for:
+`GenerationManager` owns short, scope-checked operations for pending creation,
+atomic input pin/start, progress, terminal transitions, and generation reads.
+Child persistence belongs to separate managers:
 
-- pending creation and reads;
-- atomic input pin/start;
-- progress and terminal transitions;
-- AI-call attempt start/finish;
-- tool-call start/finish;
-- stable path-addressed artifact creation, append-only versions, and
-  selected-version finalization; and
-- generation detail/history reads.
+- `AICallManager` owns attempt start/finish and allocation;
+- `ToolCallManager` owns provider-call start/finish and ordinal identity;
+- `ArtifactManager` owns stable path identity and finalization; and
+- `ArtifactVersionManager` owns append-only content revisions.
 
-Separate public managers for AI calls, tool calls, and artifact versions are not
-required while those rows have no lifecycle outside a generation. Internal
-modules may split the SQL by child type without creating public repositories.
+Application services compose these narrow operations when workflow policy spans
+multiple resources.
 
 ### Execution recorder
 
 The execution recorder is a generation-scoped application adapter between the
-reporter execution boundaries and `GenerationManager`. It is not a generic event
-bus and does not own workflow policy.
+reporter execution boundaries and the reporting resource managers. It is not a
+generic event bus and does not own workflow policy.
 
 It is needed in three places:
 
@@ -157,11 +153,12 @@ production generation path always uses the durable recorder.
 ```text
 backend/
 ├── resources/
-│   └── generations/
-│       ├── __init__.py
-│       ├── objects.py          # generation aggregate and child resource objects
-│       ├── manager.py          # scoped lifecycle and aggregate persistence
-│       └── shared.py           # only if cross-resource finalization needs it
+│   └── reporting/
+│       ├── generations/        # lifecycle contracts and GenerationManager
+│       ├── ai_calls/           # AI-call contracts and AICallManager
+│       ├── tool_calls/         # tool-call contracts and ToolCallManager
+│       ├── artifacts/          # artifact contracts and ArtifactManager
+│       └── artifact_versions/  # version contracts and ArtifactVersionManager
 ├── services/
 │   ├── generations/
 │   │   ├── __init__.py
@@ -344,13 +341,13 @@ Allowed:
 
 ```text
 api / worker -> GenerationService
-GenerationService -> generation manager, datalayer services, memory services,
-                     reporter service
+GenerationService -> reporting resource managers, datalayer services,
+                     memory services, reporter service
 reporter generator -> Runner and reporter-owned tool adapters
 reporter data adapter -> FrozenLeagueData
 reporter memory adapter -> GenerationMemoryContext
-execution recorder -> GenerationManager
-GenerationManager -> reporting ORM models and database infrastructure
+execution recorder -> reporting resource managers
+reporting resource managers -> reporting ORM models and database infrastructure
 ```
 
 Forbidden:
