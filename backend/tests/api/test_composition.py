@@ -9,14 +9,17 @@ from backend.composition import (
     build_api_runtime,
     build_datalayer_refresh_dependencies,
     build_datalayer_snapshot_dependencies,
+    build_generation_dependencies,
     build_memory_api_dependencies,
+    build_worker_runtime,
 )
-from backend.config import DatalayerSettings
+from backend.config import DatalayerSettings, GenerationRuntimeSettings
 from backend.database.sessions import create_session_factory
 from backend.resources.context import CompetitionScope, ManagerContext
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.datalayer.snapshot_service import DatalayerSnapshotService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
+from backend.services.generations import GenerationService
 
 
 def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
@@ -36,6 +39,25 @@ def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
         assert runtime.expected_role == "aidam_api"
         assert runtime.require_tls is False
         assert runtime.session_factory.kw["bind"] is runtime.engine
+    finally:
+        runtime.close()
+
+
+def test_build_worker_runtime_uses_worker_url_and_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "AIDAM_WORKER_DATABASE_URL",
+        "postgresql+psycopg://aidam_worker:secret@localhost/aidam_test",
+    )
+    monkeypatch.setenv("AIDAM_DATABASE_REQUIRE_TLS", "false")
+
+    runtime = build_worker_runtime()
+    try:
+        url = make_url(str(runtime.engine.url))
+        assert url.database == "aidam_test"
+        assert runtime.expected_role == "aidam_worker"
+        assert runtime.engine.pool.size() == 2
     finally:
         runtime.close()
 
@@ -123,5 +145,48 @@ def test_datalayer_snapshot_composition_is_scoped_without_opening_a_session(
     )
     try:
         assert isinstance(dependencies.snapshot, DatalayerSnapshotService)
+    finally:
+        engine.dispose()
+
+
+def test_generation_composition_builds_one_scoped_service_without_a_session(
+    tmp_path: Path,
+) -> None:
+    competition_id = uuid4()
+    engine = create_engine("sqlite://")
+    context = ManagerContext[CompetitionScope].model_validate(
+        {
+            "actor": {"kind": "local_user"},
+            "scope": {
+                "kind": "competition",
+                "competition_id": competition_id,
+            },
+            "correlation_id": uuid4(),
+        }
+    )
+    dependencies = build_generation_dependencies(
+        create_session_factory(engine),
+        context,
+        datalayer_settings=DatalayerSettings(
+            data_root=tmp_path,
+            sleeper_base_url="https://source.example/v1",
+            sleeper_timeout_seconds=5,
+            sleeper_max_attempts=3,
+            sleeper_retry_backoff_seconds=0.25,
+            inline_payload_max_bytes=1024,
+            code_version="test",
+        ),
+        runtime_settings=GenerationRuntimeSettings(
+            reporter_revision="reporter-test",
+            generation_revision="generation-test",
+        ),
+    )
+    try:
+        assert isinstance(dependencies.service, GenerationService)
+        assert dependencies.generations.competition_id == competition_id
+        assert dependencies.ai_calls.competition_id == competition_id
+        assert dependencies.tool_calls.competition_id == competition_id
+        assert dependencies.artifacts.competition_id == competition_id
+        assert dependencies.artifact_versions.competition_id == competition_id
     finally:
         engine.dispose()

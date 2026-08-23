@@ -54,9 +54,14 @@ class DatabaseSettings:
         cls,
         process: Literal["api", "worker"],
     ) -> "DatabaseSettings":
-        runtime_url = os.getenv("AIDAM_DATABASE_URL")
+        runtime_name = (
+            "AIDAM_DATABASE_URL"
+            if process == "api"
+            else "AIDAM_WORKER_DATABASE_URL"
+        )
+        runtime_url = os.getenv(runtime_name)
         if not runtime_url:
-            raise ValueError("AIDAM_DATABASE_URL is required")
+            raise ValueError(f"{runtime_name} is required")
         default_pool_size, default_overflow = (5, 5) if process == "api" else (2, 2)
         max_overflow = int(
             os.getenv("AIDAM_DATABASE_MAX_OVERFLOW", str(default_overflow))
@@ -91,6 +96,32 @@ class DatabaseSettings:
             ca_file=self.ca_file,
             require_tls=self.require_tls if require_tls is None else require_tls,
             statement_timeout_ms=self.statement_timeout_ms,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class GenerationRuntimeSettings:
+    """Code revisions sealed into generation input manifests."""
+
+    reporter_revision: str
+    generation_revision: str
+
+    @classmethod
+    def from_environment(cls) -> "GenerationRuntimeSettings":
+        code_revision = os.getenv("AIDAM_CODE_VERSION", "dev").strip()
+        reporter_revision = os.getenv(
+            "AIDAM_REPORTER_REVISION", code_revision
+        ).strip()
+        generation_revision = os.getenv(
+            "AIDAM_GENERATION_REVISION", code_revision
+        ).strip()
+        if not reporter_revision:
+            raise ValueError("AIDAM_REPORTER_REVISION must not be empty")
+        if not generation_revision:
+            raise ValueError("AIDAM_GENERATION_REVISION must not be empty")
+        return cls(
+            reporter_revision=reporter_revision,
+            generation_revision=generation_revision,
         )
 
 

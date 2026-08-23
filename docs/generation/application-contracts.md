@@ -433,8 +433,7 @@ data snapshot.
 
 ## Generation Service Contract
 
-The service surface should distinguish submission from execution even if the
-initial API performs both in one process:
+The service surface distinguishes submission from execution:
 
 ```python
 class GenerationService:
@@ -481,9 +480,26 @@ Routes authenticate/authorize, build context, call manager reads or
 `GenerationService`, and translate typed errors. They do not run model loops,
 open sessions, access artifact paths, or calculate generation policy.
 
-Endpoint paths and synchronous-versus-background submission behavior remain an
-API implementation decision. The database baseline requires polling but does
-not require SSE or a durable queue.
+The initial HTTP boundary is rooted at
+`/api/v1/generations/competitions/{competition_id}`. Submission and explicit
+rerun routes create pending rows, schedule local background execution, and
+return `201`. Collection/detail routes expose polling and history, while nested AI-call,
+tool-call, artifact, and artifact-version routes retain the generation parent in
+their scope. Article history and exact article reads follow
+`submitted_artifact_version_id`, never an artifact path. AI-call summaries and
+details carry recorded token categories without synthesizing totals or pricing.
+
+The FastAPI background callback is synchronous at the transport boundary so
+Starlette runs it in a threadpool. It invokes the same async one-generation
+function as the CLI, constructs worker-scoped dependencies and credentials, and
+closes that runtime deterministically. A one-shot worker command remains the
+manual/recovery entry point. Stale reconciliation is a separate worker command
+with an aware cutoff and bounded limit.
+
+This local dispatch is deliberately non-durable: a hard API-process failure can
+leave a generation pending before execution begins, or running until stale
+reconciliation. The database baseline still requires polling but does not add
+SSE, a durable queue, leases, heartbeats, or automatic resume.
 
 ## User Attribution Gap
 
@@ -499,6 +515,7 @@ Before claiming per-user tracking, decide:
 - how competition access/membership is represented; and
 - whether generations store requester ID, actor snapshot, or both.
 
-Until that decision, the implementation may preserve local-user provenance in
-`ManagerContext` but must not document or expose durable per-user generation
-history.
+Generation-11 chooses the single-local-user option. HTTP requests use
+`LocalUserActor` and competition scope; worker requests use a named
+`SystemProcessActor`. This is an explicit future authentication/authorization
+seam, not durable per-user ownership or competition membership.
