@@ -1,0 +1,235 @@
+"""Competition-scoped manager for durable artifact identities."""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import cast
+from uuid import UUID, uuid4
+
+import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from backend.database.models.reporting import Artifact as StoredArtifact
+from backend.database.models.reporting import ArtifactVersion as StoredArtifactVersion
+from backend.database.models.reporting import Generation as StoredGeneration
+from backend.database.sessions import (
+    SessionFactory,
+    read_only_session,
+    transaction_session,
+)
+from backend.resources.context import CompetitionScope, ManagerContext
+from backend.resources.reporting.artifacts.errors import (
+    ArtifactConcurrencyConflict,
+    ArtifactLifecycleConflict,
+    ArtifactMediaTypeConflict,
+    ArtifactResourceNotFound,
+)
+from backend.resources.reporting.artifacts.objects import (
+    Artifact,
+    ArtifactPage,
+    ArtifactQuery,
+    ArtifactSummary,
+    CreateArtifact,
+    FinalizeArtifact,
+)
+
+
+class ArtifactManager:
+    """Own stable path identities, final selection, and scoped reads."""
+
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        context: ManagerContext[CompetitionScope],
+    ) -> None:
+        self._session_factory = session_factory
+        self._competition_id = context.scope.competition_id
+
+    @property
+    def competition_id(self) -> UUID:
+        return self._competition_id
+
+    def create_artifact(self, command: CreateArtifact) -> Artifact:
+        try:
+            with transaction_session(self._session_factory) as session:
+                generation = self._load_generation(
+                    session, command.generation_id, lock=True
+                )
+                self._require_running(generation)
+                existing = session.scalar(
+                    sa.select(StoredArtifact).where(
+                        StoredArtifact.generation_id == generation.id,
+                        StoredArtifact.path == command.path,
+                    )
+                )
+                if existing is not None:
+                    if existing.media_type != command.media_type:
+                        raise ArtifactMediaTypeConflict(
+                            command.path,
+                            requested_media_type=command.media_type,
+                            actual_media_type=existing.media_type,
+                        )
+                    return _decode(existing)
+                stored = StoredArtifact(
+                    id=uuid4(),
+                    generation_id=generation.id,
+                    path=command.path,
+                    media_type=command.media_type,
+                )
+                session.add(stored)
+                session.flush()
+                return _decode(stored)
+        except IntegrityError:
+            raise ArtifactConcurrencyConflict(
+                "artifact path identity is already allocated"
+            ) from None
+
+    def finalize_artifact(self, command: FinalizeArtifact) -> Artifact:
+        with transaction_session(self._session_factory) as session:
+            stored, generation = self._load_with_generation(
+                session, command.artifact_id, lock=True
+            )
+            if stored.finalized_version_id is not None:
+                if stored.finalized_version_id == command.artifact_version_id:
+                    return _decode(stored)
+                raise ArtifactLifecycleConflict(
+                    stored.id,
+                    "artifact finalization is immutable",
+                    actual_status="finalized",
+                )
+            self._require_running(generation)
+            selected = session.scalar(
+                sa.select(StoredArtifactVersion).where(
+                    StoredArtifactVersion.id == command.artifact_version_id,
+                    StoredArtifactVersion.artifact_id == stored.id,
+                    StoredArtifactVersion.generation_id == stored.generation_id,
+                )
+            )
+            if selected is None:
+                raise ArtifactResourceNotFound(
+                    "artifact_version", command.artifact_version_id
+                )
+            latest_revision = session.scalar(
+                sa.select(sa.func.max(StoredArtifactVersion.revision_number)).where(
+                    StoredArtifactVersion.artifact_id == stored.id
+                )
+            )
+            if selected.revision_number != latest_revision:
+                raise ArtifactConcurrencyConflict(
+                    "only the latest artifact version can be finalized"
+                )
+            stored.finalized_version_id = selected.id
+            stored.finalized_at = datetime.now(UTC)
+            session.flush()
+            return _decode(stored)
+
+    def get(self, artifact_id: UUID) -> Artifact:
+        with read_only_session(self._session_factory) as session:
+            stored, _ = self._load_with_generation(session, artifact_id)
+            return _decode(stored)
+
+    def list(self, query: ArtifactQuery) -> ArtifactPage:
+        with read_only_session(self._session_factory) as session:
+            self._load_generation(session, query.generation_id)
+            conditions: list[sa.ColumnElement[bool]] = [
+                StoredArtifact.generation_id == query.generation_id
+            ]
+            if query.finalized is True:
+                conditions.append(StoredArtifact.finalized_version_id.is_not(None))
+            elif query.finalized is False:
+                conditions.append(StoredArtifact.finalized_version_id.is_(None))
+            total = cast(
+                int,
+                session.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(StoredArtifact)
+                    .where(*conditions)
+                ),
+            )
+            rows = session.scalars(
+                sa.select(StoredArtifact)
+                .where(*conditions)
+                .order_by(StoredArtifact.path.asc(), StoredArtifact.id.asc())
+                .limit(query.limit)
+                .offset(query.offset)
+            ).all()
+            return ArtifactPage(
+                items=tuple(_decode_summary(row) for row in rows),
+                total=total,
+                limit=query.limit,
+                offset=query.offset,
+            )
+
+    def _load_with_generation(
+        self,
+        session: Session,
+        artifact_id: UUID,
+        *,
+        lock: bool = False,
+    ) -> tuple[StoredArtifact, StoredGeneration]:
+        statement = (
+            sa.select(StoredArtifact, StoredGeneration)
+            .join(
+                StoredGeneration,
+                StoredGeneration.id == StoredArtifact.generation_id,
+            )
+            .where(
+                StoredArtifact.id == artifact_id,
+                StoredGeneration.competition_id == self._competition_id,
+            )
+        )
+        if lock:
+            statement = statement.with_for_update(
+                of=(StoredGeneration, StoredArtifact)
+            )
+        row = session.execute(statement).one_or_none()
+        if row is None:
+            raise ArtifactResourceNotFound("artifact", artifact_id)
+        return row._tuple()
+
+    def _load_generation(
+        self,
+        session: Session,
+        generation_id: UUID,
+        *,
+        lock: bool = False,
+    ) -> StoredGeneration:
+        statement = sa.select(StoredGeneration).where(
+            StoredGeneration.id == generation_id,
+            StoredGeneration.competition_id == self._competition_id,
+        )
+        if lock:
+            statement = statement.with_for_update()
+        stored = session.scalar(statement)
+        if stored is None:
+            raise ArtifactResourceNotFound("generation", generation_id)
+        return stored
+
+    @staticmethod
+    def _require_running(generation: StoredGeneration) -> None:
+        if generation.status != "running":
+            raise ArtifactLifecycleConflict(
+                generation.id,
+                "artifacts can change only for a running generation",
+                actual_status=generation.status,
+            )
+
+
+def _decode(stored: StoredArtifact) -> Artifact:
+    return Artifact(
+        id=stored.id,
+        generation_id=stored.generation_id,
+        path=stored.path,
+        media_type=stored.media_type,
+        finalized_version_id=stored.finalized_version_id,
+        finalized_at=stored.finalized_at,
+        created_at=stored.created_at,
+    )
+
+
+def _decode_summary(stored: StoredArtifact) -> ArtifactSummary:
+    return ArtifactSummary.model_validate(_decode(stored).model_dump())
+
+
+__all__ = ["ArtifactManager"]
