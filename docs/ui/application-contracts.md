@@ -21,7 +21,7 @@ Generation routes already exist under
 
 | Capability | Route | UI readiness |
 | --- | --- | --- |
-| Submit generation | `POST /generations/competitions/{competition_id}` | Implemented; body already includes kind, season, weeks, primary model, and nested settings |
+| Submit generation | `POST /generations/competitions/{competition_id}` | Implemented; body includes kind, season, explicit weeks, primary model, and nested settings, and rejects a primary model duplicated in the fallback chain |
 | Rerun exact request | `POST /generations/competitions/{competition_id}/{generation_id}/reruns` | Implemented |
 | Run history | `GET /generations/competitions/{competition_id}` | Implemented with season/kind/status/rerun filters |
 | Submitted article history | `GET /generations/competitions/{competition_id}/articles` | Implemented with season/kind filters |
@@ -32,10 +32,9 @@ Generation routes already exist under
 | Artifact list/detail | `GET .../{generation_id}/artifacts[/{artifact_id}]` | Implemented |
 | Artifact versions | `GET .../{generation_id}/artifacts/{artifact_id}/versions[/{version_id}]` | Implemented |
 
-The current `backend/api/routes/data.py` registers only an empty `/data`
-router. Core competition/season persistence, refresh service, snapshot manager,
-and evaluation-workspace tables exist, but they do not yet have complete
-product resource/service/HTTP surfaces.
+Competition and season management plus refresh, overview, and snapshot-audit
+routes are implemented. Evaluation-workspace tables exist, but their product
+resource, service, and HTTP surfaces remain deferred to Layer 9.
 
 The existing generation route hierarchy is functional but inverted. Before a
 public client contract is stable, consider moving it to
@@ -203,11 +202,23 @@ described above remains authoritative.
 The existing generation contract is enough to create basic live and read-only
 backtest runs. These additions complete the planned UI:
 
+For Layer 7, the UI always submits explicit `week_start` and `week_end` values;
+it does not derive or imply a current week. Live mode is offered only for the
+latest attached season. Selecting an older season uses `backtest`, which pins
+historical memory at or before the requested cutoff and cannot write canonical
+memory. This latest-season restriction is currently a UI safety policy rather
+than an API invariant, so non-UI clients remain responsible for selecting the
+appropriate kind. Live runs may write canonical memory on success.
+
+Layer 7 does not expose an isolated or promotable simulation mode. That mode,
+its evaluation workspace, and promote/discard commands remain Layer 9 work;
+the available historical backtest is read-only.
+
 | Method and path | Purpose | Priority |
 | --- | --- | --- |
 | `POST .../{generation_id}/cancel` | Cancel a pending/running generation | Should-have; manager supports cancellation |
 | Extend article/run list query | Model, week overlap, completion range, request text | Later unless list size demands it |
-| Extend generation body | Explicit memory mode and optional `evaluation_workspace_id` for isolated simulation sequencing | Required for workspace promotion |
+| Extend generation body | Explicit memory mode and optional `evaluation_workspace_id` for isolated simulation sequencing | Layer 9; required for workspace promotion |
 | `GET .../{generation_id}/usage` | Aggregate tokens, latency, calls, and price quote | Required |
 | Optional `GET .../{generation_id}/audit` | One bounded detail projection for article + artifacts + calls | Optimization only; existing resources remain authoritative |
 

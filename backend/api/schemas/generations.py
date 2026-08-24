@@ -40,9 +40,13 @@ class SubmitGenerationBody(GenerationApiModel):
     settings: GenerationSettings = Field(default_factory=GenerationSettings)
 
     @model_validator(mode="after")
-    def validate_week_range(self) -> "SubmitGenerationBody":
+    def validate_submission(self) -> "SubmitGenerationBody":
         if self.week_start > self.week_end:
             raise ValueError("week_start cannot be after week_end")
+        if self.requested_primary_model in self.settings.model.fallback_models:
+            raise ValueError(
+                "requested_primary_model cannot duplicate a fallback model"
+            )
         return self
 
 
