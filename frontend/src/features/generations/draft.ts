@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import type { SubmitGenerationBody } from "@/features/generations/api";
+import type {
+  GenerationDetail,
+  SubmitGenerationBody,
+} from "@/features/generations/api";
 
 export const GENERATION_DRAFT_VERSION = 1 as const;
 export const GENERATION_WEEK_OPTIONS = Array.from(
@@ -143,6 +146,162 @@ export const generationFormSchema = generationDraftValuesSchema.superRefine(
 );
 
 export type GenerationFormValues = z.output<typeof generationFormSchema>;
+
+const persistedNonBlankStringSchema = z
+  .string()
+  .min(1)
+  .refine((value) => value === value.trim());
+const persistedStringListSchema = z.array(persistedNonBlankStringSchema);
+const persistedControlLevelSchema = z.number().int().min(0).max(3);
+
+export const persistedGenerationSettingsSchema = z
+  .object({
+    schema_version: z.literal(1),
+    report: z
+      .object({
+        focus_hints: persistedStringListSchema,
+        avoid_topics: persistedStringListSchema,
+        focus_teams: persistedStringListSchema,
+        voice: persistedNonBlankStringSchema,
+        tone: z
+          .object({
+            snark_level: persistedControlLevelSchema,
+            hype_level: persistedControlLevelSchema,
+            seriousness: persistedControlLevelSchema,
+          })
+          .strict(),
+        profanity_policy: z.enum(["none", "mild", "unrestricted"]),
+        bias: z
+          .object({
+            favored_teams: persistedStringListSchema,
+            disfavored_teams: persistedStringListSchema,
+            intensity: persistedControlLevelSchema,
+          })
+          .strict()
+          .nullable(),
+        length_target: z.number().int().min(1),
+        evidence_policy: z.enum(["strict", "standard", "relaxed"]),
+      })
+      .strict(),
+    model: z
+      .object({
+        fallback_models: persistedStringListSchema,
+        retry: z
+          .object({
+            max_retries: z.number().int().min(0),
+            base_delay_seconds: z.number().positive(),
+            max_delay_seconds: z.number().positive(),
+          })
+          .strict(),
+      })
+      .strict(),
+    runner: z
+      .object({
+        max_turns: z.number().int().min(1),
+        procedure_history_mode: z.enum(["replace", "append"]),
+      })
+      .strict(),
+    input_policy: z
+      .object({
+        snapshot_refresh: z.literal("never"),
+        snapshot_as_of_date: z.literal("execution_utc_date"),
+        backtest_memory: z.literal("latest_same_season_at_or_before_week"),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((settings, context) => {
+    if (
+      settings.model.retry.max_delay_seconds <
+      settings.model.retry.base_delay_seconds
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Maximum delay must be at least the base delay.",
+        path: ["model", "retry", "max_delay_seconds"],
+      });
+    }
+
+    if (
+      new Set(settings.model.fallback_models).size !==
+      settings.model.fallback_models.length
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Fallback models must be unique.",
+        path: ["model", "fallback_models"],
+      });
+    }
+  });
+export type PersistedGenerationSettings = z.output<
+  typeof persistedGenerationSettingsSchema
+>;
+
+const generationEditSourceSchema = z.object({
+  competition_season_id: z.uuid(),
+  kind: z.enum(["live", "backtest"]),
+  request_text: persistedNonBlankStringSchema,
+  week_start: z.number().int().min(1).max(18),
+  week_end: z.number().int().min(1).max(18),
+  requested_primary_model: persistedNonBlankStringSchema,
+  settings: persistedGenerationSettingsSchema,
+});
+
+/**
+ * Reconstruct an editable form only from a complete, supported persisted run.
+ * Undefined means the run is unsafe to copy; callers should leave existing
+ * drafts untouched and explain that the saved settings cannot be edited.
+ */
+export function createGenerationFormValuesFromDetail(
+  generation: GenerationDetail,
+): GenerationFormValues | undefined {
+  const sourceResult = generationEditSourceSchema.safeParse(generation);
+  if (!sourceResult.success) return undefined;
+
+  const source = sourceResult.data;
+  const settings = source.settings;
+  const valuesResult = generationFormSchema.safeParse({
+    competitionSeasonId: source.competition_season_id,
+    mode: source.kind,
+    requestText: source.request_text,
+    weekStart: source.week_start,
+    weekEnd: source.week_end,
+    requestedPrimaryModel: source.requested_primary_model,
+    report: {
+      focusHints: settings.report.focus_hints,
+      avoidTopics: settings.report.avoid_topics,
+      focusTeams: settings.report.focus_teams,
+      voice: settings.report.voice,
+      tone: {
+        snarkLevel: settings.report.tone.snark_level,
+        hypeLevel: settings.report.tone.hype_level,
+        seriousness: settings.report.tone.seriousness,
+      },
+      profanityPolicy: settings.report.profanity_policy,
+      bias: {
+        favoredTeams: settings.report.bias?.favored_teams ?? [],
+        disfavoredTeams: settings.report.bias?.disfavored_teams ?? [],
+        intensity: settings.report.bias?.intensity ?? 1,
+      },
+      lengthTarget: settings.report.length_target,
+      evidencePolicy: settings.report.evidence_policy,
+    },
+    model: {
+      fallbackModels: settings.model.fallback_models,
+      retry: {
+        maxRetries: settings.model.retry.max_retries,
+        baseDelaySeconds: settings.model.retry.base_delay_seconds,
+        maxDelaySeconds: settings.model.retry.max_delay_seconds,
+      },
+    },
+    runner: {
+      maxTurns: settings.runner.max_turns,
+      procedureHistoryMode: settings.runner.procedure_history_mode,
+    },
+  });
+
+  return valuesResult.success ? valuesResult.data : undefined;
+}
 
 export const generationDraftSchema = z.object({
   version: z.literal(GENERATION_DRAFT_VERSION),
