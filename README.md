@@ -67,6 +67,32 @@ ownership. Background dispatch runs in the API process with worker-scoped
 dependencies and is not durable across a hard API-process failure. There is no
 queue, lease, heartbeat, or automatic resume.
 
+## Frontend
+
+The local operator frontend lives under `frontend/` and requires Node.js
+22.22.x plus pnpm 11.19.0. With the API listening on `127.0.0.1:8000`:
+
+```bash
+cd frontend
+pnpm install --frozen-lockfile
+pnpm dev
+```
+
+Vite serves the application on `http://127.0.0.1:5173` and proxies `/api` and
+`/health` to the local API. Set `AIDAM_API_PROXY_TARGET` to use another
+development API origin. `VITE_API_BASE_URL` is optional and defaults to
+same-origin requests.
+
+The committed TypeScript API contract is generated directly from FastAPI:
+
+```bash
+pnpm api:generate
+pnpm api:check
+```
+
+Set `AIDAM_PYTHON` only when the generator cannot discover the repository's
+Python virtual environment.
+
 ## Tests
 
 ```bash
