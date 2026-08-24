@@ -1160,10 +1160,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Latest Version At */
+            latest_version_at: string | null;
             /** Media Type */
             media_type: string;
             /** Path */
             path: string;
+            /** Revision Count */
+            revision_count: number;
         };
         /** ArtifactVersion */
         ArtifactVersion: {

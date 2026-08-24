@@ -272,7 +272,13 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
         finalized_at=NOW,
         created_at=NOW,
     )
-    artifact_summary = ArtifactSummary.model_validate(artifact.model_dump())
+    artifact_summary = ArtifactSummary.model_validate(
+        {
+            **artifact.model_dump(),
+            "revision_count": 2,
+            "latest_version_at": NOW,
+        }
+    )
     version = ArtifactVersion(
         id=version_id,
         artifact_id=artifact_id,
@@ -504,6 +510,11 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     }
     assert tool_call.json()["tool_call"]["full_result_text"] == '{"found":true}'
     assert artifacts.json()["page"]["items"][0]["path"] == "article.md"
+    assert artifacts.json()["page"]["items"][0]["revision_count"] == 2
+    assert (
+        artifacts.json()["page"]["items"][0]["latest_version_at"]
+        == "2026-08-23T09:30:00Z"
+    )
     assert versions.json()["page"]["items"][0]["revision_number"] == 2
     assert version.json()["version"]["content_hash"] == "b" * 64
     assert dependencies.articles.queries[0].competition_season_id is None

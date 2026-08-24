@@ -111,11 +111,18 @@ def test_list_orders_paths_and_filters_finalized_artifacts(
     version_manager = ArtifactVersionManager(
         session_factory, generation_context(generation_domain)
     )
+    version_manager.append_artifact_version(
+        AppendArtifactVersion(
+            artifact_id=article.id,
+            content="# Article draft",
+            content_hash=_hash("# Article draft"),
+        )
+    )
     version = version_manager.append_artifact_version(
         AppendArtifactVersion(
             artifact_id=article.id,
-            content="# Article",
-            content_hash=_hash("# Article"),
+            content="# Article final",
+            content_hash=_hash("# Article final"),
         )
     )
     artifact_manager.finalize_artifact(
@@ -126,6 +133,10 @@ def test_list_orders_paths_and_filters_finalized_artifacts(
         "article.md",
         "research/brief.md",
     ]
+    assert page.items[0].revision_count == 2
+    assert page.items[0].latest_version_at == version.created_at
+    assert page.items[1].revision_count == 0
+    assert page.items[1].latest_version_at is None
     finalized = artifact_manager.list(
         ArtifactQuery(generation_id=generation_id, finalized=True)
     )
