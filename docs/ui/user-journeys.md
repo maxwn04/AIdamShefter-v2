@@ -148,13 +148,11 @@ explicitly chooses `Use these settings` on that run.
 
 ### Generation modes
 
-The form presents three product modes while preserving the backend's existing
-`live`/`backtest` kind where applicable:
+The initial form presents the backend's two supported product modes:
 
 | Mode | Factual boundary | Memory effect | Promotion |
 | --- | --- | --- | --- |
 | Live | Selected current boundary | Writes canonical memory on success | Not applicable; already canonical |
-| Current simulation | Selected current boundary | Writes only an evaluation workspace | Eligible for explicit fast-forward promotion while its base remains current |
 | Historical backtest | Historical week cutoff | Historical pinned memory, isolated/read-only | Not eligible under the accepted architecture |
 
 Live mode is described as “generate from the selected current season boundary
@@ -163,31 +161,17 @@ warns when no usable observations exist. Because generation currently never
 refreshes implicitly, the warning provides a `Refresh now` action and returns
 to the preserved form afterward.
 
-### Simulation and backtest behavior
+### Backtest behavior
 
 Backtest mode makes the historical boundary prominent and explains that future
 Sleeper data is physically excluded from the frozen snapshot. It also explains
-the memory limitation accurately: the existing simple backtest path pins an
-earlier canonical revision and disables writes; promotable simulated memory
-requires an evaluation workspace.
+the memory limitation accurately: the backtest path pins an earlier canonical
+revision and disables writes.
 
-When evaluation workspaces are available, submitting a current simulation
-creates or selects the competition's active workspace and records the run in
-that workspace. The form does not offer an “automatically promote on success”
-checkbox. After a successful workspace run, the generation page offers:
-
-- `Promote memory`, enabled only if the workspace is complete and its base is
-  still the canonical head; and
-- `Discard simulation`, which closes the workspace without canonical changes.
-
-Promotion shows the base revision, proposed resulting revision, run count, and
-a confirmation warning. A stale-base conflict instructs the user to discard or
-restart the simulation; it never silently merges competing memory.
-
-A historical workspace started from an old memory revision remains useful for
-longitudinal evaluation, but promotion is disabled with an explanation. If the
-product must promote historical results, that decision first changes the
-durable memory policy; the frontend must not imply that a merge/rebase exists.
+The initial product does not expose current simulation, writable backtest,
+workspace, promotion, discard, merge, rebase, or stale-workspace recovery
+controls. Those behaviors require a separate memory-architecture decision and
+must not be inferred from unused database scaffolding.
 
 ### Model selection
 

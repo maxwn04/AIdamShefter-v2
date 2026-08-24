@@ -1,14 +1,17 @@
 # AIdamShefter-v2
 
-AI-powered fantasy football reporter. Fetches Sleeper league data, loads it into
-an in-memory SQLite database, uses persistent reporter memory for narrative
-continuity, and writes data-grounded articles with the reporter v2 runner.
+AI-powered fantasy football reporter. It refreshes Sleeper league data into a
+durable PostgreSQL product database, maintains narrative memory, and writes
+data-grounded articles through the reporter generation service.
 
 ## Setup
 
 ```bash
 uv python install
-uv sync
+uv sync --locked
+corepack enable
+corepack install --global pnpm@11.19.0
+pnpm --dir frontend install --frozen-lockfile
 ```
 
 `uv` reads `.python-version`, creates the project-local `.venv`, and installs
@@ -19,6 +22,18 @@ the exact dependency versions recorded in `uv.lock`. Copy `.env.example` to
 SLEEPER_LEAGUE_ID=<league_id>
 OPENAI_API_KEY=<key>
 ```
+
+The checked-in database values are for the isolated local Compose service. Start
+it and apply the current schema before starting the application:
+
+```bash
+docker compose -f compose.database.yml up --detach --wait
+uv run --env-file .env alembic -c backend/migrations/alembic.ini upgrade head
+```
+
+The Compose database stores its data in a temporary filesystem and starts empty
+after the service is recreated. It is intended for local development and release
+review, not durable deployment.
 
 ## Quick Start
 
@@ -41,9 +56,7 @@ generation boundary. Generation submission creates a pending row and schedules
 worker-scoped execution as a FastAPI background task after sending the response.
 
 ```bash
-export AIDAM_DATABASE_URL=postgresql+psycopg://aidam_api:password@localhost/aidam
-export AIDAM_DATABASE_REQUIRE_TLS=false  # isolated local PostgreSQL only
-uv run aidam-api
+uv run --env-file .env aidam-api
 ```
 
 The server listens on `127.0.0.1:8000` by default. Override that with
@@ -51,14 +64,20 @@ The server listens on `127.0.0.1:8000` by default. Override that with
 `/health/live`; readiness at `/health/ready` also verifies the configured
 database name, runtime role, and TLS policy.
 
+Confirm both checks before opening the frontend:
+
+```bash
+curl http://127.0.0.1:8000/health/live
+curl http://127.0.0.1:8000/health/ready
+```
+
 Submit a generation under
 `/api/v1/generations/competitions/{competition_id}` to schedule it automatically.
 The one-shot worker command remains available for manual execution and recovery:
 
 ```bash
-export AIDAM_WORKER_DATABASE_URL=postgresql+psycopg://aidam_worker:password@localhost/aidam
-uv run aidam-worker execute --competition-id <uuid> --generation-id <uuid>
-uv run aidam-worker reconcile-stale --competition-id <uuid> \
+uv run --env-file .env aidam-worker execute --competition-id <uuid> --generation-id <uuid>
+uv run --env-file .env aidam-worker reconcile-stale --competition-id <uuid> \
   --stale-before 2026-08-23T09:00:00Z --limit 100
 ```
 
@@ -70,24 +89,30 @@ queue, lease, heartbeat, or automatic resume.
 ## Frontend
 
 The local operator frontend lives under `frontend/` and requires Node.js
-22.22.x plus pnpm 11.19.0. With the API listening on `127.0.0.1:8000`:
+22.22.x plus pnpm 11.19.0. Keep the API command above running in one terminal,
+then start Vite from a second terminal:
 
 ```bash
-cd frontend
-pnpm install --frozen-lockfile
-pnpm dev
+pnpm --dir frontend dev
 ```
 
 Vite serves the application on `http://127.0.0.1:5173` and proxies `/api` and
-`/health` to the local API. Set `AIDAM_API_PROXY_TARGET` to use another
-development API origin. `VITE_API_BASE_URL` is optional and defaults to
-same-origin requests.
+`/health` to the local API. The default configuration needs no frontend `.env`.
+To use a different local API port, copy `frontend/.env.example` to
+`frontend/.env` and change `AIDAM_API_PROXY_TARGET`. Leave
+`VITE_API_BASE_URL` blank so browser requests remain same-origin.
+
+This initial release is supported only as a single-operator application bound
+to loopback. FastAPI intentionally does not enable CORS, and the Vite development
+server is the supported frontend serving path. Remote access, public deployment,
+TLS termination, authentication, and production static-asset hosting require a
+separate deployment design and are not supported by this release.
 
 The committed TypeScript API contract is generated directly from FastAPI:
 
 ```bash
-pnpm api:generate
-pnpm api:check
+pnpm --dir frontend api:generate
+pnpm --dir frontend api:check
 ```
 
 Set `AIDAM_PYTHON` only when the generator cannot discover the repository's

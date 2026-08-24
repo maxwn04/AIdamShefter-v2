@@ -20,7 +20,7 @@ The frontend is a standalone TypeScript application under `frontend/`:
 | Frontend automated tests | Deferred until the UI stabilizes or regressions justify them |
 | Formatting/linting | Prettier + ESLint with type-aware rules |
 
-Vite is appropriate because this is an authenticated/local product console, not
+Vite is appropriate because this is a local product console, not
 an SEO-dependent publishing site. Server rendering would add a deployment and
 data-loading model without helping the initial journeys. The backend remains a
 separately runnable FastAPI process.
@@ -107,10 +107,13 @@ Do not duplicate complete API response interfaces by hand. Zod schemas remain
 appropriate for form state because form inputs have UI-specific coercion and
 cross-field validation that differ from wire types.
 
-Development proxies `/api` and health requests to the local FastAPI port. The
-production hosting decision should preserve same-origin `/api` when possible;
-otherwise the backend needs an explicit allowlisted CORS configuration rather
-than `*`.
+Development proxies `/api` and health requests to the loopback FastAPI port.
+The initial release is a local-only operator application: Vite binds to
+`127.0.0.1`, the browser uses same-origin paths through the development proxy,
+and FastAPI remains loopback-bound without CORS. The production build remains a
+quality gate, not a supported deployment command. Remote or multi-user hosting
+requires a separate authentication, TLS, static-hosting, reverse-proxy, and
+allowlisted-CORS decision.
 
 ## Server State and Polling
 
@@ -139,7 +142,7 @@ refresh-history, competition-summary, and relevant generation-readiness keys.
 
 Mutations use server-returned resources and targeted invalidation. Optimistic
 updates are reserved for reversible presentation changes; competition creation,
-refresh, generation, promotion, and discard wait for server confirmation.
+refresh and generation wait for server confirmation.
 
 ## Form Model
 
@@ -201,8 +204,8 @@ that pass and any known limitations in `.context/ui/log.md`.
 
 Frontend tests can be introduced later where evidence makes them valuable—for
 example, a repeatedly broken generation-form mapping, polling lifecycle, cost
-calculation presentation, or canonical-memory promotion flow. No test framework
-is installed preemptively.
+calculation presentation, or another repeatedly broken product journey. No test
+framework is installed preemptively.
 
 ## Delivery and Quality Gates
 
@@ -222,10 +225,11 @@ focus, and status updates until automated accessibility checks are justified.
 
 ## Deferred Choices
 
-- frontend hosting and FastAPI static-asset ownership;
+- remote frontend hosting, reverse-proxy topology, and static-asset ownership;
 - authentication/session transport;
 - websocket or server-sent progress;
 - rich-text article editing;
+- writable simulations, evaluation workspaces, and memory promotion;
 - public article rendering/SEO;
 - multi-competition analytics;
 - a shared JavaScript monorepo/package layer; and
