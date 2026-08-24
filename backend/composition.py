@@ -34,6 +34,7 @@ from backend.resources.memory.search_documents import SearchDocumentManager
 from backend.resources.memory.storylines import StorylineManager
 from backend.resources.memory.triggers import TriggerManager
 from backend.resources.reporting.ai_calls import AICallManager
+from backend.resources.reporting.article_overviews import ArticleOverviewReader
 from backend.resources.reporting.artifact_versions import ArtifactVersionManager
 from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import GenerationManager
@@ -222,6 +223,7 @@ class GenerationDependencies:
     """One competition-scoped generation workflow and its read managers."""
 
     service: GenerationService
+    articles: ArticleOverviewReader
     generations: GenerationManager
     ai_calls: AICallManager
     tool_calls: ToolCallManager
@@ -450,6 +452,11 @@ def build_generation_dependencies(
     )
     return GenerationDependencies(
         service=service,
+        articles=ArticleOverviewReader(
+            session_factory,
+            context,
+            registry,
+        ),
         generations=generations,
         ai_calls=ai_calls,
         tool_calls=tool_calls,

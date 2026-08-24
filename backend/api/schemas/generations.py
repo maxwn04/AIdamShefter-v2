@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from backend.resources._contracts import NonBlankStr
 from backend.resources.reporting.ai_calls import AICall, AICallPage
+from backend.resources.reporting.article_overviews import ArticlePage
 from backend.resources.reporting.artifact_versions import (
     ArtifactVersion,
     ArtifactVersionPage,
@@ -60,6 +61,10 @@ class GenerationDetailResponse(GenerationApiModel):
 
 class GenerationPageResponse(GenerationApiModel):
     page: GenerationPage
+
+
+class ArticlePageResponse(GenerationApiModel):
+    page: ArticlePage
 
 
 class GenerationUsageResponse(GenerationApiModel):

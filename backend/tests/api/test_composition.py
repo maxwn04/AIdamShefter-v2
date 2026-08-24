@@ -25,6 +25,7 @@ from backend.resources.core import (
     CompetitionOverviewReader,
     CompetitionSeasonManager,
 )
+from backend.resources.reporting.article_overviews import ArticleOverviewReader
 from backend.resources.sleeper_data import (
     DataSnapshotManager,
     LeagueSeasonManager,
@@ -281,6 +282,7 @@ def test_generation_composition_builds_one_scoped_service_without_a_session(
         assert dependencies.tool_calls.competition_id == competition_id
         assert dependencies.artifacts.competition_id == competition_id
         assert dependencies.artifact_versions.competition_id == competition_id
+        assert isinstance(dependencies.articles, ArticleOverviewReader)
         assert isinstance(dependencies.usage, GenerationUsageService)
     finally:
         engine.dispose()

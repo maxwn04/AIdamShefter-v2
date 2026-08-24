@@ -24,7 +24,7 @@ Generation routes already exist under
 | Submit generation | `POST /generations/competitions/{competition_id}` | Implemented; body includes kind, season, explicit weeks, primary model, and nested settings, and rejects a primary model duplicated in the fallback chain |
 | Rerun exact request | `POST /generations/competitions/{competition_id}/{generation_id}/reruns` | Implemented |
 | Run history | `GET /generations/competitions/{competition_id}` | Implemented with season/kind/status/rerun filters |
-| Submitted article history | `GET /generations/competitions/{competition_id}/articles` | Implemented with season/kind filters |
+| Submitted article history | `GET /generations/competitions/{competition_id}/articles` | Implemented with season/kind filters and a set-based article/usage projection |
 | Run detail | `GET /generations/competitions/{competition_id}/{generation_id}` | Implemented |
 | Submitted article | `GET /generations/competitions/{competition_id}/{generation_id}/article` | Implemented and returns the exact generation, artifact, and version |
 | AI call list/detail | `GET .../{generation_id}/ai-calls[/{ai_call_id}]` | Implemented |
@@ -299,15 +299,19 @@ Until these contracts exist, the UI must accurately offer basic read-only
 backtests and hide promotion rather than exposing a control that cannot preserve
 simulated memory.
 
-## Article List Projection Gap
+## Article List Projection
 
-The implemented article list returns `GenerationSummary`, which has no article
-title/excerpt, actual-model summary, aggregate tokens, cost, or log counts. A
-first UI can fetch these after opening one article, but a useful paged library
-must not issue child requests for every row. Extend the article summary read
-model with submitted-output presentation metadata and usage summary, or add a
-dedicated article projection. Title should eventually be persisted as output
-metadata; deriving the first Markdown heading is only an MVP fallback.
+The article list uses a dedicated set-based projection rather than returning a
+plain `GenerationSummary` or issuing child requests for every row. It joins the
+exact submitted artifact version and season presentation data, then reads the
+page's compact AI usage in one additional query. Each summary includes article
+identity, a first-H1-derived title with a deterministic fallback, assignment and
+scope metadata, actual provider/model attempts, aggregate tokens, and the
+backend-owned current-price estimate with completeness and quote time.
+
+Title should eventually be persisted as explicit submitted-output metadata.
+The derived Markdown heading is the accepted MVP presentation fallback and is
+never used as durable identity.
 
 ## Error and Pagination Contract
 

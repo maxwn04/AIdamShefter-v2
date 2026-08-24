@@ -13,6 +13,7 @@ from backend.api.dispatch import GenerationDispatcher
 from backend.api.schemas.generations import (
     AICallPageResponse,
     AICallResponse,
+    ArticlePageResponse,
     ArtifactPageResponse,
     ArtifactResponse,
     ArtifactVersionPageResponse,
@@ -32,6 +33,7 @@ from backend.resources.reporting.ai_calls import (
     AICallResourceNotFound,
     AICallStatus,
 )
+from backend.resources.reporting.article_overviews import ArticleQuery
 from backend.resources.reporting.artifact_versions import (
     ArtifactVersionQuery,
     ArtifactVersionResourceNotFound,
@@ -141,24 +143,23 @@ def generation_history(
     return GenerationPageResponse(page=page)
 
 
-@router.get("/articles", response_model=GenerationPageResponse)
+@router.get("/articles", response_model=ArticlePageResponse)
 def article_history(
     dependencies: GenerationApi,
     competition_season_id: UUID | None = None,
     kind: GenerationKind | None = None,
     limit: PageLimit = 50,
     offset: PageOffset = 0,
-) -> GenerationPageResponse:
-    page = dependencies.generations.list(
-        GenerationQuery(
+) -> ArticlePageResponse:
+    page = dependencies.articles.list(
+        ArticleQuery(
             competition_season_id=competition_season_id,
             kind=kind,
-            submitted_only=True,
             limit=limit,
             offset=offset,
         )
     )
-    return GenerationPageResponse(page=page)
+    return ArticlePageResponse(page=page)
 
 
 @router.get("/{generation_id}", response_model=GenerationDetailResponse)

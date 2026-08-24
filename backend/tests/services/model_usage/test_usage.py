@@ -7,7 +7,11 @@ from backend.resources.reporting.ai_calls import (
     AICallSummary,
     TokenUsage,
 )
-from backend.services.model_usage import GenerationUsageService, LiteLLMModelRegistry
+from backend.services.model_usage import (
+    GenerationUsageService,
+    LiteLLMModelRegistry,
+    summarize_generation_usage,
+)
 
 
 NOW = datetime(2026, 8, 23, 12, 0, tzinfo=UTC)
@@ -111,6 +115,34 @@ def test_usage_aggregates_attempts_models_tokens_latency_and_cost() -> None:
     assert result.complete is True
     assert result.breakdowns[0].attempt_count == 2
     assert result.breakdowns[0].estimated_cost == "0.00028"
+
+
+def test_shared_usage_summarizer_matches_service_pricing_semantics() -> None:
+    call = _call(
+        usage=TokenUsage(
+            input_tokens=100,
+            cached_input_tokens=20,
+            output_tokens=40,
+            reasoning_tokens=10,
+            total_tokens=140,
+        )
+    )
+    registry = LiteLLMModelRegistry(
+        remote_loader=lambda: MODEL_MAP,
+        fallback_loader=lambda: {},
+    )
+
+    result = summarize_generation_usage(
+        GENERATION_ID,
+        (call,),
+        registry,
+        quoted_at=NOW,
+    )
+
+    assert result.tokens.total_tokens == 140
+    assert result.estimated_cost == "0.00018"
+    assert result.complete is True
+    assert result.quoted_at == NOW
 
 
 def test_usage_returns_partial_estimate_and_identifies_affected_calls() -> None:
