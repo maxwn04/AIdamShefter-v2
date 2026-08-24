@@ -24,6 +24,7 @@ from backend.resources.core import (
     CompetitionManager,
     CompetitionOverviewReader,
     CompetitionSeasonManager,
+    RosterMappingManager,
 )
 from backend.resources.memory.context_notes import ContextNoteManager
 from backend.resources.memory.events import EventManager
@@ -53,6 +54,7 @@ from backend.services.datalayer import (
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.generations import GenerationFinalizer, GenerationService
+from backend.services.league import RosterMappingService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.model_usage import (
     GenerationUsageService,
@@ -180,6 +182,7 @@ class CompetitionSeasonDependencies:
 
     seasons: CompetitionSeasonManager
     overviews: CompetitionOverviewReader
+    roster_mappings: RosterMappingService
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,12 +245,24 @@ def build_competition_catalog_dependencies(
 def build_competition_season_dependencies(
     session_factory: SessionFactory,
     context: ManagerContext[CompetitionScope],
+    *,
+    settings: DatalayerSettings | None = None,
 ) -> CompetitionSeasonDependencies:
     """Compose scoped season lifecycle and overview reads."""
 
+    resolved = settings or DatalayerSettings.from_environment()
+    mapping_manager = RosterMappingManager(session_factory, context)
+    requests = ApiRequestManager(session_factory, context)
+    scopes = NormalizedScopeManager(session_factory, context)
     return CompetitionSeasonDependencies(
         seasons=CompetitionSeasonManager(session_factory, context),
         overviews=CompetitionOverviewReader(session_factory),
+        roster_mappings=RosterMappingService(
+            mappings=mapping_manager,
+            requests=requests,
+            scopes=scopes,
+            files=LocalDatalayerFileStore(resolved.data_root),
+        ),
     )
 
 
@@ -301,6 +316,12 @@ def build_datalayer_refresh_dependencies(
     scopes = NormalizedScopeManager(session_factory, context)
     identities = LeagueSeasonManager(session_factory, context)
     files = LocalDatalayerFileStore(resolved.data_root)
+    roster_mappings = RosterMappingService(
+        mappings=RosterMappingManager(session_factory, context),
+        requests=attempts,
+        scopes=scopes,
+        files=files,
+    )
     return DatalayerRefreshDependencies(
         refresh=DatalayerRefreshService(
             source=source,
@@ -313,6 +334,7 @@ def build_datalayer_refresh_dependencies(
             max_attempts=resolved.sleeper_max_attempts,
             retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
             inline_payload_max_bytes=resolved.inline_payload_max_bytes,
+            roster_mappings=roster_mappings,
         ),
         source=source,
     )
@@ -335,17 +357,25 @@ def build_data_api_dependencies(
     attempts = ApiRequestManager(session_factory, context)
     scopes = NormalizedScopeManager(session_factory, context)
     league_seasons = LeagueSeasonManager(session_factory, context)
+    files = LocalDatalayerFileStore(resolved.data_root)
+    roster_mappings = RosterMappingService(
+        mappings=RosterMappingManager(session_factory, context),
+        requests=attempts,
+        scopes=scopes,
+        files=files,
+    )
     refresh = DatalayerRefreshService(
         source=source,
         identities=league_seasons,
         refreshes=refreshes,
         attempts=attempts,
         scopes=scopes,
-        files=LocalDatalayerFileStore(resolved.data_root),
+        files=files,
         code_version=resolved.code_version,
         max_attempts=resolved.sleeper_max_attempts,
         retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
         inline_payload_max_bytes=resolved.inline_payload_max_bytes,
+        roster_mappings=roster_mappings,
     )
     return DataApiDependencies(
         refresh=refresh,

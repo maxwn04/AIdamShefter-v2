@@ -32,6 +32,7 @@ from backend.services.datalayer.contracts import (
 from backend.services.datalayer.errors import (
     DatalayerScopeConflict,
     EndpointPayloadRejected,
+    RosterIdentityMappingRequired,
 )
 from backend.services.datalayer.local_files import (
     LocalArtifactKind,
@@ -42,6 +43,8 @@ from backend.services.datalayer.sleeper.endpoints import (
     CompletenessFinding,
     EndpointRecords,
     LeagueEndpointRecords,
+    LeagueRostersEndpointRecords,
+    LeagueUsersEndpointRecords,
     NflStateEndpointRecords,
     build_league_request,
     build_league_rosters_request,
@@ -122,6 +125,15 @@ class ScopeWriter(Protocol):
     ) -> ApplyResult: ...
 
 
+class FirstSeasonRosterMapper(Protocol):
+    def bootstrap_first_season(
+        self,
+        competition_season_id: UUID,
+        rosters: LeagueRostersEndpointRecords,
+        users: LeagueUsersEndpointRecords | None,
+    ) -> None: ...
+
+
 @dataclass(frozen=True, slots=True)
 class PlannedRefresh:
     requests: tuple[EndpointRequest, ...]
@@ -155,6 +167,7 @@ class DatalayerRefreshService:
         retry_backoff_seconds: float = 1.0,
         inline_payload_max_bytes: int = 1024 * 1024,
         delay: Callable[[float], None] = sleep,
+        roster_mappings: FirstSeasonRosterMapper | None = None,
     ) -> None:
         if not code_version.strip():
             raise ValueError("code_version must not be empty")
@@ -188,6 +201,7 @@ class DatalayerRefreshService:
         self._retry_backoff_seconds = retry_backoff_seconds
         self._inline_payload_max_bytes = inline_payload_max_bytes
         self._delay = delay
+        self._roster_mappings = roster_mappings
 
     def refresh(self, request: RefreshRequest) -> RefreshOutcome:
         identity = self._identities.get_refresh_identity(
@@ -320,6 +334,7 @@ class DatalayerRefreshService:
         states: dict[ScopeKey, list[_AttemptState]],
     ) -> None:
         available: set[ScopeKey] = set()
+        normalized_by_kind: dict[EndpointKind, EndpointRecords] = {}
         for endpoint in plan.requests:
             state = states[endpoint.scope_key][-1]
             stored = cast(ApiRequest, state.stored)
@@ -342,6 +357,17 @@ class DatalayerRefreshService:
                 continue
             try:
                 records = _normalize(state.source, endpoint)
+                normalized_by_kind[endpoint.endpoint_kind] = records
+                if (
+                    isinstance(records, LeagueRostersEndpointRecords)
+                    and self._roster_mappings is not None
+                ):
+                    users = normalized_by_kind.get(EndpointKind.LEAGUE_USERS)
+                    self._roster_mappings.bootstrap_first_season(
+                        cast(UUID, stored.competition_season_id),
+                        records,
+                        users if isinstance(users, LeagueUsersEndpointRecords) else None,
+                    )
                 applied = self._scopes.apply_scope(stored.id, records)
             except EndpointPayloadRejected as error:
                 state.stored = self._attempts.reject_normalization(
@@ -349,6 +375,18 @@ class DatalayerRefreshService:
                     NormalizationRejection(code=error.code, summary=error.summary),
                 )
                 state.warning_codes += (error.code,)
+                continue
+            except RosterIdentityMappingRequired:
+                state.stored = self._attempts.reject_normalization(
+                    stored.id,
+                    NormalizationRejection(
+                        code="roster_identity_mapping_required",
+                        summary=(
+                            "Sleeper rosters require durable franchise mappings"
+                        ),
+                    ),
+                )
+                state.warning_codes += ("roster_identity_mapping_required",)
                 continue
             except DatalayerScopeConflict:
                 state.stored = self._attempts.reject_normalization(

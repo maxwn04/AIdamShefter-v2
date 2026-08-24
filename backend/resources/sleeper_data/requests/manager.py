@@ -231,6 +231,54 @@ class ApiRequestManager:
                 for row in rows
             )
 
+    def get_latest_complete_season_request(
+        self,
+        competition_season_id: UUID,
+        endpoint_kind: EndpointKind,
+    ) -> ApiRequestCandidate | None:
+        if endpoint_kind in _GLOBAL_ENDPOINTS:
+            raise InvalidDatalayerRequest(
+                "latest season request requires a season-scoped endpoint"
+            )
+        with read_only_session(self._session_factory) as session:
+            self._require_season(session, competition_season_id)
+            row = session.scalar(
+                sa.select(StoredApiRequest)
+                .join(
+                    StoredRefreshRun,
+                    StoredRefreshRun.id == StoredApiRequest.refresh_run_id,
+                )
+                .where(
+                    StoredRefreshRun.competition_id == self._competition_id,
+                    StoredApiRequest.competition_season_id
+                    == competition_season_id,
+                    StoredApiRequest.endpoint_kind == endpoint_kind.value,
+                    StoredApiRequest.status == RequestStatus.SUCCEEDED.value,
+                    StoredApiRequest.is_complete.is_(True),
+                    StoredApiRequest.payload_id.is_not(None),
+                    StoredApiRequest.response_sha256.is_not(None),
+                )
+                .order_by(
+                    StoredApiRequest.requested_at.desc(),
+                    StoredApiRequest.id.desc(),
+                )
+                .limit(1)
+            )
+            if row is None:
+                return None
+            return ApiRequestCandidate(
+                request_id=row.id,
+                competition_season_id=row.competition_season_id,
+                endpoint_kind=EndpointKind(row.endpoint_kind),
+                scope_key=ScopeKey.parse(row.scope_key),
+                week=row.week,
+                bracket_kind=cast(Any, row.bracket_kind),
+                requested_at=row.requested_at,
+                completed_at=row.completed_at,
+                payload_id=cast(UUID, row.payload_id),
+                response_sha256=cast(str, row.response_sha256),
+            )
+
     def resolve_verified_payloads(
         self,
         request_ids: Collection[UUID],

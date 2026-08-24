@@ -20,7 +20,19 @@ from backend.resources.core.errors import (
     CompetitionSeasonYearExists,
     CoreResourceError,
     CoreResourceNotFound,
+    RosterMappingConflict,
     SleeperLeagueIdExists,
+)
+from backend.resources.core.roster_mappings import (
+    ApplyRosterMappings,
+    CreateFranchiseTarget,
+    ExistingFranchiseTarget,
+    FranchiseIdentity,
+    MappingTarget,
+    RosterIdentityCatalog,
+    RosterMappingAssignment,
+    RosterMappingManager,
+    SeasonRosterIdentity,
 )
 from backend.resources.core.overviews import (
     CompetitionActivitySummary,
@@ -60,6 +72,16 @@ __all__ = [
     "CreateCompetition",
     "CreateCompetitionSeason",
     "RenameCompetition",
+    "ApplyRosterMappings",
+    "CreateFranchiseTarget",
+    "ExistingFranchiseTarget",
+    "FranchiseIdentity",
+    "MappingTarget",
+    "RosterIdentityCatalog",
+    "RosterMappingAssignment",
+    "RosterMappingConflict",
+    "RosterMappingManager",
+    "SeasonRosterIdentity",
     "LatestRefreshSummary",
     "SleeperLeagueIdExists",
 ]

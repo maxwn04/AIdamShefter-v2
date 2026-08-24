@@ -54,11 +54,19 @@ class CompetitionConcurrencyConflict(CoreResourceError):
         super().__init__(message)
 
 
+class RosterMappingConflict(CoreResourceError):
+    def __init__(self, message: str, *, stale_source: bool = False) -> None:
+        self.message = message
+        self.stale_source = stale_source
+        super().__init__(message)
+
+
 __all__ = [
     "CompetitionArchivedConflict",
     "CompetitionConcurrencyConflict",
     "CompetitionSeasonYearExists",
     "CoreResourceError",
     "CoreResourceNotFound",
+    "RosterMappingConflict",
     "SleeperLeagueIdExists",
 ]

@@ -84,6 +84,14 @@ season. Duplicate season years and globally reused Sleeper league IDs are
 reported inline from typed API conflicts. The UI does not guess that linked
 Sleeper predecessor/successor IDs belong to the same AIdam competition.
 
+The first refresh of the competition's first season creates one durable team
+identity per observed roster. For a later season, a complete roster observation
+may pause normalization until the operator maps every Sleeper roster to one
+unused existing team or creates a new team. The setup view shows team and owner
+labels only as evidence; it never preselects cross-season continuity. After the
+mapping is saved, the application starts a fresh full refresh using the prior
+requested through-week value.
+
 ### Competition overview
 
 The page header shows competition name and the active/latest season selector.

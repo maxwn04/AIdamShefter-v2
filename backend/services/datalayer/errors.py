@@ -30,6 +30,10 @@ class DatalayerScopeConflict(DatalayerError):
         super().__init__(message)
 
 
+class RosterIdentityMappingRequired(DatalayerScopeConflict):
+    """A complete roster observation cannot yet resolve durable identities."""
+
+
 class EndpointPayloadRejected(DatalayerError):
     """A source payload cannot be normalized without inventing facts."""
 
