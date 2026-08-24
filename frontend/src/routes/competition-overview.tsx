@@ -12,6 +12,7 @@ import type { ManualRefreshResponse } from "@/features/refreshes/api";
 import { RefreshHistory } from "@/features/refreshes/refresh-history";
 import { RefreshOutcomePanel } from "@/features/refreshes/refresh-outcome";
 import { RefreshSheet } from "@/features/refreshes/refresh-sheet";
+import { RosterMappingPanel } from "@/features/roster-mappings/roster-mapping-panel";
 import { AddSeasonDialog } from "@/features/seasons/add-season-dialog";
 import type { CompetitionSeasonOverview } from "@/features/seasons/api";
 import { useSeasonDetail, useSeasonList } from "@/features/seasons/queries";
@@ -467,124 +468,143 @@ export function Component(): React.JSX.Element {
                   Try again
                 </Button>
               </div>
-            ) : detail ? (
-              <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-                <article className="rounded-lg border border-border bg-card p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Sleeper league
-                      </p>
-                      <h3 className="mt-2 font-editorial text-2xl font-semibold">
-                        {detail.normalized_overview?.league_name ??
-                          "Awaiting first refresh"}
-                      </h3>
-                      <p className="mt-2 break-all text-sm text-muted-foreground">
-                        ID {detail.season.sleeper_league_id}
-                      </p>
+            ) : detail && selectedSeasonId && selectedSeason ? (
+              <>
+                <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+                  <article className="rounded-lg border border-border bg-card p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                          Sleeper league
+                        </p>
+                        <h3 className="mt-2 font-editorial text-2xl font-semibold">
+                          {detail.normalized_overview?.league_name ??
+                            "Awaiting first refresh"}
+                        </h3>
+                        <p className="mt-2 break-all text-sm text-muted-foreground">
+                          ID {detail.season.sleeper_league_id}
+                        </p>
+                      </div>
+                      {detail.normalized_overview?.status ? (
+                        <Badge variant="outline">
+                          {detail.normalized_overview.status}
+                        </Badge>
+                      ) : null}
                     </div>
-                    {detail.normalized_overview?.status ? (
-                      <Badge variant="outline">
-                        {detail.normalized_overview.status}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  {detail.normalized_overview ? (
-                    <dl className="mt-6 grid grid-cols-2 gap-5 border-t border-border pt-5 text-sm sm:grid-cols-4">
-                      <div>
-                        <dt className="text-xs text-muted-foreground">
-                          Rosters
+                    {detail.normalized_overview ? (
+                      <dl className="mt-6 grid grid-cols-2 gap-5 border-t border-border pt-5 text-sm sm:grid-cols-4">
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            Rosters
+                          </dt>
+                          <dd className="mt-1 font-medium">
+                            {detail.normalized_overview.roster_count}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            Playoff start
+                          </dt>
+                          <dd className="mt-1 font-medium">
+                            {detail.normalized_overview.playoff_start_week ??
+                              "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            Playoff teams
+                          </dt>
+                          <dd className="mt-1 font-medium">
+                            {detail.normalized_overview.playoff_team_count ??
+                              "—"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs text-muted-foreground">
+                            League average match
+                          </dt>
+                          <dd className="mt-1 font-medium">
+                            {detail.normalized_overview.league_average_match ??
+                              "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                    ) : (
+                      <p className="mt-6 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
+                        No normalized Sleeper observations exist yet. A manual
+                        refresh will load league settings, rosters, and the
+                        selected week boundary.
+                      </p>
+                    )}
+                  </article>
+
+                  <article className="rounded-lg border border-border bg-card p-5">
+                    <div className="flex items-center gap-2">
+                      <RefreshCw
+                        className="size-4 text-muted-foreground"
+                        aria-hidden="true"
+                      />
+                      <h3 className="font-semibold">Freshness</h3>
+                    </div>
+                    <dl className="mt-5 space-y-4 text-sm">
+                      <div className="flex items-start justify-between gap-4">
+                        <dt className="text-muted-foreground">
+                          Last refreshed
                         </dt>
-                        <dd className="mt-1 font-medium">
-                          {detail.normalized_overview.roster_count}
+                        <dd className="text-right">
+                          <DateTime
+                            value={
+                              detail.summary.latest_terminal_refresh
+                                ?.completed_at ?? null
+                            }
+                            showExact
+                          />
                         </dd>
                       </div>
-                      <div>
-                        <dt className="text-xs text-muted-foreground">
-                          Playoff start
+                      <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
+                        <dt className="text-muted-foreground">
+                          Last successful refresh
                         </dt>
-                        <dd className="mt-1 font-medium">
-                          {detail.normalized_overview.playoff_start_week ?? "—"}
+                        <dd className="text-right">
+                          <DateTime
+                            value={detail.summary.latest_successful_refresh_at}
+                            showExact
+                          />
                         </dd>
                       </div>
-                      <div>
-                        <dt className="text-xs text-muted-foreground">
-                          Playoff teams
+                      <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
+                        <dt className="text-muted-foreground">
+                          Latest generation snapshot
                         </dt>
-                        <dd className="mt-1 font-medium">
-                          {detail.normalized_overview.playoff_team_count ?? "—"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs text-muted-foreground">
-                          League average match
-                        </dt>
-                        <dd className="mt-1 font-medium">
-                          {detail.normalized_overview.league_average_match ??
-                            "—"}
+                        <dd className="text-right">
+                          <DateTime
+                            value={detail.summary.latest_ready_snapshot_at}
+                            empty="None built"
+                            showExact
+                          />
                         </dd>
                       </div>
                     </dl>
-                  ) : (
-                    <p className="mt-6 border-t border-border pt-5 text-sm leading-6 text-muted-foreground">
-                      No normalized Sleeper observations exist yet. A manual
-                      refresh will load league settings, rosters, and the
-                      selected week boundary.
+                    <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+                      Snapshot time records when frozen generation input was
+                      built or reused. It is not Sleeper freshness.
                     </p>
-                  )}
-                </article>
-
-                <article className="rounded-lg border border-border bg-card p-5">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw
-                      className="size-4 text-muted-foreground"
-                      aria-hidden="true"
-                    />
-                    <h3 className="font-semibold">Freshness</h3>
-                  </div>
-                  <dl className="mt-5 space-y-4 text-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <dt className="text-muted-foreground">Last refreshed</dt>
-                      <dd className="text-right">
-                        <DateTime
-                          value={
-                            detail.summary.latest_terminal_refresh
-                              ?.completed_at ?? null
-                          }
-                          showExact
-                        />
-                      </dd>
-                    </div>
-                    <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
-                      <dt className="text-muted-foreground">
-                        Last successful refresh
-                      </dt>
-                      <dd className="text-right">
-                        <DateTime
-                          value={detail.summary.latest_successful_refresh_at}
-                          showExact
-                        />
-                      </dd>
-                    </div>
-                    <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
-                      <dt className="text-muted-foreground">
-                        Latest generation snapshot
-                      </dt>
-                      <dd className="text-right">
-                        <DateTime
-                          value={detail.summary.latest_ready_snapshot_at}
-                          empty="None built"
-                          showExact
-                        />
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
-                    Snapshot time records when frozen generation input was built
-                    or reused. It is not Sleeper freshness.
-                  </p>
-                </article>
-              </div>
+                  </article>
+                </div>
+                <RosterMappingPanel
+                  competitionId={competition.id}
+                  seasonId={selectedSeasonId}
+                  seasonYear={selectedSeason.season.season_year}
+                  requestedThroughWeek={
+                    detail.summary.latest_terminal_refresh
+                      ?.requested_through_week
+                  }
+                  disabled={archived}
+                  onOutcome={(outcome) => {
+                    setLatestOutcome({ seasonId: selectedSeasonId, outcome });
+                  }}
+                />
+              </>
             ) : null}
           </section>
 
