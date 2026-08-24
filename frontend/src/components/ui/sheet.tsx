@@ -11,14 +11,20 @@ export const SheetClose = SheetPrimitive.Close;
 export function SheetContent({
   className,
   children,
+  side = "left",
   ...props
-}: React.ComponentProps<typeof SheetPrimitive.Content>): React.JSX.Element {
+}: React.ComponentProps<typeof SheetPrimitive.Content> & {
+  side?: "left" | "right";
+}): React.JSX.Element {
   return (
     <SheetPrimitive.Portal>
       <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-black/45 data-[state=closed]:animate-out data-[state=open]:animate-in" />
       <SheetPrimitive.Content
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-[min(22rem,88vw)] flex-col border-r border-border bg-background p-6 shadow-xl outline-none",
+          "fixed inset-y-0 z-50 flex w-[min(26rem,92vw)] flex-col bg-background p-6 shadow-xl outline-none",
+          side === "left"
+            ? "left-0 border-r border-border"
+            : "right-0 border-l border-border",
           className,
         )}
         {...props}
@@ -26,7 +32,7 @@ export function SheetContent({
         {children}
         <SheetPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
           <X className="size-5" aria-hidden="true" />
-          <span className="sr-only">Close navigation</span>
+          <span className="sr-only">Close sheet</span>
         </SheetPrimitive.Close>
       </SheetPrimitive.Content>
     </SheetPrimitive.Portal>

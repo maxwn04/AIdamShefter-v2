@@ -54,7 +54,10 @@ export async function apiRequest<TResponse>(
       headers,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError")
+    if (
+      error instanceof DOMException &&
+      (error.name === "AbortError" || error.name === "TimeoutError")
+    )
       throw error;
     throw normalizeApiError(
       0,
