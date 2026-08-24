@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmittedArticlePanel } from "@/features/articles/submitted-article-panel";
 import { ArtifactBrowser } from "@/features/artifacts/artifact-browser";
+import { ExecutionTimeline } from "@/features/execution/execution-timeline";
 import {
   createGenerationFormValuesFromDetail,
   saveGenerationDraft,
@@ -30,6 +31,7 @@ import {
   useRerunGeneration,
 } from "@/features/generations/queries";
 import { useSeasonList } from "@/features/seasons/queries";
+import { UsagePanel } from "@/features/usage/usage-panel";
 import { cn } from "@/lib/utils";
 
 const seasonListParameters = { limit: 200, offset: 0 } as const;
@@ -469,15 +471,21 @@ export function Component(): React.JSX.Element {
             />
           </TabsContent>
           <TabsContent value="execution">
-            <DeferredAuditPanel
-              title="Execution timeline"
-              description="The durable run status remains above. Turn, AI-call, and nested tool-call inspection lands in the execution audit slice."
+            <ExecutionTimeline
+              key={resolvedGenerationId}
+              competitionId={resolvedCompetitionId}
+              generationId={resolvedGenerationId}
+              active={activeTab === "execution"}
+              generationActive={active}
             />
           </TabsContent>
           <TabsContent value="usage">
-            <DeferredAuditPanel
-              title="Usage and estimated cost"
-              description="Backend-owned token and cost estimates land with the execution audit slice."
+            <UsagePanel
+              key={resolvedGenerationId}
+              competitionId={resolvedCompetitionId}
+              generationId={resolvedGenerationId}
+              active={activeTab === "usage"}
+              provisional={active}
             />
           </TabsContent>
         </Tabs>
@@ -492,23 +500,6 @@ export function Component(): React.JSX.Element {
           Back to Generate
         </Link>
       </div>
-    </div>
-  );
-}
-
-function DeferredAuditPanel({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}): React.JSX.Element {
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-card/60 p-7 sm:p-9">
-      <h3 className="font-editorial text-2xl font-semibold">{title}</h3>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-        {description}
-      </p>
     </div>
   );
 }
