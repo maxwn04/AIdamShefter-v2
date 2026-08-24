@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
+from backend.database.models.core import Competition
 from backend.database.models.memory import (
     CurrentRevision,
     MemoryItem,
@@ -73,6 +74,65 @@ class RevisionManager:
         if row is None:
             raise RevisionNotFoundError(self._competition_id)
         return _to_revision(row)
+
+    def ensure_current(self) -> CanonicalRevision:
+        """Return the current revision, creating the canonical empty root if needed."""
+
+        with transaction_session(self._session_factory) as session:
+            competition_id = session.scalar(
+                sa.select(Competition.id)
+                .where(Competition.id == self._competition_id)
+                .with_for_update()
+            )
+            if competition_id is None:
+                raise RevisionNotFoundError(self._competition_id)
+
+            current = session.scalar(
+                sa.select(MemoryRevision)
+                .join(
+                    CurrentRevision,
+                    sa.and_(
+                        CurrentRevision.current_revision_id == MemoryRevision.id,
+                        CurrentRevision.competition_id == MemoryRevision.competition_id,
+                    ),
+                )
+                .where(CurrentRevision.competition_id == self._competition_id)
+            )
+            if current is not None:
+                return _to_revision(current)
+
+            has_history = session.scalar(
+                sa.select(MemoryRevision.id)
+                .where(MemoryRevision.competition_id == self._competition_id)
+                .limit(1)
+            )
+            if has_history is not None:
+                raise RevisionNotFoundError(self._competition_id)
+
+            root = MemoryRevision(
+                id=uuid4(),
+                competition_id=self._competition_id,
+                sequence_number=0,
+                previous_revision_id=None,
+                producing_generation_id=None,
+                competition_season_id=None,
+                week=None,
+                knowledge_cutoff_at=None,
+                state_content_hash=compute_state_content_hash(
+                    self._competition_id, ()
+                ),
+            )
+            session.add(root)
+            session.flush((root,))
+            session.add(
+                CurrentRevision(
+                    competition_id=self._competition_id,
+                    current_revision_id=root.id,
+                    lock_version=0,
+                )
+            )
+            session.flush()
+            return _to_revision(root)
 
     def pin(self, revision_id: UUID) -> CanonicalRevision:
         """Resolve one exact revision without leaking cross-competition state."""

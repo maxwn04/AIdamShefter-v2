@@ -19,7 +19,11 @@ from backend.database.models.memory import (
 from backend.database.models.reporting import Generation
 from backend.database.sessions import create_session_factory
 from backend.resources.context import CompetitionScope, ManagerContext
-from backend.resources.memory.common import StaleCanonicalRevisionError
+from backend.resources.memory.common import (
+    RevisionNotFoundError,
+    StaleCanonicalRevisionError,
+)
+from backend.resources.memory.revisions.hashing import compute_state_content_hash
 from backend.resources.memory.revisions.manager import RevisionManager
 from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.revisions.writers import lock_current_revision
@@ -239,6 +243,79 @@ def _manager(database_engine: Engine, competition_id: UUID) -> RevisionManager:
         }
     )
     return RevisionManager(create_session_factory(database_engine), context)
+
+
+def test_ensure_current_creates_one_canonical_empty_root(
+    database_engine: Engine,
+) -> None:
+    competition_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(Competition),
+            {"id": competition_id, "display_name": "Empty Memory League"},
+        )
+    manager = _manager(database_engine, competition_id)
+
+    first = manager.ensure_current()
+    second = manager.ensure_current()
+
+    assert first == second
+    assert first.sequence_number == 0
+    assert first.previous_revision_id is None
+    assert first.producing_generation_id is None
+    assert first.competition_season_id is None
+    assert first.week is None
+    assert first.knowledge_cutoff_at is None
+    assert first.state_content_hash == compute_state_content_hash(competition_id, ())
+    with database_engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(MemoryRevision)
+            .where(MemoryRevision.competition_id == competition_id)
+        ) == 1
+        assert connection.scalar(
+            sa.select(CurrentRevision.current_revision_id).where(
+                CurrentRevision.competition_id == competition_id
+            )
+        ) == first.revision_id
+
+
+def test_ensure_current_does_not_mask_history_without_pointer(
+    database_engine: Engine,
+) -> None:
+    competition_id = uuid4()
+    revision_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(Competition),
+            {"id": competition_id, "display_name": "Broken Memory League"},
+        )
+        connection.execute(
+            sa.insert(MemoryRevision),
+            {
+                "id": revision_id,
+                "competition_id": competition_id,
+                "sequence_number": 0,
+                "state_content_hash": compute_state_content_hash(
+                    competition_id, ()
+                ),
+            },
+        )
+
+    with pytest.raises(RevisionNotFoundError):
+        _manager(database_engine, competition_id).ensure_current()
+
+    with database_engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(MemoryRevision)
+            .where(MemoryRevision.competition_id == competition_id)
+        ) == 1
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(CurrentRevision)
+            .where(CurrentRevision.competition_id == competition_id)
+        ) == 0
 
 
 def test_revision_manager_reads_current_pin_and_history(

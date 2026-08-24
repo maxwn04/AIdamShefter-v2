@@ -178,6 +178,11 @@ class FakeRevisions:
         self.current_calls += 1
         return self.current_revision
 
+    def ensure_current(self):
+        self.events.append("memory")
+        self.current_calls += 1
+        return self.current_revision
+
     def history(self):
         self.events.append("memory")
         self.history_calls += 1
@@ -503,7 +508,7 @@ async def test_backtest_selects_latest_same_season_revision_and_is_read_only(
 
     result = await service.execute(_uuid(3))
 
-    assert revisions.current_calls == 0
+    assert revisions.current_calls == 1
     assert revisions.history_calls == 1
     assert manager.starts[0].input_memory_revision_id == _uuid(102)
     assert manager.starts[0].knowledge_cutoff_at == cutoff

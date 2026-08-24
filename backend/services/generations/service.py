@@ -400,8 +400,9 @@ class GenerationService:
         return GenerationExecutionResult(generation=generation)
 
     def _select_memory_revision(self, generation: Generation) -> CanonicalRevision:
+        current = self._revisions.ensure_current()
         if generation.kind is GenerationKind.LIVE:
-            return self._revisions.current()
+            return current
         if generation.week_end is None:
             raise ValueError("backtest memory selection requires a cutoff week")
         history = self._revisions.history()
