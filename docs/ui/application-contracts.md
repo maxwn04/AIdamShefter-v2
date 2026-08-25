@@ -19,18 +19,18 @@
 Generation routes already exist under
 `/api/v1/generations/competitions/{competition_id}`:
 
-| Capability | Route | UI readiness |
-| --- | --- | --- |
-| Submit generation | `POST /generations/competitions/{competition_id}` | Implemented; body includes kind, season, explicit weeks, primary model, and nested settings, and rejects a primary model duplicated in the fallback chain |
-| Rerun exact request | `POST /generations/competitions/{competition_id}/{generation_id}/reruns` | Implemented |
-| Run history | `GET /generations/competitions/{competition_id}` | Implemented with season/kind/status/rerun filters |
-| Submitted article history | `GET /generations/competitions/{competition_id}/articles` | Implemented with season/kind filters and a set-based article/usage projection |
-| Run detail | `GET /generations/competitions/{competition_id}/{generation_id}` | Implemented |
-| Submitted article | `GET /generations/competitions/{competition_id}/{generation_id}/article` | Implemented and returns the exact generation, artifact, and version |
-| AI call list/detail | `GET .../{generation_id}/ai-calls[/{ai_call_id}]` | Implemented |
-| Tool call list/detail | `GET .../{generation_id}/tool-calls[/{tool_call_id}]` | Implemented |
-| Artifact list/detail | `GET .../{generation_id}/artifacts[/{artifact_id}]` | Implemented; list summaries include revision count and latest-version time |
-| Artifact versions | `GET .../{generation_id}/artifacts/{artifact_id}/versions[/{version_id}]` | Implemented |
+| Capability                | Route                                                                     | UI readiness                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submit generation         | `POST /generations/competitions/{competition_id}`                         | Implemented; body includes kind, season, explicit weeks, primary model, and nested settings, and rejects a primary model duplicated in the fallback chain |
+| Rerun exact request       | `POST /generations/competitions/{competition_id}/{generation_id}/reruns`  | Implemented                                                                                                                                               |
+| Run history               | `GET /generations/competitions/{competition_id}`                          | Implemented with season/kind/status/rerun filters                                                                                                         |
+| Submitted article history | `GET /generations/competitions/{competition_id}/articles`                 | Implemented with season/kind filters and a set-based article/usage projection                                                                             |
+| Run detail                | `GET /generations/competitions/{competition_id}/{generation_id}`          | Implemented                                                                                                                                               |
+| Submitted article         | `GET /generations/competitions/{competition_id}/{generation_id}/article`  | Implemented and returns the exact generation, artifact, and version                                                                                       |
+| AI call list/detail       | `GET .../{generation_id}/ai-calls[/{ai_call_id}]`                         | Implemented                                                                                                                                               |
+| Tool call list/detail     | `GET .../{generation_id}/tool-calls[/{tool_call_id}]`                     | Implemented                                                                                                                                               |
+| Artifact list/detail      | `GET .../{generation_id}/artifacts[/{artifact_id}]`                       | Implemented; list summaries include revision count and latest-version time                                                                                |
+| Artifact versions         | `GET .../{generation_id}/artifacts/{artifact_id}/versions[/{version_id}]` | Implemented                                                                                                                                               |
 
 Competition and season management plus refresh, overview, and snapshot-audit
 routes are implemented. Evaluation-workspace tables exist, but writable
@@ -47,16 +47,16 @@ hide that path irregularity from feature code.
 
 Recommended routes:
 
-| Method and path | Purpose | Status |
-| --- | --- | --- |
-| `GET /competitions` | List active competitions with season/freshness/article summary | Implemented |
-| `POST /competitions` | Create `{display_name}` | Implemented |
-| `GET /competitions/{competition_id}` | Competition detail and summary | Implemented |
-| `PATCH /competitions/{competition_id}` | Rename or archive through explicit allowed fields | Implemented |
-| `GET /competitions/{competition_id}/seasons` | Ordered season list | Implemented |
-| `POST /competitions/{competition_id}/seasons` | Attach `{season_year, sleeper_league_id}` and derive sequence | Implemented |
-| `GET /competitions/{competition_id}/seasons/{season_id}` | Season identity plus normalized league overview when present | Implemented |
-| `GET /competitions/{competition_id}/seasons/{season_id}/roster-mappings` | Read roster-identity readiness and observed mapping evidence | Implemented |
+| Method and path                                                          | Purpose                                                              | Status      |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------- | ----------- |
+| `GET /competitions`                                                      | List active competitions with season/freshness/article summary       | Implemented |
+| `POST /competitions`                                                     | Create `{display_name}`                                              | Implemented |
+| `GET /competitions/{competition_id}`                                     | Competition detail and summary                                       | Implemented |
+| `PATCH /competitions/{competition_id}`                                   | Rename or archive through explicit allowed fields                    | Implemented |
+| `GET /competitions/{competition_id}/seasons`                             | Ordered season list                                                  | Implemented |
+| `POST /competitions/{competition_id}/seasons`                            | Attach `{season_year, sleeper_league_id}` and derive sequence        | Implemented |
+| `GET /competitions/{competition_id}/seasons/{season_id}`                 | Season identity plus normalized league overview when present         | Implemented |
+| `GET /competitions/{competition_id}/seasons/{season_id}/roster-mappings` | Read roster-identity readiness and observed mapping evidence         | Implemented |
 | `PUT /competitions/{competition_id}/seasons/{season_id}/roster-mappings` | Atomically map every observed roster to an existing or new franchise | Implemented |
 
 Example creation response:
@@ -76,13 +76,13 @@ Example creation response:
 `PATCH /competitions/{competition_id}` accepts exactly one sparse change:
 
 ```json
-{"display_name": "Renamed League"}
+{ "display_name": "Renamed League" }
 ```
 
 or:
 
 ```json
-{"archived": true}
+{ "archived": true }
 ```
 
 Empty bodies, null values, `archived: false`, combined changes, and unknown
@@ -107,7 +107,7 @@ Typed competition errors use the new product envelope:
   "error": {
     "code": "competition_season_year_exists",
     "summary": "that season year is already attached to this competition",
-    "field_errors": {"season_year": ["Already attached to this competition."]}
+    "field_errors": { "season_year": ["Already attached to this competition."] }
   }
 }
 ```
@@ -139,13 +139,13 @@ roster. Existing season-roster mappings are immutable.
 
 ## Required Refresh and Data Audit API
 
-| Method and path | Purpose | Status |
-| --- | --- | --- |
-| `POST /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Run manual refresh with optional `{through_week}` | Implemented |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Page refresh history | Implemented |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes/{refresh_id}` | Read terminal/running refresh and counts | Implemented |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/overview` | Normalized league metadata/current overview | Implemented |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/snapshots` | Page snapshot audit metadata | Implemented |
+| Method and path                                                                      | Purpose                                           | Status      |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------- | ----------- |
+| `POST /data/competitions/{competition_id}/seasons/{season_id}/refreshes`             | Run manual refresh with optional `{through_week}` | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes`              | Page refresh history                              | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes/{refresh_id}` | Read terminal/running refresh and counts          | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/overview`               | Normalized league metadata/current overview       | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/snapshots`              | Page snapshot audit metadata                      | Implemented |
 
 V1 manual refresh may be synchronous because the implemented refresh service is
 synchronous and the existing datalayer plan explicitly calls for a synchronous
@@ -204,23 +204,24 @@ The existing generation contract is enough to create basic live and read-only
 backtest runs. These additions complete the planned UI:
 
 For Layer 7, the UI always submits explicit `week_start` and `week_end` values;
-it does not derive or imply a current week. Live mode is offered only for the
-latest attached season. Selecting an older season uses `backtest`, which pins
-historical memory at or before the requested cutoff and cannot write canonical
-memory. This latest-season restriction is currently a UI safety policy rather
-than an API invariant, so non-UI clients remain responsible for selecting the
-appropriate kind. Live runs may write canonical memory on success.
+it does not derive or imply a current week. Live mode is available for any
+attached season and selected week boundary. A live run pins the current
+canonical memory head and may append a new revision on success; it does not
+rewind memory to the selected season or week. Rebuilding a completed season
+cleanly therefore requires empty canonical memory and chronological live runs.
+Backtest pins historical memory at or before the requested cutoff and cannot
+write canonical memory.
 
 The initial release does not expose an isolated or promotable simulation mode.
 Evaluation-workspace and promote/discard contracts are deferred; the available
 historical backtest is read-only.
 
-| Method and path | Purpose | Priority |
-| --- | --- | --- |
-| `POST .../{generation_id}/cancel` | Cancel a pending/running generation | Should-have; manager supports cancellation |
-| Extend article/run list query | Model, week overlap, completion range, request text | Later unless list size demands it |
-| Extend generation body | Explicit writable draft-memory mode | Deferred pending memory architecture decision |
-| `GET .../{generation_id}/usage` | Aggregate tokens, latency, calls, and price quote | Required |
+| Method and path                          | Purpose                                                       | Priority                                                   |
+| ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------- |
+| `POST .../{generation_id}/cancel`        | Cancel a pending/running generation                           | Should-have; manager supports cancellation                 |
+| Extend article/run list query            | Model, week overlap, completion range, request text           | Later unless list size demands it                          |
+| Extend generation body                   | Explicit writable draft-memory mode                           | Deferred pending memory architecture decision              |
+| `GET .../{generation_id}/usage`          | Aggregate tokens, latency, calls, and price quote             | Required                                                   |
 | Optional `GET .../{generation_id}/audit` | One bounded detail projection for article + artifacts + calls | Optimization only; existing resources remain authoritative |
 
 The UI polls run detail. WebSockets or server-sent events are not required for
@@ -286,12 +287,12 @@ introduced/retired visibility model, which is not branch-safe.
 The following route shapes are historical design candidates, not committed
 initial-release contracts:
 
-| Method and path | Purpose |
-| --- | --- |
-| `POST /competitions/{competition_id}/evaluation-workspaces` | Create an active workspace pinned to a server-selected canonical base revision |
-| `GET /competitions/{competition_id}/evaluation-workspaces/{workspace_id}` | Status, base/current artifact, generations, and promotion eligibility |
-| `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/promote` | Fast-forward isolated memory into one new canonical revision |
-| `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/discard` | Close without canonical mutation |
+| Method and path                                                                    | Purpose                                                                        |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /competitions/{competition_id}/evaluation-workspaces`                        | Create an active workspace pinned to a server-selected canonical base revision |
+| `GET /competitions/{competition_id}/evaluation-workspaces/{workspace_id}`          | Status, base/current artifact, generations, and promotion eligibility          |
+| `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/promote` | Fast-forward isolated memory into one new canonical revision                   |
+| `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/discard` | Close without canonical mutation                                               |
 
 Until a replacement architecture is accepted, the UI offers only live canonical
 generation and read-only historical backtests and hides all workspace and
@@ -320,7 +321,7 @@ New routes should converge on:
   "error": {
     "code": "stable_machine_code",
     "summary": "Safe operator-facing summary",
-    "field_errors": {"sleeper_league_id": ["Already attached"]},
+    "field_errors": { "sleeper_league_id": ["Already attached"] },
     "correlation_id": "optional-id"
   }
 }

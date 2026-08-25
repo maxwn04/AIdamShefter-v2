@@ -10,22 +10,22 @@ this release. Do not enable or test those deferred flows here.
 
 ## Review Metadata
 
-| Field | Value |
-| --- | --- |
-| Date and time | |
-| Reviewer | |
-| Commit | |
-| Branch | |
-| Operating system | |
-| Browser and version | |
-| Desktop viewport | |
-| Mobile viewport or device | |
-| Database identity/environment | |
-| Competition and season reviewed | |
-| Sleeper league ID | |
-| Primary and fallback models | |
-| API base URL | |
-| Frontend URL | |
+| Field                           | Value |
+| ------------------------------- | ----- |
+| Date and time                   |       |
+| Reviewer                        |       |
+| Commit                          |       |
+| Branch                          |       |
+| Operating system                |       |
+| Browser and version             |       |
+| Desktop viewport                |       |
+| Mobile viewport or device       |       |
+| Database identity/environment   |       |
+| Competition and season reviewed |       |
+| Sleeper league ID               |       |
+| Primary and fallback models     |       |
+| API base URL                    |       |
+| Frontend URL                    |       |
 
 Never paste database passwords, provider keys, full connection URLs, or private
 model payloads into this record.
@@ -53,14 +53,14 @@ but the application must not depend on untracked code or stale generated files.
 - [ ] Start the frontend through the documented local proxy configuration.
 - [ ] Open the application through the documented frontend URL.
 
-| Bootstrap or gate evidence | Result | Notes |
-| --- | --- | --- |
-| PostgreSQL and Alembic head | Pending | |
-| API liveness and readiness | Pending | |
-| Frozen frontend install | Pending | |
-| Generated API drift | Pending | |
-| Format, lint, and typecheck | Pending | |
-| Production build | Pending | |
+| Bootstrap or gate evidence  | Result  | Notes |
+| --------------------------- | ------- | ----- |
+| PostgreSQL and Alembic head | Pending |       |
+| API liveness and readiness  | Pending |       |
+| Frozen frontend install     | Pending |       |
+| Generated API drift         | Pending |       |
+| Format, lint, and typecheck | Pending |       |
+| Production build            | Pending |       |
 
 ## Full Real-Database Journey
 
@@ -85,7 +85,7 @@ they make a failure reproducible.
 - [ ] If a refresh was interrupted by a hard process failure, first confirm no
       refresh process remains active, then run the bounded operator recovery:
       `uv run --env-file .env aidam-worker reconcile-stale-refreshes
-      --competition-id <uuid> --stale-before <aware-ISO-timestamp> --limit 100`.
+    --competition-id <uuid> --stale-before <aware-ISO-timestamp> --limit 100`.
       Confirm the command reports the expected refresh IDs and statuses derived
       from durable attempts; it must not refetch or resume Sleeper work.
 - [ ] Confirm the competition overview and generation form show consistent data
@@ -95,7 +95,7 @@ they make a failure reproducible.
 
 ### Live Generation
 
-- [ ] Open **Generate** for the latest attached season.
+- [ ] Open **Generate** for the intended attached season and week boundary.
 - [ ] Confirm live mode clearly describes canonical memory behavior.
 - [ ] Select an explicit week or week range.
 - [ ] Enter the assignment and review reporter voice, tone, bias, length, evidence,
@@ -260,7 +260,7 @@ than described.
 
 Additional known limitations:
 
-- 
+-
 
 ## Findings and Outcome
 
@@ -268,30 +268,30 @@ Record defects with a reproducible route, generation or resource ID, expected
 behavior, actual behavior, severity, and evidence location. Do not include secrets
 or full private model payloads.
 
-| ID | Severity | Area | Result | Evidence or notes | Disposition |
-| --- | --- | --- | --- | --- | --- |
-| UI-001 | | | | | |
+| ID     | Severity | Area | Result | Evidence or notes | Disposition |
+| ------ | -------- | ---- | ------ | ----------------- | ----------- |
+| UI-001 |          |      |        |                   |             |
 
-| Review area | Outcome | Notes |
-| --- | --- | --- |
-| Clean bootstrap and automated gates | Pending | |
-| Competition, season, and refresh | Pending | |
-| Live generation | Pending | |
-| Historical read-only backtest | Pending | |
-| Article and artifacts | Pending | |
-| Execution and usage | Pending | |
-| Responsive and accessibility | Pending | |
-| Reload, errors, and console | Pending | |
+| Review area                         | Outcome | Notes |
+| ----------------------------------- | ------- | ----- |
+| Clean bootstrap and automated gates | Pending |       |
+| Competition, season, and refresh    | Pending |       |
+| Live generation                     | Pending |       |
+| Historical read-only backtest       | Pending |       |
+| Article and artifacts               | Pending |       |
+| Execution and usage                 | Pending |       |
+| Responsive and accessibility        | Pending |       |
+| Reload, errors, and console         | Pending |       |
 
 Final decision: **Pending / Pass / Pass with accepted limitations / Fail**
 
 Release-blocking findings:
 
-- 
+-
 
 Accepted follow-up findings:
 
-- 
+-
 
 Reviewer signoff: `____________________________`
 

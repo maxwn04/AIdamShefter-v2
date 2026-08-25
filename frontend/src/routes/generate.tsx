@@ -305,8 +305,6 @@ export function Component(): React.JSX.Element {
   const selectedSeason = seasons.find(
     ({ season }) => season.id === selectedSeasonId,
   );
-  const isLatestSeason =
-    selectedSeasonId.length > 0 && selectedSeasonId === latestSeason?.season.id;
   const modelOptions = useMemo(
     () => modelsQuery.data?.models ?? [],
     [modelsQuery.data],
@@ -365,16 +363,6 @@ export function Component(): React.JSX.Element {
       setSearchParameters(next, { replace: true });
     }
   }, [form, latestSeason, searchParameters, seasons, setSearchParameters]);
-
-  useEffect(() => {
-    if (!selectedSeasonId || !latestSeason) return;
-    if (
-      selectedSeasonId !== latestSeason.season.id &&
-      selectedMode !== "backtest"
-    ) {
-      form.setValue("mode", "backtest", { shouldValidate: true });
-    }
-  }, [form, latestSeason, selectedMode, selectedSeasonId]);
 
   useEffect(() => {
     const defaultModel =
@@ -638,14 +626,12 @@ export function Component(): React.JSX.Element {
                     selectedMode === "live"
                       ? "border-primary bg-accent/45"
                       : "border-border",
-                    !isLatestSeason && "cursor-not-allowed opacity-55",
                   )}
                 >
                   <span className="flex items-center gap-2 font-medium">
                     <input
                       type="radio"
                       value="live"
-                      disabled={!isLatestSeason}
                       {...form.register("mode")}
                     />
                     Live
@@ -677,10 +663,11 @@ export function Component(): React.JSX.Element {
                   </span>
                 </label>
               </div>
-              {!isLatestSeason ? (
+              {selectedMode === "live" ? (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Older seasons are evaluation-only and use historical backtest
-                  mode.
+                  Live runs append to current canonical memory; they do not
+                  rewind it. For a clean historical rebuild, start with empty
+                  memory and run weeks in chronological order.
                 </p>
               ) : null}
             </fieldset>

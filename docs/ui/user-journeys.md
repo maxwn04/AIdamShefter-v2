@@ -44,14 +44,14 @@ requiring horizontal scrolling for core actions.
 
 ## Route and Page Inventory
 
-| Route | Page | Primary responsibility |
-| --- | --- | --- |
-| `/` | Redirect | Continue to `/competitions` or the last valid competition |
-| `/competitions` | Competition list | Browse, create, archive, and choose a competition |
-| `/competitions/:competitionId` | Competition overview | Seasons, freshness, refresh history, and recent runs |
-| `/competitions/:competitionId/articles` | Article history | Filter and browse submitted articles for one competition |
-| `/competitions/:competitionId/generate` | Generate article | Configure, validate, and submit a generation |
-| `/competitions/:competitionId/generations/:generationId` | Generation detail | Article/run status plus artifacts, execution, and usage tabs |
+| Route                                                    | Page                 | Primary responsibility                                       |
+| -------------------------------------------------------- | -------------------- | ------------------------------------------------------------ |
+| `/`                                                      | Redirect             | Continue to `/competitions` or the last valid competition    |
+| `/competitions`                                          | Competition list     | Browse, create, archive, and choose a competition            |
+| `/competitions/:competitionId`                           | Competition overview | Seasons, freshness, refresh history, and recent runs         |
+| `/competitions/:competitionId/articles`                  | Article history      | Filter and browse submitted articles for one competition     |
+| `/competitions/:competitionId/generate`                  | Generate article     | Configure, validate, and submit a generation                 |
+| `/competitions/:competitionId/generations/:generationId` | Generation detail    | Article/run status plus artifacts, execution, and usage tabs |
 
 Creation stays in a dialog or sheet on `/competitions`; it does not need a
 dedicated route in v1. Season creation is a dialog on the competition overview.
@@ -150,16 +150,18 @@ explicitly chooses `Use these settings` on that run.
 
 The initial form presents the backend's two supported product modes:
 
-| Mode | Factual boundary | Memory effect | Promotion |
-| --- | --- | --- | --- |
-| Live | Selected current boundary | Writes canonical memory on success | Not applicable; already canonical |
+| Mode                | Factual boundary       | Memory effect                                | Promotion                                    |
+| ------------------- | ---------------------- | -------------------------------------------- | -------------------------------------------- |
+| Live                | Selected week boundary | Writes canonical memory on success           | Not applicable; already canonical            |
 | Historical backtest | Historical week cutoff | Historical pinned memory, isolated/read-only | Not eligible under the accepted architecture |
 
-Live mode is described as “generate from the selected current season boundary
-and canonical reporter memory.” The page shows the last successful refresh and
-warns when no usable observations exist. Because generation currently never
-refreshes implicitly, the warning provides a `Refresh now` action and returns
-to the preserved form afterward.
+Live mode is described as “generate from the selected week boundary and current
+canonical reporter memory.” It is available for every attached season, including
+completed seasons, but does not rewind canonical memory. The form advises users
+to start from empty memory and run chronologically when rebuilding a season. The
+page shows the last successful refresh and warns when no usable observations
+exist. Because generation currently never refreshes implicitly, the warning
+provides a `Refresh now` action and returns to the preserved form afterward.
 
 ### Backtest behavior
 
