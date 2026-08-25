@@ -6,11 +6,12 @@ The frontend is a standalone TypeScript application under `frontend/`:
 
 | Concern | Choice |
 | --- | --- |
+| Runtime | Node.js 22.22.x |
 | Package manager | `pnpm` with `packageManager` pinned in `package.json` and `pnpm-lock.yaml` committed |
 | Build/dev server | Vite |
 | UI runtime | React + TypeScript in strict mode |
 | Routing | React Router with route-level lazy loading |
-| Component system | shadcn/ui components stored in the repository, Tailwind CSS, accessible primitives |
+| Component system | Radix-backed shadcn/ui components stored in the repository, Tailwind CSS, accessible primitives |
 | Server state | TanStack Query |
 | Forms | React Hook Form + Zod form schemas |
 | HTTP contracts | FastAPI OpenAPI -> `openapi-typescript` types + a small typed fetch client |
