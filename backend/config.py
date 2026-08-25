@@ -9,6 +9,33 @@ from typing import Literal
 from backend.database.engine import EngineSettings
 
 
+DEFAULT_REPORTER_MODEL = "gpt-5.6-luna"
+
+# Curated tool-capable chat models for credentials supported by the local
+# product. Premium/pro-priced model families are intentionally omitted. An
+# explicit REPORTER_FALLBACK_MODELS value remains authoritative.
+_MODEL_CATALOG_BY_CREDENTIAL: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "OPENAI_API_KEY",
+        (
+            "gpt-5.6-luna",
+            "gpt-5.6-terra",
+            "gpt-5.6-sol",
+            "gpt-5.4-mini",
+            "gpt-5.4-nano",
+        ),
+    ),
+    (
+        "DEEPSEEK_API_KEY",
+        (
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+        ),
+    ),
+    ("META_API_KEY", ("meta/muse-spark-1.1",)),
+)
+
+
 def _boolean(name: str, default: bool) -> bool:
     raw_value = os.getenv(name)
     if raw_value is None:
@@ -134,13 +161,18 @@ class ModelCatalogSettings:
 
     @classmethod
     def from_environment(cls) -> "ModelCatalogSettings":
-        primary = os.getenv("REPORTER_MODEL", "gpt-5-mini").strip()
+        primary = os.getenv("REPORTER_MODEL", DEFAULT_REPORTER_MODEL).strip()
         if not primary:
             raise ValueError("REPORTER_MODEL must not be empty")
-        raw_fallbacks = os.getenv("REPORTER_FALLBACK_MODELS", "")
+        raw_fallbacks = os.getenv("REPORTER_FALLBACK_MODELS")
+        candidates = (
+            raw_fallbacks.split(",")
+            if raw_fallbacks is not None
+            else _models_for_configured_credentials()
+        )
         ordered: list[str] = []
         seen = {primary}
-        for raw_model in raw_fallbacks.split(","):
+        for raw_model in candidates:
             model = raw_model.strip()
             if model and model not in seen:
                 seen.add(model)
@@ -149,6 +181,14 @@ class ModelCatalogSettings:
 
     def model_chain(self) -> tuple[str, ...]:
         return (self.primary_model, *self.fallback_models)
+
+
+def _models_for_configured_credentials() -> tuple[str, ...]:
+    models: list[str] = []
+    for credential_name, provider_models in _MODEL_CATALOG_BY_CREDENTIAL:
+        if os.getenv(credential_name, "").strip():
+            models.extend(provider_models)
+    return tuple(models)
 
 
 @dataclass(frozen=True, slots=True)
