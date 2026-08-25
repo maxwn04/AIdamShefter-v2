@@ -135,7 +135,7 @@ Backtest generation ID: `____________________________`
 
 - [ ] The article library contains only successful generations with an explicit
       submitted artifact version.
-- [ ] Season, live/backtest, and week filters produce the expected persisted rows.
+- [ ] Season and live/backtest filters produce the expected persisted rows.
 - [ ] Each row presents its derived title, completion time, assignment excerpt,
       scope, requested/actual model summary, token total, and estimated cost when
       available.
