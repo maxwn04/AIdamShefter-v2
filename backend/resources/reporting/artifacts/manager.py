@@ -116,15 +116,48 @@ class ArtifactManager:
                     .where(*conditions)
                 ),
             )
-            rows = session.scalars(
-                sa.select(StoredArtifact)
+            version_summary = (
+                sa.select(
+                    StoredArtifactVersion.artifact_id.label("artifact_id"),
+                    sa.func.count(StoredArtifactVersion.id).label(
+                        "revision_count"
+                    ),
+                    sa.func.max(StoredArtifactVersion.created_at).label(
+                        "latest_version_at"
+                    ),
+                )
+                .where(
+                    StoredArtifactVersion.generation_id == query.generation_id
+                )
+                .group_by(StoredArtifactVersion.artifact_id)
+                .subquery()
+            )
+            rows = session.execute(
+                sa.select(
+                    StoredArtifact,
+                    sa.func.coalesce(version_summary.c.revision_count, 0).label(
+                        "revision_count"
+                    ),
+                    version_summary.c.latest_version_at,
+                )
+                .outerjoin(
+                    version_summary,
+                    version_summary.c.artifact_id == StoredArtifact.id,
+                )
                 .where(*conditions)
                 .order_by(StoredArtifact.path.asc(), StoredArtifact.id.asc())
                 .limit(query.limit)
                 .offset(query.offset)
             ).all()
             return ArtifactPage(
-                items=tuple(_decode_summary(row) for row in rows),
+                items=tuple(
+                    _decode_summary(
+                        row._mapping[StoredArtifact],
+                        revision_count=row._mapping["revision_count"],
+                        latest_version_at=row._mapping["latest_version_at"],
+                    )
+                    for row in rows
+                ),
                 total=total,
                 limit=query.limit,
                 offset=query.offset,
@@ -184,8 +217,19 @@ def _decode(stored: StoredArtifact) -> Artifact:
     )
 
 
-def _decode_summary(stored: StoredArtifact) -> ArtifactSummary:
-    return ArtifactSummary.model_validate(_decode(stored).model_dump())
+def _decode_summary(
+    stored: StoredArtifact,
+    *,
+    revision_count: int,
+    latest_version_at: datetime | None,
+) -> ArtifactSummary:
+    return ArtifactSummary.model_validate(
+        {
+            **_decode(stored).model_dump(),
+            "revision_count": revision_count,
+            "latest_version_at": latest_version_at,
+        }
+    )
 
 
 def _resolve_exact_artifact_version_in_session(

@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmittedArticlePanel } from "@/features/articles/submitted-article-panel";
+import { ArtifactBrowser } from "@/features/artifacts/artifact-browser";
 import {
   createGenerationFormValuesFromDetail,
   saveGenerationDraft,
@@ -159,6 +160,8 @@ export function Component(): React.JSX.Element {
     next.set("tab", nextTab);
     next.delete("artifact");
     next.delete("version");
+    next.delete("artifactPage");
+    next.delete("versionPage");
     next.delete("page");
     setSearchParameters(next, { replace: true });
   }
@@ -457,9 +460,12 @@ export function Component(): React.JSX.Element {
             />
           </TabsContent>
           <TabsContent value="artifacts">
-            <DeferredAuditPanel
-              title="Artifact history"
-              description="Version browsing and intermediate work products land in the next article-audit slice."
+            <ArtifactBrowser
+              key={resolvedGenerationId}
+              competitionId={resolvedCompetitionId}
+              generationId={resolvedGenerationId}
+              submittedVersionId={generation.submitted_artifact_version_id}
+              active={activeTab === "artifacts"}
             />
           </TabsContent>
           <TabsContent value="execution">

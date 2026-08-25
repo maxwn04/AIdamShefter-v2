@@ -181,7 +181,9 @@ still being discovered, so component snapshots, mocked API tests, and a browser
 suite would create maintenance cost while page structure and interactions are
 changing quickly.
 
-Each frontend layer uses lightweight implementation checks:
+Each frontend PR uses one lightweight implementation check immediately before
+commit. Subagents do not independently repeat these commands after their
+contributions. The single final pass includes:
 
 1. strict TypeScript compilation;
 2. lint and formatting checks;
@@ -189,8 +191,9 @@ Each frontend layer uses lightweight implementation checks:
 4. targeted backend contract tests only when that layer changes backend
    behavior.
 
-Do not build elaborate temporary acceptance environments for each intermediate
-layer. After the complete initial UI stack is implemented, run one comprehensive
+Do not run the gate after individual edits or subagent contributions, and do
+not build elaborate temporary acceptance environments for each intermediate
+PR. After the complete initial UI stack is implemented, run one comprehensive
 review against the full local database and backend. That final pass covers all
 core journeys, real-data states, responsive behavior, keyboard/accessibility,
 reload and polling recovery, error states, and a clean browser console. Record

@@ -29,7 +29,7 @@ Generation routes already exist under
 | Submitted article | `GET /generations/competitions/{competition_id}/{generation_id}/article` | Implemented and returns the exact generation, artifact, and version |
 | AI call list/detail | `GET .../{generation_id}/ai-calls[/{ai_call_id}]` | Implemented |
 | Tool call list/detail | `GET .../{generation_id}/tool-calls[/{tool_call_id}]` | Implemented |
-| Artifact list/detail | `GET .../{generation_id}/artifacts[/{artifact_id}]` | Implemented |
+| Artifact list/detail | `GET .../{generation_id}/artifacts[/{artifact_id}]` | Implemented; list summaries include revision count and latest-version time |
 | Artifact versions | `GET .../{generation_id}/artifacts/{artifact_id}/versions[/{version_id}]` | Implemented |
 
 Competition and season management plus refresh, overview, and snapshot-audit

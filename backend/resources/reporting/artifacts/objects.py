@@ -78,7 +78,8 @@ class Artifact(ContractModel):
 
 
 class ArtifactSummary(Artifact):
-    pass
+    revision_count: NonNegativeInt
+    latest_version_at: AwareDatetime | None
 
 
 class ArtifactPage(ContractModel):

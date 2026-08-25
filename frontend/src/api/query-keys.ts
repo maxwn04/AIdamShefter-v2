@@ -95,5 +95,76 @@ export const queryKeys = {
         generationId,
         "article",
       ] as const,
+    artifactLists: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "artifacts",
+        "list",
+      ] as const,
+    artifactList: (
+      competitionId: string,
+      generationId: string,
+      parameters: Readonly<object>,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "artifacts",
+        "list",
+        parameters,
+      ] as const,
+    artifactVersionLists: (
+      competitionId: string,
+      generationId: string,
+      artifactId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "artifacts",
+        artifactId,
+        "versions",
+        "list",
+      ] as const,
+    artifactVersionList: (
+      competitionId: string,
+      generationId: string,
+      artifactId: string,
+      parameters: Readonly<object>,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "artifacts",
+        artifactId,
+        "versions",
+        "list",
+        parameters,
+      ] as const,
+    artifactVersionDetail: (
+      competitionId: string,
+      generationId: string,
+      artifactId: string,
+      versionId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "artifacts",
+        artifactId,
+        "versions",
+        versionId,
+      ] as const,
   },
 } as const;
