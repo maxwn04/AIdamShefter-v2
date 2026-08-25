@@ -166,5 +166,97 @@ export const queryKeys = {
         "versions",
         versionId,
       ] as const,
+    generationUsage: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "usage",
+      ] as const,
+    aiCallLists: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        "list",
+      ] as const,
+    aiCallList: (
+      competitionId: string,
+      generationId: string,
+      parameters: Readonly<object>,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        "list",
+        parameters,
+      ] as const,
+    aiCallDetail: (
+      competitionId: string,
+      generationId: string,
+      aiCallId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        aiCallId,
+      ] as const,
+    toolCallLists: (
+      competitionId: string,
+      generationId: string,
+      aiCallId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        aiCallId,
+        "tool-calls",
+        "list",
+      ] as const,
+    toolCallList: (
+      competitionId: string,
+      generationId: string,
+      aiCallId: string,
+      parameters: Readonly<object>,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        aiCallId,
+        "tool-calls",
+        "list",
+        parameters,
+      ] as const,
+    toolCallDetail: (
+      competitionId: string,
+      generationId: string,
+      aiCallId: string,
+      toolCallId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "ai-calls",
+        aiCallId,
+        "tool-calls",
+        toolCallId,
+      ] as const,
   },
 } as const;
