@@ -71,6 +71,14 @@ export const queryKeys = {
       ] as const,
     generations: (competitionId: string) =>
       ["competitions", competitionId, "generations"] as const,
+    generationList: (competitionId: string, parameters: Readonly<object>) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        "list",
+        parameters,
+      ] as const,
     generationSubmission: (competitionId: string) =>
       ["competitions", competitionId, "generations", "submit"] as const,
     generationRerun: (competitionId: string, generationId: string) =>

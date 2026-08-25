@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompetitionDetail } from "@/features/competitions/queries";
+import { RecentRuns } from "@/features/generations/recent-runs";
 import type { ManualRefreshResponse } from "@/features/refreshes/api";
 import { RefreshHistory } from "@/features/refreshes/refresh-history";
 import { RefreshOutcomePanel } from "@/features/refreshes/refresh-outcome";
@@ -610,6 +611,27 @@ export function Component(): React.JSX.Element {
 
           {latestOutcome && latestOutcome.seasonId === selectedSeasonId ? (
             <RefreshOutcomePanel outcome={latestOutcome.outcome} />
+          ) : null}
+
+          {selectedSeasonId ? (
+            <section className="mt-10" aria-labelledby="recent-runs-heading">
+              <h2
+                id="recent-runs-heading"
+                className="font-editorial text-2xl font-semibold"
+              >
+                Recent runs
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                The five newest live and historical generation attempts for the
+                selected season, including active and failed runs.
+              </p>
+              <div className="mt-5">
+                <RecentRuns
+                  competitionId={competition.id}
+                  seasonId={selectedSeasonId}
+                />
+              </div>
+            </section>
           ) : null}
 
           {selectedSeasonId ? (
