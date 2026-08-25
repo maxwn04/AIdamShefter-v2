@@ -1,11 +1,12 @@
 import type * as React from "react";
+import { ExternalLink } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
 const markdownComponents: Components = {
-  a({ className, href, node, ...props }) {
+  a({ children, className, href, node, ...props }) {
     void node;
     const opensNewWindow =
       href?.startsWith("https://") === true ||
@@ -14,14 +15,25 @@ const markdownComponents: Components = {
     return (
       <a
         className={cn(
-          "font-medium text-primary underline decoration-primary/35 underline-offset-4 transition-colors hover:decoration-primary",
+          "break-words font-medium text-primary underline decoration-primary/35 underline-offset-4 transition-colors hover:decoration-primary",
           className,
         )}
         {...props}
         href={href}
         rel={opensNewWindow ? "noreferrer noopener" : undefined}
         target={opensNewWindow ? "_blank" : undefined}
-      />
+      >
+        {children}
+        {opensNewWindow ? (
+          <>
+            <ExternalLink
+              className="ml-1 inline size-3 align-[-0.1em]"
+              aria-hidden="true"
+            />
+            <span className="sr-only"> opens in a new tab</span>
+          </>
+        ) : null}
+      </a>
     );
   },
   table({ className, node, ...props }) {
