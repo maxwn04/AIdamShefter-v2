@@ -72,6 +72,12 @@ export function useManualRefresh(competitionId: string, seasonId: string) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.competitions.snapshots(competitionId, seasonId),
         }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.competitions.rosterMappings(
+            competitionId,
+            seasonId,
+          ),
+        }),
       ]);
     },
   });

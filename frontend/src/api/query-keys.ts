@@ -14,6 +14,14 @@ export const queryKeys = {
       ["competitions", competitionId, "seasons"] as const,
     seasonDetail: (competitionId: string, seasonId: string) =>
       ["competitions", competitionId, "seasons", seasonId] as const,
+    rosterMappings: (competitionId: string, seasonId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "roster-mappings",
+      ] as const,
     refreshes: (competitionId: string, seasonId: string) =>
       [
         "competitions",
