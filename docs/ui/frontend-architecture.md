@@ -180,18 +180,20 @@ still being discovered, so component snapshots, mocked API tests, and a browser
 suite would create maintenance cost while page structure and interactions are
 changing quickly.
 
-Each frontend layer instead has four required checks:
+Each frontend layer uses lightweight implementation checks:
 
 1. strict TypeScript compilation;
 2. lint and formatting checks;
 3. a successful production build; and
-4. a short manual acceptance pass through the affected journey against the real
-   local backend.
+4. targeted backend contract tests only when that layer changes backend
+   behavior.
 
-The manual pass is recorded in `.context/ui/log.md`, including the route,
-important states checked, and any known limitations. New backend resources and
-workflow invariants still receive targeted backend tests under `backend/tests`;
-the deferral applies only to frontend automated tests.
+Do not build elaborate temporary acceptance environments for each intermediate
+layer. After the complete initial UI stack is implemented, run one comprehensive
+review against the full local database and backend. That final pass covers all
+core journeys, real-data states, responsive behavior, keyboard/accessibility,
+reload and polling recovery, error states, and a clean browser console. Record
+that pass and any known limitations in `.context/ui/log.md`.
 
 Frontend tests can be introduced later where evidence makes them valuable—for
 example, a repeatedly broken generation-form mapping, polling lifecycle, cost
@@ -210,9 +212,9 @@ lint, typecheck, and the production build.
 
 Initial performance goals are pragmatic: route-level code splitting, no eager
 loading of artifact/call bodies, bounded list pages, and responsive interaction
-on ordinary league histories. Manual acceptance includes accessibility checks
-for dialogs, tabs, navigation, form errors, keyboard focus, and status updates
-until automated accessibility checks are justified.
+on ordinary league histories. The final full-stack review includes
+accessibility checks for dialogs, tabs, navigation, form errors, keyboard
+focus, and status updates until automated accessibility checks are justified.
 
 ## Deferred Choices
 

@@ -363,6 +363,36 @@ async def test_submission_and_rerun_create_pending_requests_without_execution() 
 
 
 @pytest.mark.asyncio
+async def test_submission_rejects_primary_model_duplicated_in_fallbacks() -> None:
+    competition_id = uuid4()
+    season_id = uuid4()
+    dependencies = _dependencies(competition_id, season_id)
+    app, client = await _client(dependencies)
+    payload = {
+        "competition_season_id": str(season_id),
+        "kind": "live",
+        "request_text": "weekly recap",
+        "week_start": 8,
+        "week_end": 8,
+        "requested_primary_model": " gpt-test ",
+        "settings": {"model": {"fallback_models": ["gpt-test"]}},
+    }
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.post(
+            f"/api/v1/generations/competitions/{competition_id}",
+            json=payload,
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["msg"] == (
+        "Value error, requested_primary_model cannot duplicate a fallback model"
+    )
+    assert dependencies.service.submissions == []
+    assert dependencies.dispatcher.dispatched == []
+
+
+@pytest.mark.asyncio
 async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     competition_id = uuid4()
     season_id = uuid4()

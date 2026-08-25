@@ -3,6 +3,10 @@ export const queryKeys = {
     all: ["health"] as const,
     status: () => ["health", "status"] as const,
   },
+  models: {
+    all: ["models"] as const,
+    catalog: () => ["models", "catalog"] as const,
+  },
   competitions: {
     all: ["competitions"] as const,
     lists: () => ["competitions", "list"] as const,
@@ -65,5 +69,11 @@ export const queryKeys = {
         seasonId,
         "snapshots",
       ] as const,
+    generations: (competitionId: string) =>
+      ["competitions", competitionId, "generations"] as const,
+    generationSubmission: (competitionId: string) =>
+      ["competitions", competitionId, "generations", "submit"] as const,
+    generationDetail: (competitionId: string, generationId: string) =>
+      ["competitions", competitionId, "generations", generationId] as const,
   },
 } as const;

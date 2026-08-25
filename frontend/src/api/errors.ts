@@ -84,6 +84,18 @@ export function normalizeApiError(
 
   if (isRecord(payload)) {
     const detail = payload.detail;
+    if (isRecord(detail)) {
+      return new ApiError({
+        status,
+        code: asString(detail.code) ?? `http_${String(status)}`,
+        summary:
+          asString(detail.message) ??
+          asString(detail.summary) ??
+          "The request could not be completed.",
+        fieldErrors: parseFieldErrors(detail.field_errors),
+        correlationId: asString(detail.correlation_id) ?? responseCorrelationId,
+      });
+    }
     const fieldErrors = parseValidationErrors(detail);
     const isValidationError = Object.keys(fieldErrors).length > 0;
     return new ApiError({
