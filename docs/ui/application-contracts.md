@@ -204,7 +204,7 @@ The UI polls run detail. WebSockets or server-sent events are not required for
 v1. A future event channel must remain an acceleration layer; durable GET state
 is still the recovery authority.
 
-## Model Catalog and Pricing
+## Model Catalog and Backend Pricing
 
 The form must not hard-code the deployable model set. Add:
 
@@ -219,22 +219,14 @@ Each item includes:
   "provider": "openai",
   "model": "model-id",
   "display_name": "Display name",
-  "selectable": true,
   "is_default": false,
-  "supports_reasoning": true,
-  "pricing_revision": "2026-08-23",
-  "pricing": {
-    "currency": "USD",
-    "input_per_million": "0.000000",
-    "cached_input_per_million": "0.000000",
-    "output_per_million": "0.000000"
-  }
+  "supports_reasoning": true
 }
 ```
 
-Prices above are shape examples, not values. Decimal strings avoid binary float
-rounding in the transport. The backend configuration/service owns model aliases,
-availability, provider billing semantics, and pricing revisions.
+The list is the ordered, deduplicated `REPORTER_MODEL` and
+`REPORTER_FALLBACK_MODELS` chain. It is selection metadata only: the frontend
+does not receive token rates and generation submission remains permissive.
 
 `GET .../{generation_id}/usage` aggregates **all recorded attempts**, including
 failed/fallback attempts when the provider reported billable usage. It prices
@@ -244,16 +236,16 @@ contains:
 - totals by token class;
 - breakdown by actual provider/model;
 - unpriced/missing-usage call IDs;
-- pricing revision(s) and quote time;
+- quote time;
 - estimated cost as a decimal string and currency; and
 - `complete: false` whenever any applicable call cannot be priced.
 
 Cached tokens must not be double-counted as full-price input when provider usage
 reports them as a subset. Reasoning-token billing differs by provider/model and
 must be captured in the pricing rule rather than guessed by the frontend. The
-first implementation may keep the pricing catalog in versioned server
-configuration. Persisted historical dollar cost is not required; persisted raw
-usage plus a reproducible price revision is.
+backend uses the current LiteLLM price map and may fall back to the map bundled
+with the installed LiteLLM package when the remote map is unavailable.
+Historical price reproduction and persisted dollar cost are not required.
 
 ## Evaluation Workspace and Promotion API
 

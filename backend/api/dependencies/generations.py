@@ -38,5 +38,6 @@ def get_generation_api_dependencies(
     return build_generation_dependencies(
         generation_runtime.session_factory,
         context,
+        model_registry=generation_runtime.model_registry,
     )
 

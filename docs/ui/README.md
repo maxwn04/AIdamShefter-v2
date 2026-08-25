@@ -90,8 +90,9 @@ durable cross-season identity.
   Intermediate artifacts and later/earlier versions never replace it by path
   convention.
 - Cost is labeled **estimated cost**. The backend calculates it from persisted
-  actual provider/model usage and a named pricing revision; missing usage or
-  pricing remains visibly unknown rather than being treated as zero.
+  actual provider/model usage and the current LiteLLM price map; missing usage
+  or pricing remains visibly unknown rather than being treated as zero. The
+  frontend never calculates cost.
 - The package manager is `pnpm`. Yarn and npm lockfiles are not introduced.
 
 ## Release Boundary

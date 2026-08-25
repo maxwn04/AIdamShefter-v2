@@ -43,6 +43,7 @@ from backend.resources.reporting.tool_calls import (
     ToolCallStatus,
     ToolCallSummary,
 )
+from backend.services.model_usage import GenerationUsage, TokenTotals
 
 
 NOW = datetime(2026, 8, 23, 9, 30, tzinfo=UTC)
@@ -113,6 +114,27 @@ class StubManager:
         if self.error is not None:
             raise self.error
         return self.page
+
+
+class StubUsage:
+    def __init__(self) -> None:
+        self.generation_ids: list[UUID] = []
+
+    def get(self, generation_id: UUID) -> GenerationUsage:
+        self.generation_ids.append(generation_id)
+        return GenerationUsage(
+            generation_id=generation_id,
+            attempt_count=1,
+            latency_ms=10,
+            tokens=TokenTotals(input_tokens=100, output_tokens=40, total_tokens=140),
+            breakdowns=(),
+            estimated_cost="0.0012",
+            currency="USD",
+            complete=True,
+            missing_usage_call_ids=(),
+            unpriced_call_ids=(),
+            quoted_at=NOW,
+        )
 
 
 def _generation(
@@ -288,6 +310,7 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
                 items=(version_summary,), total=1, limit=50, offset=0
             ),
         ),
+        usage=StubUsage(),
     )
 
 
@@ -353,6 +376,7 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
         history = await client.get(f"{base}?status=succeeded")
         articles = await client.get(f"{base}/articles")
         detail = await client.get(f"{base}/{generation.id}")
+        usage_response = await client.get(f"{base}/{generation.id}/usage")
         article = await client.get(f"{base}/{generation.id}/article")
         ai_calls = await client.get(f"{base}/{generation.id}/ai-calls")
         ai_call = await client.get(
@@ -373,6 +397,8 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     assert history.status_code == 200
     assert articles.json()["page"]["items"][0]["status"] == "succeeded"
     assert detail.json()["generation"]["input_manifest"] == {"schema_version": 1}
+    assert usage_response.json()["usage"]["estimated_cost"] == "0.0012"
+    assert dependencies.usage.generation_ids == [generation.id]
     assert article.json()["version"]["content"] == "# Final article"
     assert ai_calls.json()["page"]["items"][0]["usage"]["total_tokens"] == 140
     assert ai_call.json()["ai_call"]["usage"]["raw_provider_usage"] == {
@@ -429,6 +455,7 @@ def test_openapi_contains_generation_polling_and_audit_boundaries() -> None:
         generation,
         f"{generation}/reruns",
         f"{generation}/article",
+        f"{generation}/usage",
         f"{generation}/ai-calls",
         f"{generation}/ai-calls/{{ai_call_id}}",
         f"{generation}/tool-calls",

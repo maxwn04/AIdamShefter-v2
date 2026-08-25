@@ -126,6 +126,32 @@ class GenerationRuntimeSettings:
 
 
 @dataclass(frozen=True, slots=True)
+class ModelCatalogSettings:
+    """Configured model choices exposed by the product API."""
+
+    primary_model: str
+    fallback_models: tuple[str, ...]
+
+    @classmethod
+    def from_environment(cls) -> "ModelCatalogSettings":
+        primary = os.getenv("REPORTER_MODEL", "gpt-5-mini").strip()
+        if not primary:
+            raise ValueError("REPORTER_MODEL must not be empty")
+        raw_fallbacks = os.getenv("REPORTER_FALLBACK_MODELS", "")
+        ordered: list[str] = []
+        seen = {primary}
+        for raw_model in raw_fallbacks.split(","):
+            model = raw_model.strip()
+            if model and model not in seen:
+                seen.add(model)
+                ordered.append(model)
+        return cls(primary_model=primary, fallback_models=tuple(ordered))
+
+    def model_chain(self) -> tuple[str, ...]:
+        return (self.primary_model, *self.fallback_models)
+
+
+@dataclass(frozen=True, slots=True)
 class DatalayerSettings:
     """Local storage and Sleeper source settings for datalayer composition."""
 

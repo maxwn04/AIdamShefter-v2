@@ -20,6 +20,7 @@ from backend.api.schemas.generations import (
     GenerationDetailResponse,
     GenerationPageResponse,
     GenerationResponse,
+    GenerationUsageResponse,
     SubmitGenerationBody,
     SubmittedArticleResponse,
     ToolCallPageResponse,
@@ -168,6 +169,14 @@ def generation_detail(
     return GenerationDetailResponse(
         generation=dependencies.generations.get(generation_id)
     )
+
+
+@router.get("/{generation_id}/usage", response_model=GenerationUsageResponse)
+def generation_usage(
+    generation_id: UUID,
+    dependencies: GenerationApi,
+) -> GenerationUsageResponse:
+    return GenerationUsageResponse(usage=dependencies.usage.get(generation_id))
 
 
 @router.get(
