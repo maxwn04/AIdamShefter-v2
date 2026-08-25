@@ -135,9 +135,12 @@ generations.usage(competitionId, generationId)
 ```
 
 Generation detail polls while status is `pending` or `running`, pauses when the
-document is hidden/offline, and stops at a terminal state. Child telemetry is
-refetched on stage/turn changes or when its tab is open; do not poll every
-large tool result on the article tab. Refresh mutation invalidates season,
+document is hidden/offline, and stops at a terminal state. While the Execution
+tab is active, its bounded AI-call and generation-level tool-call summaries poll
+on the same visibility-aware cadence so the turn log advances without nested
+requests per attempt. Large payloads remain lazy: only the one selected AI or
+tool detail may poll while it is still running. No execution telemetry is
+polled from the Article tab. Refresh mutation invalidates season,
 refresh-history, competition-summary, and relevant generation-readiness keys.
 
 Mutations use server-returned resources and targeted invalidation. Optimistic

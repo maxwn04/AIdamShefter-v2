@@ -4,6 +4,7 @@ import { queryKeys } from "@/api/query-keys";
 import {
   getAICall,
   getToolCall,
+  listGenerationToolCalls,
   listAICalls,
   listToolCalls,
   type ExecutionPageParameters,
@@ -51,6 +52,7 @@ export function useAICallDetail(
   generationId: string,
   aiCallId: string,
   enabled: boolean,
+  poll: boolean,
 ) {
   return useQuery({
     queryKey: queryKeys.competitions.aiCallDetail(
@@ -65,6 +67,31 @@ export function useAICallDetail(
       competitionId.length > 0 &&
       generationId.length > 0 &&
       aiCallId.length > 0,
+    refetchInterval:
+      enabled && poll && browserCanPoll() ? ACTIVE_SUMMARY_POLL_MS : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useGenerationToolCallList(
+  competitionId: string,
+  generationId: string,
+  enabled: boolean,
+  generationActive: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.competitions.generationToolCallList(
+      competitionId,
+      generationId,
+    ),
+    queryFn: ({ signal }) =>
+      listGenerationToolCalls(competitionId, generationId, signal),
+    enabled: enabled && competitionId.length > 0 && generationId.length > 0,
+    refetchInterval:
+      enabled && generationActive && browserCanPoll()
+        ? ACTIVE_SUMMARY_POLL_MS
+        : false,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -99,6 +126,7 @@ export function useToolCallDetail(
   aiCallId: string,
   toolCallId: string,
   enabled: boolean,
+  poll: boolean,
 ) {
   return useQuery({
     queryKey: queryKeys.competitions.toolCallDetail(
@@ -115,5 +143,8 @@ export function useToolCallDetail(
       generationId.length > 0 &&
       aiCallId.length > 0 &&
       toolCallId.length > 0,
+    refetchInterval:
+      enabled && poll && browserCanPoll() ? ACTIVE_SUMMARY_POLL_MS : false,
+    refetchIntervalInBackground: false,
   });
 }

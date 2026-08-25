@@ -5,6 +5,7 @@ set -Eeuo pipefail
 readonly FRONTEND_PORT=3000
 readonly BACKEND_PORT=8000
 readonly PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+readonly ENV_FILE="${AIDAM_ENV_FILE:-$PROJECT_ROOT/.env}"
 
 BACKEND_PID=""
 FRONTEND_PID=""
@@ -95,12 +96,34 @@ command -v uv >/dev/null 2>&1 || {
   log "uv is required but was not found in PATH." >&2
   exit 1
 }
-command -v pnpm >/dev/null 2>&1 || {
-  log "pnpm is required but was not found in PATH." >&2
+command -v node >/dev/null 2>&1 || {
+  log "Node.js 22.22.x is required but node was not found in PATH." >&2
   exit 1
 }
-[[ -f .env ]] || {
-  log "Missing $PROJECT_ROOT/.env. Create it before starting the app." >&2
+command -v corepack >/dev/null 2>&1 || {
+  log "Corepack is required but was not found in PATH. Enable it under Node 22.22.x." >&2
+  exit 1
+}
+NODE_VERSION="$(node --version)"
+case "$NODE_VERSION" in
+  v22.22.*) ;;
+  *)
+    log "Node.js 22.22.x is required; found $NODE_VERSION. Activate frontend/.node-version before starting the app." >&2
+    exit 1
+    ;;
+esac
+PNPM_VERSION="$(cd "$PROJECT_ROOT/frontend" && corepack pnpm --version)"
+if [[ "$PNPM_VERSION" != "11.19.0" ]]; then
+  log "pnpm 11.19.0 is required; Corepack resolved $PNPM_VERSION." >&2
+  exit 1
+fi
+PNPM_NODE_VERSION="$(cd "$PROJECT_ROOT/frontend" && corepack pnpm exec node --version)"
+if [[ "$PNPM_NODE_VERSION" != "$NODE_VERSION" ]]; then
+  log "Corepack pnpm resolves $PNPM_NODE_VERSION but node resolves $NODE_VERSION. Re-enable Corepack under Node 22.22.x." >&2
+  exit 1
+fi
+[[ -f "$ENV_FILE" ]] || {
+  log "Missing environment file: $ENV_FILE" >&2
   exit 1
 }
 
@@ -108,11 +131,14 @@ clear_port "$FRONTEND_PORT"
 clear_port "$BACKEND_PORT"
 
 log "Starting backend at http://127.0.0.1:$BACKEND_PORT"
-AIDAM_API_PORT="$BACKEND_PORT" uv run --env-file .env aidam-api &
+AIDAM_API_PORT="$BACKEND_PORT" uv run --env-file "$ENV_FILE" aidam-api &
 BACKEND_PID=$!
 
 log "Starting frontend at http://127.0.0.1:$FRONTEND_PORT"
-pnpm --dir frontend dev -- --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort &
+(
+  cd "$PROJECT_ROOT/frontend"
+  corepack pnpm dev --host 127.0.0.1 --port "$FRONTEND_PORT" --strictPort
+) &
 FRONTEND_PID=$!
 
 log "Both services started. Press Ctrl+C to stop them."

@@ -19,6 +19,8 @@ export interface ExecutionPageParameters {
   offset: number;
 }
 
+const MAX_TOOL_CALL_PAGE_SIZE = 200;
+
 function generationPath(competitionId: string, generationId: string): string {
   return `/api/v1/generations/competitions/${competitionId}/${generationId}`;
 }
@@ -67,6 +69,31 @@ export function listToolCalls(
     `${generationPath(competitionId, generationId)}/tool-calls?${query.toString()}`,
     { signal },
   );
+}
+
+export async function listGenerationToolCalls(
+  competitionId: string,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<ToolCallSummary[]> {
+  const items: ToolCallSummary[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const response = await apiRequest<ToolCallPageResponse>(
+      `${generationPath(competitionId, generationId)}/tool-calls?${pageQuery({ limit: MAX_TOOL_CALL_PAGE_SIZE, offset }).toString()}`,
+      { signal },
+    );
+    items.push(...response.page.items);
+
+    if (
+      response.page.items.length === 0 ||
+      items.length >= response.page.total
+    ) {
+      return items;
+    }
+    offset += response.page.items.length;
+  }
 }
 
 export function getToolCall(

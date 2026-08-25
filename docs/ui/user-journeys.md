@@ -224,11 +224,19 @@ count, and modified time. Selecting an artifact shows its version history and
 content. The submitted version is visibly marked. Arbitrary HTML in artifacts
 is not executed.
 
-**Execution** presents a chronological turn timeline. AI attempts show
-requested/actual model, status, latency, finish reason, and usage. Nested tool
-calls show tool name, status, duration, arguments, structured result/full text,
-and errors in expandable panels. Large JSON/text starts collapsed, is copyable,
-and is never loaded into the article reading surface by default.
+**Execution** presents a compact chronological work log grouped by reporter
+turn. Every visible turn shows its model attempts and the tool calls belonging
+to each attempt without requiring disclosure clicks. Attempt rows show the
+requested/actual model, status, latency, finish reason, and usage; tool rows show
+the tool name, status, and duration.
+
+Selecting one attempt or tool row opens its exact payloads directly beneath that
+row. The selected row is the only expanded detail surface, and its request,
+response, arguments, result, and error payloads are shown together rather than
+behind another level of disclosures. Summary polling keeps new attempts and
+tool calls visible while a generation runs; only the selected large payload is
+polled. Exact JSON/text remains escaped, scroll-contained, and copyable, and is
+never loaded into the article reading surface by default.
 
 **Usage** shows aggregate input, cached input, output, reasoning, and total
 tokens; model/provider breakdown; attempt count; latency; and estimated cost.
