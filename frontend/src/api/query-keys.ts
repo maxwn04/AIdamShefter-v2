@@ -83,5 +83,17 @@ export const queryKeys = {
       ] as const,
     generationDetail: (competitionId: string, generationId: string) =>
       ["competitions", competitionId, "generations", generationId] as const,
+    articleLists: (competitionId: string) =>
+      ["competitions", competitionId, "articles", "list"] as const,
+    articleList: (competitionId: string, parameters: Readonly<object>) =>
+      ["competitions", competitionId, "articles", "list", parameters] as const,
+    submittedArticle: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "article",
+      ] as const,
   },
 } as const;

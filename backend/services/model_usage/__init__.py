@@ -9,7 +9,10 @@ from backend.services.model_usage.objects import (
     TokenTotals,
 )
 from backend.services.model_usage.pricing import LiteLLMModelRegistry
-from backend.services.model_usage.usage import GenerationUsageService
+from backend.services.model_usage.usage import (
+    GenerationUsageService,
+    summarize_generation_usage,
+)
 
 __all__ = [
     "GenerationUsage",
@@ -20,4 +23,5 @@ __all__ = [
     "ModelCatalogService",
     "ModelUsageBreakdown",
     "TokenTotals",
+    "summarize_generation_usage",
 ]

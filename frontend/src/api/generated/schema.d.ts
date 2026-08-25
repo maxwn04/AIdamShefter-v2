@@ -989,6 +989,111 @@ export interface components {
             turn_number: number;
             usage: components["schemas"]["TokenUsage"];
         };
+        /** ArticleModelUsage */
+        ArticleModelUsage: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+        };
+        /** ArticlePage */
+        ArticlePage: {
+            /** Items */
+            items: components["schemas"]["ArticleSummary"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** ArticlePageResponse */
+        ArticlePageResponse: {
+            page: components["schemas"]["ArticlePage"];
+        };
+        /** ArticleSummary */
+        ArticleSummary: {
+            /**
+             * Artifact Id
+             * Format: uuid
+             */
+            artifact_id: string;
+            /** Artifact Media Type */
+            artifact_media_type: string;
+            /** Artifact Path */
+            artifact_path: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /**
+             * Competition Season Id
+             * Format: uuid
+             */
+            competition_season_id: string;
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+            /** Evaluation Workspace Id */
+            evaluation_workspace_id: string | null;
+            /**
+             * Generation Id
+             * Format: uuid
+             */
+            generation_id: string;
+            kind: components["schemas"]["GenerationKind"];
+            /** Request Text */
+            request_text: string;
+            /** Requested Primary Model */
+            requested_primary_model: string;
+            /** Rerun Of Generation Id */
+            rerun_of_generation_id: string | null;
+            /** Season Year */
+            season_year: number;
+            /** Submitted Version Content Hash */
+            submitted_version_content_hash: string;
+            /**
+             * Submitted Version Id
+             * Format: uuid
+             */
+            submitted_version_id: string;
+            /** Submitted Version Revision */
+            submitted_version_revision: number;
+            /** Title */
+            title: string;
+            usage: components["schemas"]["ArticleUsageSummary"];
+            /** Week End */
+            week_end: number | null;
+            /** Week Start */
+            week_start: number | null;
+            /** Workspace Sequence Number */
+            workspace_sequence_number: number | null;
+        };
+        /** ArticleUsageSummary */
+        ArticleUsageSummary: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Complete */
+            complete: boolean;
+            /** Currency */
+            currency: string;
+            /** Estimated Cost */
+            estimated_cost: string | null;
+            /** Models */
+            models: components["schemas"]["ArticleModelUsage"][];
+            /**
+             * Quoted At
+             * Format: date-time
+             */
+            quoted_at: string;
+            /** Total Tokens */
+            total_tokens: number;
+        };
         /** Artifact */
         Artifact: {
             /**
@@ -5183,7 +5288,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["GenerationPageResponse"];
+                    "application/json": components["schemas"]["ArticlePageResponse"];
                 };
             };
             /** @description Validation Error */

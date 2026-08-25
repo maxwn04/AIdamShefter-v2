@@ -10,7 +10,7 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/errors";
@@ -18,6 +18,8 @@ import { DateTime } from "@/components/shared/date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { SubmittedArticlePanel } from "@/features/articles/submitted-article-panel";
 import {
   createGenerationFormValuesFromDetail,
   saveGenerationDraft,
@@ -30,6 +32,16 @@ import { useSeasonList } from "@/features/seasons/queries";
 import { cn } from "@/lib/utils";
 
 const seasonListParameters = { limit: 200, offset: 0 } as const;
+const detailTabs = ["article", "artifacts", "execution", "usage"] as const;
+type DetailTab = (typeof detailTabs)[number];
+
+function detailTab(value: string | null, submitted: boolean): DetailTab {
+  if (detailTabs.some((candidate) => candidate === value)) {
+    if (value === "article" && !submitted) return "execution";
+    return value as DetailTab;
+  }
+  return submitted ? "article" : "execution";
+}
 
 function titleCase(value: string): string {
   return value
@@ -79,6 +91,7 @@ function DetailSkeleton(): React.JSX.Element {
 export function Component(): React.JSX.Element {
   const { competitionId, generationId } = useParams();
   const navigate = useNavigate();
+  const [searchParameters, setSearchParameters] = useSearchParams();
   const resolvedCompetitionId = competitionId ?? "";
   const resolvedGenerationId = generationId ?? "";
   const detailQuery = useGenerationDetail(resolvedCompetitionId, generationId);
@@ -138,6 +151,17 @@ export function Component(): React.JSX.Element {
   );
   const fallbackModels = editableValues?.model.fallbackModels ?? [];
   const progressStart = generation.started_at ?? generation.created_at;
+  const submitted = generation.submitted_artifact_version_id !== null;
+  const activeTab = detailTab(searchParameters.get("tab"), submitted);
+
+  function selectTab(nextTab: string): void {
+    const next = new URLSearchParams(searchParameters);
+    next.set("tab", nextTab);
+    next.delete("artifact");
+    next.delete("version");
+    next.delete("page");
+    setSearchParameters(next, { replace: true });
+  }
 
   async function rerunGeneration(): Promise<void> {
     try {
@@ -272,7 +296,7 @@ export function Component(): React.JSX.Element {
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 The exact submitted artifact version is attached to this durable
-                run. Article rendering and audit tabs land in Layer 8.
+                run and available in the Article tab below.
               </p>
             </div>
           </div>
@@ -399,6 +423,60 @@ export function Component(): React.JSX.Element {
         </aside>
       </div>
 
+      <section className="mt-10" aria-labelledby="generation-work-heading">
+        <div className="mb-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Durable work record
+          </p>
+          <h2
+            id="generation-work-heading"
+            className="mt-2 font-editorial text-3xl font-semibold"
+          >
+            Article and audit
+          </h2>
+        </div>
+        <Tabs value={activeTab} onValueChange={selectTab}>
+          <div className="overflow-x-auto pb-1">
+            <TabsList className="min-w-max">
+              <TabsTrigger value="article" disabled={!submitted}>
+                Article
+              </TabsTrigger>
+              <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+              <TabsTrigger value="execution">Execution</TabsTrigger>
+              <TabsTrigger value="usage">Usage</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="article" className="min-w-0">
+            <SubmittedArticlePanel
+              key={resolvedGenerationId}
+              competitionId={resolvedCompetitionId}
+              generationId={resolvedGenerationId}
+              seasonYear={season?.season.season_year}
+              submitted={submitted}
+              active={activeTab === "article"}
+            />
+          </TabsContent>
+          <TabsContent value="artifacts">
+            <DeferredAuditPanel
+              title="Artifact history"
+              description="Version browsing and intermediate work products land in the next article-audit slice."
+            />
+          </TabsContent>
+          <TabsContent value="execution">
+            <DeferredAuditPanel
+              title="Execution timeline"
+              description="The durable run status remains above. Turn, AI-call, and nested tool-call inspection lands in the execution audit slice."
+            />
+          </TabsContent>
+          <TabsContent value="usage">
+            <DeferredAuditPanel
+              title="Usage and estimated cost"
+              description="Backend-owned token and cost estimates land with the execution audit slice."
+            />
+          </TabsContent>
+        </Tabs>
+      </section>
+
       <div className="mt-8">
         <Link
           className={cn(buttonVariants({ variant: "ghost" }), "px-0")}
@@ -408,6 +486,23 @@ export function Component(): React.JSX.Element {
           Back to Generate
         </Link>
       </div>
+    </div>
+  );
+}
+
+function DeferredAuditPanel({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}): React.JSX.Element {
+  return (
+    <div className="rounded-lg border border-dashed border-border bg-card/60 p-7 sm:p-9">
+      <h3 className="font-editorial text-2xl font-semibold">{title}</h3>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+        {description}
+      </p>
     </div>
   );
 }

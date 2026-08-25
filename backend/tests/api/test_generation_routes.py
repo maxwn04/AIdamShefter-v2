@@ -18,6 +18,12 @@ from backend.resources.reporting.ai_calls import (
     AICallSummary,
     TokenUsage,
 )
+from backend.resources.reporting.article_overviews import (
+    ArticleModelUsage,
+    ArticlePage,
+    ArticleSummary,
+    ArticleUsageSummary,
+)
 from backend.resources.reporting.artifact_versions import (
     ArtifactVersion,
     ArtifactVersionPage,
@@ -284,6 +290,57 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
     return SimpleNamespace(
         service=StubService(competition_id, season_id),
         dispatcher=StubDispatcher(),
+        articles=StubManager(
+            exact=generation,
+            page=ArticlePage(
+                items=(
+                    ArticleSummary(
+                        generation_id=generation.id,
+                        competition_id=competition_id,
+                        competition_season_id=season_id,
+                        season_year=2026,
+                        artifact_id=artifact.id,
+                        artifact_path=artifact.path,
+                        artifact_media_type=artifact.media_type,
+                        submitted_version_id=version.id,
+                        submitted_version_revision=version.revision_number,
+                        submitted_version_content_hash=version.content_hash,
+                        title="Final article",
+                        kind=generation.kind,
+                        week_start=generation.week_start,
+                        week_end=generation.week_end,
+                        completed_at=NOW,
+                        request_text=generation.request_text,
+                        rerun_of_generation_id=generation.rerun_of_generation_id,
+                        evaluation_workspace_id=generation.evaluation_workspace_id,
+                        workspace_sequence_number=(
+                            generation.workspace_sequence_number
+                        ),
+                        requested_primary_model=(
+                            generation.requested_primary_model
+                        ),
+                        usage=ArticleUsageSummary(
+                            models=(
+                                ArticleModelUsage(
+                                    provider="test",
+                                    model="test-model",
+                                    attempt_count=1,
+                                ),
+                            ),
+                            attempt_count=1,
+                            total_tokens=140,
+                            estimated_cost="0.0012",
+                            currency="USD",
+                            complete=True,
+                            quoted_at=NOW,
+                        ),
+                    ),
+                ),
+                total=1,
+                limit=50,
+                offset=0,
+            ),
+        ),
         generations=StubManager(
             exact=generation,
             page=GenerationPage(
@@ -425,7 +482,18 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
         )
 
     assert history.status_code == 200
-    assert articles.json()["page"]["items"][0]["status"] == "succeeded"
+    assert articles.json()["page"]["items"][0]["title"] == "Final article"
+    assert articles.json()["page"]["items"][0]["usage"] == {
+        "models": [
+            {"provider": "test", "model": "test-model", "attempt_count": 1}
+        ],
+        "attempt_count": 1,
+        "total_tokens": 140,
+        "estimated_cost": "0.0012",
+        "currency": "USD",
+        "complete": True,
+        "quoted_at": "2026-08-23T09:30:00Z",
+    }
     assert detail.json()["generation"]["input_manifest"] == {"schema_version": 1}
     assert usage_response.json()["usage"]["estimated_cost"] == "0.0012"
     assert dependencies.usage.generation_ids == [generation.id]
@@ -438,7 +506,7 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     assert artifacts.json()["page"]["items"][0]["path"] == "article.md"
     assert versions.json()["page"]["items"][0]["revision_number"] == 2
     assert version.json()["version"]["content_hash"] == "b" * 64
-    assert dependencies.generations.queries[1].submitted_only is True
+    assert dependencies.articles.queries[0].competition_season_id is None
 
 
 @pytest.mark.asyncio

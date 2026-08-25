@@ -16,6 +16,15 @@ from backend.resources.reporting.ai_calls import (
     FinishAICall,
     TokenUsage,
 )
+from backend.resources.reporting.article_overviews import (
+    ArticleModelUsage,
+    ArticleOverviewReader,
+    ArticlePage,
+    ArticleQuery,
+    ArticleSummary,
+    ArticleUsageSummary,
+    derive_article_title,
+)
 from backend.resources.reporting.generations import (
     CancelGeneration,
     CreateGeneration,
@@ -63,6 +72,12 @@ __all__ = [
     "AICallStatus",
     "AICallSummary",
     "AICallTerminalStatus",
+    "ArticleModelUsage",
+    "ArticleOverviewReader",
+    "ArticlePage",
+    "ArticleQuery",
+    "ArticleSummary",
+    "ArticleUsageSummary",
     "BeginAICall",
     "BeginToolCall",
     "CancelGeneration",
@@ -96,4 +111,5 @@ __all__ = [
     "ToolCallSummary",
     "ToolCallTerminalStatus",
     "UpdateGenerationProgress",
+    "derive_article_title",
 ]
