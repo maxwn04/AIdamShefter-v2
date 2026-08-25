@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/api/query-keys";
 import {
   getGeneration,
+  getGenerationHistory,
   rerunGeneration,
   submitGeneration,
   type GenerationDetailResponse,
@@ -72,6 +73,25 @@ export function useGenerationDetail(
       isActiveGeneration(query.state.data?.generation.status)
         ? "always"
         : false,
+  });
+}
+
+export function useGenerationHistory(
+  competitionId: string,
+  seasonId: string | undefined,
+  limit = 5,
+) {
+  const parameters = {
+    competitionSeasonId: seasonId ?? "",
+    limit,
+    offset: 0,
+  } as const;
+  return useQuery({
+    queryKey: queryKeys.competitions.generationList(competitionId, parameters),
+    queryFn: ({ signal }) =>
+      getGenerationHistory(competitionId, parameters, signal),
+    enabled:
+      competitionId.length > 0 && seasonId !== undefined && seasonId.length > 0,
   });
 }
 
