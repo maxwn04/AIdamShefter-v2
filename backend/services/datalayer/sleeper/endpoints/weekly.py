@@ -142,9 +142,13 @@ def _parse_matchups(payload: JsonValue, week: int) -> MatchupsEndpointRecords:
         )
         if len(player_ids) != len(set(player_ids)):
             reject(kind, "matchup_player_id_duplicate")
-        starters = identifier_list(
+        raw_starters = identifier_list(
             raw.get("starters"), kind, "matchup_starters_invalid"
         )
+        # Sleeper uses "0" for an unfilled starting-lineup slot. It is a
+        # placeholder rather than a player identifier and may occur more than
+        # once in the same lineup.
+        starters = tuple(player_id for player_id in raw_starters if player_id != "0")
         if len(starters) != len(set(starters)):
             reject(kind, "matchup_starter_id_duplicate")
         if not set(starters).issubset(player_ids):

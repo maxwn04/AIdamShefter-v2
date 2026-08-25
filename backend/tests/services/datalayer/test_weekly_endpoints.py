@@ -86,6 +86,26 @@ def test_matchup_fixture_preserves_exact_points_and_lineups() -> None:
     ]
 
 
+def test_matchup_ignores_sleeper_zero_starter_placeholders() -> None:
+    payload = [
+        {
+            "roster_id": 1,
+            "players": ["p1", "p2"],
+            "starters": ["p1", "0", "0"],
+            "players_points": {"p1": 12, "p2": 4},
+        }
+    ]
+    request = build_matchups_request(SEASON_ID, "123", 3)
+
+    assert validate_matchups_completeness(payload, request).is_complete
+    records = normalize_matchups(payload, request)
+
+    assert [
+        (row.sleeper_player_id, row.role)
+        for row in records.player_performances
+    ] == [("p1", "starter"), ("p2", "bench")]
+
+
 def test_matchups_are_deterministic_and_empty_week_is_authoritative() -> None:
     payload = _fixture("matchups_week1")
     assert isinstance(payload, list)
