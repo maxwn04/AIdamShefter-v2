@@ -13,6 +13,8 @@ from backend.services.datalayer.sleeper.endpoints.contracts import (
     PlayerCatalogEndpointRecords,
 )
 
+_PLAYER_UPSERT_BATCH_SIZE = 500
+
 
 def write_players(
     session: Session,
@@ -25,8 +27,8 @@ def write_players(
     del competition_id
     if request.competition_season_id is not None:
         raise DatalayerScopeConflict("player catalog request must be global")
-    for record in records.players:
-        values = {
+    values = [
+        {
             "sleeper_player_id": record.sleeper_player_id,
             "full_name": record.full_name,
             "position": record.position,
@@ -40,15 +42,19 @@ def write_players(
             "source_api_request_id": request.id,
             "updated_at": sa.func.now(),
         }
+        for record in records.players
+    ]
+    for offset in range(0, len(values), _PLAYER_UPSERT_BATCH_SIZE):
+        statement = pg_insert(Player.__table__).values(
+            values[offset : offset + _PLAYER_UPSERT_BATCH_SIZE]
+        )
         session.execute(
-            pg_insert(Player.__table__)
-            .values(**values)
-            .on_conflict_do_update(
+            statement.on_conflict_do_update(
                 index_elements=[Player.sleeper_player_id],
                 set_={
-                    key: value
-                    for key, value in values.items()
-                    if key != "sleeper_player_id"
+                    column.name: getattr(statement.excluded, column.name)
+                    for column in Player.__table__.columns
+                    if column.name != "sleeper_player_id"
                 },
             )
         )
