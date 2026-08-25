@@ -82,6 +82,12 @@ they make a failure reproducible.
 - [ ] Run **Refresh Sleeper data** against the real source.
 - [ ] Confirm the refresh reaches its terminal state and history records the
       attempt, timestamps, scope, and any partial/rejected observations.
+- [ ] If a refresh was interrupted by a hard process failure, first confirm no
+      refresh process remains active, then run the bounded operator recovery:
+      `uv run --env-file .env aidam-worker reconcile-stale-refreshes
+      --competition-id <uuid> --stale-before <aware-ISO-timestamp> --limit 100`.
+      Confirm the command reports the expected refresh IDs and statuses derived
+      from durable attempts; it must not refetch or resume Sleeper work.
 - [ ] Confirm the competition overview and generation form show consistent data
       freshness and readiness.
 - [ ] Reload the page and confirm the persisted competition, season, identities,
@@ -240,6 +246,10 @@ than described.
 - Generation execution is dispatched by the API process. A hard API-process
   failure can leave work requiring manual recovery because there is no durable
   queue, lease, heartbeat, or automatic resume.
+- Sleeper refreshes have no durable lease or heartbeat. A hard process failure
+  can leave a `running` row that requires the explicit, cutoff-based
+  `reconcile-stale-refreshes` operator command; the API and application startup
+  do not automatically classify refreshes as stale.
 - Writable simulations, evaluation workspaces, promotion/discard, merge/rebase,
   and historical-memory promotion are intentionally absent.
 - The initial application is a trusted local single-operator product without

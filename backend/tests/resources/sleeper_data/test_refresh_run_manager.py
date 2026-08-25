@@ -254,3 +254,117 @@ def test_finish_refresh_derives_partial_and_failed_required_plans(
     outcome = refresh_manager.finish_refresh(failed.id)
     assert outcome.status is RefreshStatus.FAILED
     assert (outcome.succeeded_request_count, outcome.failed_request_count) == (0, 1)
+
+
+def test_finish_stale_running_is_bounded_scoped_and_uses_durable_attempts(
+    database_engine: Engine,
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+    request_manager: ApiRequestManager,
+    session_factory: SessionFactory,
+) -> None:
+    league = build_league_request(domain.season_id, domain.sleeper_league_id)
+    users = build_league_users_request(domain.season_id, domain.sleeper_league_id)
+    cutoff = datetime(2026, 8, 23, 12, tzinfo=UTC)
+
+    failed = start_refresh(refresh_manager, domain, league)
+    partial = start_refresh(refresh_manager, domain, league, users)
+    succeeded = start_refresh(refresh_manager, domain, league)
+    recent = start_refresh(refresh_manager, domain, league)
+    terminal = start_refresh(refresh_manager, domain, league)
+
+    partial_request = _record_success(
+        request_manager,
+        partial.id,
+        league,
+        cutoff - timedelta(hours=1),
+    )
+    _mark_normalized(session_factory, partial_request.id)
+    _record_failure(
+        request_manager,
+        partial.id,
+        users,
+        cutoff - timedelta(minutes=59),
+    )
+    succeeded_request = _record_success(
+        request_manager,
+        succeeded.id,
+        league,
+        cutoff - timedelta(minutes=30),
+    )
+    _mark_normalized(session_factory, succeeded_request.id)
+    refresh_manager.finish_refresh(terminal.id)
+
+    other = seed_domain(database_engine, label="Other stale refresh")
+    other_manager, _, _ = _managers(database_engine, other)
+    other_endpoint = build_league_request(
+        other.season_id,
+        other.sleeper_league_id,
+    )
+    other_refresh = start_refresh(other_manager, other, other_endpoint)
+
+    started_at = {
+        failed.id: cutoff - timedelta(hours=4),
+        partial.id: cutoff - timedelta(hours=3),
+        succeeded.id: cutoff - timedelta(hours=2),
+        recent.id: cutoff,
+        terminal.id: cutoff - timedelta(hours=5),
+        other_refresh.id: cutoff - timedelta(hours=6),
+    }
+    with database_engine.begin() as connection:
+        for refresh_id, timestamp in started_at.items():
+            connection.execute(
+                sa.update(StoredRefreshRun)
+                .where(StoredRefreshRun.id == refresh_id)
+                .values(started_at=timestamp)
+            )
+
+    first_batch = refresh_manager.finish_stale_running(
+        stale_before=cutoff,
+        limit=2,
+    )
+
+    assert [refresh.id for refresh in first_batch] == [failed.id, partial.id]
+    assert [refresh.status for refresh in first_batch] == [
+        RefreshStatus.FAILED,
+        RefreshStatus.PARTIAL,
+    ]
+    assert first_batch[0].error == {
+        "code": "refresh_scopes_failed",
+        "scope_keys": [league.scope_key.value],
+    }
+    assert (
+        first_batch[1].request_count,
+        first_batch[1].succeeded_request_count,
+        first_batch[1].failed_request_count,
+    ) == (2, 1, 1)
+
+    second_batch = refresh_manager.finish_stale_running(
+        stale_before=cutoff,
+        limit=2,
+    )
+
+    assert [refresh.id for refresh in second_batch] == [succeeded.id]
+    assert second_batch[0].status is RefreshStatus.SUCCEEDED
+    assert second_batch[0].completed_at is not None
+    assert refresh_manager.get_refresh(recent.id).status is RefreshStatus.RUNNING
+    assert other_manager.get_refresh(other_refresh.id).status is RefreshStatus.RUNNING
+    assert refresh_manager.finish_stale_running(stale_before=cutoff, limit=2) == ()
+
+
+@pytest.mark.parametrize("limit", [0, 201])
+def test_finish_stale_running_validates_cutoff_and_limit(
+    refresh_manager: RefreshRunManager,
+    limit: int,
+) -> None:
+    with pytest.raises(ValueError, match="limit"):
+        refresh_manager.finish_stale_running(
+            stale_before=datetime.now(UTC),
+            limit=limit,
+        )
+
+    with pytest.raises(ValueError, match="timezone-aware"):
+        refresh_manager.finish_stale_running(
+            stale_before=datetime.now(),
+            limit=1,
+        )

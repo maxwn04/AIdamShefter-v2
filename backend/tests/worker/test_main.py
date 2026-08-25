@@ -11,6 +11,7 @@ from backend.resources.reporting.generations import (
     GenerationKind,
     GenerationStatus,
 )
+from backend.services.datalayer.contracts import RefreshStatus
 from backend.services.generations import ReconcileResult
 from backend.worker.main import run
 
@@ -54,6 +55,24 @@ class StubService:
             stale_before=policy.stale_before,
             generations=(self.generation,),
         )
+
+
+class StubRefreshManager:
+    def __init__(self) -> None:
+        self.calls: list[tuple[datetime, int]] = []
+        self.refreshes = (
+            SimpleNamespace(id=uuid4(), status=RefreshStatus.PARTIAL),
+            SimpleNamespace(id=uuid4(), status=RefreshStatus.FAILED),
+        )
+
+    def finish_stale_running(
+        self,
+        *,
+        stale_before: datetime,
+        limit: int,
+    ) -> tuple[object, ...]:
+        self.calls.append((stale_before, limit))
+        return self.refreshes
 
 
 def _generation(status: GenerationStatus) -> Generation:
@@ -179,6 +198,52 @@ def test_reconcile_stale_delegates_explicit_cutoff_and_limit() -> None:
     assert service.policies[0].limit == 25
     assert payload["count"] == 1
     assert runtime.closed is True
+
+
+def test_reconcile_stale_refreshes_delegates_and_reports_terminal_derivation() -> None:
+    runtime = StubRuntime()
+    manager = StubRefreshManager()
+    competition_id = uuid4()
+    captured_competitions: list[UUID] = []
+    stdout = StringIO()
+
+    def refresh_manager_factory(
+        _runtime: object,
+        scoped_competition_id: UUID,
+    ) -> StubRefreshManager:
+        captured_competitions.append(scoped_competition_id)
+        return manager
+
+    exit_code = run(
+        [
+            "reconcile-stale-refreshes",
+            "--competition-id",
+            str(competition_id),
+            "--stale-before",
+            "2026-08-23T09:00:00Z",
+            "--limit",
+            "25",
+        ],
+        runtime_factory=lambda: runtime,
+        refresh_manager_factory=refresh_manager_factory,  # type: ignore[arg-type]
+        stdout=stdout,
+    )
+
+    payload = json.loads(stdout.getvalue())
+    cutoff = datetime(2026, 8, 23, 9, 0, tzinfo=UTC)
+    assert exit_code == 0
+    assert runtime.ready is True
+    assert runtime.closed is True
+    assert captured_competitions == [competition_id]
+    assert manager.calls == [(cutoff, 25)]
+    assert payload == {
+        "stale_before": cutoff.isoformat(),
+        "count": 2,
+        "refresh_ids": [str(refresh.id) for refresh in manager.refreshes],
+        "statuses": {
+            str(refresh.id): refresh.status.value for refresh in manager.refreshes
+        },
+    }
 
 
 def test_worker_failures_are_sanitized_and_runtime_is_closed() -> None:
