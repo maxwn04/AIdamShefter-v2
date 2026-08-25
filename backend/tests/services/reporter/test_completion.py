@@ -291,8 +291,10 @@ def test_missing_openai_key_is_normalized_and_not_retried(monkeypatch) -> None:
     complete = SequenceCompletion(
         [
             InternalServerError(
-                "The api_key client option must be set either by passing api_key "
-                "to the client or by setting the OPENAI_API_KEY environment variable"
+                "litellm.InternalServerError: InternalServerError: "
+                "OpenAIException - Missing credentials. Please pass an `api_key`, "
+                "`workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` "
+                "or `OPENAI_ADMIN_KEY` environment variable."
             )
         ]
     )

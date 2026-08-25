@@ -393,7 +393,9 @@ def _normalize_provider_error(exc: Exception) -> Exception:
     message = str(exc).casefold()
     if (
         "openai_api_key" in message
-        and "api_key client option must be set" in message
+        and "missing credentials" in message
+        and "please pass" in message
+        and "api_key" in message
     ):
         return ProviderConfigurationError()
     return exc
