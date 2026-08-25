@@ -12,7 +12,7 @@ from backend.config import (
     GenerationRuntimeSettings,
     ModelCatalogSettings,
 )
-from backend.database.engine import build_runtime_engine
+from backend.database.engine import build_runtime_engine, database_role_name
 from backend.database.health import assert_database_ready, read_database_health
 from backend.database.sessions import SessionFactory, create_session_factory
 from backend.resources.context import (
@@ -479,7 +479,7 @@ def build_api_runtime() -> ApiRuntime:
         engine=engine,
         session_factory=create_session_factory(engine),
         expected_database=url.database,
-        expected_role=url.username,
+        expected_role=database_role_name(url.username),
         require_tls=settings.require_tls,
         model_registry=model_registry,
         model_catalog=ModelCatalogService(
@@ -501,6 +501,6 @@ def build_worker_runtime() -> WorkerRuntime:
         engine=engine,
         session_factory=create_session_factory(engine),
         expected_database=url.database,
-        expected_role=url.username,
+        expected_role=database_role_name(url.username),
         require_tls=settings.require_tls,
     )

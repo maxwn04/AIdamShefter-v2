@@ -85,7 +85,7 @@ def test_build_api_runtime_uses_url_identity_and_local_tls_setting(
 ) -> None:
     monkeypatch.setenv(
         "AIDAM_DATABASE_URL",
-        "postgresql+psycopg://aidam_api:secret@localhost/aidam_test",
+        "postgresql+psycopg://aidam_api.project-ref:secret@localhost/aidam_test",
     )
     monkeypatch.setenv("AIDAM_DATABASE_REQUIRE_TLS", "false")
 
@@ -108,7 +108,7 @@ def test_build_worker_runtime_uses_worker_url_and_identity(
 ) -> None:
     monkeypatch.setenv(
         "AIDAM_WORKER_DATABASE_URL",
-        "postgresql+psycopg://aidam_worker:secret@localhost/aidam_test",
+        "postgresql+psycopg://aidam_worker.project-ref:secret@localhost/aidam_test",
     )
     monkeypatch.setenv("AIDAM_DATABASE_REQUIRE_TLS", "false")
 

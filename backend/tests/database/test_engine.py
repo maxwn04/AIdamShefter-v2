@@ -21,6 +21,21 @@ def test_runtime_engine_rejects_privileged_role() -> None:
         _ = build_runtime_engine(settings)
 
 
+def test_runtime_engine_rejects_privileged_supavisor_login() -> None:
+    settings = EngineSettings(
+        database_url=(
+            "postgresql+psycopg://postgres.project-ref:secret@localhost/aidam"
+        ),
+        application_name="aidam-api",
+        pool_size=5,
+        max_overflow=5,
+        require_tls=False,
+    )
+
+    with pytest.raises(ValueError, match="privileged"):
+        _ = build_runtime_engine(settings)
+
+
 def test_runtime_engine_requires_psycopg3() -> None:
     settings = EngineSettings(
         database_url="postgresql://aidam_api:secret@localhost/aidam",
