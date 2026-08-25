@@ -8,7 +8,7 @@ import {
   LoaderCircle,
   Wrench,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "@/api/errors";
@@ -20,19 +20,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type {
   AICallStatus,
   AICallSummary,
-  TokenUsage,
   ToolCallStatus,
   ToolCallSummary,
 } from "@/features/execution/api";
 import {
   useAICallDetail,
   useAICallList,
+  useGenerationToolCallList,
   useToolCallDetail,
-  useToolCallList,
 } from "@/features/execution/queries";
+import { cn } from "@/lib/utils";
 
-const EXECUTION_PAGE_SIZE = 25;
-const TOOL_PAGE_SIZE = 25;
+const EXECUTION_PAGE_SIZE = 50;
 
 interface ExecutionTimelineProps {
   competitionId: string;
@@ -42,6 +41,14 @@ interface ExecutionTimelineProps {
 }
 
 type BadgeVariant = "outline" | "secondary" | "destructive";
+
+type ExecutionSelection =
+  { kind: "ai"; id: string } | { kind: "tool"; id: string };
+
+interface TurnGroup {
+  attempts: AICallSummary[];
+  turnNumber: number;
+}
 
 function positivePage(value: string | null): number {
   const parsed = Number(value);
@@ -56,6 +63,11 @@ function formatDuration(milliseconds: number | null): string {
   if (milliseconds === null) return "In progress";
   if (milliseconds < 1_000) return `${String(milliseconds)} ms`;
   return `${(milliseconds / 1_000).toFixed(milliseconds < 10_000 ? 1 : 0)} s`;
+}
+
+function formatTokenCount(value: number | null | undefined): string {
+  if (value == null) return "Tokens unknown";
+  return `${new Intl.NumberFormat().format(value)} tokens`;
 }
 
 function modelLabel(provider: string | null, model: string): string {
@@ -84,28 +96,6 @@ function toolStatus(status: ToolCallStatus): {
   if (status === "failed") return { label: "Failed", variant: "destructive" };
   if (status === "cancelled") return { label: "Cancelled", variant: "outline" };
   return { label: "Running", variant: "secondary" };
-}
-
-function TokenSummary({ usage }: { usage: TokenUsage }): React.JSX.Element {
-  const values = [
-    ["Total", usage.total_tokens],
-    ["Input", usage.input_tokens],
-    ["Cached", usage.cached_input_tokens],
-    ["Output", usage.output_tokens],
-    ["Reasoning", usage.reasoning_tokens],
-  ] as const;
-  return (
-    <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      {values.map(([label, value]) => (
-        <div key={label} className="flex gap-1">
-          <dt>{label}</dt>
-          <dd className="font-medium tabular-nums text-foreground">
-            {value ?? "—"}
-          </dd>
-        </div>
-      ))}
-    </dl>
-  );
 }
 
 function InlineError({
@@ -147,6 +137,7 @@ function Pager({
   onPageChange: (page: number) => void;
 }): React.JSX.Element | null {
   if (totalPages <= 1) return null;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-xs">
       <span className="text-muted-foreground">
@@ -182,193 +173,7 @@ function Pager({
   );
 }
 
-function ToolCallRow({
-  competitionId,
-  generationId,
-  aiCallId,
-  summary,
-}: {
-  competitionId: string;
-  generationId: string;
-  aiCallId: string;
-  summary: ToolCallSummary;
-}): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const detailQuery = useToolCallDetail(
-    competitionId,
-    generationId,
-    aiCallId,
-    summary.id,
-    expanded,
-  );
-  const presentation = toolStatus(summary.status);
-  const regionId = `tool-call-${summary.id}`;
-
-  return (
-    <li className="rounded-lg border border-border bg-background">
-      <button
-        type="button"
-        className="flex w-full items-start gap-3 p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        aria-expanded={expanded}
-        aria-controls={regionId}
-        onClick={() => {
-          setExpanded((value) => !value);
-        }}
-      >
-        {expanded ? (
-          <ChevronDown className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        ) : (
-          <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-2">
-            <span className="break-all font-mono text-sm font-medium">
-              {summary.tool_name}
-            </span>
-            <Badge variant={presentation.variant}>{presentation.label}</Badge>
-          </span>
-          <span className="mt-2 block text-xs text-muted-foreground">
-            Tool {summary.tool_ordinal} · {formatDuration(summary.duration_ms)}{" "}
-            · {summary.implementation_version}
-          </span>
-        </span>
-      </button>
-
-      {expanded ? (
-        <div id={regionId} className="border-t border-border p-4">
-          {detailQuery.isPending ? (
-            <div className="space-y-2">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : detailQuery.isError ? (
-            <InlineError
-              title="Tool-call detail unavailable"
-              error={detailQuery.error}
-              onRetry={() => void detailQuery.refetch()}
-            />
-          ) : (
-            <div className="grid min-w-0 gap-3 xl:grid-cols-2">
-              <StructuredContentViewer
-                title="Arguments"
-                content={detailQuery.data.tool_call.arguments}
-              />
-              <StructuredContentViewer
-                title="Structured result"
-                content={
-                  detailQuery.data.tool_call.structured_result ?? undefined
-                }
-              />
-              <StructuredContentViewer
-                title="Full result text"
-                content={
-                  detailQuery.data.tool_call.full_result_text ?? undefined
-                }
-              />
-              <StructuredContentViewer
-                title="Error"
-                content={
-                  detailQuery.data.tool_call.error ??
-                  detailQuery.data.tool_call.error_text ??
-                  undefined
-                }
-              />
-            </div>
-          )}
-        </div>
-      ) : null}
-    </li>
-  );
-}
-
-function ToolCallsPanel({
-  competitionId,
-  generationId,
-  aiCallId,
-}: {
-  competitionId: string;
-  generationId: string;
-  aiCallId: string;
-}): React.JSX.Element {
-  const [page, setPage] = useState(1);
-  const query = useToolCallList(
-    competitionId,
-    generationId,
-    aiCallId,
-    {
-      limit: TOOL_PAGE_SIZE,
-      offset: (page - 1) * TOOL_PAGE_SIZE,
-    },
-    true,
-  );
-  const totalPages = pageCount(query.data?.page.total ?? 0, TOOL_PAGE_SIZE);
-
-  return (
-    <section
-      className="mt-5 border-t border-border pt-5"
-      aria-labelledby={`tools-${aiCallId}`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h4
-          id={`tools-${aiCallId}`}
-          className="flex items-center gap-2 font-semibold"
-        >
-          <Wrench className="size-4 text-muted-foreground" aria-hidden="true" />
-          Tool calls
-        </h4>
-        {query.isFetching && !query.isPending ? (
-          <span className="text-xs text-muted-foreground" role="status">
-            Updating…
-          </span>
-        ) : null}
-      </div>
-
-      {query.isPending ? (
-        <div className="mt-3 space-y-2">
-          <Skeleton className="h-20 w-full" />
-          <Skeleton className="h-20 w-full" />
-        </div>
-      ) : query.isError ? (
-        <div className="mt-3">
-          <InlineError
-            title="Tool-call history unavailable"
-            error={query.error}
-            onRetry={() => void query.refetch()}
-          />
-        </div>
-      ) : query.data.page.items.length === 0 ? (
-        <p className="mt-3 rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-          This AI attempt recorded no tool calls.
-        </p>
-      ) : (
-        <>
-          <ol className="mt-3 space-y-2">
-            {query.data.page.items.map((toolCall) => (
-              <ToolCallRow
-                key={toolCall.id}
-                competitionId={competitionId}
-                generationId={generationId}
-                aiCallId={aiCallId}
-                summary={toolCall}
-              />
-            ))}
-          </ol>
-          <div className="mt-4">
-            <Pager
-              label="Tool calls"
-              page={page}
-              totalPages={totalPages}
-              total={query.data.page.total}
-              onPageChange={setPage}
-            />
-          </div>
-        </>
-      )}
-    </section>
-  );
-}
-
-function AICallBody({
+function AICallDetail({
   competitionId,
   generationId,
   summary,
@@ -377,141 +182,183 @@ function AICallBody({
   generationId: string;
   summary: AICallSummary;
 }): React.JSX.Element {
-  const detailQuery = useAICallDetail(
+  const query = useAICallDetail(
     competitionId,
     generationId,
     summary.id,
     true,
+    summary.status === "started",
   );
+
   return (
-    <div className="border-t border-border bg-muted/20 p-4 sm:p-5">
-      {detailQuery.isPending ? (
+    <div className="border-t border-primary/15 bg-muted/20 p-3 sm:p-4">
+      {query.isPending ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <Skeleton className="h-14 w-full" />
-          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
         </div>
-      ) : detailQuery.isError ? (
+      ) : query.isError ? (
         <InlineError
           title="AI-call detail unavailable"
-          error={detailQuery.error}
-          onRetry={() => void detailQuery.refetch()}
+          error={query.error}
+          onRetry={() => void query.refetch()}
         />
       ) : (
         <div className="grid min-w-0 gap-3 xl:grid-cols-2">
           <StructuredContentViewer
             title="Request parameters"
-            content={detailQuery.data.ai_call.request_parameters}
+            content={query.data.ai_call.request_parameters}
+            defaultOpen
           />
           <StructuredContentViewer
             title="Input messages"
-            content={detailQuery.data.ai_call.input_messages}
+            content={query.data.ai_call.input_messages}
+            defaultOpen
           />
           <StructuredContentViewer
             title="Tool definitions"
-            content={detailQuery.data.ai_call.tool_definitions}
+            content={query.data.ai_call.tool_definitions}
+            defaultOpen
           />
           <StructuredContentViewer
             title="Provider response"
-            content={detailQuery.data.ai_call.provider_response ?? undefined}
+            content={query.data.ai_call.provider_response ?? undefined}
+            defaultOpen
           />
           <StructuredContentViewer
             title="Error"
-            content={detailQuery.data.ai_call.error ?? undefined}
+            content={query.data.ai_call.error ?? undefined}
+            defaultOpen
           />
         </div>
       )}
-      <ToolCallsPanel
-        competitionId={competitionId}
-        generationId={generationId}
-        aiCallId={summary.id}
-      />
     </div>
   );
 }
 
-function AICallRow({
+function ToolCallDetail({
   competitionId,
   generationId,
   summary,
 }: {
   competitionId: string;
   generationId: string;
-  summary: AICallSummary;
+  summary: ToolCallSummary;
 }): React.JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const presentation = aiStatus(summary.status);
-  const actualModel = summary.actual_model
-    ? modelLabel(summary.actual_provider, summary.actual_model)
-    : "Not resolved";
-  const regionId = `ai-call-${summary.id}`;
+  const query = useToolCallDetail(
+    competitionId,
+    generationId,
+    summary.ai_call_id,
+    summary.id,
+    true,
+    summary.status === "running",
+  );
 
   return (
-    <li className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="border-t border-primary/15 bg-primary/[0.025] p-3 sm:p-4">
+      {query.isPending ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+      ) : query.isError ? (
+        <InlineError
+          title="Tool-call detail unavailable"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : (
+        <div className="grid min-w-0 gap-3 xl:grid-cols-2">
+          <StructuredContentViewer
+            title="Arguments"
+            content={query.data.tool_call.arguments}
+            defaultOpen
+          />
+          <StructuredContentViewer
+            title="Structured result"
+            content={query.data.tool_call.structured_result ?? undefined}
+            defaultOpen
+          />
+          <StructuredContentViewer
+            title="Full result text"
+            content={query.data.tool_call.full_result_text ?? undefined}
+            defaultOpen
+          />
+          <StructuredContentViewer
+            title="Error"
+            content={
+              query.data.tool_call.error ??
+              query.data.tool_call.error_text ??
+              undefined
+            }
+            defaultOpen
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ToolCallRow({
+  competitionId,
+  generationId,
+  summary,
+  selected,
+  onSelect,
+}: {
+  competitionId: string;
+  generationId: string;
+  summary: ToolCallSummary;
+  selected: boolean;
+  onSelect: () => void;
+}): React.JSX.Element {
+  const presentation = toolStatus(summary.status);
+  const regionId = `tool-call-${summary.id}`;
+
+  return (
+    <li className="border-t border-border/70 first:border-t-0">
       <button
         type="button"
-        className="w-full p-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:p-5"
-        aria-expanded={expanded}
+        className={cn(
+          "flex w-full items-start gap-2 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:pl-11",
+          selected && "bg-primary/5",
+        )}
+        aria-expanded={selected}
         aria-controls={regionId}
-        onClick={() => {
-          setExpanded((value) => !value);
-        }}
+        onClick={onSelect}
       >
-        <span className="flex items-start gap-3">
-          {expanded ? (
-            <ChevronDown
-              className="mt-0.5 size-5 shrink-0"
-              aria-hidden="true"
-            />
-          ) : (
-            <ChevronRight
-              className="mt-0.5 size-5 shrink-0"
-              aria-hidden="true"
-            />
-          )}
-          <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold">
-                Turn {summary.turn_number} · Attempt{" "}
-                {summary.attempt_number + 1}
-              </span>
-              <Badge variant={presentation.variant}>{presentation.label}</Badge>
+        {selected ? (
+          <ChevronDown
+            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+        ) : (
+          <ChevronRight
+            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+            aria-hidden="true"
+          />
+        )}
+        <Wrench
+          className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="break-all font-mono text-xs font-medium">
+              {summary.tool_name}
             </span>
-            <span className="mt-3 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <span className="min-w-0">
-                <span className="block text-muted-foreground">Model</span>
-                <span className="mt-1 block break-all font-mono">
-                  {modelLabel(
-                    summary.requested_provider,
-                    summary.requested_model,
-                  )}{" "}
-                  → {actualModel}
-                </span>
-              </span>
-              <span>
-                <span className="block text-muted-foreground">Timing</span>
-                <span className="mt-1 block">
-                  <DateTime value={summary.started_at} /> ·{" "}
-                  {formatDuration(summary.latency_ms)}
-                </span>
-              </span>
-              <span>
-                <span className="block text-muted-foreground">
-                  Finish reason
-                </span>
-                <span className="mt-1 block">
-                  {summary.finish_reason ?? "—"}
-                </span>
-              </span>
-            </span>
-            <span className="mt-3 block">
-              <TokenSummary usage={summary.usage} />
-            </span>
+            <Badge variant={presentation.variant}>{presentation.label}</Badge>
+          </span>
+          <span className="mt-1 block text-[0.7rem] leading-4 text-muted-foreground">
+            Tool {summary.tool_ordinal + 1} ·{" "}
+            {formatDuration(summary.duration_ms)} ·{" "}
+            {summary.implementation_version}
           </span>
         </span>
       </button>
-      {expanded ? (
+      {selected ? (
         <div id={regionId}>
-          <AICallBody
+          <ToolCallDetail
             competitionId={competitionId}
             generationId={generationId}
             summary={summary}
@@ -522,11 +369,175 @@ function AICallRow({
   );
 }
 
+function AICallRow({
+  competitionId,
+  generationId,
+  summary,
+  tools,
+  selection,
+  onSelect,
+}: {
+  competitionId: string;
+  generationId: string;
+  summary: AICallSummary;
+  tools: ToolCallSummary[];
+  selection: ExecutionSelection | null;
+  onSelect: (selection: ExecutionSelection) => void;
+}): React.JSX.Element {
+  const selected = selection?.kind === "ai" && selection.id === summary.id;
+  const presentation = aiStatus(summary.status);
+  const actualModel = summary.actual_model
+    ? modelLabel(summary.actual_provider, summary.actual_model)
+    : null;
+  const regionId = `ai-call-${summary.id}`;
+
+  return (
+    <li className="border-t border-border first:border-t-0">
+      <button
+        type="button"
+        className={cn(
+          "flex w-full items-start gap-3 px-3 py-3 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4",
+          selected && "bg-primary/5",
+        )}
+        aria-expanded={selected}
+        aria-controls={regionId}
+        onClick={() => {
+          onSelect({ kind: "ai", id: summary.id });
+        }}
+      >
+        {selected ? (
+          <ChevronDown className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <ChevronRight className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        )}
+        <Cpu
+          className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="text-sm font-semibold">
+              {summary.attempt_number === 0
+                ? "Model call"
+                : `Retry ${String(summary.attempt_number)}`}
+            </span>
+            <Badge variant={presentation.variant}>{presentation.label}</Badge>
+            {tools.length > 0 ? (
+              <span className="text-xs text-muted-foreground">
+                {tools.length} {tools.length === 1 ? "tool" : "tools"}
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-1.5 block break-all font-mono text-xs">
+            {modelLabel(summary.requested_provider, summary.requested_model)}
+            {actualModel &&
+            actualModel !==
+              modelLabel(summary.requested_provider, summary.requested_model)
+              ? ` → ${actualModel}`
+              : ""}
+          </span>
+          <span className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>{formatDuration(summary.latency_ms)}</span>
+            <span>{formatTokenCount(summary.usage.total_tokens)}</span>
+            <span>{summary.finish_reason ?? "No finish reason"}</span>
+          </span>
+        </span>
+      </button>
+
+      {selected ? (
+        <div id={regionId}>
+          <AICallDetail
+            competitionId={competitionId}
+            generationId={generationId}
+            summary={summary}
+          />
+        </div>
+      ) : null}
+
+      {tools.length > 0 ? (
+        <ol className="border-t border-border bg-muted/10">
+          {tools.map((tool) => (
+            <ToolCallRow
+              key={tool.id}
+              competitionId={competitionId}
+              generationId={generationId}
+              summary={tool}
+              selected={selection?.kind === "tool" && selection.id === tool.id}
+              onSelect={() => {
+                onSelect({ kind: "tool", id: tool.id });
+              }}
+            />
+          ))}
+        </ol>
+      ) : null}
+    </li>
+  );
+}
+
+function TurnCard({
+  competitionId,
+  generationId,
+  turn,
+  toolsByAICall,
+  selection,
+  onSelect,
+}: {
+  competitionId: string;
+  generationId: string;
+  turn: TurnGroup;
+  toolsByAICall: ReadonlyMap<string, ToolCallSummary[]>;
+  selection: ExecutionSelection | null;
+  onSelect: (selection: ExecutionSelection) => void;
+}): React.JSX.Element {
+  const toolCount = turn.attempts.reduce(
+    (total, attempt) => total + (toolsByAICall.get(attempt.id)?.length ?? 0),
+    0,
+  );
+  const totalTokens = turn.attempts.reduce<number | null>((total, attempt) => {
+    if (attempt.usage.total_tokens == null) return total;
+    return (total ?? 0) + attempt.usage.total_tokens;
+  }, null);
+
+  return (
+    <article className="overflow-hidden rounded-lg border border-border bg-card">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border bg-muted/30 px-3 py-2.5 sm:px-4">
+        <div className="flex items-baseline gap-3">
+          <h4 className="font-semibold">Turn {turn.turnNumber}</h4>
+          <span className="text-xs text-muted-foreground">
+            <DateTime value={turn.attempts[0]?.started_at ?? ""} />
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {turn.attempts.length}{" "}
+          {turn.attempts.length === 1 ? "attempt" : "attempts"}
+          {toolCount > 0 ? ` · ${String(toolCount)} tools` : ""}
+          {totalTokens === null
+            ? ""
+            : ` · ${new Intl.NumberFormat().format(totalTokens)} tokens`}
+        </p>
+      </header>
+      <ol>
+        {turn.attempts.map((attempt) => (
+          <AICallRow
+            key={attempt.id}
+            competitionId={competitionId}
+            generationId={generationId}
+            summary={attempt}
+            tools={toolsByAICall.get(attempt.id) ?? []}
+            selection={selection}
+            onSelect={onSelect}
+          />
+        ))}
+      </ol>
+    </article>
+  );
+}
+
 function TimelineSkeleton(): React.JSX.Element {
   return (
     <div className="space-y-3">
       {[0, 1, 2].map((item) => (
-        <Skeleton key={item} className="h-36 w-full rounded-lg" />
+        <Skeleton key={item} className="h-32 w-full rounded-lg" />
       ))}
     </div>
   );
@@ -539,8 +550,9 @@ export function ExecutionTimeline({
   generationActive,
 }: ExecutionTimelineProps): React.JSX.Element | null {
   const [searchParameters, setSearchParameters] = useSearchParams();
+  const [selection, setSelection] = useState<ExecutionSelection | null>(null);
   const page = positivePage(searchParameters.get("page"));
-  const query = useAICallList(
+  const aiCallsQuery = useAICallList(
     competitionId,
     generationId,
     {
@@ -550,38 +562,72 @@ export function ExecutionTimeline({
     active,
     generationActive,
   );
+  const toolCallsQuery = useGenerationToolCallList(
+    competitionId,
+    generationId,
+    active,
+    generationActive,
+  );
   const totalPages = pageCount(
-    query.data?.page.total ?? 0,
+    aiCallsQuery.data?.page.total ?? 0,
     EXECUTION_PAGE_SIZE,
   );
+  const toolsByAICall = useMemo(() => {
+    const grouped = new Map<string, ToolCallSummary[]>();
+    for (const tool of toolCallsQuery.data ?? []) {
+      const current = grouped.get(tool.ai_call_id) ?? [];
+      current.push(tool);
+      grouped.set(tool.ai_call_id, current);
+    }
+    for (const tools of grouped.values()) {
+      tools.sort((left, right) => left.tool_ordinal - right.tool_ordinal);
+    }
+    return grouped;
+  }, [toolCallsQuery.data]);
+  const turns = useMemo(() => {
+    const grouped = new Map<number, AICallSummary[]>();
+    for (const call of aiCallsQuery.data?.page.items ?? []) {
+      const current = grouped.get(call.turn_number) ?? [];
+      current.push(call);
+      grouped.set(call.turn_number, current);
+    }
+    return [...grouped.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([turnNumber, attempts]) => ({
+        turnNumber,
+        attempts: attempts.sort(
+          (left, right) => left.attempt_number - right.attempt_number,
+        ),
+      }));
+  }, [aiCallsQuery.data]);
 
   useEffect(() => {
-    if (!active || !query.data || page <= totalPages) return;
+    if (!active || !aiCallsQuery.data || page <= totalPages) return;
     const next = new URLSearchParams(searchParameters);
     if (totalPages === 1) next.delete("page");
     else next.set("page", String(totalPages));
     setSearchParameters(next, { replace: true });
   }, [
     active,
+    aiCallsQuery.data,
     page,
-    query.data,
     searchParameters,
     setSearchParameters,
     totalPages,
   ]);
 
   if (!active) return null;
-  if (query.isPending) return <TimelineSkeleton />;
-  if (query.isError) {
+  if (aiCallsQuery.isPending) return <TimelineSkeleton />;
+  if (aiCallsQuery.isError) {
     return (
       <InlineError
         title="Execution history unavailable"
-        error={query.error}
-        onRetry={() => void query.refetch()}
+        error={aiCallsQuery.error}
+        onRetry={() => void aiCallsQuery.refetch()}
       />
     );
   }
-  if (query.data.page.items.length === 0 && page === 1) {
+  if (aiCallsQuery.data.page.items.length === 0 && page === 1) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/60 p-8 text-center sm:p-12">
         <Cpu
@@ -602,50 +648,83 @@ export function ExecutionTimeline({
     const next = new URLSearchParams(searchParameters);
     if (nextPage === 1) next.delete("page");
     else next.set("page", String(nextPage));
+    setSelection(null);
     setSearchParameters(next);
   }
 
+  function select(nextSelection: ExecutionSelection): void {
+    setSelection((current) =>
+      current?.kind === nextSelection.kind && current.id === nextSelection.id
+        ? null
+        : nextSelection,
+    );
+  }
+
+  const toolCount = toolCallsQuery.data?.length ?? 0;
+  const updating = aiCallsQuery.isFetching || toolCallsQuery.isFetching;
+
   return (
     <section aria-labelledby="execution-timeline-heading" className="min-w-0">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3
             id="execution-timeline-heading"
             className="font-editorial text-2xl font-semibold"
           >
-            Model attempts
+            Turn stream
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Durable turn and retry order, with tool activity nested under each
-            attempt.
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            Model and tool activity stays visible in run order. Select one row
+            to inspect all of its exact payloads.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {query.isFetching ? (
+          {updating ? (
             <>
               <LoaderCircle
                 className="size-3 animate-spin"
                 aria-hidden="true"
               />
-              <span role="status">Updating summaries…</span>
+              <span role="status">Updating activity…</span>
             </>
           ) : (
             <span>
-              {query.data.page.total}{" "}
-              {query.data.page.total === 1 ? "attempt" : "attempts"}
+              {aiCallsQuery.data.page.total} attempts · {toolCount} tools
             </span>
           )}
         </div>
       </div>
 
+      {toolCallsQuery.isError ? (
+        <div
+          className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm"
+          role="alert"
+        >
+          <span>
+            Tool activity could not be loaded; model attempts remain available.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void toolCallsQuery.refetch()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : null}
+
       <ol className="space-y-3">
-        {query.data.page.items.map((call) => (
-          <AICallRow
-            key={call.id}
-            competitionId={competitionId}
-            generationId={generationId}
-            summary={call}
-          />
+        {turns.map((turn) => (
+          <li key={turn.turnNumber}>
+            <TurnCard
+              competitionId={competitionId}
+              generationId={generationId}
+              turn={turn}
+              toolsByAICall={toolsByAICall}
+              selection={selection}
+              onSelect={select}
+            />
+          </li>
         ))}
       </ol>
       <div className="mt-5">
@@ -653,7 +732,7 @@ export function ExecutionTimeline({
           label="AI attempts"
           page={page}
           totalPages={totalPages}
-          total={query.data.page.total}
+          total={aiCallsQuery.data.page.total}
           onPageChange={setPage}
         />
       </div>

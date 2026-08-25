@@ -233,6 +233,15 @@ export const queryKeys = {
         "tool-calls",
         "list",
       ] as const,
+    generationToolCallList: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "tool-calls",
+        "list",
+      ] as const,
     toolCallList: (
       competitionId: string,
       generationId: string,

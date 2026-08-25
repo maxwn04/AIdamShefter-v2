@@ -171,10 +171,14 @@ Backtest generation ID: `____________________________`
 - [ ] AI attempts appear in chronological turn/attempt order with requested and
       actual models, status, latency, finish reason, and token usage.
 - [ ] AI-call pagination reaches every recorded attempt without duplicates.
-- [ ] Tool calls are nested under the correct AI attempt and ordered by tool
-      ordinal.
-- [ ] Expanding an AI or tool call lazy-loads its large request, response, result,
-      and error payloads; collapsed rows do not load those bodies unnecessarily.
+- [ ] Attempts are grouped into compact turn cards; tool summaries are visible
+      under the correct attempt and ordered by tool ordinal without first
+      expanding the attempt.
+- [ ] Selecting an AI or tool row lazy-loads one shared inline detail surface
+      containing that record's request/response/result/error payloads; changing
+      selection closes the previous detail and unselected rows do not load bodies.
+- [ ] While a run is active, AI and tool summaries advance without per-attempt
+      summary requests; only the selected in-flight detail body may poll.
 - [ ] Structured objects are pretty-printed, text is escaped, overflow is contained,
       and disclosure controls work by keyboard.
 - [ ] Copy controls copy the exact displayed payload and announce success or

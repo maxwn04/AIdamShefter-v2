@@ -9,6 +9,9 @@ data-grounded articles through the reporter generation service.
 ```bash
 uv python install
 uv sync --locked
+nvm install 22.22.0
+nvm use 22.22.0
+node --version                    # must report v22.22.x
 corepack enable
 corepack install --global pnpm@11.19.0
 pnpm --dir frontend install --frozen-lockfile
@@ -107,6 +110,14 @@ this recovery is deliberately manual rather than age-triggered at API startup.
 The local operator frontend lives under `frontend/` and requires Node.js
 22.22.x plus pnpm 11.19.0. Keep the API command above running in one terminal,
 then start Vite from a second terminal:
+
+`frontend/.node-version` pins the exact Node release. Version managers do not
+all activate that file automatically, especially NVM on Windows, so activate
+Node before installing or running frontend packages. If pnpm reports an engine
+warning despite `node --version` being correct, the `pnpm` executable earlier in
+your `PATH` is probably hosted by another Node installation. `./dev.sh` avoids
+that ambiguity by invoking the pinned pnpm through Corepack and checking the
+runtime before either service starts.
 
 ```bash
 pnpm --dir frontend dev
