@@ -124,6 +124,7 @@ def test_refresh_without_week_does_not_guess_after_nfl_failure(
     )
 
     assert outcome.status is RefreshStatus.PARTIAL
+    assert outcome.effective_through_week is None
     assert outcome.requested_scope_count == 5
     assert all(
         not result.scope_key.value.startswith(("matchups:", "transactions:"))
@@ -157,6 +158,7 @@ def test_refresh_derives_week_retries_and_records_before_backoff(
     )
 
     assert outcome.status is RefreshStatus.SUCCEEDED
+    assert outcome.effective_through_week == 2
     assert outcome.requested_scope_count == 9
     assert outcome.failed_scope_count == 0
     assert delays == [0.5]
@@ -204,6 +206,7 @@ def test_incomplete_payload_retries_with_backoff_and_applies_latest_attempt(
         for item in backend.requests
         if item.endpoint_kind is EndpointKind.PLAYER_CATALOG
     ]
+    assert outcome.effective_through_week == 1
     player_result = next(
         result
         for result in outcome.scope_results

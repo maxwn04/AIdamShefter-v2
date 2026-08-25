@@ -4,6 +4,7 @@ from backend.api.dependencies.competitions import (
     get_competition_catalog_dependencies,
     get_competition_season_dependencies,
 )
+from backend.api.dependencies.data import get_data_api_dependencies
 from backend.api.dependencies.generations import (
     authorize_local_competition,
     get_generation_api_dependencies,
@@ -20,6 +21,7 @@ __all__ = [
     "get_api_runtime",
     "get_competition_catalog_dependencies",
     "get_competition_season_dependencies",
+    "get_data_api_dependencies",
     "get_correlation_id",
     "get_generation_api_dependencies",
     "get_generation_dispatcher",

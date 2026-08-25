@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Annotated
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, StrictBool, model_validator
@@ -10,6 +11,10 @@ from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.services.datalayer.canonical_json import JsonValue
 from backend.services.datalayer.contracts import RefreshStatus, RefreshTrigger
 from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
+
+
+PageLimit = Annotated[int, Field(strict=True, ge=1, le=200)]
+NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 
 
 class PlannedEndpointScope(ContractModel):
@@ -60,6 +65,12 @@ class StartRefresh(ContractModel):
         return self
 
 
+class RefreshRunQuery(ContractModel):
+    competition_season_id: UUID
+    limit: PageLimit = 50
+    offset: NonNegativeInt = 0
+
+
 class RefreshRun(ContractModel):
     id: UUID
     competition_id: UUID
@@ -76,3 +87,10 @@ class RefreshRun(ContractModel):
     request_count: int = Field(strict=True, ge=0)
     succeeded_request_count: int = Field(strict=True, ge=0)
     failed_request_count: int = Field(strict=True, ge=0)
+
+
+class RefreshRunPage(ContractModel):
+    items: tuple[RefreshRun, ...]
+    total: NonNegativeInt
+    limit: PageLimit
+    offset: NonNegativeInt

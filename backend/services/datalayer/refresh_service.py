@@ -610,6 +610,7 @@ def _build_outcome(
     return RefreshOutcome(
         refresh_run_id=refresh.id,
         status=refresh.status,
+        effective_through_week=plan.through_week,
         requested_scope_count=refresh.request_count,
         succeeded_scope_count=refresh.succeeded_request_count,
         failed_scope_count=refresh.failed_request_count,

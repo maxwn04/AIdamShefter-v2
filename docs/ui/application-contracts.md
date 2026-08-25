@@ -130,11 +130,11 @@ generation or memory resources are out of scope.
 
 | Method and path | Purpose | Status |
 | --- | --- | --- |
-| `POST /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Run manual refresh with optional `{through_week}` | Service exists; route missing |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Page refresh history | Manager list/query missing |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes/{refresh_id}` | Read terminal/running refresh and counts | Manager get exists; route missing |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/overview` | Normalized league metadata/current overview | Manager read exists; route missing |
-| `GET /data/competitions/{competition_id}/seasons/{season_id}/snapshots` | Page snapshot audit metadata | Snapshot resource exists; list route/query missing |
+| `POST /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Run manual refresh with optional `{through_week}` | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes` | Page refresh history | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/refreshes/{refresh_id}` | Read terminal/running refresh and counts | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/overview` | Normalized league metadata/current overview | Implemented |
+| `GET /data/competitions/{competition_id}/seasons/{season_id}/snapshots` | Page snapshot audit metadata | Implemented |
 
 V1 manual refresh may be synchronous because the implemented refresh service is
 synchronous and the existing datalayer plan explicitly calls for a synchronous
@@ -156,6 +156,12 @@ server fixes the trigger to `manual`; callers do not claim trusted provenance.
 The response includes the durable refresh, effective through week, and
 scope-level results/warnings already represented by `RefreshOutcome`.
 
+Refresh and snapshot history use offset pagination and deterministic newest-first
+ordering. Snapshot audit responses expose immutable identity, cutoff, status,
+versions, warnings/failure, and artifact hash/size, but never return local
+filesystem paths or storage keys. The normalized overview returns `404` until a
+league observation has been loaded for the season.
+
 ### Refresh-to-generation freshness gap
 
 Snapshot identity currently uses season, cutoff week, UTC date, and projection
@@ -176,6 +182,10 @@ Before calling the journey complete, the datalayer design must choose one of:
 
 The UI cannot solve this with cache invalidation. It needs a backend snapshot
 selection guarantee and corresponding audit metadata.
+
+This redesign is explicitly deferred from the refresh/data-audit HTTP layer to a
+later datalayer-owned change. Until then, the daily snapshot reuse behavior
+described above remains authoritative.
 
 ## Generation API Extensions
 

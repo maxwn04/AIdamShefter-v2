@@ -31,6 +31,8 @@ SafeSummary = Annotated[
     StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
 ]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+PageLimit = Annotated[int, Field(strict=True, ge=1, le=200)]
+NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 
 
 class SnapshotFailure(ContractModel):
@@ -50,6 +52,12 @@ class BeginSnapshotBuild(ContractModel):
     build_key: Sha256
     snapshot_projection_version: str = Field(min_length=1)
     code_version: str = Field(min_length=1)
+
+
+class DataSnapshotQuery(ContractModel):
+    competition_season_id: UUID
+    limit: PageLimit = 50
+    offset: NonNegativeInt = 0
 
 
 class SnapshotRequestMembership(ContractModel):
@@ -95,6 +103,13 @@ class DataSnapshot(ContractModel):
     artifact: StoredLocalArtifact | None
     created_at: AwareDatetime
     completed_at: AwareDatetime | None
+
+
+class DataSnapshotPage(ContractModel):
+    items: tuple[DataSnapshot, ...]
+    total: NonNegativeInt
+    limit: PageLimit
+    offset: NonNegativeInt
 
 
 class ClaimedSnapshotBuild(ContractModel):

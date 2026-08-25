@@ -1,13 +1,18 @@
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine
 
+from backend.database.models.core import CompetitionSeason
 from backend.database.models.sleeper import ApiRequest as StoredApiRequest
+from backend.database.models.sleeper import RefreshRun as StoredRefreshRun
 from backend.database.sessions import SessionFactory, create_session_factory
-from backend.resources.sleeper_data.refreshes import RefreshRunManager
+from backend.resources.sleeper_data.refreshes import (
+    RefreshRunManager,
+    RefreshRunQuery,
+)
 from backend.resources.sleeper_data.requests import (
     ApiRequest,
     ApiRequestManager,
@@ -113,6 +118,72 @@ def test_refresh_run_is_competition_scoped(
         other_refresh_manager.get_refresh(refresh.id)
     with pytest.raises(DatalayerResourceNotFound):
         start_refresh(other_refresh_manager, domain, endpoint)
+
+
+def test_refresh_history_is_season_scoped_newest_first_and_paginated(
+    database_engine: Engine,
+    domain: Domain,
+    refresh_manager: RefreshRunManager,
+) -> None:
+    other_season_id = uuid4()
+    other_league_id = f"league-{other_season_id}"
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(CompetitionSeason),
+            {
+                "id": other_season_id,
+                "competition_id": domain.competition_id,
+                "season_year": 2027,
+                "sequence_number": 2,
+                "sleeper_league_id": other_league_id,
+            },
+        )
+    endpoint = build_league_request(domain.season_id, domain.sleeper_league_id)
+    first = start_refresh(refresh_manager, domain, endpoint)
+    second = start_refresh(refresh_manager, domain, endpoint)
+    other_domain = Domain(
+        competition_id=domain.competition_id,
+        season_id=other_season_id,
+        sleeper_league_id=other_league_id,
+        franchise_ids=domain.franchise_ids,
+        roster_ids=domain.roster_ids,
+    )
+    other_endpoint = build_league_request(other_season_id, other_league_id)
+    other = start_refresh(refresh_manager, other_domain, other_endpoint)
+    tied_at = datetime(2026, 8, 23, 12, tzinfo=UTC)
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.update(StoredRefreshRun)
+            .where(StoredRefreshRun.id.in_([first.id, second.id]))
+            .values(started_at=tied_at)
+        )
+
+    expected = sorted((first.id, second.id), reverse=True)
+    first_page = refresh_manager.list_refreshes(
+        RefreshRunQuery(
+            competition_season_id=domain.season_id,
+            limit=1,
+        )
+    )
+    second_page = refresh_manager.list_refreshes(
+        RefreshRunQuery(
+            competition_season_id=domain.season_id,
+            limit=1,
+            offset=1,
+        )
+    )
+
+    assert first_page.total == 2
+    assert [first_page.items[0].id, second_page.items[0].id] == expected
+    assert refresh_manager.get_refresh_for_season(domain.season_id, first.id).id == (
+        first.id
+    )
+    with pytest.raises(DatalayerResourceNotFound):
+        refresh_manager.get_refresh_for_season(domain.season_id, other.id)
+    with pytest.raises(DatalayerResourceNotFound):
+        refresh_manager.list_refreshes(
+            RefreshRunQuery(competition_season_id=uuid4())
+        )
 
 
 def test_finish_refresh_uses_latest_attempt_and_optional_failures_do_not_downgrade(

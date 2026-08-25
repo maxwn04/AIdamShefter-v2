@@ -28,6 +28,8 @@ from backend.resources.sleeper_data.snapshots.objects import (
     BeginSnapshotBuild,
     ClaimedSnapshotBuild,
     DataSnapshot,
+    DataSnapshotPage,
+    DataSnapshotQuery,
     ExistingBuildingSnapshot,
     ExistingReadySnapshot,
     SealSnapshot,
@@ -207,6 +209,39 @@ class DataSnapshotManager:
     def get(self, snapshot_id: UUID) -> DataSnapshot:
         with read_only_session(self._session_factory) as session:
             return _decode_snapshot(self._load(session, snapshot_id))
+
+    def list_snapshots(self, query: DataSnapshotQuery) -> DataSnapshotPage:
+        with read_only_session(self._session_factory) as session:
+            self._require_season(session, query.competition_season_id)
+            where = sa.and_(
+                StoredDataSnapshot.competition_id == self._competition_id,
+                StoredDataSnapshot.primary_competition_season_id
+                == query.competition_season_id,
+            )
+            total = cast(
+                int,
+                session.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(StoredDataSnapshot)
+                    .where(where)
+                ),
+            )
+            rows = session.scalars(
+                sa.select(StoredDataSnapshot)
+                .where(where)
+                .order_by(
+                    StoredDataSnapshot.created_at.desc(),
+                    StoredDataSnapshot.id.desc(),
+                )
+                .limit(query.limit)
+                .offset(query.offset)
+            ).all()
+            return DataSnapshotPage(
+                items=tuple(_decode_snapshot(row) for row in rows),
+                total=total,
+                limit=query.limit,
+                offset=query.offset,
+            )
 
     def list_requests(
         self,
