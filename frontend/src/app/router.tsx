@@ -7,6 +7,7 @@ export const router = createBrowserRouter([
   {
     path: "/",
     Component: AppShell,
+    HydrateFallback: AppShell,
     ErrorBoundary: RouteErrorBoundary,
     children: [
       { index: true, element: <Navigate to="/competitions" replace /> },
