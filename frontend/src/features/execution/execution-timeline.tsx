@@ -630,7 +630,10 @@ export function ExecutionTimeline({
               <span role="status">Updating summaries…</span>
             </>
           ) : (
-            <span>{query.data.page.total} attempts</span>
+            <span>
+              {query.data.page.total}{" "}
+              {query.data.page.total === 1 ? "attempt" : "attempts"}
+            </span>
           )}
         </div>
       </div>
