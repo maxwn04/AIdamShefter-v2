@@ -29,6 +29,12 @@ from backend.resources.core import (
     CompetitionSeasonYearExists,
     CoreResourceNotFound,
     SleeperLeagueIdExists,
+    RosterMappingConflict,
+)
+from backend.services.league import (
+    ReconcileRosterMappings,
+    RosterMappingResult,
+    RosterMappingView,
 )
 
 
@@ -86,6 +92,35 @@ class StubSeasonManager:
         if self.error is not None:
             raise self.error
         return self.season
+
+
+class StubRosterMappings:
+    def __init__(self) -> None:
+        self.view = RosterMappingView(
+            status="awaiting_source",
+            roster_count=0,
+            mapped_count=0,
+            rosters=(),
+            franchise_options=(),
+        )
+        self.season_ids: list[UUID] = []
+        self.commands: list[ReconcileRosterMappings] = []
+        self.error: Exception | None = None
+
+    def get_mapping(self, season_id: UUID) -> RosterMappingView:
+        self.season_ids.append(season_id)
+        if self.error is not None:
+            raise self.error
+        return self.view
+
+    def reconcile(
+        self, season_id: UUID, command: ReconcileRosterMappings
+    ) -> RosterMappingResult:
+        self.season_ids.append(season_id)
+        self.commands.append(command)
+        if self.error is not None:
+            raise self.error
+        return RosterMappingResult(mapping=self.view, replay_status="deferred")
 
 
 class StubOverviewReader:
@@ -199,6 +234,7 @@ def _dependencies() -> SimpleNamespace:
         competitions=StubCompetitionManager(competition),
         seasons=StubSeasonManager(season),
         overviews=reader,
+        roster_mappings=StubRosterMappings(),
     )
 
 
@@ -289,6 +325,67 @@ async def test_competition_season_routes_are_scoped_and_ordered() -> None:
     assert dependencies.overviews.season_ids == [
         (dependencies.competition.id, dependencies.season.id)
     ]
+
+
+@pytest.mark.asyncio
+async def test_roster_mapping_routes_preserve_source_token_and_targets() -> None:
+    dependencies = _dependencies()
+    app, client = await _client(dependencies)
+    source_id = uuid4()
+    franchise_id = uuid4()
+    base = (
+        f"/api/v1/competitions/{dependencies.competition.id}/seasons/"
+        f"{dependencies.season.id}/roster-mappings"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        viewed = await client.get(base)
+        updated = await client.put(
+            base,
+            json={
+                "source_api_request_id": str(source_id),
+                "assignments": [
+                    {
+                        "sleeper_roster_id": "1",
+                        "target": {
+                            "kind": "existing",
+                            "franchise_id": str(franchise_id),
+                        },
+                    },
+                    {
+                        "sleeper_roster_id": "2",
+                        "target": {"kind": "new", "display_name": " New Team "},
+                    },
+                ],
+            },
+        )
+
+    assert viewed.status_code == 200
+    assert viewed.json()["mapping"]["status"] == "awaiting_source"
+    assert updated.status_code == 200
+    command = dependencies.roster_mappings.commands[0]
+    assert command.source_api_request_id == source_id
+    assert command.assignments[0].target.franchise_id == franchise_id
+    assert command.assignments[1].target.display_name == "New Team"
+
+
+@pytest.mark.asyncio
+async def test_roster_mapping_stale_source_has_stable_conflict() -> None:
+    dependencies = _dependencies()
+    dependencies.roster_mappings.error = RosterMappingConflict(
+        "reload team setup", stale_source=True
+    )
+    app, client = await _client(dependencies)
+    base = (
+        f"/api/v1/competitions/{dependencies.competition.id}/seasons/"
+        f"{dependencies.season.id}/roster-mappings"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.get(base)
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "roster_mapping_source_stale"
 
 
 @pytest.mark.asyncio
@@ -402,6 +499,7 @@ def test_openapi_contains_competition_and_season_boundaries() -> None:
         f"{base}/{{competition_id}}",
         f"{base}/{{competition_id}}/seasons",
         f"{base}/{{competition_id}}/seasons/{{season_id}}",
+        f"{base}/{{competition_id}}/seasons/{{season_id}}/roster-mappings",
     }.issubset(paths)
     patch_schema = schema["paths"][f"{base}/{{competition_id}}"]["patch"]
     assert "422" in patch_schema["responses"]

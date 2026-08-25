@@ -20,6 +20,9 @@ from backend.api.schemas.competitions import (
     CreateCompetitionBody,
     CreateCompetitionSeasonBody,
     PatchCompetitionBody,
+    PutRosterMappingsBody,
+    RosterMappingMutationResponse,
+    RosterMappingResponse,
 )
 from backend.composition import (
     CompetitionCatalogDependencies,
@@ -33,6 +36,7 @@ from backend.resources.core import (
     CreateCompetitionSeason,
     RenameCompetition,
 )
+from backend.services.league import ReconcileRosterMappings
 
 
 router = APIRouter(
@@ -210,6 +214,39 @@ def competition_season_detail(
         season=detail.season,
         summary=detail.summary,
         normalized_overview=detail.normalized_overview,
+    )
+
+
+@router.get(
+    "/{competition_id}/seasons/{season_id}/roster-mappings",
+    response_model=RosterMappingResponse,
+)
+def get_roster_mappings(
+    season_id: UUID,
+    dependencies: SeasonApi,
+) -> RosterMappingResponse:
+    return RosterMappingResponse(
+        mapping=dependencies.roster_mappings.get_mapping(season_id)
+    )
+
+
+@router.put(
+    "/{competition_id}/seasons/{season_id}/roster-mappings",
+    response_model=RosterMappingMutationResponse,
+)
+def put_roster_mappings(
+    season_id: UUID,
+    body: PutRosterMappingsBody,
+    dependencies: SeasonApi,
+) -> RosterMappingMutationResponse:
+    return RosterMappingMutationResponse(
+        result=dependencies.roster_mappings.reconcile(
+            season_id,
+            ReconcileRosterMappings(
+                source_api_request_id=body.source_api_request_id,
+                assignments=tuple(item.to_resource() for item in body.assignments),
+            ),
+        )
     )
 
 

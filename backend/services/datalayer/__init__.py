@@ -25,6 +25,7 @@ from backend.services.datalayer.errors import (
     EndpointPayloadRejected,
     InternalDatalayerFailure,
     InvalidDatalayerRequest,
+    RosterIdentityMappingRequired,
     SnapshotUnavailable,
 )
 from backend.services.datalayer.local_files import (
@@ -163,6 +164,7 @@ __all__ = [
     "RosterRecord",
     "SanitizedSourceError",
     "RequestStatus",
+    "RosterIdentityMappingRequired",
     "SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
     "ScopeRefreshResult",

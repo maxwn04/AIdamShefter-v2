@@ -56,6 +56,8 @@ Recommended routes:
 | `GET /competitions/{competition_id}/seasons` | Ordered season list | Implemented |
 | `POST /competitions/{competition_id}/seasons` | Attach `{season_year, sleeper_league_id}` and derive sequence | Implemented |
 | `GET /competitions/{competition_id}/seasons/{season_id}` | Season identity plus normalized league overview when present | Implemented |
+| `GET /competitions/{competition_id}/seasons/{season_id}/roster-mappings` | Read roster-identity readiness and observed mapping evidence | Implemented |
+| `PUT /competitions/{competition_id}/seasons/{season_id}/roster-mappings` | Atomically map every observed roster to an existing or new franchise | Implemented |
 
 Example creation response:
 
@@ -113,7 +115,8 @@ Typed competition errors use the new product envelope:
 The stable core codes are `competition_not_found`,
 `competition_season_not_found`, `competition_archived`,
 `competition_season_year_exists`, `sleeper_league_id_exists`, and
-`competition_concurrency_conflict`.
+`competition_concurrency_conflict`, `roster_mapping_conflict`, and
+`roster_mapping_source_stale`.
 
 Season creation must return `409` codes for at least
 `competition_season_year_exists` and `sleeper_league_id_exists`. Editing an ID
@@ -125,6 +128,14 @@ rows by default, while direct competition and historical season reads remain
 available. Repeating archive is idempotent; renaming an archived competition or
 attaching another season is rejected. Restore and cascading changes to existing
 generation or memory resources are out of scope.
+
+The first complete roster observation for a competition's first season creates
+one durable franchise per Sleeper roster because no cross-season identity choice
+exists. Later seasons never infer continuity from team names, manager names, or
+roster position. Their mapping resource reports `awaiting_source`,
+`needs_mapping`, or `ready`; mutation requires the latest complete roster
+request ID as an optimistic source token and exactly one target per observed
+roster. Existing season-roster mappings are immutable.
 
 ## Required Refresh and Data Audit API
 

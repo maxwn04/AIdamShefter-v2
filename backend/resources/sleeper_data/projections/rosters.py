@@ -21,7 +21,10 @@ from backend.resources.sleeper_data.projections.common import (
     require_users,
     season_roster_identities,
 )
-from backend.services.datalayer.errors import DatalayerScopeConflict
+from backend.services.datalayer.errors import (
+    DatalayerScopeConflict,
+    RosterIdentityMappingRequired,
+)
 from backend.services.datalayer.sleeper.endpoints.contracts import (
     LeagueRostersEndpointRecords,
 )
@@ -38,7 +41,7 @@ def write_rosters(
     season, identities = season_roster_identities(session, competition_id, request)
     roster_ids = {row.sleeper_roster_id for row in records.rosters}
     if any(roster_id not in identities for roster_id in roster_ids):
-        raise DatalayerScopeConflict(
+        raise RosterIdentityMappingRequired(
             "roster response contains an unmapped Sleeper roster"
         )
     if any(row.sleeper_roster_id not in roster_ids for row in records.managers):

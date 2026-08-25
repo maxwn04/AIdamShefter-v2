@@ -13,6 +13,7 @@ from backend.resources.core import (
     CompetitionSeasonYearExists,
     CoreResourceError,
     CoreResourceNotFound,
+    RosterMappingConflict,
     SleeperLeagueIdExists,
 )
 
@@ -24,6 +25,8 @@ CoreErrorCode = Literal[
     "competition_season_year_exists",
     "sleeper_league_id_exists",
     "competition_concurrency_conflict",
+    "roster_mapping_conflict",
+    "roster_mapping_source_stale",
 ]
 
 
@@ -103,6 +106,17 @@ def _http_error(
             status.HTTP_409_CONFLICT,
             "competition_concurrency_conflict",
             "competition state changed concurrently; retry the request",
+            None,
+        )
+    if isinstance(error, RosterMappingConflict):
+        return (
+            status.HTTP_409_CONFLICT,
+            (
+                "roster_mapping_source_stale"
+                if error.stale_source
+                else "roster_mapping_conflict"
+            ),
+            error.message,
             None,
         )
     raise TypeError(f"unsupported core application error {type(error).__name__}")

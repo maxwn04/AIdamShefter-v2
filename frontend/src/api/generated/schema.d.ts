@@ -70,6 +70,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/competitions/{competition_id}/seasons/{season_id}/roster-mappings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Roster Mappings */
+        get: operations["get_roster_mappings_api_v1_competitions__competition_id__seasons__season_id__roster_mappings_get"];
+        /** Put Roster Mappings */
+        put: operations["put_roster_mappings_api_v1_competitions__competition_id__seasons__season_id__roster_mappings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data/competitions/{competition_id}/seasons/{season_id}/overview": {
         parameters: {
             query?: never;
@@ -1400,7 +1418,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "competition_not_found" | "competition_season_not_found" | "competition_archived" | "competition_season_year_exists" | "sleeper_league_id_exists" | "competition_concurrency_conflict";
+            code: "competition_not_found" | "competition_season_not_found" | "competition_archived" | "competition_season_year_exists" | "sleeper_league_id_exists" | "competition_concurrency_conflict" | "roster_mapping_conflict" | "roster_mapping_source_stale";
             /** Correlation Id */
             correlation_id?: string | null;
             /** Field Errors */
@@ -1436,6 +1454,16 @@ export interface components {
             season_year: number;
             /** Sleeper League Id */
             sleeper_league_id: string;
+        };
+        /** CreateFranchiseTargetBody */
+        CreateFranchiseTargetBody: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "new";
         };
         /** DataErrorDetail */
         DataErrorDetail: {
@@ -1638,6 +1666,19 @@ export interface components {
          * @enum {string}
          */
         EvidenceRole: "origin" | "support" | "update" | "payoff";
+        /** ExistingFranchiseTargetBody */
+        ExistingFranchiseTargetBody: {
+            /**
+             * Franchise Id
+             * Format: uuid
+             */
+            franchise_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "existing";
+        };
         /** FactContent */
         "FactContent-Input": {
             /** Category */
@@ -1780,6 +1821,23 @@ export interface components {
              * @enum {string}
              */
             scope: "franchise";
+        };
+        /** FranchiseIdentity */
+        FranchiseIdentity: {
+            /** Archived At */
+            archived_at: string | null;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
         };
         /** FranchiseRef[FactSubjectRole] */
         FranchiseRef_FactSubjectRole_: {
@@ -2598,6 +2656,19 @@ export interface components {
          * @enum {string}
          */
         NormalizationStatus: "pending" | "succeeded" | "rejected" | "not_applicable";
+        /** ObservedRosterMapping */
+        ObservedRosterMapping: {
+            /** Franchise Id */
+            franchise_id?: string | null;
+            /** Franchise Name */
+            franchise_name?: string | null;
+            /** Managers */
+            managers: components["schemas"]["RosterManagerEvidence"][];
+            /** Sleeper Roster Id */
+            sleeper_roster_id: string;
+            /** Suggested Display Name */
+            suggested_display_name: string;
+        };
         /**
          * PatchCompetitionBody
          * @example {
@@ -2686,6 +2757,37 @@ export interface components {
              * Format: uuid
              */
             version_id: string;
+        };
+        /**
+         * PutRosterMappingsBody
+         * @example {
+         *       "assignments": [
+         *         {
+         *           "sleeper_roster_id": "1",
+         *           "target": {
+         *             "franchise_id": "e9c48ec7-95fe-44ed-85d6-d658f7022bd2",
+         *             "kind": "existing"
+         *           }
+         *         },
+         *         {
+         *           "sleeper_roster_id": "2",
+         *           "target": {
+         *             "display_name": "Expansion Team",
+         *             "kind": "new"
+         *           }
+         *         }
+         *       ],
+         *       "source_api_request_id": "4fd2ceef-0d7d-47ee-a42f-e70f78684aeb"
+         *     }
+         */
+        PutRosterMappingsBody: {
+            /** Assignments */
+            assignments: components["schemas"]["RosterMappingAssignmentBody"][];
+            /**
+             * Source Api Request Id
+             * Format: uuid
+             */
+            source_api_request_id: string;
         };
         pydantic__types__JsonValue: unknown;
         /**
@@ -2817,6 +2919,64 @@ export interface components {
         /** RevisionResponse */
         RevisionResponse: {
             revision: components["schemas"]["CanonicalRevision"];
+        };
+        /** RosterManagerEvidence */
+        RosterManagerEvidence: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "owner" | "co_owner";
+            /** Sleeper User Id */
+            sleeper_user_id: string;
+            /** Team Name */
+            team_name?: string | null;
+        };
+        /** RosterMappingAssignmentBody */
+        RosterMappingAssignmentBody: {
+            /** Sleeper Roster Id */
+            sleeper_roster_id: string;
+            /** Target */
+            target: components["schemas"]["CreateFranchiseTargetBody"] | components["schemas"]["ExistingFranchiseTargetBody"];
+        };
+        /** RosterMappingMutationResponse */
+        RosterMappingMutationResponse: {
+            result: components["schemas"]["RosterMappingResult"];
+        };
+        /** RosterMappingResponse */
+        RosterMappingResponse: {
+            mapping: components["schemas"]["RosterMappingView"];
+        };
+        /** RosterMappingResult */
+        RosterMappingResult: {
+            mapping: components["schemas"]["RosterMappingView"];
+            /**
+             * Replay Status
+             * @enum {string}
+             */
+            replay_status: "applied" | "deferred";
+        };
+        /** RosterMappingView */
+        RosterMappingView: {
+            /** Franchise Options */
+            franchise_options: components["schemas"]["FranchiseIdentity"][];
+            /** Mapped Count */
+            mapped_count: number;
+            /** Roster Count */
+            roster_count: number;
+            /** Rosters */
+            rosters: components["schemas"]["ObservedRosterMapping"][];
+            /** Source Api Request Id */
+            source_api_request_id?: string | null;
+            /** Source Observed At */
+            source_observed_at?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "awaiting_source" | "needs_mapping" | "ready";
         };
         /**
          * ScopeKey
@@ -3928,6 +4088,156 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompetitionSeasonDetailResponse"];
+                };
+            };
+            /** @description The competition or scoped season was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "competition_not_found",
+                     *         "summary": "competition was not found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CoreErrorResponse"];
+                };
+            };
+            /** @description The requested identity or lifecycle change conflicts. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "competition_season_year_exists",
+                     *         "field_errors": {
+                     *           "season_year": [
+                     *             "Already attached to this competition."
+                     *           ]
+                     *         },
+                     *         "summary": "that season year is already attached to this competition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CoreErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_roster_mappings_api_v1_competitions__competition_id__seasons__season_id__roster_mappings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-ID"?: string | null;
+            };
+            path: {
+                competition_id: string;
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterMappingResponse"];
+                };
+            };
+            /** @description The competition or scoped season was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "competition_not_found",
+                     *         "summary": "competition was not found"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CoreErrorResponse"];
+                };
+            };
+            /** @description The requested identity or lifecycle change conflicts. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "error": {
+                     *         "code": "competition_season_year_exists",
+                     *         "field_errors": {
+                     *           "season_year": [
+                     *             "Already attached to this competition."
+                     *           ]
+                     *         },
+                     *         "summary": "that season year is already attached to this competition"
+                     *       }
+                     *     }
+                     */
+                    "application/json": components["schemas"]["CoreErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_roster_mappings_api_v1_competitions__competition_id__seasons__season_id__roster_mappings_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-ID"?: string | null;
+            };
+            path: {
+                competition_id: string;
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PutRosterMappingsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterMappingMutationResponse"];
                 };
             };
             /** @description The competition or scoped season was not found. */

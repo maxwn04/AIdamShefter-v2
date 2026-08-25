@@ -31,6 +31,7 @@ from backend.services.datalayer import (
 )
 from backend.services.datalayer.canonical_json import canonical_json_bytes
 from backend.services.datalayer.errors import DatalayerScopeConflict
+from backend.services.datalayer.errors import RosterIdentityMappingRequired
 from backend.services.datalayer.refresh_service import (
     DatalayerRefreshService,
     build_standard_refresh_plan,
@@ -386,6 +387,56 @@ def test_large_payloads_are_recorded_with_object_receipts(tmp_path: Path) -> Non
 
     assert outcome.status is RefreshStatus.SUCCEEDED
     assert all(command.object_receipt is not None for command in backend.commands)
+
+
+def test_refresh_bootstraps_first_season_before_roster_projection(
+    tmp_path: Path,
+) -> None:
+    backend = FakeBackend()
+    mapper = FakeRosterMapper()
+    payloads = _payloads(nfl_week=1, playoff_week=3)
+    payloads[EndpointKind.LEAGUE_ROSTERS] = [
+        {"roster_id": 1, "settings": {}, "metadata": {}}
+    ]
+    source = FakeSource(payloads=payloads)
+
+    outcome = _service(
+        tmp_path,
+        source,
+        backend,
+        roster_mappings=mapper,
+    ).refresh(
+        RefreshRequest(
+            competition_season_id=SEASON_ID,
+            through_week=1,
+            trigger=RefreshTrigger.MANUAL,
+        )
+    )
+
+    assert outcome.status is RefreshStatus.SUCCEEDED
+    assert mapper.calls == [(SEASON_ID, 1, 0)]
+
+
+def test_missing_later_season_mapping_has_actionable_warning(tmp_path: Path) -> None:
+    backend = FakeBackend(
+        mapping_required_endpoint_kind=EndpointKind.LEAGUE_ROSTERS
+    )
+    source = FakeSource(payloads=_payloads(nfl_week=1, playoff_week=3))
+
+    outcome = _service(tmp_path, source, backend).refresh(
+        RefreshRequest(
+            competition_season_id=SEASON_ID,
+            through_week=1,
+            trigger=RefreshTrigger.MANUAL,
+        )
+    )
+
+    roster_result = next(
+        row
+        for row in outcome.scope_results
+        if row.scope_key.value.startswith("league_rosters:")
+    )
+    assert roster_result.warning_codes == ("roster_identity_mapping_required",)
     assert all(
         command.object_receipt.storage_key.startswith("payloads/sha256/")
         for command in backend.commands
@@ -456,12 +507,16 @@ class FakeSource:
 
 class FakeBackend:
     def __init__(
-        self, *, conflict_endpoint_kind: EndpointKind | None = None
+        self,
+        *,
+        conflict_endpoint_kind: EndpointKind | None = None,
+        mapping_required_endpoint_kind: EndpointKind | None = None,
     ) -> None:
         self.command: StartRefresh | None = None
         self.requests: list[ApiRequest] = []
         self.commands: list[RecordApiAttempt] = []
         self.conflict_endpoint_kind = conflict_endpoint_kind
+        self.mapping_required_endpoint_kind = mapping_required_endpoint_kind
 
     def start_refresh(self, command: StartRefresh) -> RefreshRun:
         self.command = command
@@ -541,6 +596,8 @@ class FakeBackend:
     def apply_scope(self, request_id: UUID, records: Any) -> ApplyResult:
         del records
         current = self._request(request_id)
+        if current.endpoint_kind is self.mapping_required_endpoint_kind:
+            raise RosterIdentityMappingRequired("mapping required")
         if current.endpoint_kind is self.conflict_endpoint_kind:
             raise DatalayerScopeConflict("test mapping conflict")
         request = current.model_copy(
@@ -604,6 +661,7 @@ def _service(
     delay: Any = lambda _: None,
     files: Any | None = None,
     inline_payload_max_bytes: int = 1024 * 1024,
+    roster_mappings: Any | None = None,
 ) -> DatalayerRefreshService:
     return DatalayerRefreshService(
         source=source,
@@ -617,7 +675,22 @@ def _service(
         retry_backoff_seconds=0.5,
         inline_payload_max_bytes=inline_payload_max_bytes,
         delay=delay,
+        roster_mappings=roster_mappings,
     )
+
+
+class FakeRosterMapper:
+    def __init__(self) -> None:
+        self.calls: list[tuple[UUID, int, int]] = []
+
+    def bootstrap_first_season(self, competition_season_id, rosters, users) -> None:
+        self.calls.append(
+            (
+                competition_season_id,
+                len(rosters.rosters),
+                0 if users is None else len(users.users),
+            )
+        )
 
 
 def _payloads(*, nfl_week: int, playoff_week: int) -> dict[EndpointKind, Any]:
