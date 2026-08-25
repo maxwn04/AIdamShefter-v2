@@ -73,6 +73,14 @@ export const queryKeys = {
       ["competitions", competitionId, "generations"] as const,
     generationSubmission: (competitionId: string) =>
       ["competitions", competitionId, "generations", "submit"] as const,
+    generationRerun: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "rerun",
+      ] as const,
     generationDetail: (competitionId: string, generationId: string) =>
       ["competitions", competitionId, "generations", generationId] as const,
   },
