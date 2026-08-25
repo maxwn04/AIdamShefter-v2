@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import cast
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, Engine, text
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +13,12 @@ class DatabaseHealth:
     server_version: str
     tls: bool
     alembic_revision: str | None
+
+
+def _client_connection_uses_tls(connection: Connection) -> bool:
+    driver_connection = connection.connection.driver_connection
+    pg_connection = getattr(driver_connection, "pgconn", None)
+    return bool(getattr(pg_connection, "ssl_in_use", False))
 
 
 def read_database_health(
@@ -43,6 +49,7 @@ def read_database_health(
                 """
             )
         ).mappings().one()
+        tls = cast(bool, identity["tls"]) or _client_connection_uses_tls(connection)
         revision = None
         if include_migration_revision:
             has_migration_table = cast(
@@ -69,7 +76,7 @@ def read_database_health(
         database=cast(str, identity["database"]),
         role=cast(str, identity["role"]),
         server_version=cast(str, identity["server_version"]),
-        tls=cast(bool, identity["tls"]),
+        tls=tls,
         alembic_revision=revision,
     )
 

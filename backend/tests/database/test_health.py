@@ -1,6 +1,29 @@
-import pytest
+from types import SimpleNamespace
+from typing import cast
 
-from backend.database.health import DatabaseHealth, assert_database_ready
+import pytest
+from sqlalchemy import Connection
+
+from backend.database.health import (
+    DatabaseHealth,
+    _client_connection_uses_tls,
+    assert_database_ready,
+)
+
+
+def test_client_tls_signal_supports_connection_poolers() -> None:
+    connection = cast(
+        Connection,
+        SimpleNamespace(
+            connection=SimpleNamespace(
+                driver_connection=SimpleNamespace(
+                    pgconn=SimpleNamespace(ssl_in_use=True)
+                )
+            )
+        ),
+    )
+
+    assert _client_connection_uses_tls(connection) is True
 
 
 def test_readiness_accepts_matching_identity() -> None:

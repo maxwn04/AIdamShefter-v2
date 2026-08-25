@@ -17,6 +17,16 @@ _PRIVILEGED_RUNTIME_USERS = {
 }
 
 
+def database_role_name(url_username: str) -> str:
+    """Return the PostgreSQL role represented by a connection URL username.
+
+    Supavisor session-pooler logins append ``.<project-ref>`` to the actual
+    PostgreSQL role name.
+    """
+
+    return url_username.partition(".")[0]
+
+
 @dataclass(frozen=True, slots=True)
 class EngineSettings:
     """Connection and pool limits for one persistent backend process."""
@@ -65,8 +75,11 @@ class EngineSettings:
         url = make_url(self.database_url)
         if url.drivername != "postgresql+psycopg":
             raise ValueError("database URL must use the postgresql+psycopg driver")
-        if url.username in _PRIVILEGED_RUNTIME_USERS:
-            raise ValueError(f"runtime database user {url.username!r} is privileged")
+        runtime_role = (
+            database_role_name(url.username) if url.username is not None else None
+        )
+        if runtime_role in _PRIVILEGED_RUNTIME_USERS:
+            raise ValueError(f"runtime database user {runtime_role!r} is privileged")
         if not self.application_name.strip():
             raise ValueError("application_name must not be empty")
         for field_name in (
