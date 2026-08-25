@@ -2,9 +2,11 @@ import { Menu, Trophy } from "lucide-react";
 import { Link, Outlet, useMatch } from "react-router";
 
 import { ApiStatus } from "@/components/shared/api-status";
+import { Breadcrumbs } from "@/components/shared/breadcrumbs";
 import { Navigation } from "@/components/shared/navigation";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { CompetitionSwitcher } from "@/features/competitions/competition-switcher";
 import {
   Sheet,
   SheetContent,
@@ -39,6 +41,9 @@ export function AppShell(): React.JSX.Element {
               <SheetTitle>AIdam Shefter</SheetTitle>
               <SheetDescription>Editorial operations desk</SheetDescription>
             </SheetHeader>
+            <div className="mb-5">
+              <CompetitionSwitcher competitionId={competitionId} />
+            </div>
             <Navigation competitionId={competitionId} closeOnNavigate />
           </SheetContent>
         </Sheet>
@@ -71,6 +76,10 @@ export function AppShell(): React.JSX.Element {
           </div>
         </div>
         <Separator />
+        <div className="px-4 py-4">
+          <CompetitionSwitcher competitionId={competitionId} />
+        </div>
+        <Separator />
         <div className="flex-1 overflow-y-auto px-3 py-5">
           <Navigation competitionId={competitionId} />
         </div>
@@ -81,6 +90,7 @@ export function AppShell(): React.JSX.Element {
       </aside>
 
       <main id="main-content" className="md:pl-64">
+        <Breadcrumbs competitionId={competitionId} />
         <Outlet />
       </main>
     </div>

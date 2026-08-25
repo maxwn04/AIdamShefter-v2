@@ -5,7 +5,8 @@ export const queryKeys = {
   },
   competitions: {
     all: ["competitions"] as const,
-    list: (filters: Readonly<Record<string, unknown>> = {}) =>
+    lists: () => ["competitions", "list"] as const,
+    list: (filters: Readonly<object> = {}) =>
       ["competitions", "list", filters] as const,
     detail: (competitionId: string) =>
       ["competitions", competitionId, "detail"] as const,
