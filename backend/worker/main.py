@@ -6,13 +6,17 @@ from collections.abc import Sequence
 from datetime import datetime
 import json
 import sys
-from typing import TextIO
+from typing import Protocol, TextIO
 from uuid import UUID
 
-from backend.composition import build_worker_runtime
+from backend.composition import GenerationRuntimeDependencies, build_worker_runtime
 from backend.resources.reporting.generations import GenerationStatus
+from backend.resources.sleeper_data.refreshes import RefreshRunManager
 from backend.services.generations import StaleGenerationPolicy
-from backend.worker.dependencies import build_worker_generation_dependencies
+from backend.worker.dependencies import (
+    build_worker_generation_dependencies,
+    build_worker_refresh_manager,
+)
 from backend.worker.execution import (
     DependencyFactory,
     RuntimeFactory,
@@ -20,11 +24,22 @@ from backend.worker.execution import (
 )
 
 
+class RefreshManagerFactory(Protocol):
+    def __call__(
+        self,
+        runtime: GenerationRuntimeDependencies,
+        competition_id: UUID,
+        *,
+        correlation_id: UUID | None = None,
+    ) -> RefreshRunManager: ...
+
+
 def run(
     argv: Sequence[str] | None = None,
     *,
     runtime_factory: RuntimeFactory = build_worker_runtime,
     dependency_factory: DependencyFactory = build_worker_generation_dependencies,
+    refresh_manager_factory: RefreshManagerFactory = build_worker_refresh_manager,
     stdout: TextIO = sys.stdout,
     stderr: TextIO = sys.stderr,
 ) -> int:
@@ -48,6 +63,28 @@ def run(
         return 2
     try:
         runtime.assert_ready()
+        if arguments.command == "reconcile-stale-refreshes":
+            refreshes = refresh_manager_factory(
+                runtime,
+                arguments.competition_id,
+            ).finish_stale_running(
+                stale_before=arguments.stale_before,
+                limit=arguments.limit,
+            )
+            _write_json(
+                stdout,
+                {
+                    "stale_before": arguments.stale_before.isoformat(),
+                    "count": len(refreshes),
+                    "refresh_ids": [str(refresh.id) for refresh in refreshes],
+                    "statuses": {
+                        str(refresh.id): refresh.status.value
+                        for refresh in refreshes
+                    },
+                },
+            )
+            return 0
+
         dependencies = dependency_factory(runtime, arguments.competition_id)
         result = dependencies.service.reconcile_stale(
             StaleGenerationPolicy(
@@ -128,6 +165,20 @@ def _parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--competition-id", type=UUID, required=True)
     reconcile.add_argument("--stale-before", type=_aware_datetime, required=True)
     reconcile.add_argument("--limit", type=int, default=100, choices=range(1, 201))
+
+    reconcile_refreshes = commands.add_parser("reconcile-stale-refreshes")
+    reconcile_refreshes.add_argument("--competition-id", type=UUID, required=True)
+    reconcile_refreshes.add_argument(
+        "--stale-before",
+        type=_aware_datetime,
+        required=True,
+    )
+    reconcile_refreshes.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        choices=range(1, 201),
+    )
     return parser
 
 

@@ -79,12 +79,22 @@ The one-shot worker command remains available for manual execution and recovery:
 uv run --env-file .env aidam-worker execute --competition-id <uuid> --generation-id <uuid>
 uv run --env-file .env aidam-worker reconcile-stale --competition-id <uuid> \
   --stale-before 2026-08-23T09:00:00Z --limit 100
+uv run --env-file .env aidam-worker reconcile-stale-refreshes \
+  --competition-id <uuid> --stale-before 2026-08-23T09:00:00Z --limit 100
 ```
 
 The initial API is single-local-user and does not claim durable per-user
 ownership. Background dispatch runs in the API process with worker-scoped
 dependencies and is not durable across a hard API-process failure. There is no
 queue, lease, heartbeat, or automatic resume.
+
+A hard process failure during a Sleeper refresh can likewise leave a refresh in
+`running`. After confirming that no refresh process still owns the work, an
+operator can run `reconcile-stale-refreshes` with an explicit timezone-aware
+cutoff. The command does not refetch or resume work: it derives each terminal
+status from the refresh plan and its latest durable API attempts, using a bounded
+competition-scoped batch. Because refreshes do not have a lease or heartbeat,
+this recovery is deliberately manual rather than age-triggered at API startup.
 
 ## Frontend
 

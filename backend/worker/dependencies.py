@@ -12,6 +12,7 @@ from backend.resources.context import (
     ManagerContext,
     SystemProcessActor,
 )
+from backend.resources.sleeper_data.refreshes import RefreshRunManager
 
 
 def build_worker_generation_dependencies(
@@ -28,4 +29,20 @@ def build_worker_generation_dependencies(
         correlation_id=correlation_id or uuid4(),
     )
     return build_generation_dependencies(runtime.session_factory, context)
+
+
+def build_worker_refresh_manager(
+    runtime: GenerationRuntimeDependencies,
+    competition_id: UUID,
+    *,
+    correlation_id: UUID | None = None,
+) -> RefreshRunManager:
+    """Build a scoped refresh manager for explicit worker recovery."""
+
+    context = ManagerContext[CompetitionScope](
+        actor=SystemProcessActor(process_name="refresh-recovery-worker"),
+        scope=CompetitionScope(competition_id=competition_id),
+        correlation_id=correlation_id or uuid4(),
+    )
+    return RefreshRunManager(runtime.session_factory, context)
 
