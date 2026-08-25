@@ -77,6 +77,7 @@ from backend.services.reporter import (
 )
 from backend.services.reporter.runner.completion import (
     CompletionSettings,
+    ProviderConfigurationError,
     RetryPolicy,
 )
 
@@ -597,6 +598,8 @@ def _nonblank(value: str, field: str) -> str:
 
 
 def _failure_summary(category: str, exc: Exception) -> str:
+    if isinstance(exc, ProviderConfigurationError):
+        return exc.public_summary[:500]
     label = category.replace("_", " ").capitalize()
     return f"{label} failed ({type(exc).__name__})"[:500]
 

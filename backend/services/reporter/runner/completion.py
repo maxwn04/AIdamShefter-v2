@@ -89,6 +89,17 @@ class CompletionRecordingError(RuntimeError):
     """Durable recording failed, so the provider operation cannot continue."""
 
 
+class ProviderConfigurationError(RuntimeError):
+    """A trusted provider configuration failure that must not be retried."""
+
+    public_summary = (
+        "Reporter execution cannot start because OPENAI_API_KEY is not configured"
+    )
+
+    def __init__(self) -> None:
+        super().__init__(self.public_summary)
+
+
 @dataclass(frozen=True)
 class RetryPolicy:
     max_retries: int = 3
@@ -295,17 +306,24 @@ class CompletionClient:
             )
             raise
         except Exception as exc:
-            status = "retryable_error" if is_retryable_error(exc) else "fatal_error"
+            provider_error = _normalize_provider_error(exc)
+            status = (
+                "retryable_error"
+                if is_retryable_error(provider_error)
+                else "fatal_error"
+            )
             self._finish_recorded_attempt(
                 attempt_id,
                 ModelAttemptFinish(
                     status=status,
                     actual_provider=error_provider(exc) or requested_provider,
                     actual_model=candidate,
-                    error=sanitize_provider_error(exc, requested_provider),
+                    error=sanitize_provider_error(provider_error, requested_provider),
                     provider_request_id=error_request_id(exc),
                 ),
             )
+            if provider_error is not exc:
+                raise provider_error from exc
             raise
 
         self._finish_recorded_attempt(
@@ -348,6 +366,9 @@ def make_completion_client(
 
 def is_retryable_error(exc: BaseException) -> bool:
     """Return True when the error looks transient / rate-limited."""
+    if isinstance(exc, ProviderConfigurationError):
+        return False
+
     type_name = type(exc).__name__
     if type_name in _RETRYABLE_TYPE_NAMES:
         return True
@@ -366,6 +387,18 @@ def is_retryable_error(exc: BaseException) -> bool:
 
     message = str(exc).lower()
     return any(fragment in message for fragment in _RETRYABLE_MESSAGE_FRAGMENTS)
+
+
+def _normalize_provider_error(exc: Exception) -> Exception:
+    message = str(exc).casefold()
+    if (
+        "openai_api_key" in message
+        and "missing credentials" in message
+        and "please pass" in message
+        and "api_key" in message
+    ):
+        return ProviderConfigurationError()
+    return exc
 
 
 def retry_delay_seconds(

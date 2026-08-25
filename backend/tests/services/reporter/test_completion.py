@@ -13,6 +13,7 @@ from backend.services.reporter.generator import _resolve_client
 from backend.services.reporter.runner.completion import (
     CompletionClient,
     CompletionSettings,
+    ProviderConfigurationError,
     RetryPolicy,
     is_retryable_error,
     retry_delay_seconds,
@@ -32,6 +33,10 @@ class RateLimitError(Exception):
     def __init__(self, message: str = "Rate limit exceeded", *, status_code: int = 429):
         super().__init__(message)
         self.status_code = status_code
+
+
+class InternalServerError(Exception):
+    """Stand-in for a provider HTTP 500 error."""
 
 
 class SequenceCompletion:
@@ -113,6 +118,7 @@ def make_client(
 def test_is_retryable_detects_rate_limit_by_type_and_status() -> None:
     assert is_retryable_error(RateLimitError())
     assert is_retryable_error(Exception("HTTP 429 too many requests"))
+    assert is_retryable_error(InternalServerError("provider unavailable"))
     assert not is_retryable_error(ValueError("bad request"))
 
 
@@ -270,6 +276,52 @@ def test_client_raises_non_retryable_immediately() -> None:
         run(client.complete(messages=[]))
 
     assert [req["model"] for req in complete.requests] == ["primary"]
+
+
+def test_missing_openai_key_is_normalized_and_not_retried(monkeypatch) -> None:
+    sleeps: list[float] = []
+
+    async def fake_sleep(delay: float) -> None:
+        sleeps.append(delay)
+
+    monkeypatch.setattr(
+        "backend.services.reporter.runner.completion.asyncio.sleep",
+        fake_sleep,
+    )
+    complete = SequenceCompletion(
+        [
+            InternalServerError(
+                "litellm.InternalServerError: InternalServerError: "
+                "OpenAIException - Missing credentials. Please pass an `api_key`, "
+                "`workload_identity`, `admin_api_key`, or set the `OPENAI_API_KEY` "
+                "or `OPENAI_ADMIN_KEY` environment variable."
+            )
+        ]
+    )
+    recorder = RecordingProbe()
+    client = make_client(
+        complete,
+        model="primary",
+        fallback_models=("fallback",),
+        retry=RetryPolicy(max_retries=3),
+        recorder=recorder,
+    )
+
+    with pytest.raises(
+        ProviderConfigurationError,
+        match="OPENAI_API_KEY is not configured",
+    ):
+        run(client.complete(turn_number=1, messages=[]))
+
+    assert [req["model"] for req in complete.requests] == ["primary"]
+    assert sleeps == []
+    assert len(recorder.finished) == 1
+    result = recorder.finished[0][1]
+    assert result.status == "fatal_error"
+    assert result.error == {
+        "type": "ProviderConfigurationError",
+        "message": ProviderConfigurationError.public_summary,
+    }
 
 
 def test_client_raises_after_all_models_exhausted(monkeypatch) -> None:
