@@ -14,5 +14,48 @@ export const queryKeys = {
       ["competitions", competitionId, "seasons"] as const,
     seasonDetail: (competitionId: string, seasonId: string) =>
       ["competitions", competitionId, "seasons", seasonId] as const,
+    refreshes: (competitionId: string, seasonId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "refreshes",
+      ] as const,
+    refreshList: (
+      competitionId: string,
+      seasonId: string,
+      page: Readonly<object>,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "refreshes",
+        "list",
+        page,
+      ] as const,
+    refreshDetail: (
+      competitionId: string,
+      seasonId: string,
+      refreshId: string,
+    ) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "refreshes",
+        refreshId,
+      ] as const,
+    snapshots: (competitionId: string, seasonId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "snapshots",
+      ] as const,
   },
 } as const;

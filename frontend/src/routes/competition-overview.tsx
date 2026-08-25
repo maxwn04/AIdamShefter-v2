@@ -1,5 +1,5 @@
 import { CircleAlert, Database, RefreshCw, Trophy } from "lucide-react";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 
 import { ApiError } from "@/api/errors";
@@ -8,12 +8,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompetitionDetail } from "@/features/competitions/queries";
+import type { ManualRefreshResponse } from "@/features/refreshes/api";
+import { RefreshHistory } from "@/features/refreshes/refresh-history";
+import { RefreshOutcomePanel } from "@/features/refreshes/refresh-outcome";
+import { RefreshSheet } from "@/features/refreshes/refresh-sheet";
 import { AddSeasonDialog } from "@/features/seasons/add-season-dialog";
 import type { CompetitionSeasonOverview } from "@/features/seasons/api";
 import { useSeasonDetail, useSeasonList } from "@/features/seasons/queries";
 import { cn } from "@/lib/utils";
 
 const seasonListParameters = { limit: 200, offset: 0 } as const;
+
+function positivePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
 
 function refreshBadge(status: string): {
   label: string;
@@ -219,10 +228,15 @@ function OverviewSkeleton(): React.JSX.Element {
 export function Component(): React.JSX.Element {
   const { competitionId } = useParams();
   const [searchParameters, setSearchParameters] = useSearchParams();
+  const [latestOutcome, setLatestOutcome] = useState<{
+    seasonId: string;
+    outcome: ManualRefreshResponse;
+  }>();
   const competitionQuery = useCompetitionDetail(competitionId);
   const seasonsQuery = useSeasonList(competitionId, seasonListParameters);
   const seasons = seasonsQuery.data?.page.items ?? [];
   const requestedSeasonId = searchParameters.get("season") ?? undefined;
+  const refreshPage = positivePage(searchParameters.get("refreshPage"));
   const requestedSeason = seasons.find(
     ({ season }) => season.id === requestedSeasonId,
   );
@@ -254,6 +268,16 @@ export function Component(): React.JSX.Element {
     next.delete("refreshPage");
     setSearchParameters(next);
   }
+
+  const setRefreshPage = useCallback(
+    (page: number): void => {
+      const next = new URLSearchParams(searchParameters);
+      if (page === 1) next.delete("refreshPage");
+      else next.set("refreshPage", String(page));
+      setSearchParameters(next);
+    },
+    [searchParameters, setSearchParameters],
+  );
 
   if (competitionQuery.isPending || seasonsQuery.isPending)
     return <OverviewSkeleton />;
@@ -331,11 +355,25 @@ export function Component(): React.JSX.Element {
               </select>
             </label>
           ) : null}
-          <AddSeasonDialog
-            competitionId={competition.id}
-            disabled={archived}
-            onCreated={selectSeason}
-          />
+          <div className="flex flex-wrap gap-2">
+            {selectedSeasonId && selectedSeason ? (
+              <RefreshSheet
+                competitionId={competition.id}
+                seasonId={selectedSeasonId}
+                seasonYear={selectedSeason.season.season_year}
+                leagueName={selectedSeason.summary.league_name}
+                disabled={archived}
+                onOutcome={(outcome) => {
+                  setLatestOutcome({ seasonId: selectedSeasonId, outcome });
+                }}
+              />
+            ) : null}
+            <AddSeasonDialog
+              competitionId={competition.id}
+              disabled={archived}
+              onCreated={selectSeason}
+            />
+          </div>
         </div>
       </header>
 
@@ -549,6 +587,36 @@ export function Component(): React.JSX.Element {
               </div>
             ) : null}
           </section>
+
+          {latestOutcome && latestOutcome.seasonId === selectedSeasonId ? (
+            <RefreshOutcomePanel outcome={latestOutcome.outcome} />
+          ) : null}
+
+          {selectedSeasonId ? (
+            <section
+              className="mt-10"
+              aria-labelledby="refresh-history-heading"
+            >
+              <h2
+                id="refresh-history-heading"
+                className="font-editorial text-2xl font-semibold"
+              >
+                Refresh history
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Newest-first source refreshes for the selected season. Stored
+                history preserves terminal status and aggregate request audit.
+              </p>
+              <div className="mt-5">
+                <RefreshHistory
+                  competitionId={competition.id}
+                  seasonId={selectedSeasonId}
+                  page={refreshPage}
+                  onPageChange={setRefreshPage}
+                />
+              </div>
+            </section>
+          ) : null}
         </>
       )}
     </div>
