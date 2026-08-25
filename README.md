@@ -23,6 +23,12 @@ SLEEPER_LEAGUE_ID=<league_id>
 OPENAI_API_KEY=<key>
 ```
 
+`gpt-5.6-luna` is the default reporter model. Adding `DEEPSEEK_API_KEY` and
+`META_API_KEY` exposes the curated DeepSeek V4 and Meta Muse Spark choices in
+the product model catalog. Set `REPORTER_FALLBACK_MODELS` only when you need to
+replace that credential-derived selection with an explicit comma-separated
+list of LiteLLM model IDs.
+
 The checked-in database values are for the isolated local Compose service. Start
 it and apply the current schema before starting the application:
 
