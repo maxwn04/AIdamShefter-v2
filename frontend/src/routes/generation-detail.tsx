@@ -246,6 +246,20 @@ export function Component(): React.JSX.Element {
         ) : null}
       </header>
 
+      {terminal && rerun.isError ? (
+        <div
+          className="mt-4 max-w-full rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"
+          role="alert"
+        >
+          <p className="font-medium">Rerun was not queued</p>
+          <p className="mt-1 break-words leading-6">
+            {rerun.error instanceof ApiError
+              ? rerun.error.message
+              : "The rerun could not be queued."}
+          </p>
+        </div>
+      ) : null}
+
       {active ? (
         <section
           className="mt-9 overflow-hidden rounded-lg border border-primary/25 bg-card"
