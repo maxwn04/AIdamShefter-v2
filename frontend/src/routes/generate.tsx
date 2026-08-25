@@ -42,6 +42,7 @@ import {
   type GenerationFormValues,
 } from "@/features/generations/draft";
 import { useSubmitGeneration } from "@/features/generations/queries";
+import type { ModelCatalogItem } from "@/features/models/api";
 import { useModelCatalog } from "@/features/models/queries";
 import { useRosterMappings } from "@/features/roster-mappings/queries";
 import { useSeasonDetail, useSeasonList } from "@/features/seasons/queries";
@@ -52,6 +53,20 @@ const selectClassName =
   "flex h-9 w-full rounded-md border border-border bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
 const textareaClassName =
   "min-h-28 w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50";
+
+function modelOptionLabel(model: ModelCatalogItem): string {
+  const displayName = model.display_name.trim() || model.model;
+  const provider = model.provider?.trim() ?? "provider unavailable";
+  const identity =
+    displayName === model.model
+      ? model.model
+      : `${displayName} (${model.model})`;
+  const configuration = model.is_default ? "default" : "configured";
+  const reasoning = model.supports_reasoning
+    ? "reasoning supported"
+    : "reasoning not supported";
+  return `${identity} · ${provider} · ${configuration} · ${reasoning}`;
+}
 
 function FieldMessage({
   id,
@@ -934,8 +949,7 @@ export function Component(): React.JSX.Element {
                   <option value="">Select a configured model</option>
                   {modelOptions.map((model) => (
                     <option key={model.model} value={model.model}>
-                      {model.display_name} · {model.provider}
-                      {model.is_default ? " · default" : ""}
+                      {modelOptionLabel(model)}
                     </option>
                   ))}
                 </select>
@@ -968,7 +982,7 @@ export function Component(): React.JSX.Element {
                             <option value="">Choose a fallback</option>
                             {selectableFallbacks.map((model) => (
                               <option key={model.model} value={model.model}>
-                                {model.display_name} · {model.provider}
+                                {modelOptionLabel(model)}
                               </option>
                             ))}
                           </select>
