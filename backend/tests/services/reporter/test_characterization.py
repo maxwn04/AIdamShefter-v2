@@ -187,9 +187,13 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
         custom_instructions="End with one clean callback.",
     )
 
-    assert copied_user_message(config) == legacy_user_message(
+    copied_message = copied_user_message(config)
+    legacy_message = legacy_user_message(
         LegacyReportConfig.model_validate(config.model_dump(mode="json"))
     )
+    assert copied_message != legacy_message
+    assert "interleavable activities" in copied_message
+    assert "fixed sequence" in copied_message
     assert copied_system_prompt() != legacy_system_prompt()
     assert "research/brief.md" in copied_system_prompt()
     assert "submit_artifact" in copied_system_prompt()
@@ -209,7 +213,10 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
         "submit_artifact",
     ]
     assert set(copied_artifact_names).isdisjoint(legacy_artifact_names)
-    assert COPIED_PROCEDURE_TOOLS == LEGACY_PROCEDURE_TOOLS
+    assert COPIED_PROCEDURE_TOOLS != LEGACY_PROCEDURE_TOOLS
+    assert "reference playbooks" in COPIED_PROCEDURE_TOOLS[0]["function"][
+        "description"
+    ]
     assert [spec["function"]["name"] for spec in COPIED_MEMORY_TOOLS] == [
         "search_memory",
         "propose_fact",
@@ -236,11 +243,19 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
         "procedures/drafting.md": "create_artifact",
         "procedures/verification.md": "submit_artifact",
     }
+    flexibility_markers = {
+        "prompts/system.md": "not mandatory sequential phases",
+        "procedures/research.md": "Adaptive Research Loop",
+        "procedures/storyline.md": "not a mandatory bridge",
+        "procedures/drafting.md": "act of writing to expose",
+        "procedures/verification.md": "not a one-way terminal phase",
+    }
     for relative_path, marker in expected_markers.items():
         copied_text = (copied / relative_path).read_text(encoding="utf-8")
         legacy_text = (legacy / relative_path).read_text(encoding="utf-8")
         assert copied_text != legacy_text
         assert marker in copied_text
+        assert flexibility_markers[relative_path] in copied_text
 
 
 def test_generator_preserves_article_result_across_artifact_contract_divergence() -> None:

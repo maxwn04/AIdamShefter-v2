@@ -240,8 +240,11 @@ def _build_user_message(config: ReportConfig) -> str:
     lines.extend(
         [
             "",
-            "Start by loading the `research` procedure. Build the brief as you go, "
-            "then use the storyline, drafting, and verification procedures as needed.",
+            "Begin with the action that will reduce the most important uncertainty. "
+            "A broad league-data call is often useful, and the `research` procedure "
+            "is available when its detailed checklist would help. Treat research, "
+            "storyline mining, drafting, and verification as interleavable activities; "
+            "do not load the four procedures as a fixed sequence.",
         ]
     )
     return "\n".join(lines)

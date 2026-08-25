@@ -214,11 +214,6 @@ def test_generate_article_end_to_end_tool_loop() -> None:
             ),
             make_response(
                 tool_calls=[
-                    tool_call("load_procedure", {"name": "storyline"}, "call_5")
-                ]
-            ),
-            make_response(
-                tool_calls=[
                     tool_call(
                         "edit_artifact",
                         {
@@ -232,20 +227,6 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                             "expected_revision": 2,
                         },
                         "call_6",
-                    )
-                ]
-            ),
-            make_response(
-                tool_calls=[
-                    tool_call("load_procedure", {"name": "drafting"}, "call_7")
-                ]
-            ),
-            make_response(
-                tool_calls=[
-                    tool_call(
-                        "read_artifact",
-                        {"path": "research/brief.md"},
-                        "call_8",
                     )
                 ]
             ),
@@ -270,13 +251,6 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                 tool_calls=[
                     tool_call(
                         "load_procedure", {"name": "verification"}, "call_10"
-                    )
-                ]
-            ),
-            make_response(
-                tool_calls=[
-                    tool_call(
-                        "read_artifact", {"path": "article.md"}, "call_11"
                     )
                 ]
             ),
@@ -337,10 +311,9 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     ].content
     assert "Taco Takes Control" in artifacts["research/brief.md"].content
     assert output.run_log_summary["submitted"] is True
+    assert output.run_log_summary["total_turns"] == 9
     assert output.run_log_summary["procedures_loaded"] == [
         "research",
-        "storyline",
-        "drafting",
         "verification",
     ]
     assert any(

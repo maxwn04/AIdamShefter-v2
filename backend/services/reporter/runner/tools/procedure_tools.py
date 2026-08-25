@@ -13,7 +13,7 @@ from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 PROCEDURE_DIR = Path(__file__).parent.parent.parent / "procedures"
 VALID_PROCEDURES = {"research", "storyline", "drafting", "verification"}
-PROCEDURE_TOOL_IMPLEMENTATION_VERSION = "2"
+PROCEDURE_TOOL_IMPLEMENTATION_VERSION = "3"
 
 PROCEDURE_TOOL_SPECS: list[ToolDef] = [
     {
@@ -21,8 +21,9 @@ PROCEDURE_TOOL_SPECS: list[ToolDef] = [
         "function": {
             "name": "load_procedure",
             "description": (
-                "Load the current operating procedure. Use this before research, "
-                "storyline synthesis, drafting, and verification work."
+                "Load optional detailed guidance for one kind of reporter work. "
+                "Procedures are reference playbooks, not exclusive workflow stages; "
+                "they need not be loaded in sequence or all within one run."
             ),
             "parameters": {
                 "type": "object",
