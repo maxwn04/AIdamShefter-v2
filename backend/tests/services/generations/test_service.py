@@ -27,6 +27,7 @@ from backend.services.generations import (
 )
 from backend.services.memory import MemoryMutationResult
 from backend.services.reporter import ReporterOutput
+from backend.services.reporter.runner.completion import ProviderConfigurationError
 from backend.services.reporter.runner.recording import ArtifactMutation
 from backend.services.reporter.runner.schemas import ArtifactSnapshot
 
@@ -621,6 +622,27 @@ async def test_reporter_failure_or_cancellation_closes_and_discards_context(
     memory = reporter.calls[0][2]["memory_context"]
     with pytest.raises(GenerationMemoryContextClosedError):
         memory.take_completed_bundle()
+
+
+@pytest.mark.asyncio
+async def test_provider_configuration_failure_has_actionable_safe_summary(
+    tmp_path,
+) -> None:
+    service, manager, _, _, reporter, runtime, _ = _service(tmp_path)
+    reporter.error = ProviderConfigurationError()
+
+    result = await service.execute(_uuid(3))
+
+    assert runtime.closed is True
+    assert result.generation.status is GenerationStatus.FAILED
+    assert result.generation.failure_category == "reporter_execution"
+    assert (
+        result.generation.failure_summary
+        == ProviderConfigurationError.public_summary
+    )
+    assert manager.get(_uuid(3)).failure_summary == (
+        ProviderConfigurationError.public_summary
+    )
 
 
 @pytest.mark.asyncio
