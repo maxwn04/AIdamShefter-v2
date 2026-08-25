@@ -7,6 +7,8 @@ from sqlalchemy.engine import make_url
 
 from backend.composition import (
     build_api_runtime,
+    build_competition_catalog_dependencies,
+    build_competition_season_dependencies,
     build_datalayer_refresh_dependencies,
     build_datalayer_snapshot_dependencies,
     build_generation_dependencies,
@@ -16,10 +18,54 @@ from backend.composition import (
 from backend.config import DatalayerSettings, GenerationRuntimeSettings
 from backend.database.sessions import create_session_factory
 from backend.resources.context import CompetitionScope, ManagerContext
+from backend.resources.context import GlobalScope
+from backend.resources.core import (
+    CompetitionManager,
+    CompetitionOverviewReader,
+    CompetitionSeasonManager,
+)
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.datalayer.snapshot_service import DatalayerSnapshotService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.generations import GenerationService
+
+
+def test_competition_api_composition_builds_global_and_scoped_dependencies() -> None:
+    competition_id = uuid4()
+    engine = create_engine("sqlite://")
+    session_factory = create_session_factory(engine)
+    global_context = ManagerContext[GlobalScope].model_validate(
+        {
+            "actor": {"kind": "local_user"},
+            "scope": {"kind": "global", "reason": "test catalog"},
+            "correlation_id": uuid4(),
+        }
+    )
+    scoped_context = ManagerContext[CompetitionScope].model_validate(
+        {
+            "actor": {"kind": "local_user"},
+            "scope": {
+                "kind": "competition",
+                "competition_id": competition_id,
+            },
+            "correlation_id": uuid4(),
+        }
+    )
+    try:
+        catalog = build_competition_catalog_dependencies(
+            session_factory, global_context
+        )
+        seasons = build_competition_season_dependencies(
+            session_factory, scoped_context
+        )
+
+        assert isinstance(catalog.competitions, CompetitionManager)
+        assert isinstance(catalog.overviews, CompetitionOverviewReader)
+        assert isinstance(seasons.seasons, CompetitionSeasonManager)
+        assert seasons.seasons.competition_id == competition_id
+        assert isinstance(seasons.overviews, CompetitionOverviewReader)
+    finally:
+        engine.dispose()
 
 
 def test_build_api_runtime_uses_url_identity_and_local_tls_setting(

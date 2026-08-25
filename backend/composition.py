@@ -14,7 +14,16 @@ from backend.config import (
 from backend.database.engine import build_runtime_engine
 from backend.database.health import assert_database_ready, read_database_health
 from backend.database.sessions import SessionFactory, create_session_factory
-from backend.resources.context import CompetitionScope, ManagerContext
+from backend.resources.context import (
+    CompetitionScope,
+    GlobalScope,
+    ManagerContext,
+)
+from backend.resources.core import (
+    CompetitionManager,
+    CompetitionOverviewReader,
+    CompetitionSeasonManager,
+)
 from backend.resources.memory.context_notes import ContextNoteManager
 from backend.resources.memory.events import EventManager
 from backend.resources.memory.facts import FactManager
@@ -62,6 +71,12 @@ class MemoryApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
 
 class GenerationRuntimeDependencies(ApiRuntimeDependencies, Protocol):
     """Runtime capabilities required by generation API and worker boundaries."""
+
+    session_factory: SessionFactory
+
+
+class CompetitionApiRuntimeDependencies(ApiRuntimeDependencies, Protocol):
+    """Runtime capabilities required by competition product routes."""
 
     session_factory: SessionFactory
 
@@ -131,6 +146,22 @@ class MemoryApiDependencies:
 
 
 @dataclass(frozen=True, slots=True)
+class CompetitionCatalogDependencies:
+    """One request's global competition catalog capabilities."""
+
+    competitions: CompetitionManager
+    overviews: CompetitionOverviewReader
+
+
+@dataclass(frozen=True, slots=True)
+class CompetitionSeasonDependencies:
+    """One request's competition-scoped season capabilities."""
+
+    seasons: CompetitionSeasonManager
+    overviews: CompetitionOverviewReader
+
+
+@dataclass(frozen=True, slots=True)
 class DatalayerRefreshDependencies:
     """One scoped refresh service and its owned source transport."""
 
@@ -158,6 +189,30 @@ class GenerationDependencies:
     tool_calls: ToolCallManager
     artifacts: ArtifactManager
     artifact_versions: ArtifactVersionManager
+
+
+def build_competition_catalog_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[GlobalScope],
+) -> CompetitionCatalogDependencies:
+    """Compose global competition lifecycle and overview reads."""
+
+    return CompetitionCatalogDependencies(
+        competitions=CompetitionManager(session_factory, context),
+        overviews=CompetitionOverviewReader(session_factory),
+    )
+
+
+def build_competition_season_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+) -> CompetitionSeasonDependencies:
+    """Compose scoped season lifecycle and overview reads."""
+
+    return CompetitionSeasonDependencies(
+        seasons=CompetitionSeasonManager(session_factory, context),
+        overviews=CompetitionOverviewReader(session_factory),
+    )
 
 
 def build_memory_api_dependencies(
