@@ -1,6 +1,6 @@
 # Product UI Design
 
-**Status:** Proposed product and frontend contract
+**Status:** Implemented initial-release product and frontend contract
 
 **Scope:** Competition management, article generation, generated-article
 inspection, execution audit, and usage/cost visibility
@@ -32,6 +32,7 @@ not part of this UI slice.
 | [`user-journeys.md`](user-journeys.md) | Information architecture, page inventory, flows, and user-visible states |
 | [`application-contracts.md`](application-contracts.md) | Required HTTP surface, implemented coverage, gaps, and transport semantics |
 | [`frontend-architecture.md`](frontend-architecture.md) | TypeScript application structure, libraries, data flow, quality gates, and delivery |
+| [`release-checklist.md`](release-checklist.md) | Final clean-start, real-data journey, cross-cutting review, and release signoff |
 
 The dependency-ordered implementation plan is intentionally local and mutable
 under `.context/ui/stack.md`, following the existing datalayer, memory, and
@@ -52,7 +53,7 @@ The UI must use the backend's domain words consistently:
 | Artifact | A versioned Markdown work product created during a generation |
 | Live generation | A run using the requested current-season boundary and canonical memory |
 | Backtest | A historical, cutoff-aware run isolated from canonical memory writes |
-| Evaluation workspace | Isolated simulated memory state that may be explicitly discarded or fast-forward promoted |
+| Evaluation workspace | Deferred concept for isolated writable memory; not exposed in the initial release |
 
 In particular, the league screen says **Refresh Sleeper data**, not “create a
 snapshot.” A refresh calls Sleeper; a snapshot is a separate reproducibility
@@ -78,14 +79,12 @@ durable cross-season identity.
   polls that page until the run is terminal and survives browser reloads.
 - Advanced reporter controls are available but visually secondary to season,
   week range, mode, request, and model chain.
-- Generation intent has two dimensions: current versus historical factual time,
-  and canonical versus isolated memory effects. Current canonical work is a
-  live generation; current isolated work is a simulation that may be
-  fast-forward promoted; historical work is a backtest and is evaluation-only
-  under the accepted memory contract.
-- Isolated memory never changes canonical memory merely because a run
-  succeeded. Promotion is a separate, confirmed command available only when
-  the workspace started from the still-current canonical revision.
+- The initial release exposes live generation and historical backtest only.
+  Live work may advance canonical memory; backtests pin historical canonical
+  memory and are strictly read-only.
+- Writable simulations, evaluation workspaces, and promotion/discard are
+  deferred until a separate memory-architecture decision compares
+  revision-native draft lineages with serialized workspace artifacts.
 - Article content is rendered from the exact submitted artifact version.
   Intermediate artifacts and later/earlier versions never replace it by path
   convention.
@@ -104,17 +103,10 @@ The first useful release includes:
 - model catalog and generation form;
 - polling-oriented run state;
 - article history and article/run detail;
-- artifacts, AI calls, tool calls, aggregate token usage, and cost estimate; and
-- isolated one-workspace-at-a-time current simulation and fast-forward
-  promotion if the backend workspace service lands in the same release.
+- artifacts, AI calls, tool calls, aggregate token usage, and cost estimate.
 
-Memory browsing/editing, comparisons, scheduled generation, templates, public
-publishing, dashboards across competitions, and streaming execution logs are
-deliberately deferred.
-
-The requested ability to promote memory from a historical backtest conflicts
-with the accepted backend invariant that an old-base workspace is
-evaluation-only. Supporting that behavior would require an explicit memory
-architecture change (merge/rebase or a different meaning of “backtest”), not
-just a UI control. The safe initial product promotes current-based simulations
-and keeps historical backtests isolated.
+Memory browsing/editing, writable simulations, promotion, comparisons,
+scheduled generation, templates, public publishing, dashboards across
+competitions, and streaming execution logs are deliberately deferred. Existing
+evaluation-workspace database seams remain unused for this release and do not
+constitute an accepted future architecture.

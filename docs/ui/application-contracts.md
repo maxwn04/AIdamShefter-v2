@@ -33,8 +33,9 @@ Generation routes already exist under
 | Artifact versions | `GET .../{generation_id}/artifacts/{artifact_id}/versions[/{version_id}]` | Implemented |
 
 Competition and season management plus refresh, overview, and snapshot-audit
-routes are implemented. Evaluation-workspace tables exist, but their product
-resource, service, and HTTP surfaces remain deferred to Layer 9.
+routes are implemented. Evaluation-workspace tables exist, but writable
+simulations and their product/API surfaces are explicitly deferred beyond the
+initial release pending a new memory-architecture decision.
 
 The existing generation route hierarchy is functional but inverted. Before a
 public client contract is stable, consider moving it to
@@ -210,15 +211,15 @@ memory. This latest-season restriction is currently a UI safety policy rather
 than an API invariant, so non-UI clients remain responsible for selecting the
 appropriate kind. Live runs may write canonical memory on success.
 
-Layer 7 does not expose an isolated or promotable simulation mode. That mode,
-its evaluation workspace, and promote/discard commands remain Layer 9 work;
-the available historical backtest is read-only.
+The initial release does not expose an isolated or promotable simulation mode.
+Evaluation-workspace and promote/discard contracts are deferred; the available
+historical backtest is read-only.
 
 | Method and path | Purpose | Priority |
 | --- | --- | --- |
 | `POST .../{generation_id}/cancel` | Cancel a pending/running generation | Should-have; manager supports cancellation |
 | Extend article/run list query | Model, week overlap, completion range, request text | Later unless list size demands it |
-| Extend generation body | Explicit memory mode and optional `evaluation_workspace_id` for isolated simulation sequencing | Layer 9; required for workspace promotion |
+| Extend generation body | Explicit writable draft-memory mode | Deferred pending memory architecture decision |
 | `GET .../{generation_id}/usage` | Aggregate tokens, latency, calls, and price quote | Required |
 | Optional `GET .../{generation_id}/audit` | One bounded detail projection for article + artifacts + calls | Optimization only; existing resources remain authoritative |
 
@@ -269,10 +270,21 @@ backend uses the current LiteLLM price map and may fall back to the map bundled
 with the installed LiteLLM package when the remote map is unavailable.
 Historical price reproduction and persisted dollar cost are not required.
 
-## Evaluation Workspace and Promotion API
+## Deferred Writable Simulation and Promotion
 
-The database schema anticipates workspaces, but a public manager/service/API is
-missing. Promotable current simulations and longitudinal evaluations require:
+The initial release intentionally adds no evaluation-workspace manager,
+service, route, or UI. Existing database seams remain unused and must not be
+treated as an accepted serialized-artifact architecture.
+
+Before adding writable simulations, compare revision-native draft lineages
+against serialized reporting-owned workspace artifacts. The preferred option to
+evaluate lets live generations advance canonical memory, backtests advance an
+isolated draft lineage, and promotion publish only a draft whose base remains
+the canonical head. This requires adapting or replacing the current linear
+introduced/retired visibility model, which is not branch-safe.
+
+The following route shapes are historical design candidates, not committed
+initial-release contracts:
 
 | Method and path | Purpose |
 | --- | --- |
@@ -281,23 +293,9 @@ missing. Promotable current simulations and longitudinal evaluations require:
 | `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/promote` | Fast-forward isolated memory into one new canonical revision |
 | `POST /competitions/{competition_id}/evaluation-workspaces/{workspace_id}/discard` | Close without canonical mutation |
 
-Workspace creation accepts the competition season/use case but does not accept
-an arbitrary untrusted canonical base from the browser; the service resolves and
-returns it. Generation submission accepts the resulting workspace ID only for
-an isolated memory mode. The service allocates sequence numbers and pins the
-workspace's current memory artifact.
-
-Promotion is an atomic command with an expected workspace/current-artifact
-version. It succeeds only when the workspace is active, its final memory
-artifact is complete, and the canonical head still equals its base revision.
-Otherwise it returns a typed `409 workspace_base_stale` or lifecycle conflict.
-No automatic merge or partial promotion is allowed. Consequently, a current
-simulation may be promotable and a historical old-base backtest is
-evaluation-only.
-
-Until these contracts exist, the UI must accurately offer basic read-only
-backtests and hide promotion rather than exposing a control that cannot preserve
-simulated memory.
+Until a replacement architecture is accepted, the UI offers only live canonical
+generation and read-only historical backtests and hides all workspace and
+promotion controls.
 
 ## Article List Projection
 
