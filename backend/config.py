@@ -202,6 +202,7 @@ class DatalayerSettings:
     sleeper_retry_backoff_seconds: float
     inline_payload_max_bytes: int
     code_version: str
+    generation_refresh_max_age_seconds: int = 900
 
     @classmethod
     def from_environment(cls) -> "DatalayerSettings":
@@ -230,4 +231,7 @@ class DatalayerSettings:
                 "AIDAM_DATALAYER_INLINE_PAYLOAD_MAX_BYTES", 1024 * 1024
             ),
             code_version=code_version,
+            generation_refresh_max_age_seconds=_positive_int(
+                "AIDAM_GENERATION_REFRESH_MAX_AGE_SECONDS", 900
+            ),
         )

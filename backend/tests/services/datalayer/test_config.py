@@ -12,6 +12,7 @@ _ENVIRONMENT_NAMES = (
     "AIDAM_SLEEPER_MAX_ATTEMPTS",
     "AIDAM_SLEEPER_RETRY_BACKOFF_SECONDS",
     "AIDAM_DATALAYER_INLINE_PAYLOAD_MAX_BYTES",
+    "AIDAM_GENERATION_REFRESH_MAX_AGE_SECONDS",
     "AIDAM_CODE_VERSION",
 )
 
@@ -31,6 +32,7 @@ def test_datalayer_settings_have_local_source_defaults(
     assert settings.sleeper_retry_backoff_seconds == 1.0
     assert settings.inline_payload_max_bytes == 1024 * 1024
     assert settings.code_version == "dev"
+    assert settings.generation_refresh_max_age_seconds == 900
 
 
 def test_datalayer_settings_read_environment_and_normalize_base_url(
@@ -43,6 +45,7 @@ def test_datalayer_settings_read_environment_and_normalize_base_url(
     monkeypatch.setenv("AIDAM_SLEEPER_RETRY_BACKOFF_SECONDS", "0.25")
     monkeypatch.setenv("AIDAM_DATALAYER_INLINE_PAYLOAD_MAX_BYTES", "2048")
     monkeypatch.setenv("AIDAM_CODE_VERSION", "abc123")
+    monkeypatch.setenv("AIDAM_GENERATION_REFRESH_MAX_AGE_SECONDS", "1200")
 
     settings = DatalayerSettings.from_environment()
 
@@ -53,6 +56,18 @@ def test_datalayer_settings_read_environment_and_normalize_base_url(
     assert settings.sleeper_retry_backoff_seconds == 0.25
     assert settings.inline_payload_max_bytes == 2048
     assert settings.code_version == "abc123"
+    assert settings.generation_refresh_max_age_seconds == 1200
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_datalayer_settings_reject_nonpositive_generation_refresh_age(
+    monkeypatch: pytest.MonkeyPatch,
+    value: str,
+) -> None:
+    monkeypatch.setenv("AIDAM_GENERATION_REFRESH_MAX_AGE_SECONDS", value)
+
+    with pytest.raises(ValueError, match="must be positive"):
+        DatalayerSettings.from_environment()
 
 
 @pytest.mark.parametrize("value", ["0", "-1"])
