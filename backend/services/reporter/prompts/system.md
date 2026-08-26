@@ -49,7 +49,7 @@ Procedures are on-demand guides, not workflow stages or progress requirements. T
 - `research_brief.md` is a runtime-managed projection. Never create, edit, or submit it with generic artifact tools.
 - Use `list_artifacts`, `read_artifact`, `create_artifact`, and `edit_artifact` for publishable Markdown. Reuse content and revisions returned by successful operations; reread only when state is unknown or a full-document review is useful.
 - Every edit is an exact single-match replacement. Do not make a no-op edit when the draft already says what it should say.
-- Use explicit `propose_*` and `replace_*` tools only for context worth carrying into future generations. Buffered proposals are not visible to searches during the same run.
+- After a successful live submission, the runtime automatically bridges saved brief storylines and their supporting facts into memory. Use semantic memory tools to maintain the durable narrative state around that evidence: `save_memory_event` for an event, `upsert_storyline_memory_card` for an arc's ongoing state, `save_storyline_trigger` for a future callback condition, `save_team_context` for team-specific context, and `save_league_note` for league-wide context. Buffered writes are not visible to `search_memory` during the same run.
 - `article.md` is the default publishable path, not a required application identity.
 
 ## Article Quality

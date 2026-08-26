@@ -41,7 +41,7 @@ Run independent reads together when their results do not depend on one another. 
 
 Search memory when prior context could materially improve the article: trades and waivers, rematches and rivalries, playoff reversals, repeated lineup mistakes, focused-team histories, retrospectives, rankings, or season-long awards. For an ordinary recap, a lightweight scan is useful only when current teams, players, transactions, or stakes provide a plausible retrieval hook. Stop after an empty or low-value result unless the current evidence suggests a more specific query.
 
-Buffer durable proposals only when an event or arc has plausible future callback value. Persistence work is separate from proving today's article.
+After a successful live submission, saved brief storylines and their supporting facts are bridged into memory automatically. Use `save_memory_event`, `save_team_context`, or `save_league_note` when durable event or context state should also be maintained. Memory work remains separate from proving today's article.
 
 ## Stop Or Switch
 

@@ -59,16 +59,11 @@ def test_definition_without_memory_omits_only_memory_tools() -> None:
 
     memory_names = {
         "search_memory",
-        "propose_fact",
-        "replace_fact",
-        "propose_event",
-        "replace_event",
-        "propose_storyline",
-        "replace_storyline",
-        "propose_trigger",
-        "replace_trigger",
-        "propose_context_note",
-        "replace_context_note",
+        "save_memory_event",
+        "upsert_storyline_memory_card",
+        "save_storyline_trigger",
+        "save_team_context",
+        "save_league_note",
     }
     assert {tool.name for tool in with_memory.tools} - {
         tool.name for tool in without_memory.tools

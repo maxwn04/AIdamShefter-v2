@@ -486,7 +486,7 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
         entry["name"]: entry["version"]
         for entry in manifest["tools"]["implementations"]
     }
-    assert procedure_versions["load_procedure"] == "3"
+    assert procedure_versions["load_procedure"] == "4"
 
 
 @pytest.mark.asyncio

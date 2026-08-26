@@ -48,6 +48,7 @@ from backend.services.reporter.runner.tools.registry import ToolRegistry
 if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
     from backend.services.memory import GenerationMemoryContext
+    from backend.services.reporter.runner.tools.memory_tools import TypedMemoryAdapter
 
 
 async def generate_article(
@@ -82,7 +83,7 @@ async def generate_article(
     prepared = definition or prepare_reporter_definition(
         memory_enabled=memory_context is not None
     )
-    registry = _build_registry(
+    registry, memory_adapter = _build_registry(
         data,
         memory_context=memory_context,
         allow_memory_writes=allow_memory_writes,
@@ -121,7 +122,15 @@ async def generate_article(
         recorder=resolved_recorder,
     )
 
-    return await runner.run(prepared.system_prompt, _build_user_message(config))
+    output = await runner.run(prepared.system_prompt, _build_user_message(config))
+    if (
+        memory_adapter is not None
+        and allow_memory_writes
+        and output.run_log_summary.get("submitted") is True
+    ):
+        memory_adapter.buffer_brief_facts(output.research_brief)
+    return output
+
 
 def _build_registry(
     data: FrozenLeagueData,
@@ -129,20 +138,21 @@ def _build_registry(
     memory_context: GenerationMemoryContext | None,
     allow_memory_writes: bool,
     procedures: dict[str, str] | None = None,
-) -> ToolRegistry:
+) -> tuple[ToolRegistry, TypedMemoryAdapter | None]:
     registry = ToolRegistry()
+    memory_adapter = None
     register_artifact_tools(registry)
     register_brief_tools(registry)
     register_procedure_tools(registry, procedures)
     register_datalayer_tools(registry, data)
     if memory_context is not None:
-        register_memory_tools(
+        memory_adapter = register_memory_tools(
             registry,
             memory_context,
             data,
             allow_memory_writes=allow_memory_writes,
         )
-    return registry
+    return registry, memory_adapter
 
 
 def _require_matching_definition(

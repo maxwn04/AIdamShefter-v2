@@ -242,16 +242,11 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
     ]
     assert [spec["function"]["name"] for spec in COPIED_MEMORY_TOOLS] == [
         "search_memory",
-        "propose_fact",
-        "replace_fact",
-        "propose_event",
-        "replace_event",
-        "propose_storyline",
-        "replace_storyline",
-        "propose_trigger",
-        "replace_trigger",
-        "propose_context_note",
-        "replace_context_note",
+        "save_memory_event",
+        "upsert_storyline_memory_card",
+        "save_storyline_trigger",
+        "save_team_context",
+        "save_league_note",
     ]
 
 

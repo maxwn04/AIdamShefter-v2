@@ -44,6 +44,10 @@ It does not change the datalayer, generation job lifecycle, or the legacy
    separate model pass that converts the verified brief and selected article into
    typed memory proposals.
 
+The M1 evaluation surface restores the legacy reporter's semantic memory-tool
+baseline and successful-submit brief bridge on top of the current typed buffer.
+This is not the separate M2 curation pass.
+
 ## Settled Direction
 
 - Flexible orchestration and structured research are complementary. Prompts decide
@@ -65,6 +69,12 @@ It does not change the datalayer, generation job lifecycle, or the legacy
   the brief; the agent does not spend turns restating them.
 - Submission requires at least one verified fact. Storyline, callback, and outline
   readiness remain visible diagnostics rather than rigid workflow gates.
+- Model-facing memory tools describe editorial intent. Typed create/replace
+  operations and optimistic revision checks remain internal to the adapter.
+- After a successful live submission, supporting facts for every final brief
+  storyline are buffered automatically; unreferenced brief facts stay run-local.
+- Backtests preserve the legacy read-only behavior: memory reads remain available,
+  while write tools and the successful-submit bridge do not buffer mutations.
 
 ## Non-Goals
 

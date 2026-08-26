@@ -66,6 +66,18 @@ Deterministically renders current structured state to `research_brief.md`. The
 projection is included in reporter output and logs for observability, but is not an
 independent writable artifact.
 
+### Semantic memory adapter (M1)
+
+Exposes the legacy reporter's editorial operations for saving an event, upserting
+a storyline memory card, saving a trigger, and replacing team or league context.
+Stable semantic IDs are resolved to the current pinned canonical state internally;
+the model does not choose create versus replace or supply revision numbers.
+
+The deterministic brief bridge runs after a successful live submit. It traverses
+every final brief storyline and buffers each existing supporting fact under a
+stable storyline/week/fact key. Missing support IDs are skipped and unrelated
+brief facts remain run-local, matching the legacy baseline.
+
 ### `ArtifactStore` (existing)
 
 Continues to own generic Markdown artifacts, especially candidate and selected
@@ -109,6 +121,11 @@ workflow state machine.
 The structured mutation and its rendered projection are one logical operation. A
 projection failure fails the tool call and leaves neither side advanced.
 
+Semantic memory operations still write only to the generation-scoped buffer. For
+a live generation, finalization commits that bundle in the same transaction as
+the article and generation success. In a backtest, memory writes and the brief
+bridge return read-only eval behavior and leave the bundle empty.
+
 ### M2 curation
 
 After the M1 evaluation gate is accepted, the completed run builds a typed curation
@@ -133,6 +150,11 @@ choice must preserve a successful article when curation fails.
   diagnostic and never impose a fixed procedure sequence.
 - Reporter failure and retry continue to follow the generation service's existing
   lifecycle.
+- Invalid semantic content or an unresolvable stable reference fails before adding
+  dependent proposals. Repeated stable IDs update or reuse run-local intent rather
+  than duplicating the bundle.
+- Failed and cancelled runs discard their proposal buffer. Backtests never buffer
+  memory proposals and never advance the canonical revision.
 
 ### M2
 

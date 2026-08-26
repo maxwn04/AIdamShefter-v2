@@ -411,7 +411,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
 
-def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
+def test_generate_article_automatically_bridges_final_brief_storyline_facts() -> None:
     recorder = ExecutionRecordingProbe()
     memory_context = GenerationMemoryContext(
         competition_id=UUID(int=1),
@@ -426,29 +426,6 @@ def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
             make_response(
                 tool_calls=[
                     tool_call(
-                        "propose_fact",
-                        {
-                            "content": {
-                                "claim": "Team Taco won in Week 8.",
-                                "category": "matchup_result",
-                                "numbers": {"week": 8},
-                                "confidence": "inferred",
-                                "subjects": [
-                                    {
-                                        "kind": "franchise",
-                                        "roster_key": "Team Taco",
-                                        "role": "subject",
-                                    }
-                                ],
-                            }
-                        },
-                        "memory-call",
-                    )
-                ]
-            ),
-            make_response(
-                tool_calls=[
-                    tool_call(
                         "save_fact",
                         {
                             "id": "fact_taco_win",
@@ -457,7 +434,25 @@ def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
                             "numbers": {"week": 8},
                             "category": "score",
                         },
-                        "brief-call",
+                        "fact-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_storyline",
+                        {
+                            "id": "story_taco_push",
+                            "headline": "Taco's push is getting louder.",
+                            "summary": (
+                                "A Week 8 win strengthened the contender arc."
+                            ),
+                            "supporting_fact_ids": ["fact_taco_win"],
+                            "priority": 4,
+                            "tags": ["playoffs"],
+                        },
+                        "storyline-call",
                     )
                 ]
             ),
@@ -495,10 +490,17 @@ def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
 
     assert output.submitted_path == "article.md"
     bundle = memory_context.take_completed_bundle()
-    assert len(bundle.proposals) == 1
-    proposal = bundle.proposals[0]
-    assert proposal.content.subjects[0].id == UUID(int=4)
-    assert proposal.metadata.creating_tool_call_id in recorder.tool_ai_calls
+    assert [proposal.kind.value for proposal in bundle.proposals] == ["fact"]
+    fact = bundle.proposals[0]
+    assert fact.metadata.agent_key == (
+        "brief:story_taco_push:8:fact_taco_win"
+    )
+    assert fact.content.source_hints == {
+        "brief_fact_id": "fact_taco_win",
+        "brief_storyline_id": "story_taco_push",
+        "data_refs": ["league_snapshot:week=8"],
+    }
+    assert fact.metadata.creating_tool_call_id is None
 
 
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:

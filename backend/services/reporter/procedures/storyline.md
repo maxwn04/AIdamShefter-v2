@@ -18,7 +18,8 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 - Use `save_storyline` for developed narrative angles supported by saved fact IDs.
 - Use `save_memory_callback` only after the older event and current payoff both exist as reverified facts.
 - Use `set_outline` when explicit structure will improve emphasis, coverage, or drafting. An outline is optional and revisable.
-- Use typed proposal tools only when an arc has credible future callback value or clear season-long significance.
+- Use `upsert_storyline_memory_card` when an ongoing arc's durable headline, summary, status, or callback condition should be created or updated.
+- Use `save_storyline_trigger` when that arc has a concrete future condition worth checking, such as a rematch or trade reevaluation.
 
 ## Narrative Judgment
 
@@ -33,7 +34,7 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 
 ## Continuity Judgment
 
-Preserve an arc only when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Keep article planning state (`save_storyline`) distinct from durable memory proposals (`propose_*` and `replace_*`).
+After a successful live submission, the runtime automatically bridges saved brief storylines and their supporting facts into memory. Use `upsert_storyline_memory_card` to maintain the durable narrative state of an arc when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Add a trigger only when a specific future condition would make the arc useful again.
 
 ## Stop Or Switch
 

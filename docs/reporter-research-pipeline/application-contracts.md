@@ -64,6 +64,27 @@ typed operations. A generic `write_brief_markdown` capability is not equivalent.
 The existing generic artifact capabilities remain available for article creation
 and revision. They must reject the reserved `research_brief.md` path.
 
+The model-facing persistent-memory capabilities are semantic:
+
+- `search_memory`
+- `save_memory_event`
+- `upsert_storyline_memory_card`
+- `save_storyline_trigger`
+- `save_team_context`
+- `save_league_note`
+
+The create/replace proposal vocabulary remains an internal adapter contract and is
+not registered with the model. Semantic tools use stable string IDs, team keys,
+and narrative fields like the legacy reporter; the adapter resolves canonical
+identity and expected revision internally.
+
+After successful live submission, the bridge visits every final brief storyline
+and buffers its existing supporting facts. It preserves brief claim, category,
+numbers, and data references as source hints under a stable storyline/week/fact
+key. Because brief data references are not typed receipt IDs, derived facts are
+recorded as inferred rather than falsely marked source-backed. Missing support
+IDs are skipped and unreferenced brief facts are not promoted.
+
 ## M1 Lifecycle and State Transitions
 
 1. A run starts with a new empty `ResearchBrief` revision and no brief artifact.
@@ -76,6 +97,12 @@ and revision. They must reject the reserved `research_brief.md` path.
 6. Submission requires at least one verified fact, selects a non-empty article
    artifact, and captures the final brief revision/readiness in reporter output.
 7. A run-scoped brief is immutable after reporter completion.
+8. Live semantic memory mutations and bridged facts remain buffered until
+   generation finalization.
+9. Successful live finalization commits the complete bundle atomically; failed or
+   cancelled runs discard it.
+10. Backtest memory writes are read-only eval no-ops and the brief bridge is
+    skipped, so canonical memory never advances.
 
 Idempotent replay of the same normalized mutation returns the existing logical
 item or a no-op result instead of adding a duplicate.
@@ -97,6 +124,10 @@ item or a no-op result instead of adding a duplicate.
 - Bias changes framing and emphasis only; it cannot alter factual brief state.
 - The selected article remains the publishable output. The brief remains research
   evidence and is not selected as the article.
+- Model-facing memory tools never expose create-versus-replace branching or ask
+  the model to supply an optimistic revision number.
+- Successful live submission bridges supporting facts for every final brief
+  storyline and no unreferenced fact.
 
 ## M1 Error Semantics
 
@@ -122,8 +153,8 @@ exceptions.
   readable through the generic artifact API; new runs use only the flat path.
 - Article artifact selection, run persistence, streaming events, and generation
   API shapes remain compatible.
-- Existing direct memory proposal/finalization behavior remains unchanged during
-  M1 so research quality can be evaluated without conflating a new curator.
+- Existing buffered and atomic memory finalization remains unchanged during M1;
+  the model-facing vocabulary becomes semantic without introducing a curator.
 - The legacy `reporter_v2` package is not part of the migration.
 - The prompt-only baseline PR must merge before M1 so the brief implementation is
   evaluated under adaptive orchestration rather than fixed procedure sequencing.
@@ -142,7 +173,11 @@ Focused tests must cover:
 - compatible reporter output and article selection;
 - adaptive interleaving and backtracking without procedure gating;
 - no empty seed-artifact create/read turns; and
-- current memory finalization compatibility.
+- current memory finalization compatibility;
+- semantic memory create and stable-ID update behavior;
+- deterministic successful-submit fact bridging and stable-ID idempotency; and
+- failed-run rollback and read-only backtests that leave canonical revision state
+  unchanged.
 
 The reporter output includes this nested observability shape:
 

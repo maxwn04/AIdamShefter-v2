@@ -130,7 +130,7 @@ def test_manifest_has_a_locked_schema_and_hash() -> None:
     assert built.schema_version == 1
     assert built.manifest["schema_version"] == 1
     assert built.manifest_hash == (
-        "7990c2c3dfa07301b107b8091e66f21b601acb76a501492f9fb4d2a059e9bf3d"
+        "7afb1bd111b65a26970558ce223b5a74166112c949140f9dc463b9e69b3bb359"
     )
     assert built.canonical_bytes.decode("utf-8").startswith(
         '{"assets":{"procedures":[{"content_sha256":"'
@@ -259,7 +259,7 @@ def test_manifest_is_input_only_and_submit_schema_is_path_generic() -> None:
     assert built.manifest_hash != build_generation_manifest(fixed_path).manifest_hash
 
 
-def test_typed_memory_tool_bundle_is_manifest_safe_and_versioned() -> None:
+def test_semantic_memory_tool_bundle_is_manifest_safe_and_versioned() -> None:
     memory_tools = tuple(
         ToolInput(
             name=spec["function"]["name"],
@@ -273,8 +273,14 @@ def test_typed_memory_tool_bundle_is_manifest_safe_and_versioned() -> None:
     built = build_generation_manifest(inputs)
 
     names = [tool["name"] for tool in built.manifest["tools"]["implementations"]]
-    assert names == [spec["function"]["name"] for spec in MEMORY_TOOL_SPECS]
-    assert "search_memory" in names
+    assert names == [
+        "search_memory",
+        "save_memory_event",
+        "upsert_storyline_memory_card",
+        "save_storyline_trigger",
+        "save_team_context",
+        "save_league_note",
+    ]
     assert "search_story_memory" not in names
     assert built.manifest["tools"]["schema_bundle_sha256"]
 
