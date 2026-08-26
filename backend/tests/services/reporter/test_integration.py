@@ -340,7 +340,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert "improved to 7-1" in artifacts["article.md"].content
     assert "moved to 7-1" not in artifacts["article.md"].content
     assert len(artifacts["article.md"].content_hash) == 64
-    assert artifacts["research_brief.md"].revision == 5
+    assert artifacts["research_brief.md"].revision == 3
     assert "League ID: league_123" in artifacts["research_brief.md"].content
     assert "Team Taco beat Waiver Wire 142.3-98.7" in artifacts[
         "research_brief.md"
@@ -397,8 +397,16 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         ]
         for path in ("research_brief.md", "article.md")
     }
-    assert [item.revision for item in histories["research_brief.md"]] == [1, 2, 3, 4, 5]
+    assert [item.revision for item in histories["research_brief.md"]] == [1, 2, 3]
     assert [item.revision for item in histories["article.md"]] == [1, 2]
+    turn_three_tool_ids = [
+        execution_id
+        for execution_id, ai_call_id in recorder.tool_ai_calls.items()
+        if ai_call_id == recorder.successful_turns[3]
+    ]
+    assert histories["research_brief.md"][0].source_tool_call_id == (
+        turn_three_tool_ids[-1]
+    )
     tool_mutations = histories["research_brief.md"] + histories["article.md"]
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 

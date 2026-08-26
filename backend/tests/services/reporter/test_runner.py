@@ -541,7 +541,7 @@ def test_runner_tool_recording_fails_closed_around_handler() -> None:
     assert len(finish_complete.requests) == 1
 
 
-def test_runner_artifact_recording_fails_closed_and_rolls_back() -> None:
+def test_runner_artifact_turn_flush_fails_closed() -> None:
     registry = ToolRegistry()
     register_artifact_tools(registry)
     recorder = RecordingProbe(fail_artifact=True)
@@ -562,8 +562,66 @@ def test_runner_artifact_recording_fails_closed_and_rolls_back() -> None:
     with pytest.raises(RunnerRecordingError, match="artifact"):
         run(runner.run("system", "user"))
 
-    assert runner.artifacts.list() == ()
-    assert recorder.finished[-1][1].status == "failed"
+    assert runner.artifacts.read("article.md").content == "Draft"
+    assert recorder.finished[-1][1].status == "succeeded"
+    assert recorder.artifact_mutations == []
+
+
+def test_runner_coalesces_artifact_mutations_by_turn() -> None:
+    registry = ToolRegistry()
+    register_artifact_tools(registry)
+
+    def compose_draft(ctx: ToolContext) -> str:
+        ctx.artifacts.create(
+            "article.md",
+            "Alpha beta",
+            on_change=ctx.record_artifact_mutation,
+        )
+        ctx.artifacts.edit(
+            "article.md",
+            old_text="beta",
+            new_text="gamma",
+            expected_revision=1,
+            on_change=ctx.record_artifact_mutation,
+        )
+        return '{"ok": true}'
+
+    registry.register_context_tool(
+        "compose_draft",
+        compose_draft,
+        tool_def("compose_draft"),
+        "test-v1",
+    )
+    recorder = RecordingProbe()
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("compose_draft")]),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "edit_artifact",
+                        {
+                            "path": "article.md",
+                            "old_text": "Alpha",
+                            "new_text": "Delta",
+                            "expected_revision": 2,
+                        },
+                    )
+                ]
+            ),
+            make_response(text="Done."),
+        ]
+    )
+    runner = Runner(registry, complete=complete, recorder=recorder)
+
+    output = run(runner.run("system", "user"))
+
+    assert [(item.revision, item.content) for item in recorder.artifact_mutations] == [
+        (1, "Alpha gamma"),
+        (2, "Delta gamma"),
+    ]
+    assert output.artifacts[0].revision == 2
+    assert output.artifacts[0].content == "Delta gamma"
 
 
 def test_runner_parallel_artifact_provenance_is_invocation_local() -> None:

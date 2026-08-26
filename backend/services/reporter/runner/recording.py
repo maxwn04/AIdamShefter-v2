@@ -122,7 +122,10 @@ class RunnerRecorder(Protocol):
 class ArtifactRecorder(Protocol):
     """Record complete immutable snapshots for one generation."""
 
-    def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID: ...
+    def record_artifact_mutation(
+        self,
+        mutation: ArtifactMutation,
+    ) -> UUID | None: ...
 
 
 class ExecutionRecorder(

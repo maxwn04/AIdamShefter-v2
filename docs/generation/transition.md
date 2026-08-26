@@ -127,9 +127,11 @@ Run-local artifacts are raw UTF-8 Markdown at reporter-owned logical paths.
 `research_brief.md` and `article.md` remain useful prompt defaults, not durable
 application roles. `edit_artifact` is a revision-checked literal
 find-and-replace: `old_text` must occur exactly once, and there is no
-`replace_all` mode. Successful creates and edits record complete immutable
-snapshots. Reads do not mutate state. `submit_artifact` accepts the current
-revision of any non-empty artifact, ends the reporter loop, and produces
+`replace_all` mode. Successful creates and edits update run-local state
+immediately, then the runner records only the final complete snapshot for each
+changed artifact once the model turn's tool batch finishes. Reads do not mutate
+state. `submit_artifact` accepts the current run-local revision of any non-empty
+artifact, ends the reporter loop, and produces
 `ReporterOutput(submitted_path, artifacts)`; it does not independently mark the
 generation succeeded or append a final copy.
 
