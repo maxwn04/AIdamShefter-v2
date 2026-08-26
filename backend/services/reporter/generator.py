@@ -215,11 +215,13 @@ def _build_user_message(config: ReportConfig) -> str:
     lines.extend(
         [
             "",
-            "Begin with the action that will reduce the most important uncertainty. "
-            "A broad league-data call is often useful, and the `research` procedure "
-            "is available when its detailed checklist would help. Treat research, "
-            "storyline mining, drafting, and verification as interleavable activities; "
-            "do not load the four procedures as a fixed sequence.",
+            "Work on the unmet editorial goal that poses the greatest risk to "
+            "accuracy or reader value. Treat the configured week range as current "
+            "coverage; query outside it only for a specific relevant historical "
+            "comparison and never beyond the frozen snapshot cutoff. Choose the "
+            "smallest tool result that can resolve the current uncertainty. Load a "
+            "procedure when its goal-oriented guidance would materially help, not "
+            "as a fixed phase or progress marker.",
         ]
     )
     return "\n".join(lines)

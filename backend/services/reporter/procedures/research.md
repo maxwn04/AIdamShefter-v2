@@ -1,112 +1,48 @@
-# Research Procedure
+# Goal: Establish A Trustworthy Evidence Base
 
-Use this procedure for substantial discovery, evidence repair, and callback investigation. Gather verified fantasy football facts while continuously mining for narrative meaning. Research may begin a run or interrupt outlining, drafting, or verification; it does not have to be completed in one block.
+Use this guide when the article covers several teams or weeks, a featured interpretation needs more than a league summary, historical context may matter, or retrieved data looks incomplete or inconsistent. It may also help repair a specific gap exposed during outlining, drafting, or verification.
 
-## Brief Recording
+## Success Looks Like
 
-- Save verified evidence with `save_fact`. Give every fact a stable lowercase ID, precise claim, exact numbers, category, and traceable source references.
-- Put independent datalayer calls and independent `save_fact` calls in one model response when possible; serialize only calls whose arguments depend on earlier results.
-- Successful brief mutations return the current revision and readiness. Do not call `read_brief` merely to confirm a successful write.
-- Use `read_brief` when returning after other work or when you genuinely need the full current state. Reading revision 0 does not create an artifact.
-- Save a callback with `save_memory_callback` only after both the reverified old-event fact and current-event fact exist.
+- The article's central framing and planned major claims have precise, relevant evidence.
+- Featured interpretations have enough targeted context to distinguish a meaningful development from a routine result.
+- Historical leads used in the article have been reverified against the frozen snapshot.
+- Important scores, records, player totals, transactions, and comparisons are saved as facts with the exact values the article will use.
+- No unresolved anomaly or high-value lead is likely to reverse the article's central interpretation.
 
-## Operating Rules
+## Tool Choices
 
-- If you are repairing a gap found during drafting or verification, inspect the relevant brief and draft material, then research only what is missing.
-- Start broad, then drill down. Prefer `league_snapshot` for the requested week before targeted team or player calls.
-- Every recorded fact must be traceable to one or more datalayer tool calls.
-- Save specific, reusable facts rather than commentary. The article voice comes later.
-- Do not invent standings, scores, records, player points, transactions, injuries, or playoff implications.
-- Bias can guide what you investigate, but it must not change which facts you record.
-- When `search_memory` is available, perform one lightweight storyline scan after the broad current-week inventory unless the request is purely factual and narrow. Deepen the scan only when current teams, players, transactions, opponents, or stakes create a plausible callback.
-- Hydrated memory is not a fact source. Verify both the older claim and the current-week payoff against frozen datalayer results before recording a callback.
-- A narrow evidence gap does not require a procedure change. Make the targeted datalayer call, update the brief, and resume the work that exposed the gap.
+Choose the smallest useful view for the current question:
 
-## Adaptive Research Loop
+- League-wide orientation: `league_snapshot` and `standings`.
+- Complete player-level coverage for every game in one week: `week_games`. Its result is large; use it only when that breadth materially helps.
+- One featured matchup: `team_game`.
+- Team form, opponents, and season context: `team_dossier` and `team_schedule`.
+- Roster composition or a lineup question: `roster_at_cutoff`, `roster_snapshot`, and `bench_analysis`.
+- Weekly or season player performance: `week_player_leaderboard`, `season_leaders`, and `player_weekly_log`.
+- Player identity, NFL team, status, or injury metadata: `player_summary`.
+- Trades, waivers, and roster moves: `transactions` or `team_transactions`.
+- Playoff stakes: `playoff_bracket` and `team_playoff_path`.
+- A bespoke comparison unavailable from curated tools: guarded `run_sql`.
+- Historical narrative leads: `search_memory`, followed by datalayer verification of any lead worth using.
 
-Repeat these activities in the order the evidence demands:
+Run independent reads together when their results do not depend on one another. Avoid overlapping broad calls that reproduce the same evidence, and do not expand the week range merely to find more material.
 
-1. Orient: read the configured week range, focus, article type, tone, and framing preferences from brief context.
-2. Discover: use `league_snapshot(week=N)` or the relevant multi-week tools to map scores, standings movement, transactions, and obvious outliers.
-3. Mine hypotheses: ask which results changed meaning, contradicted expectations, continued an arc, or created future stakes. Treat these as questions until verified.
-4. Verify the strongest hypotheses with targeted team, player, transaction, standings, playoff, SQL, or memory calls.
-5. Save useful evidence in the brief, batching independent tool calls, then reassess coverage and narrative strength.
-6. If an outline or draft already exists, test new evidence against it. Preserve what still works and revise only what the evidence changed.
+## Evidence Judgment
 
-Run the memory scout loop when the request or data suggests long-running context:
-   - Extract the current-week fact map: scores, margins, standings movement, playoff stakes, current matchups, top players, transactions, focus teams, and requested framing.
-   - Generate narrative hypotheses from the current week. Ask what changed meaning, reversed, paid off, collapsed, became funny, or now has stakes.
-   - Call `search_memory` with text, current team keys, tags, and typed filters. Request exact or stable expansions when linked evidence or storylines matter.
-   - Inspect the fully hydrated matches, then plan the needed datalayer calls yourself.
-   - Verify the old claim and current event with frozen datalayer tools.
-   - Save old-event and current-event facts, then save the verified callback.
-   - Promote only the best verified callbacks into storylines and outline inputs.
-   - Buffer durable changes with the relevant typed `propose_*` or `replace_*` tools when an arc should matter later. Use IDs returned by proposal tools for same-bundle relationships.
+- Treat `league_snapshot` as an inventory. A featured claim usually benefits from a targeted view that tests or explains the interpretation.
+- Treat retrieved memory as a hypothesis. Save a callback only after the old event and current payoff both exist as reverified facts.
+- Treat `found: false`, missing matchups, all-zero scoring, implausible totals, or disagreement between views as unresolved evidence. Cross-check through a different representation before relying on it. If the anomaly cannot be resolved, narrow or qualify the claim rather than presenting certainty.
+- Save facts that are precise, traceable, and useful to the article. Use stable lowercase IDs, exact numbers, accurate categories, and source references matching calls actually made.
+- Save every material numeric or factual detail that the draft will need; raw tool output remaining in conversation is not a substitute for brief evidence.
+- Bias may guide what deserves investigation, but it cannot change what the evidence says.
 
-Useful targeted tools include:
-   - `team_game(roster_key, week=N)` for player-level detail in a specific matchup.
-   - `team_dossier(roster_key, week=N)` for recent form, record, and broader context.
-   - `week_player_leaderboard(week=N, limit=10)` for top performers.
-   - `transactions(week_from=N, week_to=N)` or `team_transactions(...)` for trade, waiver, or roster-move angles.
-   - `player_weekly_log(...)` or `player_summary(...)` for trend checks on a featured player.
-   - `playoff_bracket(...)` and `team_playoff_path(...)` when the article has playoff stakes.
+## Memory Judgment
 
-Treat a league snapshot as an inventory, not sufficient research for a featured storyline. Each major section should have targeted context that tests its interpretation or adds relevant team, player, transaction, historical, standings, or playoff detail.
+Search memory when prior context could materially improve the article: trades and waivers, rematches and rivalries, playoff reversals, repeated lineup mistakes, focused-team histories, retrospectives, rankings, or season-long awards. For an ordinary recap, a lightweight scan is useful only when current teams, players, transactions, or stakes provide a plausible retrieval hook. Stop after an empty or low-value result unless the current evidence suggests a more specific query.
 
-Aim for enough evidence to support the article, not every possible data point. When research is sufficient, continue with whichever activity is most useful: synthesize storylines, draft a supported section, verify an existing draft, or investigate one remaining high-value uncertainty. Load another procedure only if its detailed guidance is needed.
+Buffer durable proposals only when an event or arc has plausible future callback value. Persistence work is separate from proving today's article.
 
-## Memory Scout Requirements
+## Stop Or Switch
 
-Run the full scout loop for:
-
-- Trades, trade retrospectives, waivers, drops, and former-team angles.
-- Playoffs, playoff paths, rematches, rivalries, and revenge games.
-- Power rankings, retrospectives, full-season arcs, and season awards.
-- Any focused team that has persistent context.
-
-For standard weekly recaps, do a lightweight scan for:
-
-- Repeated opponents, rematches, or prior close games.
-- Playoff matchups with regular-season history.
-- Top performers tied to old trades, waiver adds, drops, or former teams.
-- Current transactions that should be re-evaluated later.
-
-Evaluate candidate callbacks for interestingness separately from retrieval relevance. Prefer callbacks with surprise, stakes, reversal, payoff, specificity, league-reader value, comedy value, evidence strength, and fit with the requested article.
-
-## Fact Quality
-
-Good facts are precise, sourced, and useful in more than one sentence. Include the exact numbers the writer will need. A useful `save_fact` call looks like:
-
-```json
-{
-  "id": "fact_week8_taco_win",
-  "claim_text": "Team Taco defeated The Waiver Wire 142.3-98.7 in Week 8.",
-  "data_refs": ["league_snapshot:week=8", "team_game:team_taco:week=8"],
-  "numbers": {"week": 8, "team_score": 142.3, "opponent_score": 98.7, "margin": 43.6},
-  "category": "score"
-}
-```
-
-Use stable IDs that describe the fact. Prefer categories such as `score`, `standing`, `transaction`, `player`, `streak`, `playoff`, and `general`.
-
-## What To Look For
-
-- Upsets: lower-ranked or struggling teams beating favorites.
-- Blowouts: dominant wins, especially margins around 30 points or more.
-- Nail-biters: games decided by fewer than 5 points.
-- Streaks: winning or losing runs, especially 3 or more games.
-- Breakouts: player or team performances that stand out from recent history.
-- Collapses: favorites or strong teams missing expectations.
-- Transactions: trades, waivers, and roster moves that affected the week.
-- Continuing arcs: previous storylines that changed, intensified, or resolved.
-- Playoff pressure: seed movement, elimination risk, byes, and bracket paths.
-
-## Sufficiency Criteria
-
-Research is sufficient when you have enough verified facts to support the requested article and no unresolved high-value lead is likely to change its central framing:
-
-- Short focused article: 5-8 strong facts.
-- Standard weekly recap: 10-20 strong facts.
-- Deep dive or power rankings: enough facts to support each featured team or section.
-
-Fact counts are diagnostics, not stopping targets. Continue when another call could materially change the lead, correct an important claim, or unlock a strong callback. Stop when additional calls would mostly add interchangeable detail.
+This goal is sufficiently met when the important claims and sections are supported, suspicious evidence has been resolved or qualified, the central framing is stable, and another call would mostly add substitutable color. Shift attention to narrative selection, composition, or publication confidence when one of those is now the greater risk.

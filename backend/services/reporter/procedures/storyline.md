@@ -1,110 +1,40 @@
-# Storyline Procedure
+# Goal: Find The Article's Meaning
 
-Use this procedure for deliberate storyline mining and narrative synthesis. Storyline work may happen after a broad scan, between targeted research calls, while reshaping a draft, or during verification. It is not a mandatory bridge between research and drafting.
+Use this guide when the evidence is real but the central thesis, hierarchy of angles, callbacks, stakes, or article shape is still unclear. It may help before drafting, while testing prose, or when verification exposes weak framing.
 
-## Operating Rules
+## Success Looks Like
 
-- Call `read_brief` when you do not already hold the current structured state.
-- Every storyline recorded as verified must be supported by existing fact IDs. A promising unsupported angle is a research hypothesis: make the narrow calls needed to prove or reject it before recording it.
-- Storyline summaries may interpret the data, but they must not add new factual claims.
-- Save developed angles with `save_storyline`, then use `set_outline` if a formal plan will help. Refresh stale dependent items when later research changes their evidence.
-- Bias is framing only. Preserve the user's framing preferences without altering scores, records, or outcomes.
-- A callback used in the article must point to two saved brief facts: one old-event fact reverified against frozen data and one current-event fact. Retrieved memory is only the lead that prompted the investigation.
-- Successful brief-tool results include revision and readiness; do not reread solely to confirm them.
-- A small evidence gap does not require loading the research procedure. Investigate it directly, update the brief, and continue mining the angle. Load `research` only when the gap opens a substantial new investigation.
-- Inspecting or drafting a paragraph can be a useful test of whether a storyline has enough specificity. If prose exposes a weak premise, strengthen or drop the angle rather than forcing it into the outline.
+- The article has a clear supported idea appropriate to the request, not merely a list of results.
+- Featured angles explain a meaningful change, tension, consequence, payoff, reversal, irony, or future stake.
+- The strongest material receives the most attention; routine facts remain supporting color or are omitted.
+- Every saved storyline is supported by facts, and every callback names reverified old and current evidence.
+- Any outline reflects the current evidence and remains useful rather than ceremonial.
 
-## Storyline Mining Loop
+## Tool Choices
 
-For a standard weekly recap, 3-6 developed angles is a useful range rather than a quota; use fewer for narrow requests. Prefer fewer well-supported storylines over filling slots. Save each developed narrative thread with `save_storyline`.
+- Use `read_brief` when the current facts, callbacks, storylines, or outline are not already available in context.
+- Use a targeted datalayer call when a promising angle has one material evidence gap. Return to broader research only when the premise itself needs substantial investigation.
+- Use `search_memory` when a current team, player, transaction, matchup, or stake creates a specific historical question.
+- Use `save_storyline` for developed narrative angles supported by saved fact IDs.
+- Use `save_memory_callback` only after the older event and current payoff both exist as reverified facts.
+- Use `set_outline` when explicit structure will improve emphasis, coverage, or drafting. An outline is optional and revisable.
+- Use typed proposal tools only when an arc has credible future callback value or clear season-long significance.
 
-For each candidate angle:
+## Narrative Judgment
 
-1. Name the change or tension, not merely the result.
-2. Identify the supporting facts already present and the exact evidence gaps.
-3. Check current-week data and memory for reversal, payoff, continuity, irony, or future stakes.
-4. Verify high-value gaps and reject angles that remain vague or incidental.
-5. Rank surviving storylines by reader value and article fit, then update the outline or draft as appropriate.
+- Name what changed or why the event matters, not only what happened.
+- Distinguish retrieval relevance from reader value. A memory match or statistical outlier is not automatically a good storyline.
+- Prefer angles with specific evidence, consequence, surprise, stakes, reversal, payoff, league-reader relevance, or comedy that the facts genuinely support.
+- Treat unsupported framing as a hypothesis. Verify it, soften it, or drop it.
+- Storyline summaries may interpret facts but may not introduce new factual claims.
+- Test whether each featured angle earns its space and whether the article would lose meaning without it.
+- Let the requested form determine structure. A recap, ranking, deep dive, retrospective, and playoff piece need not share the same outline.
+- Use priority as a relative editorial ranking within this article, not a universal taxonomy.
 
-Priority guidance:
+## Continuity Judgment
 
-- `1`: lead story. Major upset, playoff swing, dominant performance, season-defining trend, or request-specific focus.
-- `2`: secondary story. Close game, important streak, notable breakout, trade fallout, or standings movement.
-- `3`: useful color. Routine wins, smaller stat nuggets, or supporting angles.
-- `4-5`: minor mentions that should only appear if space allows.
+Preserve an arc only when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Keep article planning state (`save_storyline`) distinct from durable memory proposals (`propose_*` and `replace_*`).
 
-Good `save_storyline` input:
+## Stop Or Switch
 
-```json
-{
-  "id": "story_taco_statement_win",
-  "headline": "Team Taco Turns A Win Into A Warning Shot",
-  "summary": "The margin and player production make the Week 8 win a statement.",
-  "supporting_fact_ids": ["fact_week8_taco_win", "fact_week8_taco_top_players"],
-  "priority": 1,
-  "tags": ["blowout", "contender", "week_8"]
-}
-```
-
-## Style And Bias
-
-Style and bias are immutable request context already present in the brief. Apply
-them as framing constraints; do not spend tool calls restating or changing them.
-
-## Outline Creation
-
-Use `set_outline` when a formal writing plan will help. Each section should include:
-
-- `title`: concise section heading.
-- `bullet_points`: what the section must accomplish.
-- `required_fact_ids`: exact facts the writer must use.
-- `storyline_ids`: storylines that belong in the section.
-
-A possible weekly recap structure:
-
-1. Opening hook: lead with the priority-1 storyline and set the week's theme.
-2. Lead story: give the strongest matchup or narrative enough room.
-3. Supporting storylines: cover the next 2-3 important arcs.
-4. Quick hits: short notes for lower-priority items, top performers, or transactions.
-5. Standings or outlook: playoff implications, next-week stakes, or season trajectory.
-6. Closing: resolve the article with the strongest takeaway.
-
-For power rankings, one section per rank or tier may work. For team deep dives, useful sections often include record, recent games, roster strengths or weaknesses, transactions, and outlook. Build only as much outline as the article needs, and revise it when new evidence changes the article's shape.
-
-## Typed Memory Proposals
-
-If typed memory proposal tools are available, buffer durable narrative state when it becomes clear; do not wait for a separate pre-drafting checkpoint:
-
-- Use `propose_storyline` for new durable arcs and `replace_storyline` only for canonical items returned by `search_memory` with an exact expected revision.
-- Use `propose_event` for inferred matchup or trade evidence and `propose_trigger` for typed rematch or trade-evaluation callbacks.
-- Use `propose_context_note` for franchise, season, or competition context.
-- Use `propose_fact` for reusable claims. Fact and event proposals are `unverified` or `inferred`; source-backed receipts are not available in this tool version.
-- Save verified callbacks with `save_memory_callback` if they were not already saved during research.
-- Proposal results may be referenced by later proposals in the same bundle, but buffered proposals do not appear in `search_memory` and cannot be replaced during the same run.
-
-Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:
-
-- `trade_payoff`
-- `trade_regret`
-- `trade_flop`
-- `revenge_game`
-- `regular_season_sweep`
-- `playoff_reversal`
-- `close_game_callback`
-- `waiver_hero`
-- `rivalry_escalation`
-- `lineup_mistake_repeat`
-
-Keep complete typed arc metadata in the proposal content. Use a concise structured summary when narrative context needs more explanation:
-
-```text
-Arc type: trade_regret
-Origin week: 3
-Involved: Team A, Team B, Player X, Player Y
-Receipt: Team A traded Player X for Player Y before Week 3.
-Why it may matter later: Player X could swing a playoff matchup against Team A.
-Next callback trigger: Team A faces Team B, Player X faces Team A, or either side loses a playoff game because of the trade assets.
-Verification needed before use: confirm original trade receipt and current payoff with saved brief facts.
-```
-
-When the narrative plan is useful, continue with the action that most improves the article. That may be drafting, targeted research, verification, or further storyline mining. Do not load `drafting` solely to announce a phase transition.
+This goal is sufficiently met when the lead and supporting angles are evidence-backed, proportionate to their importance, and coherent enough to guide prose. Shift attention when the greater risk is missing evidence, weak composition, or publication confidence. If drafting exposes a better thesis, revise the narrative plan instead of protecting the original outline.

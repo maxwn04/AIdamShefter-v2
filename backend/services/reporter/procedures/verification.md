@@ -1,79 +1,39 @@
-# Verification Procedure
+# Goal: Earn Publication Confidence
 
-Use this procedure for a detailed claim-level audit of the chosen publishable draft against the structured brief. Verification is usually the last activity before submission, but it is not a one-way terminal phase: follow important gaps into targeted research, storyline repair, or redrafting, then resume the audit.
+Use this guide when a publishable draft exists and the remaining question is whether its facts, framing, coverage, and current revision are trustworthy enough to submit. Verification may uncover a reason to research, reshape, or redraft before returning to this goal.
 
-## Operating Rules
+## Success Looks Like
 
-- Use `list_artifacts` only when the draft path is unknown. Read the draft or call `read_brief` only when you do not already hold its current state.
-- Honor readiness warnings. Do not rely on stale callbacks, storylines, or outline references until they are refreshed against current fact revisions.
-- Verify every numeric or factual claim against saved facts.
-- Treat the brief as authoritative. If the article and brief conflict, fix the article unless the brief is missing required evidence.
-- If the brief is missing evidence for a necessary claim, investigate the narrow gap directly and save the result with `save_fact`. Load `research` only when the problem requires substantial exploration.
-- If verification exposes a weak or unsupported framing choice, revise it directly. Load `storyline` only when the article needs broader narrative restructuring.
-- Treat callback claims as factual claims. They need evidence for both the older event and the current event.
-- Before submission, perform a deliberate memory harvest when proposal tools are available. Review the final lead storylines, verified callbacks, meaningful transactions, reversals, playoff stakes, and future rematch or evaluation conditions. Buffer only items with plausible future callback value or season-long significance; routine results do not need to persist.
+- Every material factual claim in the article maps to an accurate saved fact.
+- Scores, winners, records, ranks, player totals, transactions, margins, streaks, week ranges, playoff claims, and superlatives are correct and sufficiently supported.
+- Callbacks contain reverified evidence for both the older event and current payoff.
+- Suspicious or conflicting evidence has been independently checked rather than copied from the brief by default.
+- The article's framing is proportional to its evidence, matches the request, and does not imply unsupported causality or certainty.
+- The selected artifact is readable, coherent, close to the requested length, and at the current known revision.
 
-## Claims To Check
+## Tool Choices
 
-Check all claims involving:
+- Use `list_artifacts` only when the publishable path is unknown.
+- Reuse the current draft and brief state when available. Use `read_artifact` or `read_brief` when state is unknown or a complete review will add value.
+- Use the smallest targeted datalayer view to resolve a missing, suspicious, or conflicting claim, then save the corrected evidence.
+- Use `edit_artifact` for a real correction or meaningful improvement, carrying forward the returned revision.
+- Use `submit_artifact` only after the actual draft meets the publication goal. Submission pins that revision and ends the loop.
 
-- Scores and matchup winners.
-- Team records, standings ranks, playoff seeds, and playoff paths.
-- Player fantasy points and leaderboard placement.
-- Transaction counts, trade participants, waiver adds, and dropped players.
-- Margins of victory or defeat.
-- Streak lengths and week ranges.
-- Any superlative such as "highest", "first", "best", "worst", or "season high".
-- Any callback, revenge, regret, reversal, payoff, rematch, rivalry, or "full circle" claim.
+## Audit Judgment
 
-Flavor claims can be looser, but they must not imply unsupported facts.
+- Check the article itself, not merely whether the workflow produced facts, storylines, or an outline.
+- Treat the brief as structured evidence, not infallible truth. Confirm that source references match calls actually made and that saved claims faithfully represent their results.
+- Pay special attention to high-impact numbers, names, winners, transactions, comparative claims, and words such as “highest,” “first,” “best,” “worst,” or “season high.”
+- A flavor claim may be interpretive, but it must not smuggle in an unsupported factual premise.
+- For callbacks, confirm what happened then, what happened now, and why the meaning changed. Reject or soften a connection whose current payoff is weak or incidental.
+- Honor stale-dependency warnings. Refresh or remove stale callbacks, storylines, and outline references before relying on them.
+- Correct the smallest passage that resolves an issue unless the surrounding section depends on the same bad premise.
+- Replace unsupported specificity with verified specificity or appropriately qualified language.
+- Preserve voice while correcting facts. Bias never excuses an inaccurate premise.
+- If the draft is already correct, do not perform a no-op edit merely to demonstrate verification.
 
-## Callback Checks
+## Stop Or Switch
 
-For every callback paragraph:
+Return to research when missing or questionable evidence could change a material claim. Return to storyline work when the facts are sound but the thesis or emphasis is misleading. Return to drafting when corrections require substantial prose changes.
 
-- Map the older event to a saved fact ID whose claim was re-verified against frozen data.
-- Map the current payoff to a current-run saved fact ID.
-- Confirm both sides of every verified callback exist in the brief.
-- Confirm the paragraph explains what happened then, what happened now, and why the meaning changed.
-- Treat unsourced narrative memory as research context only, not prose support.
-- Reject or soften callbacks where the older event is real but the current payoff is weak, incidental, or not proven.
-
-## Verification Flow
-
-1. Establish the current draft path, content, and revision, and the current structured brief state. Reuse state returned by recent operations when available.
-2. Extract each factual claim from the article section by section.
-3. Match each claim to a fact ID and use the exact saved numbers.
-4. Classify issues:
-   - `error`: wrong score, winner, record, player points, transaction, or other critical fact.
-   - `warning`: unsupported superlative, ambiguous rounding, or overstatement.
-   - `info`: stylistic claim that is not directly factual but may be too strong.
-5. Correct `error` issues with exact, single-match `edit_artifact` calls.
-6. Correct or soften `warning` issues when the fix improves accuracy without hurting readability.
-7. When a correction requires new evidence or reframing, resolve it and continue the audit from the affected section; do not restart the entire workflow.
-8. After each edit, use its returned content and revision for the next check. Perform one final whole-article review after substantive corrections.
-9. Call `submit_artifact(path=<draft_path>, expected_revision=<current>)` only after the draft passes verification.
-
-## Correction Policy
-
-When editing the article:
-
-- Preserve the passage's purpose and voice.
-- Change only the unsupported or incorrect parts unless the whole section depends on bad information.
-- Replace unsupported numbers with sourced numbers, or remove the claim.
-- Replace unsupported superlatives with grounded phrasing, such as "one of the week's strongest performances" if the brief supports it.
-- Keep bias within the allowed framing rules. Roasting is allowed only when the factual premise is true.
-- If a target occurs zero or multiple times, read the current article and choose a more precise exact replacement rather than guessing.
-
-## Final Checklist
-
-Before `submit_artifact`, confirm:
-
-- The article is non-empty and has a clear Markdown structure.
-- All required outline facts are represented or intentionally omitted for a defensible reason.
-- All scores, records, rankings, and player points match the brief.
-- No datalayer-only facts appear in the article unless they were saved in the brief.
-- Bias changes word choice and emphasis only, never facts.
-- The article is readable and close to the target length.
-
-Submission pins the current chosen draft snapshot and ends the reporter loop. A revision conflict requires another read and verification pass.
+This goal is complete when no known material issue remains and another review would mostly repeat the same checks. Submit the current verified revision directly; a revision conflict means the artifact must be reread and publication confidence re-established.
