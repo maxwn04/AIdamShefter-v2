@@ -3,17 +3,16 @@
 Owns product wiring that the Runner must not know about:
 - tool registration (artifacts, procedure, datalayer, memory)
 - CompletionClient construction from settings / injectable fakes
-- Markdown brief seeding from league data + ReportConfig
+- structured brief initialization from league data + ReportConfig
 - system/user prompt construction
 - typed memory capability wiring
 
-The Runner only receives a registry, client, RunnerConfig, and optional
-pre-seeded ArtifactStore.
+The Runner receives a registry, client, RunnerConfig, artifact store, and
+structured brief store.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -28,15 +27,19 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
-from backend.services.reporter.runner.recording import (
-    ArtifactMutation,
-    ArtifactRecordingError,
-    ExecutionRecorder,
+from backend.services.reporter.runner.recording import ExecutionRecorder
+from backend.services.reporter.runner.research_brief import (
+    BriefBias,
+    BriefContext,
+    BriefStyle,
+    ResearchBrief,
+    ResearchBriefStore,
 )
 from backend.services.reporter.runner.runner import Runner
-from backend.services.reporter.runner.schemas import ArtifactSnapshot, ReporterOutput
+from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
+from backend.services.reporter.runner.tools.brief_tools import register_brief_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
 from backend.services.reporter.runner.tools.memory_tools import register_memory_tools
 from backend.services.reporter.runner.tools.procedure_tools import register_procedure_tools
@@ -100,19 +103,12 @@ async def generate_article(
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
     league_id, league_name = _get_league_metadata(data)
-    artifacts = ArtifactStore()
-    artifacts.create(
-        "research_brief.md",
-        _build_brief_seed(
+    brief = ResearchBriefStore(
+        brief=_build_research_brief(
             config,
             league_id=league_id,
             league_name=league_name,
-        ),
-        on_change=(
-            _seed_artifact_recorder(resolved_recorder)
-            if resolved_recorder is not None
-            else None
-        ),
+        )
     )
 
     runner = Runner(
@@ -120,34 +116,12 @@ async def generate_article(
         client=resolved_client,
         config=runner_config or RunnerConfig(),
         log_path=log_path,
-        artifacts=artifacts,
+        artifacts=ArtifactStore(),
+        brief=brief,
         recorder=resolved_recorder,
     )
 
     return await runner.run(prepared.system_prompt, _build_user_message(config))
-
-
-def _seed_artifact_recorder(
-    recorder: ExecutionRecorder,
-) -> Callable[[ArtifactSnapshot], None]:
-    def record(snapshot: ArtifactSnapshot) -> None:
-        try:
-            recorder.record_artifact_mutation(
-                ArtifactMutation(
-                    path=snapshot.path,
-                    media_type=snapshot.media_type,
-                    content=snapshot.content,
-                    revision=snapshot.revision,
-                    content_hash=snapshot.content_hash,
-                )
-            )
-        except Exception as exc:
-            raise ArtifactRecordingError(
-                f"Could not record seeded artifact {snapshot.path}"
-            ) from exc
-
-    return record
-
 
 def _build_registry(
     data: FrozenLeagueData,
@@ -158,6 +132,7 @@ def _build_registry(
 ) -> ToolRegistry:
     registry = ToolRegistry()
     register_artifact_tools(registry)
+    register_brief_tools(registry)
     register_procedure_tools(registry, procedures)
     register_datalayer_tools(registry, data)
     if memory_context is not None:
@@ -250,78 +225,40 @@ def _build_user_message(config: ReportConfig) -> str:
     return "\n".join(lines)
 
 
-def _build_brief_seed(
+def _build_research_brief(
     config: ReportConfig,
     *,
     league_id: str,
     league_name: str,
-) -> str:
-    """Create the raw Markdown workspace document used throughout a run."""
+) -> ResearchBrief:
+    """Build immutable request/style context for one structured brief."""
     bias = config.bias_profile
-    lines = [
-        "# Research Brief",
-        "",
-        "## Context",
-        "",
-        f"- League: {league_name or '(unknown)'}",
-        f"- League ID: {league_id or '(unknown)'}",
-        (
-            "- Coverage weeks: "
-            f"{config.time_range.week_start}-{config.time_range.week_end}"
+    return ResearchBrief(
+        context=BriefContext(
+            league_name=league_name,
+            league_id=league_id,
+            week_start=config.time_range.week_start,
+            week_end=config.time_range.week_end,
+            length_target=config.length_target,
+            evidence_policy=config.evidence_policy,
+            focus_hints=tuple(config.focus_hints),
+            focus_teams=tuple(config.focus_teams),
+            avoid_topics=tuple(config.avoid_topics),
+            custom_instructions=config.custom_instructions.strip(),
         ),
-        f"- Target length: about {config.length_target} words",
-        f"- Evidence policy: {config.evidence_policy}",
-        "",
-        "## Request",
-        "",
-        f"- Focus hints: {_markdown_list_value(config.focus_hints)}",
-        f"- Focus teams: {_markdown_list_value(config.focus_teams)}",
-        f"- Avoid topics: {_markdown_list_value(config.avoid_topics)}",
-        (
-            "- Custom instructions: "
-            f"{config.custom_instructions.strip() or '(none)'}"
+        style=BriefStyle(
+            voice=config.voice,
+            snark_level=config.tone.snark_level,
+            hype_level=config.tone.hype_level,
+            seriousness=config.tone.seriousness,
+            profanity_policy=config.profanity_policy,
         ),
-        "",
-        "## Style and Bias",
-        "",
-        f"- Voice: {config.voice}",
-        f"- Snark level: {config.tone.snark_level}",
-        f"- Hype level: {config.tone.hype_level}",
-        f"- Seriousness: {config.tone.seriousness}",
-        f"- Profanity policy: {config.profanity_policy}",
-        (
-            "- Favored teams: "
-            f"{_markdown_list_value(bias.favored_teams if bias else [])}"
+        bias=BriefBias(
+            favored_teams=tuple(bias.favored_teams if bias else ()),
+            disfavored_teams=tuple(bias.disfavored_teams if bias else ()),
+            intensity=bias.intensity if bias else 0,
         ),
-        (
-            "- Disfavored teams: "
-            f"{_markdown_list_value(bias.disfavored_teams if bias else [])}"
-        ),
-        f"- Bias intensity: {bias.intensity if bias else 0}",
-        "- Bias rule: framing only; never change facts.",
-        "",
-        "## Verified Facts",
-        "",
-        "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
-        "",
-        "## Verified Callbacks",
-        "",
-        "<!-- INSERT VERIFIED CALLBACKS ABOVE THIS LINE -->",
-        "",
-        "## Storylines",
-        "",
-        "<!-- INSERT STORYLINES ABOVE THIS LINE -->",
-        "",
-        "## Outline",
-        "",
-        "<!-- INSERT OUTLINE ABOVE THIS LINE -->",
-        "",
-    ]
-    return "\n".join(lines)
-
-
-def _markdown_list_value(values: list[str]) -> str:
-    return ", ".join(values) if values else "(none)"
+    )
 
 
 def _append_list(lines: list[str], label: str, values: list[str]) -> None:

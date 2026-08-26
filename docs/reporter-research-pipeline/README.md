@@ -1,7 +1,7 @@
 
 # Reporter Research Pipeline Design
 
-**Status:** Proposed
+**Status:** M1 implementation in progress
 
 ## Purpose
 

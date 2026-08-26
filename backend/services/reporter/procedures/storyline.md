@@ -4,19 +4,19 @@ Use this procedure for deliberate storyline mining and narrative synthesis. Stor
 
 ## Operating Rules
 
-- Read `research_brief.md` when you do not already hold its current content and revision.
+- Call `read_brief` when you do not already hold the current structured state.
 - Every storyline recorded as verified must be supported by existing fact IDs. A promising unsupported angle is a research hypothesis: make the narrow calls needed to prove or reject it before recording it.
 - Storyline summaries may interpret the data, but they must not add new factual claims.
-- Record the outline after the main storylines. If later research changes the facts or storylines, refresh the affected plan in the brief.
+- Save developed angles with `save_storyline`, then use `set_outline` if a formal plan will help. Refresh stale dependent items when later research changes their evidence.
 - Bias is framing only. Preserve the user's framing preferences without altering scores, records, or outcomes.
 - A callback used in the article must point to two saved brief facts: one old-event fact reverified against frozen data and one current-event fact. Retrieved memory is only the lead that prompted the investigation.
-- Apply changes with `edit_artifact`, using an exact, unique replacement and the current brief revision. Preserve reusable insertion anchors when adding more material later.
+- Successful brief-tool results include revision and readiness; do not reread solely to confirm them.
 - A small evidence gap does not require loading the research procedure. Investigate it directly, update the brief, and continue mining the angle. Load `research` only when the gap opens a substantial new investigation.
 - Inspecting or drafting a paragraph can be a useful test of whether a storyline has enough specificity. If prose exposes a weak premise, strengthen or drop the angle rather than forcing it into the outline.
 
 ## Storyline Mining Loop
 
-For a standard weekly recap, 3-6 developed angles is a useful range rather than a quota; use fewer for narrow requests. Prefer fewer well-supported storylines over filling slots. Record each narrative thread under the brief's storyline heading.
+For a standard weekly recap, 3-6 developed angles is a useful range rather than a quota; use fewer for narrow requests. Prefer fewer well-supported storylines over filling slots. Save each developed narrative thread with `save_storyline`.
 
 For each candidate angle:
 
@@ -33,37 +33,27 @@ Priority guidance:
 - `3`: useful color. Routine wins, smaller stat nuggets, or supporting angles.
 - `4-5`: minor mentions that should only appear if space allows.
 
-Good storyline:
+Good `save_storyline` input:
 
-```markdown
-### story_taco_statement_win
-
-- Headline: Team Taco Turns A Win Into A Warning Shot
-- Summary: Team Taco's 142.3-98.7 Week 8 win was more than a comfortable result. The margin and player-level production make it a lead candidate for the week's biggest statement.
-- Supporting facts: `fact_week8_taco_win`, `fact_week8_taco_top_players`
-- Priority: 1
-- Tags: blowout, contender, week_8
+```json
+{
+  "id": "story_taco_statement_win",
+  "headline": "Team Taco Turns A Win Into A Warning Shot",
+  "summary": "The margin and player production make the Week 8 win a statement.",
+  "supporting_fact_ids": ["fact_week8_taco_win", "fact_week8_taco_top_players"],
+  "priority": 1,
+  "tags": ["blowout", "contender", "week_8"]
+}
 ```
 
 ## Style And Bias
 
-Record style controls in the brief:
-
-- `voice`: examples include `sports columnist`, `snarky columnist`, `hype broadcaster`, `beat reporter`, or a custom voice from the user.
-- `pacing`: `fast`, `moderate`, or `deliberate`.
-- `humor_level`: 0 for none, 1 for light, 2 for moderate, 3 for heavy.
-- `formality`: `formal`, `casual`, or `irreverent`.
-
-Record bias controls if the user asked to favor or roast teams:
-
-- `favored_teams`: teams to frame positively.
-- `disfavored_teams`: teams to frame skeptically or mockingly.
-- `intensity`: 0-3.
-- `framing_rules`: short reminders such as "celebrate wins, downplay losses" or "roast missed expectations, but keep all numbers exact".
+Style and bias are immutable request context already present in the brief. Apply
+them as framing constraints; do not spend tool calls restating or changing them.
 
 ## Outline Creation
 
-Create the writing plan under the brief's outline heading. Each section should include:
+Use `set_outline` when a formal writing plan will help. Each section should include:
 
 - `title`: concise section heading.
 - `bullet_points`: what the section must accomplish.
@@ -89,7 +79,7 @@ If typed memory proposal tools are available, buffer durable narrative state whe
 - Use `propose_event` for inferred matchup or trade evidence and `propose_trigger` for typed rematch or trade-evaluation callbacks.
 - Use `propose_context_note` for franchise, season, or competition context.
 - Use `propose_fact` for reusable claims. Fact and event proposals are `unverified` or `inferred`; source-backed receipts are not available in this tool version.
-- Record verified callbacks in `research_brief.md` if they were not already saved during research.
+- Save verified callbacks with `save_memory_callback` if they were not already saved during research.
 - Proposal results may be referenced by later proposals in the same bundle, but buffered proposals do not appear in `search_memory` and cannot be replaced during the same run.
 
 Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:

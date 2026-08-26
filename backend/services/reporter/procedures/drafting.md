@@ -5,18 +5,19 @@ Use this procedure for sustained composition and revision of the publishable art
 ## Operating Rules
 
 - The brief is the source of factual truth. Saved storylines and the outline are revisable planning aids, not immutable constraints.
+- Honor readiness warnings. Do not rely on stale callbacks, storylines, or outline references until they are refreshed against current fact revisions.
 - Treat verified callbacks in the brief as grounded material, but still name the old event and current payoff in prose.
 - Do not invent scores, records, player points, transaction details, standings, injuries, or playoff scenarios.
 - Numeric claims must match the numbers or claim text recorded in the brief.
 - Treat the outline as a working plan, not a constraint. Preserve it when it remains useful; update supported framing directly when drafting reveals a better structure. Load `storyline` only for substantial narrative rethinking.
-- For a narrow missing fact, make the targeted datalayer call, record the verified result in the brief, and resume drafting. Load `research` only when the gap requires broad exploration.
+- For a narrow missing fact, make the targeted datalayer call, save the verified result with `save_fact`, and resume drafting. Load `research` only when the gap requires broad exploration.
 - Continue mining storylines while writing. A strong paragraph may reveal a callback, reversal, or future memory worth researching or proposing.
 - Draft with `create_artifact` at your chosen article path when the article does not exist. Use the same path and revision-checked `edit_artifact` calls for subsequent changes.
 - Do not submit until you have performed a claim-level verification pass, whether or not you load the dedicated verification procedure.
 
 ## Drafting Flow
 
-1. Read `research_brief.md` when its current content is not already available.
+1. Call `read_brief` when the current structured state is not already available.
 2. Identify the strongest supported lead and draft the sections with the clearest evidence first.
 3. After meaningful additions, ask whether the prose exposed a factual gap, a weak storyline, or a stronger callback. Resolve only the gaps that matter to the article.
 4. Create a coherent Markdown draft at one stable path, or continue from the current draft content and revision.
@@ -43,7 +44,7 @@ Use this procedure for sustained composition and revision of the publishable art
 
 ## Voice And Bias
 
-Apply the recorded style consistently:
+Apply the immutable style and bias already initialized from `ReportConfig` in brief context; do not spend calls restating or changing them. Apply that style consistently:
 
 - Sports columnist: informed, sharp, and personable.
 - Snarky columnist: witty and irreverent, with playful jabs.

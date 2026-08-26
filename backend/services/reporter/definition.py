@@ -12,6 +12,10 @@ from backend.services.reporter.runner.tools.artifact_tools import (
     ARTIFACT_TOOL_IMPLEMENTATION_VERSION,
     ARTIFACT_TOOL_SPECS,
 )
+from backend.services.reporter.runner.tools.brief_tools import (
+    BRIEF_TOOL_IMPLEMENTATION_VERSION,
+    BRIEF_TOOL_SPECS,
+)
 from backend.services.reporter.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_IMPLEMENTATION_VERSION,
     DATALAYER_TOOL_SPECS,
@@ -76,6 +80,7 @@ def prepare_reporter_definition(
     )
     groups = [
         (ARTIFACT_TOOL_SPECS, ARTIFACT_TOOL_IMPLEMENTATION_VERSION),
+        (BRIEF_TOOL_SPECS, BRIEF_TOOL_IMPLEMENTATION_VERSION),
         (PROCEDURE_TOOL_SPECS, PROCEDURE_TOOL_IMPLEMENTATION_VERSION),
         (DATALAYER_TOOL_SPECS, DATALAYER_TOOL_IMPLEMENTATION_VERSION),
     ]

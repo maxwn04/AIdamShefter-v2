@@ -5,13 +5,19 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from uuid import UUID
 
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecorder,
     ArtifactRecordingError,
+)
+from backend.services.reporter.runner.research_brief import (
+    RESEARCH_BRIEF_PATH,
+    BriefMutation,
+    ResearchBrief,
+    ResearchBriefStore,
 )
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.schemas import ArtifactSnapshot
@@ -23,6 +29,7 @@ class ToolContext:
     artifacts: ArtifactStore
     procedures: ProcedureState
     log: RunLog
+    brief: ResearchBriefStore = field(default_factory=ResearchBriefStore)
     turn: int = 0
     artifact_recorder: ArtifactRecorder | None = None
 
@@ -61,6 +68,27 @@ class ToolContext:
             raise ArtifactRecordingError(
                 f"Could not record artifact mutation for {snapshot.path}"
             ) from exc
+
+    def commit_brief_mutation(self, mutation: BriefMutation) -> ResearchBrief:
+        """Commit structured state and its managed projection atomically."""
+
+        def persist(content: str) -> None:
+            self.artifacts.sync_managed(
+                RESEARCH_BRIEF_PATH,
+                content,
+                on_change=self.record_artifact_mutation,
+            )
+
+        brief = self.brief.commit(mutation, persist)
+        if mutation.changed:
+            self.log.add_artifact_write(
+                RESEARCH_BRIEF_PATH,
+                mutation.operation,
+                mutation.entity_id,
+                brief.revision,
+                turn=self.turn,
+            )
+        return brief
 
     @property
     def current_tool_call_id(self) -> UUID | None:

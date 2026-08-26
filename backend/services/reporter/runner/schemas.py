@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from backend.services.reporter.runner.research_brief import ResearchBrief
+
 
 def validate_artifact_path(value: str) -> str:
     """Return a safe, normalized Markdown artifact path."""
@@ -129,6 +131,7 @@ class ReporterOutput(BaseModel):
 
     submitted_path: str | None = None
     artifacts: tuple[ArtifactSnapshot, ...] = ()
+    research_brief: ResearchBrief = Field(default_factory=ResearchBrief)
     run_log_summary: dict[str, Any] = Field(default_factory=dict)
     run_log_entries: list[dict[str, Any]] = Field(default_factory=list)
     generated_at: str = Field(

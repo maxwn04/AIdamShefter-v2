@@ -80,7 +80,7 @@ def test_artifact_store_create_read_list_and_casefold_collision() -> None:
     store = ArtifactStore()
 
     article = store.create("article.md", "# Article")
-    brief = store.create("research_brief.md", "# Brief")
+    brief, _ = store.sync_managed("research_brief.md", "# Brief")
 
     assert store.read("article.md") is article
     assert store.list() == (article, brief)
@@ -159,7 +159,7 @@ def test_submit_pins_existing_current_snapshot_without_new_revision() -> None:
 
 def test_reporter_output_exposes_submitted_content_and_all_artifacts() -> None:
     store = ArtifactStore()
-    store.create("research_brief.md", "# Brief")
+    store.sync_managed("research_brief.md", "# Brief")
     store.create("article.md", "# Article")
     store.submit("article.md", expected_revision=1)
 

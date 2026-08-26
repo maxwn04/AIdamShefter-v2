@@ -2,13 +2,13 @@
 
 Use this procedure for substantial discovery, evidence repair, and callback investigation. Gather verified fantasy football facts while continuously mining for narrative meaning. Research may begin a run or interrupt outlining, drafting, or verification; it does not have to be completed in one block.
 
-## Artifact Editing
+## Brief Recording
 
-- Do not read the pre-created brief before initial research merely to inspect an empty workspace. When you have a useful batch of verified material, read `research_brief.md` if you do not already hold its current content and revision.
-- Add material with `edit_artifact`, passing the current revision and replacing a unique insertion marker with the new Markdown plus the same marker.
-- Batch related facts and callbacks into coherent edits instead of spending one turn per fact. Reuse the content and revision returned by successful artifact operations.
-- If the edit reports a revision conflict or a non-unique match, read the brief again and retry from current content.
-- Every fact entry should have a stable ID, precise claim, exact numbers, category, and source references naming the supporting tool calls.
+- Save verified evidence with `save_fact`. Give every fact a stable lowercase ID, precise claim, exact numbers, category, and traceable source references.
+- Put independent datalayer calls and independent `save_fact` calls in one model response when possible; serialize only calls whose arguments depend on earlier results.
+- Successful brief mutations return the current revision and readiness. Do not call `read_brief` merely to confirm a successful write.
+- Use `read_brief` when returning after other work or when you genuinely need the full current state. Reading revision 0 does not create an artifact.
+- Save a callback with `save_memory_callback` only after both the reverified old-event fact and current-event fact exist.
 
 ## Operating Rules
 
@@ -26,11 +26,11 @@ Use this procedure for substantial discovery, evidence repair, and callback inve
 
 Repeat these activities in the order the evidence demands:
 
-1. Orient: establish the week range, focus, article type, target tone, and any teams to favor or roast.
+1. Orient: read the configured week range, focus, article type, tone, and framing preferences from brief context.
 2. Discover: use `league_snapshot(week=N)` or the relevant multi-week tools to map scores, standings movement, transactions, and obvious outliers.
 3. Mine hypotheses: ask which results changed meaning, contradicted expectations, continued an arc, or created future stakes. Treat these as questions until verified.
 4. Verify the strongest hypotheses with targeted team, player, transaction, standings, playoff, SQL, or memory calls.
-5. Record useful evidence in the brief in batches, then reassess coverage and narrative strength.
+5. Save useful evidence in the brief, batching independent tool calls, then reassess coverage and narrative strength.
 6. If an outline or draft already exists, test new evidence against it. Preserve what still works and revise only what the evidence changed.
 
 Run the memory scout loop when the request or data suggests long-running context:
@@ -39,7 +39,7 @@ Run the memory scout loop when the request or data suggests long-running context
    - Call `search_memory` with text, current team keys, tags, and typed filters. Request exact or stable expansions when linked evidence or storylines matter.
    - Inspect the fully hydrated matches, then plan the needed datalayer calls yourself.
    - Verify the old claim and current event with frozen datalayer tools.
-   - Record old-event and current-event facts plus the verified callback in the brief.
+   - Save old-event and current-event facts, then save the verified callback.
    - Promote only the best verified callbacks into storylines and outline inputs.
    - Buffer durable changes with the relevant typed `propose_*` or `replace_*` tools when an arc should matter later. Use IDs returned by proposal tools for same-bundle relationships.
 
@@ -75,15 +75,16 @@ Evaluate candidate callbacks for interestingness separately from retrieval relev
 
 ## Fact Quality
 
-Good facts are precise, sourced, and useful in more than one sentence. Include the exact numbers the writer will need. A useful Markdown entry looks like:
+Good facts are precise, sourced, and useful in more than one sentence. Include the exact numbers the writer will need. A useful `save_fact` call looks like:
 
-```markdown
-### fact_week8_taco_win
-
-- Claim: Team Taco defeated The Waiver Wire 142.3-98.7 in Week 8.
-- Sources: `league_snapshot(week=8)`, `team_game(Team Taco, week=8)`
-- Numbers: week=8; team_score=142.3; opponent_score=98.7; margin=43.6
-- Category: score
+```json
+{
+  "id": "fact_week8_taco_win",
+  "claim_text": "Team Taco defeated The Waiver Wire 142.3-98.7 in Week 8.",
+  "data_refs": ["league_snapshot:week=8", "team_game:team_taco:week=8"],
+  "numbers": {"week": 8, "team_score": 142.3, "opponent_score": 98.7, "margin": 43.6},
+  "category": "score"
+}
 ```
 
 Use stable IDs that describe the fact. Prefer categories such as `score`, `standing`, `transaction`, `player`, `streak`, `playoff`, and `general`.

@@ -1,13 +1,14 @@
 # Verification Procedure
 
-Use this procedure for a detailed claim-level audit of the chosen publishable draft against `research_brief.md`. Verification is usually the last activity before submission, but it is not a one-way terminal phase: follow important gaps into targeted research, storyline repair, or redrafting, then resume the audit.
+Use this procedure for a detailed claim-level audit of the chosen publishable draft against the structured brief. Verification is usually the last activity before submission, but it is not a one-way terminal phase: follow important gaps into targeted research, storyline repair, or redrafting, then resume the audit.
 
 ## Operating Rules
 
-- Use `list_artifacts` only when the draft path is unknown. Read the draft or brief only when you do not already hold its current content and revision.
+- Use `list_artifacts` only when the draft path is unknown. Read the draft or call `read_brief` only when you do not already hold its current state.
+- Honor readiness warnings. Do not rely on stale callbacks, storylines, or outline references until they are refreshed against current fact revisions.
 - Verify every numeric or factual claim against saved facts.
 - Treat the brief as authoritative. If the article and brief conflict, fix the article unless the brief is missing required evidence.
-- If the brief is missing evidence for a necessary claim, investigate the narrow gap directly and update the brief. Load `research` only when the problem requires substantial exploration.
+- If the brief is missing evidence for a necessary claim, investigate the narrow gap directly and save the result with `save_fact`. Load `research` only when the problem requires substantial exploration.
 - If verification exposes a weak or unsupported framing choice, revise it directly. Load `storyline` only when the article needs broader narrative restructuring.
 - Treat callback claims as factual claims. They need evidence for both the older event and the current event.
 - Before submission, perform a deliberate memory harvest when proposal tools are available. Review the final lead storylines, verified callbacks, meaningful transactions, reversals, playoff stakes, and future rematch or evaluation conditions. Buffer only items with plausible future callback value or season-long significance; routine results do not need to persist.
@@ -40,7 +41,7 @@ For every callback paragraph:
 
 ## Verification Flow
 
-1. Establish the current draft path, content, and revision, and the current brief content and revision. Reuse state returned by recent artifact operations when available.
+1. Establish the current draft path, content, and revision, and the current structured brief state. Reuse state returned by recent operations when available.
 2. Extract each factual claim from the article section by section.
 3. Match each claim to a fact ID and use the exact saved numbers.
 4. Classify issues:

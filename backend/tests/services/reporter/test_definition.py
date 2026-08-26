@@ -21,6 +21,9 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
     from backend.services.reporter.runner.tools.datalayer_tools import (
         register_datalayer_tools,
     )
+    from backend.services.reporter.runner.tools.brief_tools import (
+        register_brief_tools,
+    )
     from backend.services.reporter.runner.tools.memory_tools import (
         register_memory_tools,
     )
@@ -28,6 +31,7 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
     data = object()
     memory = object()
     register_artifact_tools(registry)
+    register_brief_tools(registry)
     register_procedure_tools(registry, definition.procedure_contents)
     register_datalayer_tools(registry, data)  # type: ignore[arg-type]
     register_memory_tools(

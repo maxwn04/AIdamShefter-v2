@@ -24,6 +24,9 @@ from backend.services.reporter.runner.schemas import (
 from backend.services.reporter.runner.tools.artifact_tools import (
     ARTIFACT_TOOL_SPECS as COPIED_ARTIFACT_TOOLS,
 )
+from backend.services.reporter.runner.tools.brief_tools import (
+    BRIEF_TOOL_SPECS as COPIED_BRIEF_TOOLS,
+)
 from backend.services.reporter.runner.tools.memory_tools import (
     MEMORY_TOOL_SPECS as COPIED_MEMORY_TOOLS,
 )
@@ -82,6 +85,17 @@ class DualLeagueData:
 class CopiedScriptedCompletion:
     def __init__(self) -> None:
         self.responses = [
+            _response(
+                CopiedToolCall(
+                    id="fact",
+                    name="save_fact",
+                    arguments={
+                        "id": "fact_taco_win",
+                        "claim_text": "Taco won.",
+                        "data_refs": ["test_fixture"],
+                    },
+                )
+            ),
             _response(
                 CopiedToolCall(
                     id="create",
@@ -172,6 +186,7 @@ def test_public_config_matches_legacy_and_artifact_schemas_diverge() -> None:
     assert set(ReporterOutput.model_json_schema()["properties"]) == {
         "submitted_path",
         "artifacts",
+        "research_brief",
         "run_log_summary",
         "run_log_entries",
         "generated_at",
@@ -213,6 +228,13 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
         "submit_artifact",
     ]
     assert set(copied_artifact_names).isdisjoint(legacy_artifact_names)
+    assert [spec["function"]["name"] for spec in COPIED_BRIEF_TOOLS] == [
+        "save_fact",
+        "save_memory_callback",
+        "save_storyline",
+        "set_outline",
+        "read_brief",
+    ]
     assert COPIED_PROCEDURE_TOOLS != LEGACY_PROCEDURE_TOOLS
     assert "reference playbooks" in COPIED_PROCEDURE_TOOLS[0]["function"][
         "description"
@@ -285,5 +307,9 @@ def test_generator_preserves_article_result_across_artifact_contract_divergence(
     assert "# Research Brief" in copied.artifacts[1].content
     assert copied.run_log_summary["submitted"] is True
     assert legacy.run_log_summary["submitted"] is True
-    assert _tool_names(copied) == ["create_artifact", "submit_artifact"]
+    assert _tool_names(copied) == [
+        "save_fact",
+        "create_artifact",
+        "submit_artifact",
+    ]
     assert _tool_names(legacy) == ["write_section", "submit_article"]

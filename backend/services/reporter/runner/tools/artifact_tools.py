@@ -13,7 +13,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "3"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "4"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -236,6 +236,21 @@ def submit_artifact(
     expected_revision: int,
 ) -> str:
     def operation() -> str:
+        readiness = ctx.brief.brief.readiness()
+        if not readiness.submission_allowed:
+            return _json(
+                {
+                    "ok": False,
+                    "error": {
+                        "code": "brief_not_ready",
+                        "message": (
+                            "Save at least one verified fact before submitting "
+                            "an article."
+                        ),
+                        "readiness": readiness.model_dump(mode="json"),
+                    },
+                }
+            )
         artifact = ctx.artifacts.submit(
             path,
             expected_revision=expected_revision,
@@ -259,6 +274,7 @@ def submit_artifact(
                 "artifact": artifact.model_dump(),
                 "finalized_revision": artifact.revision,
                 "stats": stats,
+                "brief_readiness": readiness.model_dump(mode="json"),
             }
         )
 
