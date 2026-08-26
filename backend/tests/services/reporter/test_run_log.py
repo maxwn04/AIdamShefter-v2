@@ -120,3 +120,45 @@ def test_artifact_write_metadata_with_optional_revision() -> None:
         "key": "outline",
         "brief_revision": None,
     }
+
+
+def test_first_artifact_write_turn_uses_successful_mutation_events() -> None:
+    log = RunLog()
+    log.add_tool_call("save_fact", {}, "error", 1, turn=1)
+    log.add_artifact_write(
+        "research_brief.md",
+        "save_fact",
+        "fact_001",
+        revision=1,
+        turn=2,
+    )
+    log.add_artifact_write(
+        "notes.md",
+        "create_artifact",
+        "notes.md",
+        revision=1,
+        turn=3,
+    )
+    log.add_artifact_write(
+        "article.md",
+        "create_artifact",
+        "article.md",
+        revision=1,
+        turn=4,
+    )
+
+    assert log.first_artifact_write_turn(
+        operations=frozenset({"save_fact"}),
+        artifact="research_brief.md",
+    ) == 2
+    assert log.first_artifact_write_turn(
+        operations=frozenset({"create_artifact"}),
+        artifact="article.md",
+    ) == 4
+    assert log.first_artifact_write_turn(
+        operations=frozenset({"create_artifact"}),
+        excluded_artifacts=frozenset({"notes.md"}),
+    ) == 4
+    assert log.first_artifact_write_turn(
+        operations=frozenset({"submit_artifact"}),
+    ) is None

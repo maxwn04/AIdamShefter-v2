@@ -144,6 +144,30 @@ Focused tests must cover:
 - no empty seed-artifact create/read turns; and
 - current memory finalization compatibility.
 
+The reporter output includes this nested observability shape:
+
+```text
+run_log_summary.brief
+  revision
+  projection_revision | null
+  fact_count
+  callback_count
+  storyline_count
+  outline_section_count
+  stale_callback_ids[]
+  stale_storyline_ids[]
+  outline_stale
+  readiness_warnings[]
+  first_fact_turn | null
+  first_storyline_turn | null
+  first_draft_turn | null
+  submission_turn | null
+```
+
+Revision-zero or aborted runs may have a null projection revision and null
+milestone turns. Successful runs have a projection because the submission gate
+requires a verified fact.
+
 The live M1 gate uses representative weeks, report types, and supported models. It
 records research depth, verified fact/storyline coverage, factual accuracy,
 research-to-drafting interleaving, total turns, latency, and token usage against
