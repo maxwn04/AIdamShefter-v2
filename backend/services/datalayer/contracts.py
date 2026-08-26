@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -127,6 +127,15 @@ class CompletenessWarning(_WorkflowValue):
     scope_key: ScopeKey | None = None
 
 
+class ReadySnapshotSeason(_WorkflowValue):
+    competition_season_id: UUID
+    sleeper_league_id: str
+    season_year: int = Field(strict=True, ge=1900, le=9999)
+    sequence_number: int = Field(strict=True, ge=1)
+    role: Literal["primary", "history"]
+    through_week: int = Field(strict=True, ge=1, le=18)
+
+
 class ReadyDataSnapshot(_WorkflowValue):
     id: UUID
     competition_id: UUID
@@ -137,3 +146,5 @@ class ReadyDataSnapshot(_WorkflowValue):
     snapshot_projection_version: str
     artifact: VerifiedLocalArtifact
     completeness_warnings: tuple[CompletenessWarning, ...] = ()
+    input_revision: str | None = None
+    included_seasons: tuple[ReadySnapshotSeason, ...] = ()

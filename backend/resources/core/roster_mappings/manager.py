@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -45,6 +45,50 @@ class RosterMappingManager:
         with read_only_session(self._session_factory) as session:
             competition, season = self._load_scope(session, competition_season_id)
             return self._catalog(session, competition, season)
+
+    def list_snapshot_mappings(
+        self,
+        competition_season_ids: Collection[UUID],
+    ) -> tuple[SeasonRosterIdentity, ...]:
+        """Read exact roster identities for several scoped seasons in one batch."""
+
+        season_ids = tuple(competition_season_ids)
+        if not season_ids:
+            raise ValueError("snapshot mapping seasons must not be empty")
+        if len(set(season_ids)) != len(season_ids):
+            raise ValueError("snapshot mapping seasons must be unique")
+        with read_only_session(self._session_factory) as session:
+            found = set(
+                session.scalars(
+                    sa.select(CompetitionSeason.id).where(
+                        CompetitionSeason.competition_id == self._competition_id,
+                        CompetitionSeason.id.in_(season_ids),
+                    )
+                )
+            )
+            if found != set(season_ids):
+                raise CoreResourceNotFound("competition_season", "snapshot lineage")
+            rows = session.scalars(
+                sa.select(SeasonRoster)
+                .where(
+                    SeasonRoster.competition_id == self._competition_id,
+                    SeasonRoster.competition_season_id.in_(season_ids),
+                )
+                .order_by(
+                    SeasonRoster.competition_season_id,
+                    SeasonRoster.sleeper_roster_id,
+                    SeasonRoster.id,
+                )
+            ).all()
+            return tuple(
+                SeasonRosterIdentity(
+                    id=row.id,
+                    competition_season_id=row.competition_season_id,
+                    franchise_id=row.franchise_id,
+                    sleeper_roster_id=row.sleeper_roster_id,
+                )
+                for row in rows
+            )
 
     def apply(self, command: ApplyRosterMappings) -> RosterIdentityCatalog:
         with transaction_session(self._session_factory) as session:

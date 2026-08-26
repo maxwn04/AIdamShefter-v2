@@ -38,6 +38,7 @@ from backend.services.datalayer.canonical_json import JsonValue, parse_json_byte
 from backend.services.datalayer.contracts import (
     CompletenessWarning,
     ReadyDataSnapshot,
+    ReadySnapshotSeason,
     SnapshotRequest,
     SnapshotStatus,
 )
@@ -480,6 +481,18 @@ class DatalayerSnapshotService:
             snapshot_projection_version=snapshot.snapshot_projection_version,
             artifact=artifact,
             completeness_warnings=snapshot.completeness_warnings,
+            input_revision=snapshot.input_revision,
+            included_seasons=tuple(
+                ReadySnapshotSeason(
+                    competition_season_id=season.competition_season_id,
+                    sleeper_league_id=season.sleeper_league_id,
+                    season_year=season.season_year,
+                    sequence_number=season.sequence_number,
+                    role=season.role.value,
+                    through_week=season.through_week,
+                )
+                for season in snapshot.included_seasons
+            ),
         )
 
     def _fail_claimed(self, snapshot_id: UUID, error: Exception) -> None:

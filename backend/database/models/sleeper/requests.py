@@ -208,3 +208,73 @@ class NormalizedScope(Base):
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class AutomaticRefreshClaim(Base):
+    __tablename__ = "automatic_refresh_claims"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["competition_season_id", "competition_id"],
+            ["core.competition_seasons.id", "core.competition_seasons.competition_id"],
+            name="fk_automatic_refresh_claims_season_competition",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["refresh_run_id", "competition_season_id"],
+            ["sleeper.refresh_runs.id", "sleeper.refresh_runs.competition_season_id"],
+            name="fk_automatic_refresh_claims_refresh_season",
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint(
+            "requested_through_week BETWEEN 1 AND 18",
+            name="through_week",
+        ),
+        CheckConstraint("reason IN ('missing', 'stale')", name="reason"),
+        CheckConstraint(
+            "status IN ('running', 'completed', 'failed')",
+            name="status",
+        ),
+        CheckConstraint(
+            "(status = 'running' AND completed_at IS NULL "
+            "AND refresh_run_id IS NULL AND refresh_status IS NULL "
+            "AND failure_summary IS NULL) OR "
+            "(status = 'completed' AND completed_at IS NOT NULL "
+            "AND refresh_run_id IS NOT NULL AND refresh_status IS NOT NULL "
+            "AND failure_summary IS NULL) OR "
+            "(status = 'failed' AND completed_at IS NOT NULL "
+            "AND refresh_status IS NULL AND failure_summary IS NOT NULL)",
+            name="terminal_shape",
+        ),
+        Index(
+            "uq_automatic_refresh_claims_active_key",
+            "competition_id",
+            "active_key",
+            unique=True,
+            postgresql_where=text("status = 'running'"),
+        ),
+        Index(
+            "ix_automatic_refresh_claims_season_started",
+            "competition_season_id",
+            "started_at",
+        ),
+        {"schema": "sleeper"},
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    competition_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    competition_season_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    active_key: Mapped[str] = mapped_column(Text)
+    requested_through_week: Mapped[int] = mapped_column(SmallInteger)
+    policy_version: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(Text)
+    coverage_fingerprint: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    refresh_run_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    refresh_status: Mapped[str | None] = mapped_column(Text)
+    failure_summary: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

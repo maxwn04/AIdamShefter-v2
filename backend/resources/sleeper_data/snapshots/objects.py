@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from enum import StrEnum
 from typing import Annotated, Literal, TypeAlias
 from uuid import UUID
 
@@ -52,6 +53,7 @@ class BeginSnapshotBuild(ContractModel):
     build_key: Sha256
     snapshot_projection_version: str = Field(min_length=1)
     code_version: str = Field(min_length=1)
+    input_revision: Sha256 | None = None
 
 
 class DataSnapshotQuery(ContractModel):
@@ -68,8 +70,30 @@ class SnapshotRequestMembership(ContractModel):
     selection_role: SnapshotSelectionRole
 
 
+class SnapshotSeasonRole(StrEnum):
+    PRIMARY = "primary"
+    HISTORY = "history"
+
+
+class SealSnapshotSeason(ContractModel):
+    competition_season_id: UUID
+    role: SnapshotSeasonRole
+    through_week: int = Field(strict=True, ge=1, le=18)
+
+
+class SnapshotSeasonMembership(ContractModel):
+    competition_id: UUID
+    competition_season_id: UUID
+    sleeper_league_id: str
+    season_year: int = Field(strict=True, ge=1900, le=9999)
+    sequence_number: int = Field(strict=True, ge=1)
+    role: SnapshotSeasonRole
+    through_week: int = Field(strict=True, ge=1, le=18)
+
+
 class SealSnapshot(ContractModel):
     requests: tuple[SnapshotRequestMembership, ...]
+    seasons: tuple[SealSnapshotSeason, ...] = ()
     artifact: StoredLocalArtifact
     completeness_warnings: tuple[CompletenessWarning, ...] = ()
 
@@ -85,6 +109,14 @@ class SealSnapshot(ContractModel):
             raise ValueError("snapshot request scopes must be unique")
         if not self.artifact.storage_key.startswith("snapshots/"):
             raise ValueError("snapshot seal requires a snapshot artifact")
+        season_ids = [season.competition_season_id for season in self.seasons]
+        if len(season_ids) != len(set(season_ids)):
+            raise ValueError("snapshot season memberships must be unique")
+        primary_count = sum(
+            season.role is SnapshotSeasonRole.PRIMARY for season in self.seasons
+        )
+        if self.seasons and primary_count != 1:
+            raise ValueError("explicit snapshot seasons require exactly one primary")
         return self
 
 
@@ -93,6 +125,7 @@ class DataSnapshot(ContractModel):
     competition_id: UUID
     primary_competition_season_id: UUID
     build_key: Sha256
+    input_revision: Sha256 | None = None
     through_week: int = Field(strict=True, ge=1, le=18)
     as_of_date: date
     status: SnapshotStatus
@@ -101,6 +134,7 @@ class DataSnapshot(ContractModel):
     completeness_warnings: tuple[CompletenessWarning, ...]
     failure: SnapshotFailure | None
     artifact: StoredLocalArtifact | None
+    included_seasons: tuple[SnapshotSeasonMembership, ...] = ()
     created_at: AwareDatetime
     completed_at: AwareDatetime | None
 

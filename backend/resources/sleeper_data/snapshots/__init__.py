@@ -11,9 +11,12 @@ from backend.resources.sleeper_data.snapshots.objects import (
     ExistingBuildingSnapshot,
     ExistingReadySnapshot,
     SealSnapshot,
+    SealSnapshotSeason,
     SnapshotBuildState,
     SnapshotFailure,
     SnapshotRequestMembership,
+    SnapshotSeasonMembership,
+    SnapshotSeasonRole,
 )
 
 __all__ = [
@@ -27,7 +30,10 @@ __all__ = [
     "ExistingBuildingSnapshot",
     "ExistingReadySnapshot",
     "SealSnapshot",
+    "SealSnapshotSeason",
     "SnapshotBuildState",
     "SnapshotFailure",
     "SnapshotRequestMembership",
+    "SnapshotSeasonMembership",
+    "SnapshotSeasonRole",
 ]

@@ -16,6 +16,7 @@ from backend.services.datalayer.contracts import (
     SnapshotStatus,
     SnapshotRequest,
     ReadyDataSnapshot,
+    ReadySnapshotSeason,
     WarningCode,
 )
 from backend.services.datalayer.errors import (
@@ -180,6 +181,7 @@ __all__ = [
     "SnapshotStatus",
     "SnapshotUnavailable",
     "ReadyDataSnapshot",
+    "ReadySnapshotSeason",
     "SleeperSourceClient",
     "SourceAttempt",
     "StoredLocalArtifact",

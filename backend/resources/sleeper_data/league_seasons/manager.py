@@ -16,7 +16,9 @@ from backend.resources.sleeper_data.common.codec import parse_jsonb_text
 from backend.resources.sleeper_data.league_seasons.objects import (
     LeagueSeasonOverview,
     RefreshSeasonIdentity,
+    SnapshotLineage,
     SnapshotPlanningContext,
+    SnapshotSeasonIdentity,
 )
 from backend.services.datalayer.errors import DatalayerResourceNotFound
 
@@ -91,6 +93,48 @@ class LeagueSeasonManager:
                 playoff_team_count=league.playoff_team_count,
                 draft_rounds=draft_rounds,
                 league_average_match=league.league_average_match,
+            )
+
+    def get_snapshot_lineage(self, competition_season_id: UUID) -> SnapshotLineage:
+        """Return every predecessor plus the primary from immutable core identity."""
+
+        with read_only_session(self._session_factory) as session:
+            primary = session.scalar(
+                sa.select(CompetitionSeason).where(
+                    CompetitionSeason.id == competition_season_id,
+                    CompetitionSeason.competition_id == self._competition_id,
+                )
+            )
+            if primary is None:
+                raise DatalayerResourceNotFound(
+                    "competition_season", str(competition_season_id)
+                )
+            seasons = session.scalars(
+                sa.select(CompetitionSeason)
+                .where(
+                    CompetitionSeason.competition_id == self._competition_id,
+                    CompetitionSeason.sequence_number <= primary.sequence_number,
+                )
+                .order_by(CompetitionSeason.sequence_number)
+            ).all()
+            latest_sequence = session.scalar(
+                sa.select(sa.func.max(CompetitionSeason.sequence_number)).where(
+                    CompetitionSeason.competition_id == self._competition_id
+                )
+            )
+            return SnapshotLineage(
+                primary_competition_season_id=primary.id,
+                primary_is_latest=latest_sequence == primary.sequence_number,
+                seasons=tuple(
+                    SnapshotSeasonIdentity(
+                        competition_id=season.competition_id,
+                        competition_season_id=season.id,
+                        sleeper_league_id=season.sleeper_league_id,
+                        season_year=season.season_year,
+                        sequence_number=season.sequence_number,
+                    )
+                    for season in seasons
+                ),
             )
 
     def get_season_overview(self, season_id: UUID) -> LeagueSeasonOverview:
