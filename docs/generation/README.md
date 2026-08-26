@@ -93,9 +93,10 @@ flowchart LR
   artifact store. The model-facing contract is `list_artifacts`,
   `read_artifact`, `create_artifact`, exact-match `edit_artifact`, and
   revision-checked `submit_artifact`.
-- Use raw UTF-8 Markdown artifacts; mirror each successful mutation to an
-  immutable version and finalize by selecting existing versions rather than
-  writing final copies. Paths such as `research_brief.md` and `article.md` are
+- Use raw UTF-8 Markdown artifacts; coalesce successful mutations by artifact
+  within each model turn and mirror the final turn snapshot to one immutable
+  version. Finalize by selecting an existing version rather than writing a
+  final copy. Paths such as `research_brief.md` and `article.md` are
   reporter-owned conventions, never application query keys.
 - Store the exact submitted finalized artifact version on the generation. The
   application discovers generated articles through this pointer, independently

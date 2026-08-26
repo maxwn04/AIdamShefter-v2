@@ -4,8 +4,9 @@ import {
   CircleAlert,
   FileArchive,
   FileText,
+  History,
 } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { ApiError } from "@/api/errors";
@@ -13,6 +14,14 @@ import { ArtifactContentViewer } from "@/components/shared/artifact-content-view
 import { DateTime } from "@/components/shared/date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubmittedArticle } from "@/features/articles/queries";
 import type {
@@ -239,6 +248,7 @@ export function ArtifactBrowser({
   active,
 }: ArtifactBrowserProps): React.JSX.Element {
   const [searchParameters, setSearchParameters] = useSearchParams();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const artifactPage = positivePage(searchParameters.get("artifactPage"));
   const requestedArtifactId = searchParameters.get("artifact") ?? undefined;
   const requestedVersionId = searchParameters.get("version") ?? undefined;
@@ -401,6 +411,7 @@ export function ArtifactBrowser({
   ]);
 
   function selectArtifact(artifactId: string): void {
+    setHistoryOpen(false);
     const next = new URLSearchParams(searchParameters);
     next.set("artifact", artifactId);
     next.delete("version");
@@ -412,6 +423,7 @@ export function ArtifactBrowser({
     const next = new URLSearchParams(searchParameters);
     next.set("version", versionId);
     setSearchParameters(next);
+    setHistoryOpen(false);
   }
 
   function setArtifactPage(nextPage: number): void {
@@ -497,7 +509,7 @@ export function ArtifactBrowser({
 
       <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
         {selectedArtifact ? (
-          <>
+          <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
             <header className="border-b border-border px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
@@ -515,7 +527,7 @@ export function ArtifactBrowser({
                     )}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {selectedArtifact.id === submittedArtifactId ? (
                     <Badge>Submitted artifact</Badge>
                   ) : null}
@@ -524,69 +536,22 @@ export function ArtifactBrowser({
                   ) : (
                     <Badge variant="secondary">Draft</Badge>
                   )}
+                  <SheetTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      <History className="size-4" aria-hidden="true" />
+                      History
+                      {versionsQuery.data ? (
+                        <span className="text-muted-foreground">
+                          ({versionsQuery.data.page.total})
+                        </span>
+                      ) : null}
+                    </Button>
+                  </SheetTrigger>
                 </div>
               </div>
             </header>
 
-            <div className="grid min-w-0 gap-6 p-5 sm:p-6 xl:grid-cols-[15rem_minmax(0,1fr)]">
-              <div className="min-w-0">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h4 className="font-semibold">Versions</h4>
-                  {versionsQuery.isFetching && !versionsQuery.isPending ? (
-                    <span
-                      className="text-xs text-muted-foreground"
-                      role="status"
-                    >
-                      Updating…
-                    </span>
-                  ) : null}
-                </div>
-                {versionsQuery.isPending ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-20 w-full" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                ) : versionsQuery.isError ? (
-                  <InlineError
-                    title="Version history unavailable"
-                    error={versionsQuery.error}
-                    onRetry={() => void versionsQuery.refetch()}
-                  />
-                ) : versions.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
-                    This artifact has no recorded versions.
-                  </p>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      {versions.map((version) => (
-                        <VersionChoice
-                          key={version.id}
-                          version={version}
-                          selected={version.id === selectedVersionId}
-                          submitted={version.id === submittedVersionId}
-                          finalized={
-                            version.id === selectedArtifact.finalized_version_id
-                          }
-                          onSelect={() => {
-                            selectVersion(version.id);
-                          }}
-                        />
-                      ))}
-                    </div>
-                    <div className="mt-4">
-                      <Pager
-                        label="Versions"
-                        page={versionPage}
-                        totalPages={versionTotalPages}
-                        total={versionsQuery.data.page.total}
-                        onPageChange={setVersionPage}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
+            <div className="min-w-0 p-5 sm:p-6">
               <div className="min-w-0">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                   <h4 className="font-semibold">
@@ -643,7 +608,77 @@ export function ArtifactBrowser({
                 )}
               </div>
             </div>
-          </>
+
+            <SheetContent side="right">
+              <SheetHeader>
+                <SheetTitle>Version history</SheetTitle>
+                <SheetDescription>
+                  Choose a stored revision of {selectedArtifact.path}.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {versionsQuery.data
+                      ? `${String(versionsQuery.data.page.total)} total`
+                      : "Loading revisions…"}
+                  </span>
+                  {versionsQuery.isFetching && !versionsQuery.isPending ? (
+                    <span
+                      className="text-xs text-muted-foreground"
+                      role="status"
+                    >
+                      Updating…
+                    </span>
+                  ) : null}
+                </div>
+                {versionsQuery.isPending ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : versionsQuery.isError ? (
+                  <InlineError
+                    title="Version history unavailable"
+                    error={versionsQuery.error}
+                    onRetry={() => void versionsQuery.refetch()}
+                  />
+                ) : versions.length === 0 ? (
+                  <p className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground">
+                    This artifact has no recorded versions.
+                  </p>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      {versions.map((version) => (
+                        <VersionChoice
+                          key={version.id}
+                          version={version}
+                          selected={version.id === selectedVersionId}
+                          submitted={version.id === submittedVersionId}
+                          finalized={
+                            version.id === selectedArtifact.finalized_version_id
+                          }
+                          onSelect={() => {
+                            selectVersion(version.id);
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-4">
+                      <Pager
+                        label="Versions"
+                        page={versionPage}
+                        totalPages={versionTotalPages}
+                        total={versionsQuery.data.page.total}
+                        onPageChange={setVersionPage}
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
         ) : (
           <div className="p-8 text-center text-sm text-muted-foreground">
             Select an artifact to inspect its versions.

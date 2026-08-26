@@ -17,6 +17,7 @@ from uuid import UUID
 
 from pydantic import JsonValue
 
+from backend.services.reporter.runner.artifact_recording import TurnArtifactRecorder
 from backend.services.reporter.runner.completion import (
     CompletionClient,
     CompletionFn,
@@ -96,12 +97,18 @@ class Runner:
         self.brief = brief or ResearchBriefStore()
         self.procedures = ProcedureState()
         self.log = RunLog()
+        artifact_recorder = self._artifact_recorder(recorder)
+        self._turn_artifacts = (
+            TurnArtifactRecorder(artifact_recorder)
+            if artifact_recorder is not None
+            else None
+        )
         self.tool_context = ToolContext(
             artifacts=self.artifacts,
             procedures=self.procedures,
             log=self.log,
             brief=self.brief,
-            artifact_recorder=self._artifact_recorder(recorder),
+            artifact_recorder=self._turn_artifacts,
         )
         self.registry.set_context(self.tool_context)
         self._procedure_message_idx: int | None = None
@@ -137,6 +144,7 @@ class Runner:
                     messages.append(assistant_tool_call_message(calls, response))
                     previous_stage = self.procedures.active
                     results = await self._execute_tool_batch(calls, turn)
+                    self._flush_artifact_turn(turn)
                     if (
                         self.procedures.active is not None
                         and self.procedures.active != previous_stage
@@ -166,9 +174,14 @@ class Runner:
                 },
                 turn=turn,
             )
+            artifact_snapshots = self.artifacts.list()
+            if self._turn_artifacts is not None:
+                artifact_snapshots = self._turn_artifacts.durable_snapshots(
+                    artifact_snapshots
+                )
             return ReporterOutput(
                 submitted_path=self.artifacts.submitted_path,
-                artifacts=self.artifacts.list(),
+                artifacts=artifact_snapshots,
                 research_brief=self.brief.brief,
                 run_log_summary={
                     "session_id": self.log.session_id,
@@ -387,6 +400,16 @@ class Runner:
         except Exception as exc:
             raise RunnerRecordingError(
                 f"Could not record generation progress for turn {turn}"
+            ) from exc
+
+    def _flush_artifact_turn(self, turn: int) -> None:
+        if self._turn_artifacts is None:
+            return
+        try:
+            self._turn_artifacts.flush_turn()
+        except Exception as exc:
+            raise RunnerRecordingError(
+                f"Could not record durable artifact versions for turn {turn}"
             ) from exc
 
     @staticmethod

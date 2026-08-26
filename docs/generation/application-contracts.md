@@ -392,22 +392,30 @@ reporter may use `article.md` or another non-managed path for the publishable
 artifact. `create_artifact` rejects an existing path.
 `edit_artifact` succeeds only when `expected_revision` is current and
 `old_text` occurs exactly once; zero or multiple matches are typed tool errors.
-It performs one literal replacement and appends the resulting complete content
-as a new immutable version. There is deliberately no `replace_all` mode.
+It performs one literal replacement and queues the resulting complete content
+for the turn's coalesced durable version. There is deliberately no
+`replace_all` mode.
 
 `list_artifacts` and `read_artifact` never append versions. Failed mutations and
 content-identical edits do not append versions. Each successful create/edit
-passes its complete snapshot to the recorder with source AI/tool provenance.
-The structured brief starts at revision 0 without an artifact. Its first
-successful changed mutation creates `research_brief.md` revision 1 with that
-brief tool call's provenance; later changed mutations advance state and
-projection atomically.
+passes its complete snapshot to a turn-local recorder buffer with source
+AI/tool provenance. After the complete tool batch finishes, the runner appends
+only the last changed snapshot for each artifact, producing at most one durable
+version per artifact and model turn. The durable version uses that turn's AI
+call and the artifact's last successful mutation tool call as provenance. A
+flush failure aborts execution before the next model call. The structured brief
+starts at revision 0 without an artifact. Its changed run-local mutations can
+advance more than once inside a turn, while its durable Markdown projection
+advances once for the final turn snapshot.
 
 `submit_artifact` accepts any non-empty artifact, requires its expected current
 revision, and additionally requires at least one verified brief fact. It records
 no content version and ends the reporter loop. The resulting `ReporterOutput`
 contains `submitted_path`, current snapshots of all artifacts, and the typed
-`research_brief`. Generation finalization finalizes that artifact and sets
+`research_brief`. Output artifact revision numbers identify the coalesced
+durable versions, while tool-facing revision checks remain run-local so several
+edits can safely compose before a turn flush. Generation finalization finalizes
+that artifact and sets
 `generation.submitted_artifact_version_id` to the same existing version. It
 never appends a distinct final copy or mutates an artifact version in place.
 

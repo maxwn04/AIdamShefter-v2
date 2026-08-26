@@ -142,8 +142,10 @@ It is needed in three places:
    see retry and fallback attempts hidden from `Runner`.
 2. `Runner` records every tool request/result because it owns dispatch and
    parallel execution.
-3. Artifact tools record complete artifact content after each successful
-   mutation because they know when in-memory state changed.
+3. Artifact tools buffer complete artifact content after each successful
+   mutation because they know when in-memory state changed; the runner flushes
+   only the final snapshot for each changed artifact after the turn's complete
+   tool batch finishes.
 
 Tests and the temporary standalone CLI may use an in-memory/no-op recorder. The
 production generation path always uses the durable recorder.
@@ -274,7 +276,8 @@ The reporter:
 - runs the same turn loop and procedure replacement behavior;
 - records every provider attempt before/after network I/O;
 - records tool calls before/after handler execution;
-- appends complete artifact versions after successful mutations; and
+- appends at most one complete artifact version per changed artifact and model
+  turn after the turn's tool batch completes; and
 - returns `ReporterOutput` with all current snapshots. `submitted_path` names
   the reporter-selected artifact only after `submit_artifact` succeeds and is
   otherwise `null`; an unsubmitted output cannot succeed the generation.
@@ -364,20 +367,25 @@ complete snapshots at successful mutation boundaries:
 
 | Artifact | Durable behavior |
 | --- | --- |
-| managed research brief projection (`text/markdown`) | append a complete immutable version after each changed structured brief mutation |
-| other research or planning artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
-| publishable draft artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision regardless of path |
+| managed research brief projection (`text/markdown`) | append the final complete projection once per model turn when one or more structured brief mutations changed it |
+| other research or planning artifact (`text/markdown`) | append the final complete snapshot once per model turn when one or more creates/edits changed it |
+| publishable draft artifact (`text/markdown`) | append the final complete snapshot once per model turn when one or more creates/edits changed it; `submit_artifact` selects one existing revision regardless of path |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
 The initial structured brief is revision 0 and does not create an artifact.
-The first successful brief mutation creates `research_brief.md` revision 1
-with the source AI/tool provenance of that mutation. Later changed mutations
-advance the structured revision and projection revision together; identical
-upserts are no-ops.
+The first turn containing a successful brief mutation creates durable
+`research_brief.md` revision 1 with the turn's AI-call provenance and the last
+changed brief tool's provenance. Structured state still advances after each
+changed operation, while its durable Markdown projection advances at most once
+per turn; identical upserts are no-ops.
 
-Artifact versions use their source AI call/tool call when available. Reads do
-not append versions. Failed and content-identical mutations do not append
-versions. Durable finalization pins the selected version both on its artifact
+Artifact versions use their source AI call and the last successful mutation's
+tool call within the turn when available. Reads do not append versions. Failed
+and content-identical mutations do not append versions. If several successful
+mutations touch one artifact in a turn, intermediate snapshots remain
+run-local and only the final snapshot becomes durable. The turn flush is
+fail-closed: persistence failure aborts reporter execution before another model
+turn begins. Durable finalization pins the selected version both on its artifact
 and on the generation; it does not create another artifact version. The
 generation pointer is the application-level article output and supports article
 queries without inspecting reporter-controlled paths.
