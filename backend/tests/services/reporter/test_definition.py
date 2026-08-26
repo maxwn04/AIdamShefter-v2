@@ -40,7 +40,7 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
     assert registry.tool_implementation_versions == [
         (tool.name, tool.implementation_version) for tool in definition.tools
     ]
-    assert PROCEDURE_TOOL_IMPLEMENTATION_VERSION == "2"
+    assert PROCEDURE_TOOL_IMPLEMENTATION_VERSION == "3"
     assert {procedure.name for procedure in definition.procedures} == {
         "drafting",
         "research",

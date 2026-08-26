@@ -1,20 +1,30 @@
 # Storyline Procedure
 
-You are turning verified facts into a usable article plan. Read `research/brief.md`, create storylines from its saved facts, record style and bias, and build an outline in the same Markdown artifact. Do not draft final article prose here.
+Use this procedure for deliberate storyline mining and narrative synthesis. Storyline work may happen after a broad scan, between targeted research calls, while reshaping a draft, or during verification. It is not a mandatory bridge between research and drafting.
 
 ## Operating Rules
 
-- Use `read_artifact(path="research/brief.md")` first unless you just saved all relevant facts in the immediately preceding turn.
-- Every storyline must be supported by existing fact IDs. If a needed fact is missing, switch back to `research` and get it.
+- Read `research/brief.md` when you do not already hold its current content and revision.
+- Every storyline recorded as verified must be supported by existing fact IDs. A promising unsupported angle is a research hypothesis: make the narrow calls needed to prove or reject it before recording it.
 - Storyline summaries may interpret the data, but they must not add new factual claims.
 - Record the outline after the main storylines. If later research changes the facts or storylines, refresh the affected plan in the brief.
 - Bias is framing only. Preserve the user's framing preferences without altering scores, records, or outcomes.
-- Callback storylines must be supported by both an old-event fact or verified memory receipt and a current-event fact.
+- A callback used in the article must point to two saved brief facts: one old-event fact reverified against frozen data and one current-event fact. Retrieved memory is only the lead that prompted the investigation.
 - Apply changes with `edit_artifact`, using an exact, unique replacement and the current brief revision. Preserve reusable insertion anchors when adding more material later.
+- A small evidence gap does not require loading the research procedure. Investigate it directly, update the brief, and continue mining the angle. Load `research` only when the gap opens a substantial new investigation.
+- Inspecting or drafting a paragraph can be a useful test of whether a storyline has enough specificity. If prose exposes a weak premise, strengthen or drop the angle rather than forcing it into the outline.
 
-## Storyline Creation
+## Storyline Mining Loop
 
-Create 3-6 storylines for a standard weekly recap and fewer for narrow requests. Record each narrative thread under the brief's storyline heading.
+For a standard weekly recap, 3-6 developed angles is a useful range rather than a quota; use fewer for narrow requests. Prefer fewer well-supported storylines over filling slots. Record each narrative thread under the brief's storyline heading.
+
+For each candidate angle:
+
+1. Name the change or tension, not merely the result.
+2. Identify the supporting facts already present and the exact evidence gaps.
+3. Check current-week data and memory for reversal, payoff, continuity, irony, or future stakes.
+4. Verify high-value gaps and reject angles that remain vague or incidental.
+5. Rank surviving storylines by reader value and article fit, then update the outline or draft as appropriate.
 
 Priority guidance:
 
@@ -60,7 +70,7 @@ Create the writing plan under the brief's outline heading. Each section should i
 - `required_fact_ids`: exact facts the writer must use.
 - `storyline_ids`: storylines that belong in the section.
 
-Default weekly recap structure:
+A possible weekly recap structure:
 
 1. Opening hook: lead with the priority-1 storyline and set the week's theme.
 2. Lead story: give the strongest matchup or narrative enough room.
@@ -69,11 +79,11 @@ Default weekly recap structure:
 5. Standings or outlook: playoff implications, next-week stakes, or season trajectory.
 6. Closing: resolve the article with the strongest takeaway.
 
-For power rankings, build one section per rank or rank tier. For team deep dives, build sections around record, recent games, roster strengths or weaknesses, transactions, and outlook.
+For power rankings, one section per rank or tier may work. For team deep dives, useful sections often include record, recent games, roster strengths or weaknesses, transactions, and outlook. Build only as much outline as the article needs, and revise it when new evidence changes the article's shape.
 
 ## Typed Memory Proposals
 
-If typed memory proposal tools are available, buffer narrative state before drafting:
+If typed memory proposal tools are available, buffer durable narrative state when it becomes clear; do not wait for a separate pre-drafting checkpoint:
 
 - Use `propose_storyline` for new durable arcs and `replace_storyline` only for canonical items returned by `search_memory` with an exact expected revision.
 - Use `propose_event` for inferred matchup or trade evidence and `propose_trigger` for typed rematch or trade-evaluation callbacks.
@@ -107,4 +117,4 @@ Next callback trigger: Team A faces Team B, Player X faces Team A, or either sid
 Verification needed before use: confirm original trade receipt and current payoff with saved brief facts.
 ```
 
-When the brief has facts, storylines, outline, style, and bias ready, switch to `drafting`.
+When the narrative plan is useful, continue with the action that most improves the article. That may be drafting, targeted research, verification, or further storyline mining. Do not load `drafting` solely to announce a phase transition.

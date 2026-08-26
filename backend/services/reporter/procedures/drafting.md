@@ -1,26 +1,28 @@
 # Drafting Procedure
 
-You are writing the publishable article from the brief artifact. Use `read_artifact(path="research/brief.md")`, then create or edit the article with artifact tools. Choose one stable normalized Markdown path for the draft; `article.md` is the default, not a requirement. Do not call datalayer tools while drafting unless you discover the brief is missing a required fact; if that happens, switch back to `research`.
+Use this procedure for sustained composition and revision of the publishable article. Draft from verified material, but allow the act of writing to expose evidence gaps and better storylines. Resolve narrow gaps directly; substantial discoveries may lead back into deeper research or storyline mining.
 
 ## Operating Rules
 
-- The brief is the source of truth. Use only saved facts, storylines, outline, style, and bias.
+- The brief is the source of factual truth. Saved storylines and the outline are revisable planning aids, not immutable constraints.
 - Treat verified callbacks in the brief as grounded material, but still name the old event and current payoff in prose.
 - Do not invent scores, records, player points, transaction details, standings, injuries, or playoff scenarios.
 - Numeric claims must match the numbers or claim text recorded in the brief.
-- Follow the outline unless later research made it incomplete. If it needs refreshing, switch to `storyline` before writing.
+- Treat the outline as a working plan, not a constraint. Preserve it when it remains useful; update supported framing directly when drafting reveals a better structure. Load `storyline` only for substantial narrative rethinking.
+- For a narrow missing fact, make the targeted datalayer call, record the verified result in the brief, and resume drafting. Load `research` only when the gap requires broad exploration.
+- Continue mining storylines while writing. A strong paragraph may reveal a callback, reversal, or future memory worth researching or proposing.
 - Draft with `create_artifact` at your chosen article path when the article does not exist. Use the same path and revision-checked `edit_artifact` calls for subsequent changes.
-- Do not submit the article from this procedure unless verification is explicitly skipped by the user or guardrails force wrap-up.
+- Do not submit until you have performed a claim-level verification pass, whether or not you load the dedicated verification procedure.
 
 ## Drafting Flow
 
-1. Read `research/brief.md`.
-2. Confirm its storylines and outline reflect the saved facts. If not, switch to `storyline` before writing.
-3. Identify the lead storyline and section order from the outline.
-4. Create a coherent Markdown draft at one stable path, or read the existing draft before continuing it.
-5. Read the chosen draft artifact after major additions to inspect flow and coverage.
+1. Read `research/brief.md` when its current content is not already available.
+2. Identify the strongest supported lead and draft the sections with the clearest evidence first.
+3. After meaningful additions, ask whether the prose exposed a factual gap, a weak storyline, or a stronger callback. Resolve only the gaps that matter to the article.
+4. Create a coherent Markdown draft at one stable path, or continue from the current draft content and revision.
+5. Read an artifact again only when its current state is unknown or when a full-document review is needed.
 6. Use exact `edit_artifact` replacements for local improvements. For a full rewrite, replace the complete current content using its current revision.
-7. Switch to `verification` when the draft is complete.
+7. When the draft is complete, perform a claim-level audit. Load `verification` if its detailed checklist would improve that audit.
 
 ## Writing Standards
 
@@ -67,4 +69,4 @@ Use stable, descriptive Markdown headings for article sections, such as:
 - Playoff picture
 - Closing
 
-Before switching to verification, make sure each required outline fact appears in the article and the document has a coherent opening, body, and close.
+Before submission, make sure each required outline fact appears in the article and the document has a coherent opening, body, and close.
