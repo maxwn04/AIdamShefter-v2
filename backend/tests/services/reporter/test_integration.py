@@ -188,7 +188,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                 tool_calls=[
                     tool_call(
                         "read_artifact",
-                        {"path": "research/brief.md"},
+                        {"path": "research_brief.md"},
                         "call_3",
                     )
                 ]
@@ -198,7 +198,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                     tool_call(
                         "edit_artifact",
                         {
-                            "path": "research/brief.md",
+                            "path": "research_brief.md",
                             "old_text": "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
                             "new_text": (
                                 "- Team Taco beat Waiver Wire 142.3-98.7.\n"
@@ -217,7 +217,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                     tool_call(
                         "edit_artifact",
                         {
-                            "path": "research/brief.md",
+                            "path": "research_brief.md",
                             "old_text": "<!-- INSERT STORYLINES ABOVE THIS LINE -->",
                             "new_text": (
                                 "- Taco Takes Control: Team Taco paired a blowout "
@@ -298,18 +298,18 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert output.submitted_path == "article.md"
     assert tuple(artifact.path for artifact in output.artifacts) == (
         "article.md",
-        "research/brief.md",
+        "research_brief.md",
     )
     assert artifacts["article.md"].revision == 2
     assert "improved to 7-1" in artifacts["article.md"].content
     assert "moved to 7-1" not in artifacts["article.md"].content
     assert len(artifacts["article.md"].content_hash) == 64
-    assert artifacts["research/brief.md"].revision == 3
-    assert "League ID: league_123" in artifacts["research/brief.md"].content
+    assert artifacts["research_brief.md"].revision == 3
+    assert "League ID: league_123" in artifacts["research_brief.md"].content
     assert "Team Taco beat Waiver Wire 142.3-98.7" in artifacts[
-        "research/brief.md"
+        "research_brief.md"
     ].content
-    assert "Taco Takes Control" in artifacts["research/brief.md"].content
+    assert "Taco Takes Control" in artifacts["research_brief.md"].content
     assert output.run_log_summary["submitted"] is True
     assert output.run_log_summary["total_turns"] == 9
     assert output.run_log_summary["procedures_loaded"] == [
@@ -342,13 +342,13 @@ def test_generate_article_end_to_end_tool_loop() -> None:
             for mutation in recorder.artifact_mutations
             if mutation.path == path
         ]
-        for path in ("research/brief.md", "article.md")
+        for path in ("research_brief.md", "article.md")
     }
-    assert [item.revision for item in histories["research/brief.md"]] == [1, 2, 3]
-    assert histories["research/brief.md"][0].source_tool_call_id is None
+    assert [item.revision for item in histories["research_brief.md"]] == [1, 2, 3]
+    assert histories["research_brief.md"][0].source_tool_call_id is None
     assert [item.revision for item in histories["article.md"]] == [1, 2]
     tool_mutations = (
-        histories["research/brief.md"][1:] + histories["article.md"]
+        histories["research_brief.md"][1:] + histories["article.md"]
     )
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
@@ -440,7 +440,7 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
                 tool_calls=[
                     tool_call(
                         "read_artifact",
-                        {"path": "research/brief.md"},
+                        {"path": "research_brief.md"},
                         "call_2",
                     )
                 ]
@@ -460,7 +460,7 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
                     tool_call(
                         "edit_artifact",
                         {
-                            "path": "research/brief.md",
+                            "path": "research_brief.md",
                             "old_text": "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
                             "new_text": (
                                 "- Team Taco was 7-1 after week 8.\n\n"
@@ -517,7 +517,7 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
     ]
     artifacts = {artifact.path: artifact for artifact in output.artifacts}
     assert output.submitted_path == "article.md"
-    assert artifacts["research/brief.md"].revision == 2
-    assert "Team Taco was 7-1" in artifacts["research/brief.md"].content
+    assert artifacts["research_brief.md"].revision == 2
+    assert "Team Taco was 7-1" in artifacts["research_brief.md"].content
     assert artifacts["article.md"].revision == 1
     assert "Team Taco was 7-1" in artifacts["article.md"].content

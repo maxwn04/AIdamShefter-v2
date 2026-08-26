@@ -182,7 +182,7 @@ Changes from Reporter V2 are intentionally limited:
   generation workflow.
 
 The reporter continues to own registry construction, prompt building,
-`research/brief.md` seeding, runner construction, and `ReporterOutput` assembly.
+`research_brief.md` seeding, runner construction, and `ReporterOutput` assembly.
 
 The output selects the submitted artifact and returns one complete current
 snapshot for every artifact in deterministic path order:
@@ -234,7 +234,7 @@ connection, a source client, or the snapshot artifact path separately.
 Reporter V2 currently seeds structured brief league metadata and resolves
 roster keys via private SQLite access. That cannot continue. The new runtime
 already supplies league display data through curated snapshot results, but the
-exact non-tool metadata contract used to seed `research/brief.md` must be made
+exact non-tool metadata contract used to seed `research_brief.md` must be made
 public or supplied by `GenerationService`.
 
 Typed memory proposals involving a team require durable `franchise_id` or
@@ -385,7 +385,7 @@ submit_artifact(path, expected_revision)
 
 Artifacts use `text/markdown`. Paths are normalized relative logical names, not
 host filesystem paths. The reporter may use defaults such as
-`research/brief.md` and `article.md`, but owns those names and may select another
+`research_brief.md` and `article.md`, but owns those names and may select another
 publishable path. `create_artifact` rejects an existing path.
 `edit_artifact` succeeds only when `expected_revision` is current and
 `old_text` occurs exactly once; zero or multiple matches are typed tool errors.
@@ -395,7 +395,7 @@ as a new immutable version. There is deliberately no `replace_all` mode.
 `list_artifacts` and `read_artifact` never append versions. Failed mutations and
 content-identical edits do not append versions. Each successful create/edit
 passes its complete snapshot to the recorder with source AI/tool provenance.
-The generator records its seeded `research/brief.md` snapshot as revision 1
+The generator records its seeded `research_brief.md` snapshot as revision 1
 before the first model call, with no source AI call or tool call.
 
 `submit_artifact` accepts any non-empty artifact, requires its expected current

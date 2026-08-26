@@ -86,7 +86,7 @@ within their artifact/generation and finalized artifacts cannot change.
 ### `generation-3` — generic Markdown reporter artifacts
 
 - Refactor only the copied reporter from structured brief/section state to raw
-  UTF-8 Markdown at `research/brief.md` and `article.md`.
+  UTF-8 Markdown at `research_brief.md` and `article.md`.
 - Replace specialized brief/article tools with `list_artifacts`,
   `read_artifact(path)`, `create_artifact(path, content)`,
   `edit_artifact(path, old_text, new_text, expected_revision)`, and

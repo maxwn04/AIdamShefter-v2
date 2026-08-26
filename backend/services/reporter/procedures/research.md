@@ -4,7 +4,7 @@ Use this procedure for substantial discovery, evidence repair, and callback inve
 
 ## Artifact Editing
 
-- Do not read the pre-created brief before initial research merely to inspect an empty workspace. When you have a useful batch of verified material, read `research/brief.md` if you do not already hold its current content and revision.
+- Do not read the pre-created brief before initial research merely to inspect an empty workspace. When you have a useful batch of verified material, read `research_brief.md` if you do not already hold its current content and revision.
 - Add material with `edit_artifact`, passing the current revision and replacing a unique insertion marker with the new Markdown plus the same marker.
 - Batch related facts and callbacks into coherent edits instead of spending one turn per fact. Reuse the content and revision returned by successful artifact operations.
 - If the edit reports a revision conflict or a non-unique match, read the brief again and retry from current content.

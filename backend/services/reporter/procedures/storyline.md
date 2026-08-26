@@ -4,7 +4,7 @@ Use this procedure for deliberate storyline mining and narrative synthesis. Stor
 
 ## Operating Rules
 
-- Read `research/brief.md` when you do not already hold its current content and revision.
+- Read `research_brief.md` when you do not already hold its current content and revision.
 - Every storyline recorded as verified must be supported by existing fact IDs. A promising unsupported angle is a research hypothesis: make the narrow calls needed to prove or reject it before recording it.
 - Storyline summaries may interpret the data, but they must not add new factual claims.
 - Record the outline after the main storylines. If later research changes the facts or storylines, refresh the affected plan in the brief.
@@ -89,7 +89,7 @@ If typed memory proposal tools are available, buffer durable narrative state whe
 - Use `propose_event` for inferred matchup or trade evidence and `propose_trigger` for typed rematch or trade-evaluation callbacks.
 - Use `propose_context_note` for franchise, season, or competition context.
 - Use `propose_fact` for reusable claims. Fact and event proposals are `unverified` or `inferred`; source-backed receipts are not available in this tool version.
-- Record verified callbacks in `research/brief.md` if they were not already saved during research.
+- Record verified callbacks in `research_brief.md` if they were not already saved during research.
 - Proposal results may be referenced by later proposals in the same bundle, but buffered proposals do not appear in `search_memory` and cannot be replaced during the same run.
 
 Persist an arc only if it has either a plausible future callback condition or clear season-long significance. Useful durable arc types include:

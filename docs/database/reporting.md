@@ -234,7 +234,7 @@ describes representation and is immutable after creation; semantic categories
 do not belong in a closed artifact-kind enum.
 
 The reporter initially uses Markdown artifacts with `media_type =
-'text/markdown'`. Names such as `research/brief.md` and `article.md` are
+'text/markdown'`. Names such as `research_brief.md` and `article.md` are
 reporter-owned conventions. Outlines, diagnostics, or future editorial products
 use additional paths without requiring schema or enum changes. A separate
 article table is unnecessary while one successful generation represents one

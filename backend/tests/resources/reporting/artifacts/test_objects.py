@@ -9,10 +9,10 @@ from backend.resources.reporting.artifacts import ArtifactQuery, CreateArtifact
 def test_artifact_identity_normalizes_media_type() -> None:
     command = CreateArtifact(
         generation_id=uuid4(),
-        path="research/brief.md",
+        path="research_brief.md",
         media_type=" Text/Markdown ",
     )
-    assert command.path == "research/brief.md"
+    assert command.path == "research_brief.md"
     assert command.media_type == "text/markdown"
 
 

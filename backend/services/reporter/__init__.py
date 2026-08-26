@@ -13,12 +13,36 @@ from backend.services.reporter.definition import (
     prepare_reporter_definition,
 )
 from backend.services.reporter.generator import generate_article
+from backend.services.reporter.runner.research_brief import (
+    RESEARCH_BRIEF_PATH,
+    BriefBias,
+    BriefContext,
+    BriefFact,
+    BriefMemoryCallback,
+    BriefOutline,
+    BriefReadiness,
+    BriefStoryline,
+    BriefStyle,
+    ResearchBrief,
+    ResearchBriefStore,
+)
 from backend.services.reporter.runner.runner import Runner
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import ProcedureHistoryMode, RunnerConfig
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 __all__ = [
+    "RESEARCH_BRIEF_PATH",
+    "BriefBias",
+    "BriefContext",
+    "BriefFact",
+    "BriefMemoryCallback",
+    "BriefOutline",
+    "BriefReadiness",
+    "BriefStoryline",
+    "BriefStyle",
+    "ResearchBrief",
+    "ResearchBriefStore",
     "ReporterOutput",
     "BiasProfile",
     "ProcedureHistoryMode",

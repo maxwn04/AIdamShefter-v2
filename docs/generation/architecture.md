@@ -266,7 +266,7 @@ separate live identity source.
 The reporter:
 
 - registers generic artifact, procedure, frozen-data, and typed-memory tools;
-- seeds `research/brief.md` with equivalent league/config metadata;
+- seeds `research_brief.md` with equivalent league/config metadata;
 - runs the same turn loop and procedure replacement behavior;
 - records every provider attempt before/after network I/O;
 - records tool calls before/after handler execution;
@@ -349,7 +349,7 @@ one generic model-facing contract:
   any non-empty artifact and ends the reporter loop.
 
 All reporter artifacts are raw UTF-8 Markdown in the initial platform slice.
-Their paths are reporter-owned logical names. `research/brief.md` and
+Their paths are reporter-owned logical names. `research_brief.md` and
 `article.md` remain useful defaults, but persistence and application queries do
 not infer semantic roles from either name. Durable reporting artifacts mirror
 complete snapshots at successful mutation boundaries:
@@ -360,7 +360,7 @@ complete snapshots at successful mutation boundaries:
 | publishable draft artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision regardless of path |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
-The reporter-owned `research/brief.md` seed is persisted as revision 1 before
+The reporter-owned `research_brief.md` seed is persisted as revision 1 before
 the first provider call, without AI-call or tool-call provenance. Subsequent
 reporter edits therefore retain the same revision numbers in memory and in
 durable storage.

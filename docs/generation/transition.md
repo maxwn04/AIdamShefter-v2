@@ -124,7 +124,7 @@ brief tools (`save_fact`, `save_memory_callback`, `save_storyline`,
 - `submit_artifact(path, expected_revision)`.
 
 Run-local artifacts are raw UTF-8 Markdown at reporter-owned logical paths.
-`research/brief.md` and `article.md` remain useful prompt defaults, not durable
+`research_brief.md` and `article.md` remain useful prompt defaults, not durable
 application roles. `edit_artifact` is a revision-checked literal
 find-and-replace: `old_text` must occur exactly once, and there is no
 `replace_all` mode. Successful creates and edits record complete immutable
@@ -183,7 +183,7 @@ state or weakened validation.
 | `save_storyline_trigger` | `propose_trigger` / `replace_trigger` | Replaced by discriminated rematch/trade-evaluation operations |
 | `mark_memory_used` | No canonical capability | Removed; no access-history state is synthesized |
 | `plan_memory_verification` | Reporter procedure guidance | Removed; the reporter plans frozen-data verification directly |
-| `record_memory_verification` | Run-local Markdown brief | Removed; verified callbacks remain in `research/brief.md` |
+| `record_memory_verification` | Run-local Markdown brief | Removed; verified callbacks remain in `research_brief.md` |
 
 ### Legacy persistent tools
 

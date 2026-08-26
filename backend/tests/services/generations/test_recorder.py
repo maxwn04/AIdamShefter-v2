@@ -308,7 +308,7 @@ def test_recorder_persists_seed_and_tool_mutations_with_exact_provenance() -> No
     generation_id = uuid4()
     recorder, _, _, _, artifacts, versions = make_recorder(generation_id)
     seed = ArtifactMutation(
-        path="research/brief.md",
+        path="research_brief.md",
         media_type="text/markdown",
         content="# Brief",
         revision=1,
@@ -345,7 +345,7 @@ def test_recorder_persists_seed_and_tool_mutations_with_exact_provenance() -> No
         )
     )
     edited = ArtifactMutation(
-        path="research/brief.md",
+        path="research_brief.md",
         media_type="text/markdown",
         content="# Brief\n\nFact",
         revision=2,

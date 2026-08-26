@@ -102,7 +102,7 @@ async def generate_article(
     league_id, league_name = _get_league_metadata(data)
     artifacts = ArtifactStore()
     artifacts.create(
-        "research/brief.md",
+        "research_brief.md",
         _build_brief_seed(
             config,
             league_id=league_id,

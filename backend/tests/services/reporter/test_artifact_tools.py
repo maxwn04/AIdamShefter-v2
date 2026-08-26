@@ -72,10 +72,10 @@ def test_create_list_and_read_artifacts() -> None:
     ctx = make_ctx()
 
     created = decode(
-        create_artifact(ctx, path="research/brief.md", content="# Brief")
+        create_artifact(ctx, path="research_brief.md", content="# Brief")
     )
     listed = decode(list_artifacts(ctx))
-    read = decode(read_artifact(ctx, path="research/brief.md"))
+    read = decode(read_artifact(ctx, path="research_brief.md"))
 
     assert created["ok"] is True
     assert created["artifact"]["revision"] == 1
@@ -86,7 +86,7 @@ def test_create_list_and_read_artifacts() -> None:
         "artifact_count": 1,
         "artifacts": [
             {
-                "path": "research/brief.md",
+                "path": "research_brief.md",
                 "media_type": "text/markdown",
                 "revision": 1,
                 "content_hash": created["artifact"]["content_hash"],
