@@ -95,7 +95,7 @@ flowchart LR
   revision-checked `submit_artifact`.
 - Use raw UTF-8 Markdown artifacts; mirror each successful mutation to an
   immutable version and finalize by selecting existing versions rather than
-  writing final copies. Paths such as `research/brief.md` and `article.md` are
+  writing final copies. Paths such as `research_brief.md` and `article.md` are
   reporter-owned conventions, never application query keys.
 - Store the exact submitted finalized artifact version on the generation. The
   application discovers generated articles through this pointer, independently

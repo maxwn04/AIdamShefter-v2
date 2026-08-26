@@ -37,11 +37,19 @@ class ArtifactStore(BaseModel):
     """In-memory Markdown workspace keyed by safe artifact path."""
 
     artifacts: dict[str, WorkingArtifact] = Field(default_factory=dict)
+    managed_paths: frozenset[str] = Field(default_factory=frozenset)
     submitted_path: str | None = None
 
     @model_validator(mode="after")
     def _validate_workspace(self) -> ArtifactStore:
         folded_paths: set[str] = set()
+        folded_managed_paths: set[str] = set()
+        for path in self.managed_paths:
+            validate_artifact_path(path)
+            folded = path.casefold()
+            if folded in folded_managed_paths:
+                raise ValueError("managed artifact paths must be unique ignoring case")
+            folded_managed_paths.add(folded)
         for key, artifact in self.artifacts.items():
             validate_artifact_path(key)
             if key != artifact.path:
@@ -75,6 +83,7 @@ class ArtifactStore(BaseModel):
         on_change: Callable[[ArtifactSnapshot], None] | None = None,
     ) -> ArtifactSnapshot:
         normalized = self._normalize_path(path)
+        self._require_generic_path(normalized)
         collision = self._casefold_collision(normalized)
         if collision is not None:
             raise ArtifactStoreError(
@@ -104,6 +113,7 @@ class ArtifactStore(BaseModel):
         on_change: Callable[[ArtifactSnapshot], None] | None = None,
     ) -> tuple[ArtifactSnapshot, bool]:
         normalized = self._normalize_path(path)
+        self._require_generic_path(normalized)
         artifact = self._get(normalized)
         self._check_revision(artifact, expected_revision)
         if artifact.finalized_revision is not None:
@@ -153,6 +163,7 @@ class ArtifactStore(BaseModel):
 
     def submit(self, path: str, *, expected_revision: int) -> ArtifactSnapshot:
         normalized = self._normalize_path(path)
+        self._require_generic_path(normalized)
         artifact = self._get(normalized)
         self._check_revision(artifact, expected_revision)
         if artifact.finalized_revision is not None:
@@ -181,6 +192,62 @@ class ArtifactStore(BaseModel):
         artifact.finalized_revision = artifact.current.revision
         self.submitted_path = normalized
         return artifact.final
+
+    def sync_managed(
+        self,
+        path: str,
+        content: str,
+        *,
+        on_change: Callable[[ArtifactSnapshot], None] | None = None,
+    ) -> tuple[ArtifactSnapshot, bool]:
+        """Create or replace a runtime-owned artifact as one atomic mutation."""
+        normalized = self._normalize_path(path)
+        managed_path = self._managed_collision(normalized)
+        if managed_path is None:
+            raise ArtifactStoreError(
+                "artifact_not_managed",
+                f"Artifact is not runtime-managed: {normalized}",
+                path=normalized,
+            )
+        if managed_path != normalized:
+            raise ArtifactStoreError(
+                "invalid_path",
+                f"Managed artifact path casing must match: {managed_path}",
+                path=normalized,
+                managed_path=managed_path,
+            )
+
+        artifact = self.artifacts.get(normalized)
+        if artifact is None:
+            created = WorkingArtifact.create(path=normalized, content=content)
+            self.artifacts[normalized] = created
+            try:
+                if on_change is not None:
+                    on_change(created.current)
+            except Exception:
+                del self.artifacts[normalized]
+                raise
+            return created.current, True
+
+        if artifact.finalized_revision is not None:
+            raise ArtifactStoreError(
+                "artifact_finalized",
+                f"Managed artifact cannot change after finalization: {normalized}",
+                path=normalized,
+                current_revision=artifact.current.revision,
+            )
+        if artifact.current.content == content:
+            return artifact.current, False
+
+        previous_snapshots = artifact.snapshots
+        snapshot = artifact.append(content)
+        try:
+            if on_change is not None:
+                on_change(snapshot)
+        except Exception:
+            artifact.snapshots = previous_snapshots
+            raise
+        return snapshot, True
 
     @property
     def submitted_artifact(self) -> ArtifactSnapshot | None:
@@ -211,6 +278,23 @@ class ArtifactStore(BaseModel):
             (existing for existing in self.artifacts if existing.casefold() == folded),
             None,
         )
+
+    def _managed_collision(self, path: str) -> str | None:
+        folded = path.casefold()
+        return next(
+            (managed for managed in self.managed_paths if managed.casefold() == folded),
+            None,
+        )
+
+    def _require_generic_path(self, path: str) -> None:
+        managed = self._managed_collision(path)
+        if managed is not None:
+            raise ArtifactStoreError(
+                "managed_artifact",
+                f"Artifact is runtime-managed and cannot be changed directly: {managed}",
+                path=path,
+                managed_path=managed,
+            )
 
     @staticmethod
     def _check_revision(

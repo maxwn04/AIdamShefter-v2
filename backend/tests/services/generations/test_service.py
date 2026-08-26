@@ -222,7 +222,7 @@ class FakeReporter:
         if self.exercise_recorder:
             kwargs["recorder"].record_artifact_mutation(
                 ArtifactMutation(
-                    path="research/brief.md",
+                    path="research_brief.md",
                     media_type="text/markdown",
                     content="brief",
                     revision=1,

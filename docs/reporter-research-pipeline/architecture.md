@@ -62,14 +62,14 @@ brief state. Tool handlers are the only model-facing mutation boundary.
 
 ### `ResearchBriefRenderer` (M1)
 
-Deterministically renders current structured state to `research/brief.md`. The
+Deterministically renders current structured state to `research_brief.md`. The
 projection is included in reporter output and logs for observability, but is not an
 independent writable artifact.
 
 ### `ArtifactStore` (existing)
 
 Continues to own generic Markdown artifacts, especially candidate and selected
-articles. It reserves `research/brief.md` for the renderer.
+articles. It reserves `research_brief.md` for the renderer.
 
 ### `MemoryCurator` (M2)
 
@@ -92,7 +92,8 @@ workflow state machine.
    context as it does today.
 2. The runner creates an empty in-memory `ResearchBriefStore` and reserves the
    rendered brief path. It does not create an empty generic artifact that the
-   model must load and read.
+   model must load and read. The projection is materialized only by the first
+   successful brief mutation.
 3. The agent explores data and memory adaptively. Verified findings are captured
    through brief tools at the point they become useful.
 4. Every successful brief mutation validates references, updates readiness or
@@ -128,8 +129,8 @@ choice must preserve a successful article when curation fails.
 - A projection/render failure makes the originating brief mutation fail
   atomically.
 - Generic artifact operations targeting the reserved brief path fail clearly.
-- Missing brief readiness is visible at submission. The exact hard/soft submission
-  policy is contract-tested rather than inferred from procedure order.
+- Submission fails when no verified fact exists. Other readiness warnings remain
+  diagnostic and never impose a fixed procedure sequence.
 - Reporter failure and retry continue to follow the generation service's existing
   lifecycle.
 

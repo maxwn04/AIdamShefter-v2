@@ -16,7 +16,7 @@ Use this procedure for sustained composition and revision of the publishable art
 
 ## Drafting Flow
 
-1. Read `research/brief.md` when its current content is not already available.
+1. Read `research_brief.md` when its current content is not already available.
 2. Identify the strongest supported lead and draft the sections with the clearest evidence first.
 3. After meaningful additions, ask whether the prose exposed a factual gap, a weak storyline, or a stronger callback. Resolve only the gaps that matter to the article.
 4. Create a coherent Markdown draft at one stable path, or continue from the current draft content and revision.

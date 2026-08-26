@@ -13,7 +13,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "2"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "3"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -35,7 +35,7 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Relative POSIX .md path, such as research/brief.md.",
+                        "description": "Relative POSIX .md path, such as research_brief.md.",
                     }
                 },
                 "required": ["path"],

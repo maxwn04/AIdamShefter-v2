@@ -116,7 +116,7 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
     seed_content = "# Brief"
     seed_version_id = recorder.record_artifact_mutation(
         ArtifactMutation(
-            path="research/brief.md",
+            path="research_brief.md",
             media_type="text/markdown",
             content=seed_content,
             revision=1,
@@ -164,7 +164,7 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
     edited_content = "# Brief\n\nVerified fact."
     edited_version_id = recorder.record_artifact_mutation(
         ArtifactMutation(
-            path="research/brief.md",
+            path="research_brief.md",
             media_type="text/markdown",
             content=edited_content,
             revision=2,

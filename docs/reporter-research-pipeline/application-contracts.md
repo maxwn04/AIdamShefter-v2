@@ -5,7 +5,7 @@
 - **Research brief:** runtime-owned typed state for verified research. Owned by the
   reporter runner for one run.
 - **Brief projection:** deterministic Markdown rendering of the research brief at
-  `research/brief.md`. Owned by the brief renderer.
+  `research_brief.md`. Owned by the brief renderer.
 - **Article artifact:** model-authored Markdown eligible for submission. Owned by
   the existing artifact store.
 - **Source reference:** traceable description of the data or memory read that
@@ -22,16 +22,11 @@ The exact Python representation may use frozen dataclasses, Pydantic models, or 
 repository's established schema mechanism, but it must preserve these semantics.
 
 ```text
-BriefSourceRef
-  tool_name: non-empty string
-  arguments: normalized mapping
-  result_ref: optional receipt/result identifier
-
 BriefFact
   id: stable run-local identifier
   claim: non-empty factual statement
   category: non-empty string
-  sources: one or more BriefSourceRef
+  data_refs: one or more unique non-empty trace strings
   numbers: optional normalized mapping
 
 BriefCallback
@@ -61,27 +56,26 @@ Model-facing tool capabilities are:
 - `save_memory_callback`
 - `save_storyline`
 - `set_outline`
-- `set_style`
-- `set_bias`
 - `read_brief`
 
 Names may be adjusted to local conventions, but handlers must remain specialized
 typed operations. A generic `write_brief_markdown` capability is not equivalent.
 
 The existing generic artifact capabilities remain available for article creation
-and revision. They must reject the reserved `research/brief.md` path.
+and revision. They must reject the reserved `research_brief.md` path.
 
 ## M1 Lifecycle and State Transitions
 
-1. A run starts with a new empty `ResearchBrief` revision and no model-authored
-   brief artifact.
+1. A run starts with a new empty `ResearchBrief` revision and no brief artifact.
 2. Successful brief mutations increment the revision, recompute readiness and
    dependent staleness, render the projection, and emit research-log metadata.
 3. Failed mutations leave the revision and projection unchanged.
-4. Article artifacts may be created or revised at any brief revision.
-5. Submission selects a non-empty article artifact and captures the final brief
-   revision/readiness in reporter output.
-6. A run-scoped brief is immutable after reporter completion.
+4. The first successful mutation creates revision 1 of `research_brief.md`;
+   `read_brief` at revision 0 does not materialize it.
+5. Article artifacts may be created or revised at any brief revision.
+6. Submission requires at least one verified fact, selects a non-empty article
+   artifact, and captures the final brief revision/readiness in reporter output.
+7. A run-scoped brief is immutable after reporter completion.
 
 Idempotent replay of the same normalized mutation returns the existing logical
 item or a no-op result instead of adding a duplicate.
@@ -96,8 +90,9 @@ item or a no-op result instead of adding a duplicate.
   requires it to be updated; stale dependencies cannot silently appear ready.
 - The rendered projection is a deterministic function of the structured brief and
   revision.
-- Generic artifact operations cannot mutate, submit, or shadow the brief
+- Generic artifact operations cannot create, mutate, submit, or shadow the brief
   projection.
+- Style and bias are immutable values resolved from `ReportConfig`.
 - Procedures do not gate brief, data, memory, artifact, or submission tools.
 - Bias changes framing and emphasis only; it cannot alter factual brief state.
 - The selected article remains the publishable output. The brief remains research
@@ -120,9 +115,11 @@ exceptions.
 
 ## Compatibility and Transition
 
-- Reporter output continues to expose `research/brief.md` among observable
+- Reporter output exposes `research_brief.md` among observable
   artifacts, but its producer changes from the model-facing generic artifact store
   to the renderer.
+- Historical generations that stored `research/brief.md` remain unchanged and
+  readable through the generic artifact API; new runs use only the flat path.
 - Article artifact selection, run persistence, streaming events, and generation
   API shapes remain compatible.
 - Existing direct memory proposal/finalization behavior remains unchanged during
@@ -136,11 +133,12 @@ exceptions.
 Focused tests must cover:
 
 - schema validation and stable/idempotent identifiers;
-- fact, callback, storyline, outline, style, and bias mutations;
+- fact, callback, storyline, and outline mutations plus config-owned style/bias;
 - cross-reference rejection and dependent staleness;
 - deterministic projection at every successful revision;
 - atomic behavior when projection fails;
-- rejection of generic artifact operations on `research/brief.md`;
+- rejection of generic artifact operations on `research_brief.md`;
+- rejection of article submission before at least one verified fact exists;
 - compatible reporter output and article selection;
 - adaptive interleaving and backtracking without procedure gating;
 - no empty seed-artifact create/read turns; and

@@ -50,7 +50,7 @@ It does not change the datalayer, generation job lifecycle, or the legacy
   what to investigate next; typed tools preserve what has been verified.
 - The structured brief is the source of truth for research state. Generic artifact
   text must never be parsed back into authoritative facts.
-- `research/brief.md` is a runtime-rendered projection. Generic artifact tools
+- `research_brief.md` is a runtime-rendered projection. Generic artifact tools
   cannot create, edit, delete, submit, or replace it.
 - The article remains a generic Markdown artifact so the writer retains freedom
   over form, tone, and revision strategy.
@@ -61,6 +61,10 @@ It does not change the datalayer, generation job lifecycle, or the legacy
   existing deterministic validator/finalizer and never writes memory directly.
 - Reporter memory search remains available during research; curation is not a
   substitute for loading relevant historical context.
+- Style and bias are initialized from `ReportConfig` and remain immutable within
+  the brief; the agent does not spend turns restating them.
+- Submission requires at least one verified fact. Storyline, callback, and outline
+  readiness remain visible diagnostics rather than rigid workflow gates.
 
 ## Non-Goals
 

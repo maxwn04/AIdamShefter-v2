@@ -195,7 +195,7 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
     assert "interleavable activities" in copied_message
     assert "fixed sequence" in copied_message
     assert copied_system_prompt() != legacy_system_prompt()
-    assert "research/brief.md" in copied_system_prompt()
+    assert "research_brief.md" in copied_system_prompt()
     assert "submit_artifact" in copied_system_prompt()
 
     copied_artifact_names = [
@@ -279,7 +279,7 @@ def test_generator_preserves_article_result_across_artifact_contract_divergence(
     assert copied.submitted_path == "article.md"
     assert [artifact.path for artifact in copied.artifacts] == [
         "article.md",
-        "research/brief.md",
+        "research_brief.md",
     ]
     assert copied.artifacts[0].revision == 1
     assert "# Research Brief" in copied.artifacts[1].content

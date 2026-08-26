@@ -106,7 +106,7 @@ def test_list_orders_paths_and_filters_finalized_artifacts(
     generation_domain: GenerationDomain,
 ) -> None:
     _, generation_id = _create_running(session_factory, generation_domain)
-    _create(artifact_manager, generation_id, path="research/brief.md")
+    _create(artifact_manager, generation_id, path="research_brief.md")
     article = _create(artifact_manager, generation_id)
     version_manager = ArtifactVersionManager(
         session_factory, generation_context(generation_domain)
@@ -131,7 +131,7 @@ def test_list_orders_paths_and_filters_finalized_artifacts(
     page = artifact_manager.list(ArtifactQuery(generation_id=generation_id))
     assert [item.path for item in page.items] == [
         "article.md",
-        "research/brief.md",
+        "research_brief.md",
     ]
     assert page.items[0].revision_count == 2
     assert page.items[0].latest_version_at == version.created_at

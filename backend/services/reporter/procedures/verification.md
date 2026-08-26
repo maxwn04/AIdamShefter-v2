@@ -1,6 +1,6 @@
 # Verification Procedure
 
-Use this procedure for a detailed claim-level audit of the chosen publishable draft against `research/brief.md`. Verification is usually the last activity before submission, but it is not a one-way terminal phase: follow important gaps into targeted research, storyline repair, or redrafting, then resume the audit.
+Use this procedure for a detailed claim-level audit of the chosen publishable draft against `research_brief.md`. Verification is usually the last activity before submission, but it is not a one-way terminal phase: follow important gaps into targeted research, storyline repair, or redrafting, then resume the audit.
 
 ## Operating Rules
 

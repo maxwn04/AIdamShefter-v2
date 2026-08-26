@@ -22,7 +22,7 @@ from backend.services.reporter.runner.state import (
 
 
 def test_working_artifact_keeps_immutable_snapshot_history() -> None:
-    artifact = WorkingArtifact.create(path="research/brief.md", content="# Brief")
+    artifact = WorkingArtifact.create(path="research_brief.md", content="# Brief")
     first = artifact.current
 
     second = artifact.append("# Brief\n\nMore evidence.")
@@ -80,7 +80,7 @@ def test_artifact_store_create_read_list_and_casefold_collision() -> None:
     store = ArtifactStore()
 
     article = store.create("article.md", "# Article")
-    brief = store.create("research/brief.md", "# Brief")
+    brief = store.create("research_brief.md", "# Brief")
 
     assert store.read("article.md") is article
     assert store.list() == (article, brief)
@@ -159,7 +159,7 @@ def test_submit_pins_existing_current_snapshot_without_new_revision() -> None:
 
 def test_reporter_output_exposes_submitted_content_and_all_artifacts() -> None:
     store = ArtifactStore()
-    store.create("research/brief.md", "# Brief")
+    store.create("research_brief.md", "# Brief")
     store.create("article.md", "# Article")
     store.submit("article.md", expected_revision=1)
 
@@ -172,7 +172,7 @@ def test_reporter_output_exposes_submitted_content_and_all_artifacts() -> None:
     assert output.submitted_artifact == store.submitted_artifact
     assert [artifact.path for artifact in output.artifacts] == [
         "article.md",
-        "research/brief.md",
+        "research_brief.md",
     ]
 
 
