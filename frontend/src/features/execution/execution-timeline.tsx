@@ -489,6 +489,7 @@ function TurnCard({
   selection: ExecutionSelection | null;
   onSelect: (selection: ExecutionSelection) => void;
 }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(true);
   const toolCount = turn.attempts.reduce(
     (total, attempt) => total + (toolsByAICall.get(attempt.id)?.length ?? 0),
     0,
@@ -497,38 +498,60 @@ function TurnCard({
     if (attempt.usage.total_tokens == null) return total;
     return (total ?? 0) + attempt.usage.total_tokens;
   }, null);
+  const regionId = `turn-${String(turn.turnNumber)}-executions`;
 
   return (
     <article className="overflow-hidden rounded-lg border border-border bg-card">
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border bg-muted/30 px-3 py-2.5 sm:px-4">
-        <div className="flex items-baseline gap-3">
-          <h4 className="font-semibold">Turn {turn.turnNumber}</h4>
-          <span className="text-xs text-muted-foreground">
-            <DateTime value={turn.attempts[0]?.started_at ?? ""} />
+      <header
+        className={cn("bg-muted/30", expanded && "border-b border-border")}
+      >
+        <button
+          type="button"
+          className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 py-2.5 text-left outline-none transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4"
+          aria-expanded={expanded}
+          aria-controls={regionId}
+          onClick={() => {
+            setExpanded((current) => !current);
+          }}
+        >
+          <span className="flex items-center gap-2">
+            {expanded ? (
+              <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            <span className="flex items-baseline gap-3">
+              <span className="font-semibold">Turn {turn.turnNumber}</span>
+              <span className="text-xs text-muted-foreground">
+                <DateTime value={turn.attempts[0]?.started_at ?? ""} />
+              </span>
+            </span>
           </span>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {turn.attempts.length}{" "}
-          {turn.attempts.length === 1 ? "attempt" : "attempts"}
-          {toolCount > 0 ? ` · ${String(toolCount)} tools` : ""}
-          {totalTokens === null
-            ? ""
-            : ` · ${new Intl.NumberFormat().format(totalTokens)} tokens`}
-        </p>
+          <span className="text-xs text-muted-foreground">
+            {turn.attempts.length}{" "}
+            {turn.attempts.length === 1 ? "attempt" : "attempts"}
+            {toolCount > 0 ? ` · ${String(toolCount)} tools` : ""}
+            {totalTokens === null
+              ? ""
+              : ` · ${new Intl.NumberFormat().format(totalTokens)} tokens`}
+          </span>
+        </button>
       </header>
-      <ol>
-        {turn.attempts.map((attempt) => (
-          <AICallRow
-            key={attempt.id}
-            competitionId={competitionId}
-            generationId={generationId}
-            summary={attempt}
-            tools={toolsByAICall.get(attempt.id) ?? []}
-            selection={selection}
-            onSelect={onSelect}
-          />
-        ))}
-      </ol>
+      {expanded ? (
+        <ol id={regionId}>
+          {turn.attempts.map((attempt) => (
+            <AICallRow
+              key={attempt.id}
+              competitionId={competitionId}
+              generationId={generationId}
+              summary={attempt}
+              tools={toolsByAICall.get(attempt.id) ?? []}
+              selection={selection}
+              onSelect={onSelect}
+            />
+          ))}
+        </ol>
+      ) : null}
     </article>
   );
 }
