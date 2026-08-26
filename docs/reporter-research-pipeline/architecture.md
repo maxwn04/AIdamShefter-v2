@@ -153,6 +153,13 @@ evaluation should report at least:
 - factual-correction count during verification; and
 - total turns, latency, and token usage.
 
+`ReporterOutput.run_log_summary.brief` provides the run-local M1 summary without
+a database migration. It reports structured and projection revisions, fact,
+callback, storyline, and outline-section counts, stale dependency IDs, readiness
+warnings, and the first successful fact, storyline, draft, and submission turns.
+Those turn metrics come from successful existing artifact-write events, so failed
+tool attempts do not count as milestones.
+
 M2 adds curator outcome, duration, proposal counts, validation rejections, retries,
 and persisted mutation counts.
 

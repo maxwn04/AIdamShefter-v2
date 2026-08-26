@@ -26,6 +26,12 @@ from backend.services.reporter.runner.state import (
     RunnerConfig,
 )
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
+from backend.services.reporter.runner.tools.brief_tools import (
+    save_fact,
+    save_memory_callback,
+    save_storyline,
+    set_outline,
+)
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.procedure_tools import (
     register_procedure_tools,
@@ -209,11 +215,105 @@ def test_runner_simple_text_response() -> None:
     assert output.artifacts == ()
     assert output.run_log_summary["total_turns"] == 1
     assert output.run_log_summary["total_tool_calls"] == 0
+    assert output.run_log_summary["brief"] == {
+        "revision": 0,
+        "projection_revision": None,
+        "fact_count": 0,
+        "callback_count": 0,
+        "storyline_count": 0,
+        "outline_section_count": 0,
+        "stale_callback_ids": [],
+        "stale_storyline_ids": [],
+        "outline_stale": False,
+        "readiness_warnings": [
+            "no_verified_facts",
+            "no_storylines",
+            "no_outline",
+        ],
+        "first_fact_turn": None,
+        "first_storyline_turn": None,
+        "first_draft_turn": None,
+        "submission_turn": None,
+    }
     assert runner.log.entries[0].event_type == "model_text"
     assert complete.requests[0]["messages"][0]["role"] == "system"
     assert complete.requests[0]["messages"][1]["role"] == "user"
     assert complete.requests[0]["model"] is None
     assert "turn_number" not in complete.requests[0]
+
+
+def test_runner_brief_summary_propagates_stale_dependency_warnings() -> None:
+    runner = Runner(
+        ToolRegistry(),
+        complete=FakeCompletion([make_response(text="Done.")]),
+    )
+    ctx = runner.tool_context
+    ctx.turn = 1
+    save_fact(
+        ctx,
+        id="fact_old",
+        claim_text="The Week 3 trade happened.",
+        data_refs=["transactions:week=3"],
+    )
+    ctx.turn = 2
+    save_fact(
+        ctx,
+        id="fact_current",
+        claim_text="The player decided the Week 8 rematch.",
+        data_refs=["team_game:week=8"],
+    )
+    ctx.turn = 3
+    save_memory_callback(
+        ctx,
+        id="callback_trade_regret",
+        callback_type="trade_regret",
+        claim_text="The trade backfired in the rematch.",
+        old_event_fact_id="fact_old",
+        current_event_fact_id="fact_current",
+        why_now="The former player decided the rematch.",
+    )
+    ctx.turn = 4
+    save_storyline(
+        ctx,
+        id="story_trade_regret",
+        headline="The trade comes due",
+        summary="The old move changed the current matchup.",
+        supporting_fact_ids=["fact_old", "fact_current"],
+    )
+    ctx.turn = 5
+    set_outline(
+        ctx,
+        sections=[
+            {
+                "title": "Lead",
+                "required_fact_ids": ["fact_current"],
+                "storyline_ids": ["story_trade_regret"],
+            }
+        ],
+    )
+    ctx.turn = 6
+    save_fact(
+        ctx,
+        id="fact_current",
+        claim_text="The player scored twice in the Week 8 rematch.",
+        data_refs=["team_game:week=8"],
+        numbers={"touchdowns": 2},
+    )
+
+    summary = run(runner.run("system", "user")).run_log_summary["brief"]
+
+    assert summary["revision"] == 6
+    assert summary["projection_revision"] == 6
+    assert summary["stale_callback_ids"] == ["callback_trade_regret"]
+    assert summary["stale_storyline_ids"] == ["story_trade_regret"]
+    assert summary["outline_stale"] is True
+    assert summary["readiness_warnings"] == [
+        "stale_callbacks",
+        "stale_storylines",
+        "stale_outline",
+    ]
+    assert summary["first_fact_turn"] == 1
+    assert summary["first_storyline_turn"] == 4
 
 
 def test_runner_passes_explicit_model_override() -> None:

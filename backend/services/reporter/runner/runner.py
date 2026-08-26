@@ -39,7 +39,10 @@ from backend.services.reporter.runner.recording import (
     ToolExecutionFinish,
     ToolExecutionStart,
 )
-from backend.services.reporter.runner.research_brief import ResearchBriefStore
+from backend.services.reporter.runner.research_brief import (
+    RESEARCH_BRIEF_PATH,
+    ResearchBriefStore,
+)
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import (
@@ -176,6 +179,7 @@ class Runner:
                         for procedure in self.log.procedure_history
                     ],
                     "submitted": self._submitted,
+                    "brief": self._build_brief_summary(),
                 },
                 run_log_entries=[
                     entry.model_dump(mode="json") for entry in self.log.entries
@@ -183,6 +187,48 @@ class Runner:
             )
         finally:
             self.log.stop_streaming()
+
+    def _build_brief_summary(self) -> dict[str, Any]:
+        brief = self.brief.brief
+        readiness = brief.readiness().model_dump(mode="json")
+        projection = self.artifacts.artifacts.get(RESEARCH_BRIEF_PATH)
+        draft_path = self.artifacts.submitted_path
+        first_draft_turn = self.log.first_artifact_write_turn(
+            operations=frozenset({"create_artifact", "edit_artifact"}),
+            artifact=draft_path,
+        )
+        if first_draft_turn is None and draft_path is None:
+            first_draft_turn = self.log.first_artifact_write_turn(
+                operations=frozenset({"create_artifact", "edit_artifact"}),
+                excluded_artifacts=frozenset({RESEARCH_BRIEF_PATH}),
+            )
+        return {
+            "revision": brief.revision,
+            "projection_revision": (
+                projection.current.revision if projection is not None else None
+            ),
+            "fact_count": readiness["fact_count"],
+            "callback_count": readiness["callback_count"],
+            "storyline_count": readiness["storyline_count"],
+            "outline_section_count": readiness["outline_section_count"],
+            "stale_callback_ids": readiness["stale_callback_ids"],
+            "stale_storyline_ids": readiness["stale_storyline_ids"],
+            "outline_stale": readiness["outline_stale"],
+            "readiness_warnings": readiness["warnings"],
+            "first_fact_turn": self.log.first_artifact_write_turn(
+                operations=frozenset({"save_fact"}),
+                artifact=RESEARCH_BRIEF_PATH,
+            ),
+            "first_storyline_turn": self.log.first_artifact_write_turn(
+                operations=frozenset({"save_storyline"}),
+                artifact=RESEARCH_BRIEF_PATH,
+            ),
+            "first_draft_turn": first_draft_turn,
+            "submission_turn": self.log.first_artifact_write_turn(
+                operations=frozenset({"submit_artifact"}),
+                artifact=draft_path,
+            ),
+        }
 
     async def _execute_tool_batch(
         self,

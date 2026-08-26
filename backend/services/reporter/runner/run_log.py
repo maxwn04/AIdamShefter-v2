@@ -145,6 +145,27 @@ class RunLog(BaseModel):
                 )
         return switches
 
+    def first_artifact_write_turn(
+        self,
+        *,
+        operations: frozenset[str],
+        artifact: str | None = None,
+        excluded_artifacts: frozenset[str] = frozenset(),
+    ) -> int | None:
+        """Return the first successful matching artifact-write turn."""
+        for entry in self.entries:
+            if entry.event_type != "artifact_write":
+                continue
+            entry_artifact = entry.data.get("artifact")
+            if entry.data.get("operation") not in operations:
+                continue
+            if artifact is not None and entry_artifact != artifact:
+                continue
+            if entry_artifact in excluded_artifacts:
+                continue
+            return entry.turn
+        return None
+
     def start_streaming(self, path: Path) -> None:
         self._stream_file = open(path, "w", encoding="utf-8")
         self._stream_file.write(f"# Run Log: {self.session_id}\n")

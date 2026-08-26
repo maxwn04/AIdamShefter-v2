@@ -352,6 +352,22 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         "research",
         "verification",
     ]
+    assert output.run_log_summary["brief"] == {
+        "revision": 5,
+        "projection_revision": 5,
+        "fact_count": 3,
+        "callback_count": 0,
+        "storyline_count": 1,
+        "outline_section_count": 1,
+        "stale_callback_ids": [],
+        "stale_storyline_ids": [],
+        "outline_stale": False,
+        "readiness_warnings": [],
+        "first_fact_turn": 3,
+        "first_storyline_turn": 4,
+        "first_draft_turn": 6,
+        "submission_turn": 9,
+    }
     assert any(
         entry["event_type"] == "tool_call"
         and entry["data"]["tool_name"] == "league_snapshot"
