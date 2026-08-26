@@ -39,6 +39,7 @@ from backend.services.reporter.runner.recording import (
     ToolExecutionFinish,
     ToolExecutionStart,
 )
+from backend.services.reporter.runner.research_brief import ResearchBriefStore
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.schemas import ReporterOutput
 from backend.services.reporter.runner.state import (
@@ -72,6 +73,7 @@ class Runner:
         config: RunnerConfig | None = None,
         log_path: Path | None = None,
         artifacts: ArtifactStore | None = None,
+        brief: ResearchBriefStore | None = None,
         recorder: RunnerRecorder | None = None,
     ) -> None:
         if client is not None and complete is not None:
@@ -88,12 +90,14 @@ class Runner:
         self._recorder = recorder
         self.config = config or RunnerConfig()
         self.artifacts = artifacts or ArtifactStore()
+        self.brief = brief or ResearchBriefStore()
         self.procedures = ProcedureState()
         self.log = RunLog()
         self.tool_context = ToolContext(
             artifacts=self.artifacts,
             procedures=self.procedures,
             log=self.log,
+            brief=self.brief,
             artifact_recorder=self._artifact_recorder(recorder),
         )
         self.registry.set_context(self.tool_context)
@@ -162,6 +166,7 @@ class Runner:
             return ReporterOutput(
                 submitted_path=self.artifacts.submitted_path,
                 artifacts=self.artifacts.list(),
+                research_brief=self.brief.brief,
                 run_log_summary={
                     "session_id": self.log.session_id,
                     "total_tool_calls": self.log.tool_call_count,

@@ -89,7 +89,7 @@ def test_procedure_state_updated(tmp_path, monkeypatch) -> None:
     assert ctx.procedures.active == "verification"
 
 
-def test_prompts_reference_only_generic_artifact_tools() -> None:
+def test_prompts_reference_structured_brief_and_generic_article_tools() -> None:
     reporter_root = (
         Path(__file__).parents[4] / "backend" / "services" / "reporter"
     )
@@ -100,13 +100,8 @@ def test_prompts_reference_only_generic_artifact_tools() -> None:
     content = "\n".join(path.read_text(encoding="utf-8") for path in prompt_paths)
 
     removed_tools = {
-        "read_brief",
-        "save_fact",
-        "save_storyline",
         "set_style",
         "set_bias",
-        "set_outline",
-        "save_memory_callback",
         "read_article",
         "write_section",
         "rewrite_section",
@@ -115,6 +110,15 @@ def test_prompts_reference_only_generic_artifact_tools() -> None:
     }
     for tool_name in removed_tools:
         assert re.search(rf"`{re.escape(tool_name)}(?:`|\()", content) is None
+
+    for tool_name in {
+        "read_brief",
+        "save_fact",
+        "save_storyline",
+        "set_outline",
+        "save_memory_callback",
+    }:
+        assert f"`{tool_name}" in content
 
     for tool_name in {
         "list_artifacts",

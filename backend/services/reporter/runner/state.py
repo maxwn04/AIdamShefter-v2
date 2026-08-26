@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
+from backend.services.reporter.runner.research_brief import RESEARCH_BRIEF_PATH
 from backend.services.reporter.runner.schemas import (
     ArtifactSnapshot,
     WorkingArtifact,
@@ -37,7 +38,9 @@ class ArtifactStore(BaseModel):
     """In-memory Markdown workspace keyed by safe artifact path."""
 
     artifacts: dict[str, WorkingArtifact] = Field(default_factory=dict)
-    managed_paths: frozenset[str] = Field(default_factory=frozenset)
+    managed_paths: frozenset[str] = Field(
+        default_factory=lambda: frozenset({RESEARCH_BRIEF_PATH})
+    )
     submitted_path: str | None = None
 
     @model_validator(mode="after")

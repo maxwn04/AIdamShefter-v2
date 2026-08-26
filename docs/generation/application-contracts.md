@@ -182,7 +182,8 @@ Changes from Reporter V2 are intentionally limited:
   generation workflow.
 
 The reporter continues to own registry construction, prompt building,
-`research_brief.md` seeding, runner construction, and `ReporterOutput` assembly.
+structured brief initialization and projection, runner construction, and
+`ReporterOutput` assembly.
 
 The output selects the submitted artifact and returns one complete current
 snapshot for every artifact in deterministic path order:
@@ -199,6 +200,7 @@ class ArtifactSnapshot(BaseModel, frozen=True):
 class ReporterOutput(BaseModel, frozen=True):
     submitted_path: str | None
     artifacts: tuple[ArtifactSnapshot, ...]
+    research_brief: ResearchBrief
 ```
 
 `ReporterOutput` can represent an unsubmitted diagnostic result, but generation
@@ -231,11 +233,11 @@ connection, a source client, or the snapshot artifact path separately.
 
 ### Required metadata/identity seam
 
-Reporter V2 currently seeds structured brief league metadata and resolves
+Reporter V2 currently initializes structured brief league metadata and resolves
 roster keys via private SQLite access. That cannot continue. The new runtime
 already supplies league display data through curated snapshot results, but the
-exact non-tool metadata contract used to seed `research_brief.md` must be made
-public or supplied by `GenerationService`.
+exact non-tool metadata contract used to initialize `ResearchBrief` must be
+made public or supplied by `GenerationService`.
 
 Typed memory proposals involving a team require durable `franchise_id` or
 `season_roster_id`. Snapshot projection v2 stores one exact core identity for
@@ -384,9 +386,10 @@ submit_artifact(path, expected_revision)
 ```
 
 Artifacts use `text/markdown`. Paths are normalized relative logical names, not
-host filesystem paths. The reporter may use defaults such as
-`research_brief.md` and `article.md`, but owns those names and may select another
-publishable path. `create_artifact` rejects an existing path.
+host filesystem paths. The runtime reserves `research_brief.md` as a managed
+projection; generic create, edit, and submit operations reject that path. The
+reporter may use `article.md` or another non-managed path for the publishable
+artifact. `create_artifact` rejects an existing path.
 `edit_artifact` succeeds only when `expected_revision` is current and
 `old_text` occurs exactly once; zero or multiple matches are typed tool errors.
 It performs one literal replacement and appends the resulting complete content
@@ -395,13 +398,16 @@ as a new immutable version. There is deliberately no `replace_all` mode.
 `list_artifacts` and `read_artifact` never append versions. Failed mutations and
 content-identical edits do not append versions. Each successful create/edit
 passes its complete snapshot to the recorder with source AI/tool provenance.
-The generator records its seeded `research_brief.md` snapshot as revision 1
-before the first model call, with no source AI call or tool call.
+The structured brief starts at revision 0 without an artifact. Its first
+successful changed mutation creates `research_brief.md` revision 1 with that
+brief tool call's provenance; later changed mutations advance state and
+projection atomically.
 
 `submit_artifact` accepts any non-empty artifact, requires its expected current
-revision, records no content version, and ends the reporter loop. The resulting
-`ReporterOutput` contains `submitted_path` plus current snapshots of all
-artifacts. Generation finalization finalizes that artifact and sets
+revision, and additionally requires at least one verified brief fact. It records
+no content version and ends the reporter loop. The resulting `ReporterOutput`
+contains `submitted_path`, current snapshots of all artifacts, and the typed
+`research_brief`. Generation finalization finalizes that artifact and sets
 `generation.submitted_artifact_version_id` to the same existing version. It
 never appends a distinct final copy or mutates an artifact version in place.
 

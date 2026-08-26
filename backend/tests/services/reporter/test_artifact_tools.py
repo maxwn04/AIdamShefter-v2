@@ -39,13 +39,20 @@ class ArtifactRecordingProbe:
 def make_ctx(
     recorder: ArtifactRecordingProbe | None = None,
 ) -> ToolContext:
-    return ToolContext(
+    ctx = ToolContext(
         artifacts=ArtifactStore(),
         procedures=ProcedureState(),
         log=RunLog(session_id="testlog"),
         turn=3,
         artifact_recorder=recorder,
     )
+    mutation = ctx.brief.prepare_fact(
+        id="fact_submission_fixture",
+        claim_text="A verified fixture fact.",
+        data_refs=["test_fixture"],
+    )
+    ctx.brief.commit(mutation, lambda _: None)
+    return ctx
 
 
 def decode(result: str) -> dict:
@@ -72,10 +79,10 @@ def test_create_list_and_read_artifacts() -> None:
     ctx = make_ctx()
 
     created = decode(
-        create_artifact(ctx, path="research_brief.md", content="# Brief")
+        create_artifact(ctx, path="notes.md", content="# Notes")
     )
     listed = decode(list_artifacts(ctx))
-    read = decode(read_artifact(ctx, path="research_brief.md"))
+    read = decode(read_artifact(ctx, path="notes.md"))
 
     assert created["ok"] is True
     assert created["artifact"]["revision"] == 1
@@ -86,7 +93,7 @@ def test_create_list_and_read_artifacts() -> None:
         "artifact_count": 1,
         "artifacts": [
             {
-                "path": "research_brief.md",
+                "path": "notes.md",
                 "media_type": "text/markdown",
                 "revision": 1,
                 "content_hash": created["artifact"]["content_hash"],
@@ -98,6 +105,32 @@ def test_create_list_and_read_artifacts() -> None:
     assert read["artifact"] == created["artifact"]
     assert read["revision_count"] == 1
     assert read["finalized_revision"] is None
+
+
+def test_managed_brief_path_rejects_generic_mutations() -> None:
+    ctx = make_ctx()
+
+    result = decode(
+        create_artifact(ctx, path="research_brief.md", content="# Brief")
+    )
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "managed_artifact"
+
+
+def test_submit_requires_at_least_one_verified_fact() -> None:
+    ctx = ToolContext(
+        artifacts=ArtifactStore(),
+        procedures=ProcedureState(),
+        log=RunLog(),
+    )
+    create_artifact(ctx, path="article.md", content="# Article")
+
+    result = decode(submit_artifact(ctx, path="article.md", expected_revision=1))
+
+    assert result["ok"] is False
+    assert result["error"]["code"] == "brief_not_ready"
+    assert ctx.artifacts.submitted_path is None
 
 
 def test_invalid_path_and_duplicate_return_structured_errors() -> None:

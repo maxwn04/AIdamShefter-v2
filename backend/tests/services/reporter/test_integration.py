@@ -187,26 +187,60 @@ def test_generate_article_end_to_end_tool_loop() -> None:
             make_response(
                 tool_calls=[
                     tool_call(
-                        "read_artifact",
-                        {"path": "research_brief.md"},
-                        "call_3",
-                    )
+                        "save_fact",
+                        {
+                            "id": "fact_taco_win",
+                            "claim_text": (
+                                "Team Taco beat Waiver Wire 142.3-98.7 in week 8."
+                            ),
+                            "data_refs": ["league_snapshot:week=8"],
+                            "numbers": {
+                                "winner_points": 142.3,
+                                "loser_points": 98.7,
+                            },
+                            "category": "score",
+                        },
+                        "call_3a",
+                    ),
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_taco_record",
+                            "claim_text": "Team Taco improved to 7-1 after week 8.",
+                            "data_refs": ["league_snapshot:week=8"],
+                            "numbers": {"wins": 7, "losses": 1},
+                            "category": "standing",
+                        },
+                        "call_3b",
+                    ),
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_waiver_record",
+                            "claim_text": "Waiver Wire fell to 2-6 after week 8.",
+                            "data_refs": ["league_snapshot:week=8"],
+                            "numbers": {"wins": 2, "losses": 6},
+                            "category": "standing",
+                        },
+                        "call_3c",
+                    ),
                 ]
             ),
             make_response(
                 tool_calls=[
                     tool_call(
-                        "edit_artifact",
+                        "save_storyline",
                         {
-                            "path": "research_brief.md",
-                            "old_text": "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
-                            "new_text": (
-                                "- Team Taco beat Waiver Wire 142.3-98.7.\n"
-                                "- Team Taco improved to 7-1.\n"
-                                "- Waiver Wire fell to 2-6.\n\n"
-                                "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->"
+                            "id": "story_taco_control",
+                            "headline": "Taco Takes Control",
+                            "summary": (
+                                "Team Taco paired a blowout win with a 7-1 record."
                             ),
-                            "expected_revision": 1,
+                            "supporting_fact_ids": [
+                                "fact_taco_win",
+                                "fact_taco_record",
+                            ],
+                            "priority": 1,
                         },
                         "call_4",
                     )
@@ -215,18 +249,20 @@ def test_generate_article_end_to_end_tool_loop() -> None:
             make_response(
                 tool_calls=[
                     tool_call(
-                        "edit_artifact",
+                        "set_outline",
                         {
-                            "path": "research_brief.md",
-                            "old_text": "<!-- INSERT STORYLINES ABOVE THIS LINE -->",
-                            "new_text": (
-                                "- Taco Takes Control: Team Taco paired a blowout "
-                                "win with a 7-1 record.\n\n"
-                                "<!-- INSERT STORYLINES ABOVE THIS LINE -->"
-                            ),
-                            "expected_revision": 2,
+                            "sections": [
+                                {
+                                    "title": "Lead",
+                                    "required_fact_ids": [
+                                        "fact_taco_win",
+                                        "fact_taco_record",
+                                    ],
+                                    "storyline_ids": ["story_taco_control"],
+                                }
+                            ]
                         },
-                        "call_6",
+                        "call_5",
                     )
                 ]
             ),
@@ -304,7 +340,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert "improved to 7-1" in artifacts["article.md"].content
     assert "moved to 7-1" not in artifacts["article.md"].content
     assert len(artifacts["article.md"].content_hash) == 64
-    assert artifacts["research_brief.md"].revision == 3
+    assert artifacts["research_brief.md"].revision == 5
     assert "League ID: league_123" in artifacts["research_brief.md"].content
     assert "Team Taco beat Waiver Wire 142.3-98.7" in artifacts[
         "research_brief.md"
@@ -332,9 +368,10 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         "edit_artifact",
         "submit_artifact",
     }.issubset(tool_names)
-    assert {"save_fact", "read_brief", "write_section", "submit_article"}.isdisjoint(
+    assert {"save_fact", "read_brief", "save_storyline", "set_outline"}.issubset(
         tool_names
     )
+    assert {"write_section", "submit_article"}.isdisjoint(tool_names)
     assert "league_snapshot" in tool_names
     histories = {
         path: [
@@ -344,12 +381,9 @@ def test_generate_article_end_to_end_tool_loop() -> None:
         ]
         for path in ("research_brief.md", "article.md")
     }
-    assert [item.revision for item in histories["research_brief.md"]] == [1, 2, 3]
-    assert histories["research_brief.md"][0].source_tool_call_id is None
+    assert [item.revision for item in histories["research_brief.md"]] == [1, 2, 3, 4, 5]
     assert [item.revision for item in histories["article.md"]] == [1, 2]
-    tool_mutations = (
-        histories["research_brief.md"][1:] + histories["article.md"]
-    )
+    tool_mutations = histories["research_brief.md"] + histories["article.md"]
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
 
@@ -385,6 +419,21 @@ def test_generate_article_buffers_typed_memory_with_tool_provenance() -> None:
                             }
                         },
                         "memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_taco_win",
+                            "claim_text": "Team Taco won in Week 8.",
+                            "data_refs": ["league_snapshot:week=8"],
+                            "numbers": {"week": 8},
+                            "category": "score",
+                        },
+                        "brief-call",
                     )
                 ]
             ),
@@ -439,8 +488,8 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
             make_response(
                 tool_calls=[
                     tool_call(
-                        "read_artifact",
-                        {"path": "research_brief.md"},
+                        "read_brief",
+                        {},
                         "call_2",
                     )
                 ]
@@ -458,15 +507,13 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
             make_response(
                 tool_calls=[
                     tool_call(
-                        "edit_artifact",
+                        "save_fact",
                         {
-                            "path": "research_brief.md",
-                            "old_text": "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->",
-                            "new_text": (
-                                "- Team Taco was 7-1 after week 8.\n\n"
-                                "<!-- INSERT VERIFIED FACTS ABOVE THIS LINE -->"
-                            ),
-                            "expected_revision": 1,
+                            "id": "fact_taco_record",
+                            "claim_text": "Team Taco was 7-1 after week 8.",
+                            "data_refs": ["league_snapshot:week=8"],
+                            "numbers": {"wins": 7, "losses": 1},
+                            "category": "standing",
                         },
                         "call_5",
                     )
@@ -517,7 +564,7 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
     ]
     artifacts = {artifact.path: artifact for artifact in output.artifacts}
     assert output.submitted_path == "article.md"
-    assert artifacts["research_brief.md"].revision == 2
+    assert artifacts["research_brief.md"].revision == 1
     assert "Team Taco was 7-1" in artifacts["research_brief.md"].content
     assert artifacts["article.md"].revision == 1
     assert "Team Taco was 7-1" in artifacts["article.md"].content

@@ -265,8 +265,12 @@ separate live identity source.
 
 The reporter:
 
-- registers generic artifact, procedure, frozen-data, and typed-memory tools;
-- seeds `research_brief.md` with equivalent league/config metadata;
+- registers generic artifact, structured-brief, procedure, frozen-data, and
+  typed-memory tools;
+- initializes immutable structured request/style/bias context without creating
+  a Markdown artifact;
+- materializes the managed `research_brief.md` projection only after the first
+  successful brief mutation;
 - runs the same turn loop and procedure replacement behavior;
 - records every provider attempt before/after network I/O;
 - records tool calls before/after handler execution;
@@ -279,10 +283,12 @@ The reporter:
 
 `submit_artifact(path, expected_revision)` remains a reporter-level selection
 and stop signal, not the durable generation commit. It accepts any current,
-non-empty Markdown artifact. `ReporterOutput` returns the nullable submitted
-path plus complete snapshots of every in-memory artifact. Artifact paths remain
-inside the reporter contract and carry no application-level role. Only a
-submitted output is eligible for success. `GenerationService` then:
+non-empty Markdown artifact only after the structured brief contains at least
+one verified fact. `ReporterOutput` returns the nullable submitted path, the
+typed research brief, and complete snapshots of every in-memory artifact.
+Artifact paths remain inside the reporter contract and carry no
+application-level role. Only a submitted output is eligible for success.
+`GenerationService` then:
 
 - obtains the complete memory proposal bundle exactly once;
 - verifies that the submitted revision already exists durably and belongs to
@@ -338,7 +344,7 @@ Dollar pricing remains an application-time analytic over recorded usage.
 ## Artifact Model
 
 The in-memory `ArtifactStore` is the reporter's fast working state. It exposes
-one generic model-facing contract:
+one generic model-facing contract for reporter-authored artifacts:
 
 - `list_artifacts()` lists paths, media types, and current revisions;
 - `read_artifact(path)` returns one current snapshot;
@@ -349,21 +355,25 @@ one generic model-facing contract:
   any non-empty artifact and ends the reporter loop.
 
 All reporter artifacts are raw UTF-8 Markdown in the initial platform slice.
-Their paths are reporter-owned logical names. `research_brief.md` and
-`article.md` remain useful defaults, but persistence and application queries do
-not infer semantic roles from either name. Durable reporting artifacts mirror
+Their paths are reporter-owned logical names except for the reserved,
+runtime-managed `research_brief.md` projection. Generic create, edit, and submit
+operations cannot target managed paths; brief tools synchronize that projection
+atomically with structured state. Persistence and application queries do not
+infer semantic roles from artifact names. Durable reporting artifacts mirror
 complete snapshots at successful mutation boundaries:
 
 | Artifact | Durable behavior |
 | --- | --- |
-| research or planning artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
+| managed research brief projection (`text/markdown`) | append a complete immutable version after each changed structured brief mutation |
+| other research or planning artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation |
 | publishable draft artifact (`text/markdown`) | append a complete immutable version after each successful create/edit mutation; `submit_artifact` selects one existing revision regardless of path |
 | run log | do not treat as canonical; AI/tool/artifact tables are the full audit trail |
 
-The reporter-owned `research_brief.md` seed is persisted as revision 1 before
-the first provider call, without AI-call or tool-call provenance. Subsequent
-reporter edits therefore retain the same revision numbers in memory and in
-durable storage.
+The initial structured brief is revision 0 and does not create an artifact.
+The first successful brief mutation creates `research_brief.md` revision 1
+with the source AI/tool provenance of that mutation. Later changed mutations
+advance the structured revision and projection revision together; identical
+upserts are no-ops.
 
 Artifact versions use their source AI call/tool call when available. Reads do
 not append versions. Failed and content-identical mutations do not append
