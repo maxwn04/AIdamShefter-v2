@@ -66,9 +66,15 @@ This is not the separate M2 curation pass.
 - Reporter memory search remains available during research; curation is not a
   substitute for loading relevant historical context.
 - Recaps and other storyline-oriented requests test current developments against
-  pinned memory with a targeted search once current evidence supplies concrete
-  team, player, transaction, matchup, or stakes hooks. Purely narrow factual
-  requests may skip that continuity check.
+  pinned memory with a targeted search before their evidence base is considered
+  sufficient. Standings movement, streaks, contender or pretender judgments,
+  repeated outcomes, transactions, matchups, and changed stakes are concrete
+  hooks; the reporter need not know in advance that matching memory exists.
+  Purely narrow factual requests or current evidence with no plausible continuity
+  question may skip that check.
+- Procedure history defaults to append so every useful guide loaded during a
+  response remains available on later turns. Replace history remains an explicit
+  opt-in for runs that need aggressive procedure-context compaction.
 - Memory retrieval exposes structured discovery keys and a lexical web-search
   field. The lexical field is not semantic search: one focused concept or explicit
   alternative set belongs in each query, while kind, status, and exact week are

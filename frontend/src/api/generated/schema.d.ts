@@ -2269,7 +2269,7 @@ export interface components {
             max_turns: number;
             /**
              * Procedure History Mode
-             * @default replace
+             * @default append
              * @enum {string}
              */
             procedure_history_mode: "replace" | "append";

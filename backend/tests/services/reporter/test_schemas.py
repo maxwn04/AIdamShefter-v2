@@ -180,4 +180,4 @@ def test_state_defaults() -> None:
     assert ArtifactStore().artifacts == {}
     assert ProcedureState().active is None
     assert RunnerConfig().max_turns == 60
-    assert RunnerConfig().procedure_history_mode == ProcedureHistoryMode.REPLACE
+    assert RunnerConfig().procedure_history_mode == ProcedureHistoryMode.APPEND

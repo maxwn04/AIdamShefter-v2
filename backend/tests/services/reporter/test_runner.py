@@ -22,7 +22,6 @@ from backend.services.reporter.runner.recording import (
 from backend.services.reporter.runner.runner import Runner, RunnerRecordingError
 from backend.services.reporter.runner.state import (
     ArtifactStore,
-    ProcedureHistoryMode,
     RunnerConfig,
 )
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
@@ -891,7 +890,7 @@ def test_runner_procedure_replacement() -> None:
     )
 
 
-def test_runner_procedure_append_mode() -> None:
+def test_runner_appends_procedure_history_by_default() -> None:
     complete = FakeCompletion(
         [
             make_response(
@@ -910,7 +909,7 @@ def test_runner_procedure_append_mode() -> None:
     runner = Runner(
         registry_with("load_procedure", lambda *, name: f"# {name.title()}"),
         complete=complete,
-        config=RunnerConfig(procedure_history_mode=ProcedureHistoryMode.APPEND),
+        config=RunnerConfig(),
     )
 
     run(runner.run("system", "user"))

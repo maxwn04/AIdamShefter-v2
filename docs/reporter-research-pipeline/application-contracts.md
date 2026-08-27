@@ -129,9 +129,16 @@ item or a no-op result instead of adding a duplicate.
 - Successful live submission bridges supporting facts for every final brief
   storyline and no unreferenced fact.
 - A recap, storyline, trend, ranking, or retrospective request performs a
-  targeted continuity search after current evidence supplies concrete query
-  hooks, unless the request is purely factual and narrow. This is prompt-owned
-  behavior, not a runner gate or fixed workflow phase.
+  targeted continuity search before its evidence base is considered sufficient,
+  unless the request is purely factual and narrow or current evidence offers no
+  plausible continuity question. Current standings movement, streaks, contender
+  or pretender judgments, repeated outcomes, transactions, matchups, and changed
+  stakes are sufficient hooks; advance knowledge of a stored callback is not
+  required. This is prompt-owned behavior, not a runner gate or fixed workflow
+  phase.
+- Procedure history defaults to append, preserving all useful guide results across
+  turns even when several procedures are loaded together. Replace history remains
+  an explicit opt-in for runs that prefer aggressive procedure-context compaction.
 - `search_memory` discovery signals are alternatives: lexical text, entity/team
   keys, exact references, and tags can each discover a candidate. Kind, status,
   and week are hard filters applied to every candidate. A query without discovery

@@ -40,7 +40,7 @@ Run independent reads together when their results do not depend on one another. 
 
 ## Memory Judgment
 
-After the broad current-week inventory, a targeted `search_memory` continuity check is normally useful for recaps and requests asking for storylines, trends, rankings, retrospectives, or season context. Build searches from current evidence:
+After the broad current-week inventory, do not treat the evidence base as sufficient for a recap or request asking for storylines, trends, rankings, retrospectives, or season context until one targeted `search_memory` continuity check has been attempted. Standings movement, streaks, contender or pretender judgments, repeated outcomes, transactions, matchups, and changed stakes are already plausible hooks; the purpose of search is to discover whether matching memory exists. Build searches from current evidence:
 
 - Prefer `team_keys` for current team names or roster IDs, and use exact entity keys, tags, or references only when another tool has supplied them. These are alternative discovery signals, so any one may find a candidate.
 - Use `text` only for one short lexical concept, name, phrase, or explicit `OR` set. Unquoted words are jointly required; it is not semantic search. Never pack unrelated teams, players, and themes into one text query. If distinct hooks are independently valuable, test them with separate focused calls.

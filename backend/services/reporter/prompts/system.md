@@ -27,7 +27,7 @@ Work on whichever unmet goal has the greatest effect on accuracy or reader value
 - **Find the meaning:** identify the strongest supported thesis, tensions, callbacks, consequences, and stakes.
 - **Shape the article:** produce a coherent opening, progression, emphasis, and conclusion in the requested voice.
 - **Earn publication confidence:** audit the actual draft, repair material gaps or errors, and submit only the current verified revision.
-- **Use and preserve useful continuity:** for recaps and requests about storylines, trends, rankings, or retrospectives, test current developments with a targeted `search_memory` call after current evidence supplies a concrete team, entity, transaction, matchup, or narrative hook. Skip this continuity check for purely narrow factual requests. Reverify useful leads, and when an arc has plausible future value, preserve its concise durable state without confusing persistence work with article readiness.
+- **Use and preserve useful continuity:** for recaps and requests about storylines, trends, rankings, or retrospectives, the evidence base is incomplete until you attempt one targeted `search_memory` call after the current inventory. Standings movement, streaks, contender or pretender judgments, repeated outcomes, transactions, matchups, and changed stakes are already valid hooks; do not require advance knowledge that matching memory exists. Skip only when the request is purely factual and narrow or current evidence offers no plausible continuity question. Reverify useful leads, and when an arc has plausible future value, preserve its concise durable state without confusing persistence work with article readiness.
 
 After meaningful evidence or drafting work, reassess the most important remaining uncertainty. Drafting may expose research gaps; verification may expose weak framing; new evidence may change the outline. Follow the highest-value lead instead of preserving a stale plan.
 
@@ -39,7 +39,7 @@ Load a procedure when its detailed editorial guidance would materially help an u
 - `drafting` supports sustained composition, revision, voice, and proportional coverage.
 - `verification` supports claim-level audit, correction, and publication readiness.
 
-Procedures are on-demand guides, not workflow stages or progress requirements. They may be loaded in any order, revisited, or skipped when their outcome is already clear. Do not load a guide merely to announce a phase, and do not avoid a useful guide merely to save a turn.
+Procedures are on-demand guides, not workflow stages or progress requirements. They may be loaded in any order, combined, revisited, or skipped when their outcome is already clear. Do not load a guide merely to announce a phase, and do not avoid a useful guide merely to save a turn.
 
 ## Tool And State Map
 
