@@ -24,12 +24,14 @@ Competitions
 │   ├── Refresh actions and freshness
 │   └── Recent activity
 ├── Articles
-│   ├── Article history
-│   └── Generation detail
-│       ├── Article
-│       ├── Artifacts
-│       ├── Execution
-│       └── Usage
+│   ├── Article library
+│   ├── Article reader
+│   │   └── Behind this article
+│   │       ├── Overview
+│   │       ├── Artifacts
+│   │       ├── Execution
+│   │       └── Usage
+│   └── Generation detail for active/unsuccessful runs
 └── Generate
     ├── Live generation
     └── Historical backtest
@@ -50,14 +52,17 @@ requiring horizontal scrolling for core actions.
 | `/competitions`                                          | Competition list     | Browse, create, archive, and choose a competition            |
 | `/competitions/:competitionId`                           | Competition overview | Seasons, freshness, refresh history, and recent runs         |
 | `/competitions/:competitionId/articles`                  | Article history      | Filter and browse submitted articles for one competition     |
+| `/competitions/:competitionId/articles/:generationId`    | Article reader       | Read the exact submitted article with secondary run details  |
 | `/competitions/:competitionId/generate`                  | Generate article     | Configure, validate, and submit a generation                 |
-| `/competitions/:competitionId/generations/:generationId` | Generation detail    | Article/run status plus artifacts, execution, and usage tabs |
+| `/competitions/:competitionId/generations/:generationId` | Generation detail    | Active/failed run status and operational inspection          |
 
 Creation stays in a dialog or sheet on `/competitions`; it does not need a
 dedicated route in v1. Season creation is a dialog on the competition overview.
 The generation detail route represents pending, running, failed, cancelled, and
-successful runs. Successful article-history entries link to the same route,
-avoiding a second detail model for “article” versus “generation.”
+successful runs. A successful run with an exact submitted version also has a
+reader-first article route. Both routes use the same durable generation and
+submitted-version identity; they are two presentations for different tasks,
+not two article records. Existing generation-detail article links remain valid.
 
 ## Journey 1: View and Manage Leagues
 
@@ -196,28 +201,37 @@ visible and offers `Rerun` plus `Edit settings and try again`.
 
 ### Article history
 
-Article history is competition-scoped and newest-first. Filters include season,
-live/backtest kind, week or week range, model, and a free-text request search
-when the API supports it. Each row/card shows:
+Article history is competition-scoped and newest-first. It is an editorial
+library rather than a generation-usage table. Filters include season,
+live/backtest kind, week or week range, and free-text article search when the
+API supports it. The newest matching article is featured; remaining articles
+use a headline-led archive list. Each item shows:
 
-- completion time;
+- headline and an article-derived preview when available;
+- completion date;
 - season and week range;
-- live/backtest badge;
-- request excerpt;
-- requested primary model;
-- token total and estimated cost when available; and
-- rerun/workspace relationship.
+- live/backtest badge; and
+- a clearly labeled assignment fallback only when no article preview exists.
 
 Only generations with an explicit submitted artifact version appear here.
 Pending and failed work remains on recent activity/run history, not in the
-article library.
+article library. Model, token, cost, hash, rerun, and workspace details are
+available from `Behind this article`, not in the default library.
 
-### Generation detail tabs
+### Article reader and run details
 
-**Article** renders the exact submitted Markdown version with readable editorial
-typography. A metadata rail shows request, dates, mode, model chain, snapshot,
-memory input, and manifest hash. `Copy Markdown` is available; editing and
-publishing are deferred.
+The **article reader** renders the exact submitted Markdown immediately after a
+compact masthead with headline, league/season/week context, completion date,
+and a prominent historical-backtest disclosure when applicable. The article
+body is centered at a readable measure. `Copy Markdown`, back-to-library, and
+previous/next article navigation are available; editing and publishing are
+deferred.
+
+`Behind this article` opens the production evidence as a secondary surface. Its
+Overview contains request, dates, mode, model chain, snapshot, memory input,
+manifest identity, and rerun/edit actions. It also provides the existing
+Artifacts, Execution, and Usage views. Full assignment and run-metadata cards,
+success banners, and audit navigation never precede the submitted article body.
 
 **Artifacts** lists logical path, media type, finalization state, revision
 count, and modified time. Selecting an artifact shows its version history and
@@ -242,6 +256,9 @@ never loaded into the article reading surface by default.
 tokens; model/provider breakdown; attempt count; latency; and estimated cost.
 The quote time and “estimated” label are always visible. Unknown price or usage
 produces an incomplete-estimate warning and identifies the affected calls.
+
+The complete layout, priority, responsive, and acceptance contract lives in
+[`article-viewing.md`](article-viewing.md).
 
 ## Common States and Guardrails
 

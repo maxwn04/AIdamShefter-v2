@@ -10,7 +10,13 @@ import {
   RefreshCw,
   RotateCcw,
 } from "lucide-react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import {
+  Link,
+  Navigate,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/errors";
@@ -156,6 +162,19 @@ export function Component(): React.JSX.Element {
   const progressStart = generation.started_at ?? generation.created_at;
   const submitted = generation.submitted_artifact_version_id !== null;
   const activeTab = detailTab(searchParameters.get("tab"), submitted);
+
+  if (
+    submitted &&
+    (searchParameters.get("tab") === null ||
+      searchParameters.get("tab") === "article")
+  ) {
+    return (
+      <Navigate
+        replace
+        to={`/competitions/${resolvedCompetitionId}/articles/${resolvedGenerationId}`}
+      />
+    );
+  }
 
   function selectTab(nextTab: string): void {
     const next = new URLSearchParams(searchParameters);
@@ -315,8 +334,18 @@ export function Component(): React.JSX.Element {
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 The exact submitted artifact version is attached to this durable
-                run and available in the Article tab below.
+                run. Open the reader for the article-first view, or continue
+                below to inspect this run.
               </p>
+              <Link
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "mt-4",
+                )}
+                to={`/competitions/${resolvedCompetitionId}/articles/${resolvedGenerationId}`}
+              >
+                Read submitted article
+              </Link>
             </div>
           </div>
         </section>

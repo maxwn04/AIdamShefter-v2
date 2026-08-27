@@ -8,6 +8,7 @@ interface BreadcrumbsProps {
 }
 
 function resourceLabel(pathname: string): string | undefined {
+  if (pathname.includes("/articles/")) return "Article";
   if (pathname.endsWith("/articles")) return "Articles";
   if (pathname.endsWith("/generate")) return "Generate";
   if (pathname.includes("/generations/")) return "Generation";
