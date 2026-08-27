@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "2"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "3"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -131,18 +131,91 @@ class ReporterTriggerContent(_StrictModel):
 
 
 class SearchMemoryArgs(_StrictModel):
-    text: str | None = None
-    team_keys: list[str] = Field(default_factory=list)
-    entity_keys: list[str] = Field(default_factory=list)
-    evidence_version_ids: list[UUID] = Field(default_factory=list)
-    related_item_ids: list[UUID] = Field(default_factory=list)
-    tags: list[str] = Field(default_factory=list)
-    kinds: list[MemoryKind] = Field(default_factory=list)
-    statuses: list[str] = Field(default_factory=list)
-    week: int | None = Field(default=None, ge=0)
-    limit: int = Field(default=20, ge=1, le=100)
-    expand_exact_references: bool = False
-    expand_stable_references: bool = False
+    text: str | None = Field(
+        default=None,
+        description=(
+            "Optional PostgreSQL web-style lexical search, not semantic search. "
+            "Unquoted terms are jointly required. Keep one short concept, name, "
+            "or phrase per call; use quotes for a phrase, OR for explicit "
+            "alternatives, and -term to exclude a term. Do not concatenate "
+            "unrelated teams, players, and themes."
+        ),
+    )
+    team_keys: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Current team names or roster IDs. Each is resolved internally to "
+            "canonical franchise and season-roster keys; matching any key can "
+            "discover a memory."
+        ),
+    )
+    entity_keys: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Exact canonical entity keys already returned by another tool or memory "
+            "result. Matching any key can discover a memory. Prefer team_keys for "
+            "ordinary team names or roster IDs."
+        ),
+    )
+    evidence_version_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Exact memory evidence-version IDs from an earlier result. Matching any "
+            "ID can discover a memory."
+        ),
+    )
+    related_item_ids: list[UUID] = Field(
+        default_factory=list,
+        description=(
+            "Exact stable memory-item IDs from an earlier result. Matching any ID "
+            "can discover a related memory."
+        ),
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Exact memory tags; matching any tag can discover a memory.",
+    )
+    kinds: list[MemoryKind] = Field(
+        default_factory=list,
+        description=(
+            "Optional hard filter. Returned memories must have one of these kinds."
+        ),
+    )
+    statuses: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Optional hard filter. Returned memories must have one of these exact "
+            "statuses. Status vocabulary depends on memory kind."
+        ),
+    )
+    week: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Optional hard filter for one exact memory week. This is not an "
+            "at-or-before cutoff. Omit it when searching continuity across weeks."
+        ),
+    )
+    limit: int = Field(
+        default=10,
+        ge=1,
+        le=25,
+        description="Maximum hydrated matches to return; prefer 5-10 focused results.",
+    )
+    expand_exact_references: bool = Field(
+        default=False,
+        description=(
+            "Also hydrate exact evidence linked from matching storylines and "
+            "originating events linked from matching facts."
+        ),
+    )
+    expand_stable_references: bool = Field(
+        default=False,
+        description=(
+            "Also hydrate visible storyline or event items referenced by matching "
+            "storylines and triggers."
+        ),
+    )
 
 
 class SaveMemoryEventArgs(_StrictModel):
@@ -221,9 +294,13 @@ def _tool(name: str, description: str, arguments: type[BaseModel]) -> ToolDef:
 MEMORY_TOOL_SPECS: list[ToolDef] = [
     _tool(
         _READ_TOOL,
-        "Search fully hydrated canonical memory at this generation's pinned revision. "
-        "Returned memories are research leads and must be verified against frozen "
-        "data.",
+        "Search fully hydrated canonical memory at this generation's pinned "
+        "revision. Text, entity/team keys, references, and tags are alternative "
+        "discovery signals: matching any one can discover a memory. Kinds, statuses, "
+        "and exact week are hard filters applied to every result. With no discovery "
+        "signal, the tool browses memories allowed by those filters. Text is lexical "
+        "web search, not semantic search; see the text field for syntax. Returned "
+        "memories are research leads and must be verified against frozen data.",
         SearchMemoryArgs,
     ),
     _tool(

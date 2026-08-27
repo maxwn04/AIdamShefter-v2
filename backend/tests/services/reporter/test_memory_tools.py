@@ -250,6 +250,26 @@ def test_registers_legacy_semantic_surface() -> None:
     ]
 
 
+def test_search_schema_explains_discovery_filters_and_lexical_syntax() -> None:
+    search = next(
+        spec["function"]
+        for spec in MEMORY_TOOL_SPECS
+        if spec["function"]["name"] == "search_memory"
+    )
+    description = search["description"]
+    properties = search["parameters"]["properties"]
+
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "3"
+    assert "alternative discovery signals" in description
+    assert "hard filters" in description
+    assert "not semantic search" in properties["text"]["description"]
+    assert "OR for explicit alternatives" in properties["text"]["description"]
+    assert "team names or roster IDs" in properties["team_keys"]["description"]
+    assert "one exact memory week" in properties["week"]["description"]
+    assert properties["limit"]["default"] == 10
+    assert properties["limit"]["maximum"] == 25
+
+
 def test_search_remains_pinned_and_resolves_team_keys() -> None:
     registry, _, memory, retrieval, _ = _registered()
     result = _call(registry, "search_memory", text="push", team_keys=["Team Taco"])
@@ -258,6 +278,7 @@ def test_search_remains_pinned_and_resolves_team_keys() -> None:
         f"franchise:{TACO_FRANCHISE_ID}",
         f"season_roster:{TACO_ROSTER_ID}",
     )
+    assert retrieval.calls[0].query.limit == 10
 
 
 def test_legacy_writes_buffer_typed_proposals() -> None:

@@ -128,6 +128,27 @@ item or a no-op result instead of adding a duplicate.
   the model to supply an optimistic revision number.
 - Successful live submission bridges supporting facts for every final brief
   storyline and no unreferenced fact.
+- A recap, storyline, trend, ranking, or retrospective request performs a
+  targeted continuity search after current evidence supplies concrete query
+  hooks, unless the request is purely factual and narrow. This is prompt-owned
+  behavior, not a runner gate or fixed workflow phase.
+- `search_memory` discovery signals are alternatives: lexical text, entity/team
+  keys, exact references, and tags can each discover a candidate. Kind, status,
+  and week are hard filters applied to every candidate. A query without discovery
+  signals browses only the rows allowed by those filters.
+- The text field is PostgreSQL web-style lexical search, not semantic retrieval.
+  Unquoted terms are jointly required; quoted phrases, explicit `OR`, and negation
+  follow web-search syntax. A call should test one short concept, name, phrase, or
+  explicit alternative set rather than concatenate unrelated hooks. Because some
+  automatically bridged facts are text-only, a focused lexical query remains a
+  valid fallback when no structured key is available.
+- Team keys accept a current team name or roster ID and are resolved internally.
+  The optional week filter means one exact week and must not be treated as an
+  at-or-before cutoff. Continuity searches spanning prior weeks omit it and reject
+  returned memories beyond configured article coverage.
+- Retrieved matches dated after the configured coverage remain unusable, and the
+  supporting-fact bridge never substitutes for explicitly maintaining a durable
+  storyline card.
 
 ## M1 Error Semantics
 
@@ -176,6 +197,10 @@ Focused tests must cover:
 - current memory finalization compatibility;
 - semantic memory create and stable-ID update behavior;
 - deterministic successful-submit fact bridging and stable-ID idempotency; and
+- prompt characterization for targeted continuity search and explicit bridge
+  boundaries; and
+- model-facing search schema coverage for lexical syntax, structured discovery,
+  hard filters, exact-week behavior, and result bounds; and
 - failed-run rollback and read-only backtests that leave canonical revision state
   unchanged.
 
