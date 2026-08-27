@@ -7,9 +7,7 @@ export function positiveArticlePage(value: string | null): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
-export function articleKind(
-  value: string | null,
-): GenerationKind | undefined {
+export function articleKind(value: string | null): GenerationKind | undefined {
   return value === "live" || value === "backtest" ? value : undefined;
 }
 
