@@ -386,6 +386,10 @@ def _request(kind: GenerationKind = GenerationKind.LIVE) -> GenerationRequest:
     )
 
 
+def test_generation_settings_default_to_append_procedure_history() -> None:
+    assert GenerationSettings().runner.procedure_history_mode == "append"
+
+
 def _service(
     tmp_path: Path,
     *,

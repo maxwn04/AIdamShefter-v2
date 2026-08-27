@@ -330,7 +330,7 @@ class ProcedureState(BaseModel):
 
 class RunnerConfig(BaseModel):
     max_turns: int = 60
-    procedure_history_mode: ProcedureHistoryMode = ProcedureHistoryMode.REPLACE
+    procedure_history_mode: ProcedureHistoryMode = ProcedureHistoryMode.APPEND
 
 
 __all__ = [

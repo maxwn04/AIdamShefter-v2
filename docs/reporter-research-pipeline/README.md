@@ -65,6 +65,20 @@ This is not the separate M2 curation pass.
   existing deterministic validator/finalizer and never writes memory directly.
 - Reporter memory search remains available during research; curation is not a
   substitute for loading relevant historical context.
+- Recaps and other storyline-oriented requests test current developments against
+  pinned memory with a targeted search before their evidence base is considered
+  sufficient. Standings movement, streaks, contender or pretender judgments,
+  repeated outcomes, transactions, matchups, and changed stakes are concrete
+  hooks; the reporter need not know in advance that matching memory exists.
+  Purely narrow factual requests or current evidence with no plausible continuity
+  question may skip that check.
+- Procedure history defaults to append so every useful guide loaded during a
+  response remains available on later turns. Replace history remains an explicit
+  opt-in for runs that need aggressive procedure-context compaction.
+- Memory retrieval exposes structured discovery keys and a lexical web-search
+  field. The lexical field is not semantic search: one focused concept or explicit
+  alternative set belongs in each query, while kind, status, and exact week are
+  narrowing filters.
 - Style and bias are initialized from `ReportConfig` and remain immutable within
   the brief; the agent does not spend turns restating them.
 - Submission requires at least one verified fact. Storyline, callback, and outline
@@ -73,6 +87,7 @@ This is not the separate M2 curation pass.
   operations and optimistic revision checks remain internal to the adapter.
 - After a successful live submission, supporting facts for every final brief
   storyline are buffered automatically; unreferenced brief facts stay run-local.
+  The bridge does not create or update durable storyline cards.
 - Backtests preserve the legacy read-only behavior: memory reads remain available,
   while write tools and the successful-submit bridge do not buffer mutations.
 

@@ -72,7 +72,7 @@ class GenerationModelSettings(ContractModel):
 
 class GenerationRunnerSettings(ContractModel):
     max_turns: PositiveInt = 60
-    procedure_history_mode: Literal["replace", "append"] = "replace"
+    procedure_history_mode: Literal["replace", "append"] = "append"
 
 
 class GenerationSettings(ContractModel):

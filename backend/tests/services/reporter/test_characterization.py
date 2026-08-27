@@ -283,6 +283,27 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     )
     assert "## Article Quality" in system_prompt
     assert "materially improve factual confidence" in system_prompt
+    assert "make a targeted search part of establishing context" in system_prompt
+    assert "the evidence base is incomplete until you attempt" in system_prompt
+    assert "do not require advance knowledge" in system_prompt
+    assert "They may be loaded in any order, combined, revisited" in system_prompt
+    assert "lexical web search, not semantic search" in system_prompt
+    assert "never a bag of unrelated keywords" in system_prompt
+    assert "It does not create or update durable storyline cards" in system_prompt
+
+    research = (copied / "procedures/research.md").read_text(encoding="utf-8")
+    assert "After the broad current-week inventory" in research
+    assert "do not treat the evidence base as sufficient" in research
+    assert "the purpose of search is to discover" in research
+    assert "skip it when the request is purely factual and narrow" in research.lower()
+    assert "prefer 5-10 focused results" in research.lower()
+    assert "Unquoted words are jointly required" in research
+    assert "Never pack unrelated teams" in research
+    assert "not an at-or-before cutoff" in research
+    assert "it does not create or update durable storyline cards" in research
+
+    storyline = (copied / "procedures/storyline.md").read_text(encoding="utf-8")
+    assert "it does not persist the storyline card itself" in storyline
 
 
 def test_generator_preserves_article_result_across_artifact_contract_divergence() -> None:

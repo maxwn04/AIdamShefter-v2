@@ -7,6 +7,7 @@ Use this guide when the article covers several teams or weeks, a featured interp
 - The article's central framing and planned major claims have precise, relevant evidence.
 - Featured interpretations have enough targeted context to distinguish a meaningful development from a routine result.
 - Historical leads used in the article have been reverified against the frozen snapshot.
+- Recap and storyline-oriented work has tested current developments against relevant pinned memory once current evidence supplied concrete query hooks.
 - Important scores, records, player totals, transactions, and comparisons are saved as facts with the exact values the article will use.
 - No unresolved anomaly or high-value lead is likely to reverse the article's central interpretation.
 
@@ -39,9 +40,17 @@ Run independent reads together when their results do not depend on one another. 
 
 ## Memory Judgment
 
-Search memory when prior context could materially improve the article: trades and waivers, rematches and rivalries, playoff reversals, repeated lineup mistakes, focused-team histories, retrospectives, rankings, or season-long awards. For an ordinary recap, a lightweight scan is useful only when current teams, players, transactions, or stakes provide a plausible retrieval hook. Stop after an empty or low-value result unless the current evidence suggests a more specific query.
+After the broad current-week inventory, do not treat the evidence base as sufficient for a recap or request asking for storylines, trends, rankings, retrospectives, or season context until one targeted `search_memory` continuity check has been attempted. Standings movement, streaks, contender or pretender judgments, repeated outcomes, transactions, matchups, and changed stakes are already plausible hooks; the purpose of search is to discover whether matching memory exists. Build searches from current evidence:
 
-After a successful live submission, saved brief storylines and their supporting facts are bridged into memory automatically. Use `save_memory_event`, `save_team_context`, or `save_league_note` when durable event or context state should also be maintained. Memory work remains separate from proving today's article.
+- Prefer `team_keys` for current team names or roster IDs, and use exact entity keys, tags, or references only when another tool has supplied them. These are alternative discovery signals, so any one may find a candidate.
+- Use `text` only for one short lexical concept, name, phrase, or explicit `OR` set. Unquoted words are jointly required; it is not semantic search. Never pack unrelated teams, players, and themes into one text query. If distinct hooks are independently valuable, test them with separate focused calls.
+- Use `kinds`, `statuses`, and `week` only as hard filters. The `week` filter selects one exact memory week, not an at-or-before cutoff; omit it for continuity spanning prior weeks.
+- Prefer 5-10 focused results. Do not perform an unfiltered browse merely because memory exists.
+- Discard any match dated after the article's configured coverage.
+
+This is a continuity check, not a fixed research phase. Skip it when the request is purely factual and narrow or current evidence provides no plausible historical hook. Stop after an empty or low-value result unless a more specific query is justified.
+
+After a successful live submission, the runtime automatically buffers only the supporting facts referenced by final brief storylines; it does not create or update durable storyline cards. Use `upsert_storyline_memory_card` for an arc that should remain recognizable, and use `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` when durable event, callback, team, or league state should also be maintained. Memory work remains separate from proving today's article.
 
 ## Stop Or Switch
 

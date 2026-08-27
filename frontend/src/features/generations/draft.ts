@@ -335,7 +335,7 @@ export function createGenerationFormDefaults(
       fallbackModels: [],
       retry: { maxRetries: 3, baseDelaySeconds: 1, maxDelaySeconds: 30 },
     },
-    runner: { maxTurns: 60, procedureHistoryMode: "replace" },
+    runner: { maxTurns: 60, procedureHistoryMode: "append" },
   };
 }
 
