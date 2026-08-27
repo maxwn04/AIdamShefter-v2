@@ -27,12 +27,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { SubmittedArticleResponse } from "@/features/articles/api";
 import {
   ARTICLE_PAGE_SIZE,
@@ -205,7 +200,10 @@ function RunOverview({
             onClick={() => void rerunGeneration()}
           >
             {rerun.isPending ? (
-              <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+              <LoaderCircle
+                className="size-4 animate-spin"
+                aria-hidden="true"
+              />
             ) : (
               <RotateCcw className="size-4" aria-hidden="true" />
             )}
@@ -342,7 +340,9 @@ function RunDetailsSheet({
         <Tabs
           className="min-h-0 flex-1 gap-0"
           value={activeTab}
-          onValueChange={(value) => setActiveTab(value as DetailTab)}
+          onValueChange={(value) => {
+            setActiveTab(value as DetailTab);
+          }}
         >
           <div className="shrink-0 overflow-x-auto border-b border-border px-5 sm:px-7">
             <TabsList className="min-w-max border-b-0">
@@ -501,7 +501,9 @@ export function Component(): React.JSX.Element {
         <header className="border-b border-border pb-8 sm:pb-10">
           <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             <Badge
-              variant={article.generation.kind === "backtest" ? "secondary" : "outline"}
+              variant={
+                article.generation.kind === "backtest" ? "secondary" : "outline"
+              }
             >
               {article.generation.kind === "backtest"
                 ? "Historical backtest"

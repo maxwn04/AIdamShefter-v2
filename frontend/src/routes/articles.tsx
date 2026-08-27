@@ -303,7 +303,9 @@ export function Component(): React.JSX.Element {
             <select
               className="block h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={seasonId ?? ""}
-              onChange={(event) => setFilter("season", event.target.value)}
+              onChange={(event) => {
+                setFilter("season", event.target.value);
+              }}
             >
               <option value="">All seasons</option>
               {(seasonsQuery.data?.page.items ?? []).map(
@@ -321,7 +323,9 @@ export function Component(): React.JSX.Element {
             <select
               className="block h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={kind ?? ""}
-              onChange={(event) => setFilter("kind", event.target.value)}
+              onChange={(event) => {
+                setFilter("kind", event.target.value);
+              }}
             >
               <option value="">Live and backtests</option>
               <option value="live">Live</option>
@@ -345,7 +349,10 @@ export function Component(): React.JSX.Element {
 
         {error ? (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6">
-            <CircleAlert className="size-6 text-destructive" aria-hidden="true" />
+            <CircleAlert
+              className="size-6 text-destructive"
+              aria-hidden="true"
+            />
             <h2 className="mt-3 font-semibold">Article library unavailable</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {error instanceof ApiError
@@ -422,7 +429,9 @@ export function Component(): React.JSX.Element {
                 variant="outline"
                 size="sm"
                 disabled={page <= 1}
-                onClick={() => setPage(page - 1)}
+                onClick={() => {
+                  setPage(page - 1);
+                }}
               >
                 <ArrowLeft className="size-4" aria-hidden="true" />
                 Previous
@@ -431,7 +440,9 @@ export function Component(): React.JSX.Element {
                 variant="outline"
                 size="sm"
                 disabled={page >= totalPages}
-                onClick={() => setPage(page + 1)}
+                onClick={() => {
+                  setPage(page + 1);
+                }}
               >
                 Next
                 <ArrowRight className="size-4" aria-hidden="true" />
