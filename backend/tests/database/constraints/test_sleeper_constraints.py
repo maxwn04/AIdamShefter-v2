@@ -17,8 +17,10 @@ from backend.database.models.core import (
 from backend.database.models.sleeper import (
     ApiPayload,
     ApiRequest,
+    AutomaticRefreshClaim,
     DataSnapshot,
     DataSnapshotRequest,
+    DataSnapshotSeason,
     Matchup,
     NormalizedScope,
     RefreshRun,
@@ -147,7 +149,7 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
     sleeper_tables = {
         name for name in Base.metadata.tables if name.startswith("sleeper.")
     }
-    assert len(sleeper_tables) == 19
+    assert len(sleeper_tables) == 21
 
     checks = [
         (table_name, constraint.name)
@@ -155,9 +157,34 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
         for constraint in Base.metadata.tables[table_name].constraints
         if isinstance(constraint, CheckConstraint)
     ]
-    assert checks == [
-        ("sleeper.api_payloads", "ck_api_payloads_exactly_one_location")
-    ]
+    assert set(checks) == {
+        ("sleeper.api_payloads", "ck_api_payloads_exactly_one_location"),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_reason",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_status",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_terminal_shape",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_through_week",
+        ),
+        ("sleeper.data_snapshot_seasons", "ck_data_snapshot_seasons_role"),
+        (
+            "sleeper.data_snapshot_seasons",
+            "ck_data_snapshot_seasons_primary_matches",
+        ),
+        (
+            "sleeper.data_snapshot_seasons",
+            "ck_data_snapshot_seasons_through_week",
+        ),
+    }
 
     for table_name, column_name in (
         ("sleeper.matchups", "points"),
@@ -173,12 +200,15 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
 def test_snapshot_orm_matches_the_daily_persistence_contract() -> None:
     snapshot = DataSnapshot.__table__
     membership = DataSnapshotRequest.__table__
+    season_membership = DataSnapshotSeason.__table__
+    refresh_claim = AutomaticRefreshClaim.__table__
 
     assert {column.name for column in snapshot.c} == {
         "id",
         "competition_id",
         "primary_competition_season_id",
         "build_key",
+        "input_revision",
         "domain_cutoff_week",
         "domain_cutoff_at",
         "as_of_date",
@@ -199,6 +229,30 @@ def test_snapshot_orm_matches_the_daily_persistence_contract() -> None:
         "scope_key",
         "response_sha256",
         "selection_role",
+    }
+    assert {column.name for column in season_membership.c} == {
+        "data_snapshot_id",
+        "competition_id",
+        "primary_competition_season_id",
+        "competition_season_id",
+        "role",
+        "through_week",
+    }
+    assert {column.name for column in refresh_claim.c} == {
+        "id",
+        "competition_id",
+        "competition_season_id",
+        "active_key",
+        "requested_through_week",
+        "policy_version",
+        "reason",
+        "coverage_fingerprint",
+        "status",
+        "refresh_run_id",
+        "refresh_status",
+        "failure_summary",
+        "started_at",
+        "completed_at",
     }
     active_build_index = next(
         index
