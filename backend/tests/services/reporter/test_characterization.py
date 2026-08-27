@@ -207,8 +207,9 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
         LegacyReportConfig.model_validate(config.model_dump(mode="json"))
     )
     assert copied_message != legacy_message
-    assert "interleavable activities" in copied_message
-    assert "fixed sequence" in copied_message
+    assert "unmet editorial goal" in copied_message
+    assert "not as a fixed phase or progress marker" in copied_message
+    assert "smallest tool result" in copied_message
     assert copied_system_prompt() != legacy_system_prompt()
     assert "research_brief.md" in copied_system_prompt()
     assert "submit_artifact" in copied_system_prompt()
@@ -236,21 +237,16 @@ def test_reporter_contracts_keep_only_deliberate_platform_divergences() -> None:
         "read_brief",
     ]
     assert COPIED_PROCEDURE_TOOLS != LEGACY_PROCEDURE_TOOLS
-    assert "reference playbooks" in COPIED_PROCEDURE_TOOLS[0]["function"][
+    assert "goal-oriented editorial guidance" in COPIED_PROCEDURE_TOOLS[0]["function"][
         "description"
     ]
     assert [spec["function"]["name"] for spec in COPIED_MEMORY_TOOLS] == [
         "search_memory",
-        "propose_fact",
-        "replace_fact",
-        "propose_event",
-        "replace_event",
-        "propose_storyline",
-        "replace_storyline",
-        "propose_trigger",
-        "replace_trigger",
-        "propose_context_note",
-        "replace_context_note",
+        "save_memory_event",
+        "upsert_storyline_memory_card",
+        "save_storyline_trigger",
+        "save_team_context",
+        "save_league_note",
     ]
 
 
@@ -261,16 +257,16 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     expected_markers = {
         "prompts/system.md": "search_memory",
         "procedures/research.md": "search_memory",
-        "procedures/storyline.md": "propose_storyline",
+        "procedures/storyline.md": "save_storyline",
         "procedures/drafting.md": "create_artifact",
         "procedures/verification.md": "submit_artifact",
     }
     flexibility_markers = {
-        "prompts/system.md": "not mandatory sequential phases",
-        "procedures/research.md": "Adaptive Research Loop",
-        "procedures/storyline.md": "not a mandatory bridge",
-        "procedures/drafting.md": "act of writing to expose",
-        "procedures/verification.md": "not a one-way terminal phase",
+        "prompts/system.md": "These goals are not phases",
+        "procedures/research.md": "# Goal: Establish A Trustworthy Evidence Base",
+        "procedures/storyline.md": "# Goal: Find The Article's Meaning",
+        "procedures/drafting.md": "# Goal: Turn Verified Material Into A Compelling Article",
+        "procedures/verification.md": "# Goal: Earn Publication Confidence",
     }
     for relative_path, marker in expected_markers.items():
         copied_text = (copied / relative_path).read_text(encoding="utf-8")
@@ -278,6 +274,15 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
         assert copied_text != legacy_text
         assert marker in copied_text
         assert flexibility_markers[relative_path] in copied_text
+
+    system_prompt = (copied / "prompts/system.md").read_text(encoding="utf-8")
+    assert "## Guidance Library" in system_prompt
+    assert all(
+        f"`{name}` supports" in system_prompt
+        for name in ("research", "storyline", "drafting", "verification")
+    )
+    assert "## Article Quality" in system_prompt
+    assert "materially improve factual confidence" in system_prompt
 
 
 def test_generator_preserves_article_result_across_artifact_contract_divergence() -> None:

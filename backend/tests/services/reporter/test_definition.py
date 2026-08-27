@@ -44,7 +44,7 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
     assert registry.tool_implementation_versions == [
         (tool.name, tool.implementation_version) for tool in definition.tools
     ]
-    assert PROCEDURE_TOOL_IMPLEMENTATION_VERSION == "3"
+    assert PROCEDURE_TOOL_IMPLEMENTATION_VERSION == "4"
     assert {procedure.name for procedure in definition.procedures} == {
         "drafting",
         "research",
@@ -59,16 +59,11 @@ def test_definition_without_memory_omits_only_memory_tools() -> None:
 
     memory_names = {
         "search_memory",
-        "propose_fact",
-        "replace_fact",
-        "propose_event",
-        "replace_event",
-        "propose_storyline",
-        "replace_storyline",
-        "propose_trigger",
-        "replace_trigger",
-        "propose_context_note",
-        "replace_context_note",
+        "save_memory_event",
+        "upsert_storyline_memory_card",
+        "save_storyline_trigger",
+        "save_team_context",
+        "save_league_note",
     }
     assert {tool.name for tool in with_memory.tools} - {
         tool.name for tool in without_memory.tools
