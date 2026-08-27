@@ -24,6 +24,10 @@ export const router = createBrowserRouter([
         lazy: () => import("@/routes/articles"),
       },
       {
+        path: "competitions/:competitionId/articles/:generationId",
+        lazy: () => import("@/routes/article-reader"),
+      },
+      {
         path: "competitions/:competitionId/generate",
         lazy: () => import("@/routes/generate"),
       },

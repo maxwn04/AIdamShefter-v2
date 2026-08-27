@@ -30,6 +30,7 @@ not part of this UI slice.
 | Document | Owns |
 | --- | --- |
 | [`user-journeys.md`](user-journeys.md) | Information architecture, page inventory, flows, and user-visible states |
+| [`article-viewing.md`](article-viewing.md) | Reader-first article library, exact article reader, and audit-detail hierarchy |
 | [`application-contracts.md`](application-contracts.md) | Required HTTP surface, implemented coverage, gaps, and transport semantics |
 | [`frontend-architecture.md`](frontend-architecture.md) | TypeScript application structure, libraries, data flow, quality gates, and delivery |
 | [`release-checklist.md`](release-checklist.md) | Final clean-start, real-data journey, cross-cutting review, and release signoff |
@@ -88,6 +89,10 @@ durable cross-season identity.
 - Article content is rendered from the exact submitted artifact version.
   Intermediate artifacts and later/earlier versions never replace it by path
   convention.
+- Submitted articles use a reader-first hierarchy: headline and exact body are
+  primary, league/week/date context is secondary, and generation machinery is
+  available through `Behind this article`. Non-submitted runs remain
+  operations-first.
 - Cost is labeled **estimated cost**. The backend calculates it from persisted
   actual provider/model usage and the current LiteLLM price map; missing usage
   or pricing remains visibly unknown rather than being treated as zero. The
