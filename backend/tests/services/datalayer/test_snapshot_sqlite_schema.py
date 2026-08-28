@@ -26,6 +26,7 @@ EXPECTED_TABLES = {
     "playoff_matchups",
     "snapshot_metadata",
 }
+EXPECTED_V3_TABLES = EXPECTED_TABLES | {"snapshot_seasons"}
 
 
 def test_v2_schema_is_snapshot_only_and_complete() -> None:
@@ -71,6 +72,26 @@ def test_playoff_nodes_have_stable_key_and_legacy_matchup_seam() -> None:
     assert table.c.matchup_id.nullable
 
 
+def test_v3_schema_scopes_reused_provider_identities_by_league() -> None:
+    schema = get_snapshot_schema("3")
+
+    assert set(schema.tables) == EXPECTED_V3_TABLES
+    assert schema.user_version == 3
+    assert [column.name for column in schema.tables["users"].primary_key.columns] == [
+        "league_id",
+        "user_id",
+    ]
+    assert [
+        column.name for column in schema.tables["transactions"].primary_key.columns
+    ] == ["league_id", "transaction_id"]
+    assert [
+        column.name
+        for column in schema.tables["transaction_moves"].primary_key.columns
+    ] == ["league_id", "transaction_id", "move_index", "direction"]
+    assert not schema.tables["roster_identities"].c.franchise_id.unique
+    assert "input_revision" in schema.tables["snapshot_metadata"].c
+
+
 def test_real_sqlite_ddl_enforces_singleton_metadata(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'schema.sqlite'}")
     schema = get_snapshot_schema("2")
@@ -112,7 +133,7 @@ def test_real_sqlite_ddl_enforces_singleton_metadata(tmp_path: Path) -> None:
         engine.dispose()
 
 
-@pytest.mark.parametrize("version", ["", "1", " 2", "3"])
+@pytest.mark.parametrize("version", ["", "1", " 2", "4"])
 def test_unknown_projection_version_is_rejected(version: str) -> None:
     with pytest.raises(ValueError, match="unsupported"):
         get_snapshot_schema(version)

@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 import sqlite3
 import tempfile
-from typing import Any, Mapping
+from typing import Any, Mapping, TypeAlias
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -25,9 +25,14 @@ from backend.services.datalayer.snapshot_sqlite.projection import (
 )
 from backend.services.datalayer.snapshot_sqlite.schema import (
     SQLITE_APPLICATION_ID,
-    SQLITE_USER_VERSION,
     get_snapshot_schema,
 )
+from backend.services.datalayer.snapshot_sqlite.v3 import (
+    ResolvedSnapshotMaterializationInput,
+    project_resolved_snapshot,
+)
+
+
 _WEEK_TABLES = (
     "matchups",
     "player_performances",
@@ -43,6 +48,10 @@ _DERIVED_TABLES = {
     "season_context",
     "roster_identities",
 }
+_V3_DERIVED_TABLES = _DERIVED_TABLES | {"snapshot_seasons"}
+MaterializationInput: TypeAlias = (
+    SnapshotMaterializationInput | ResolvedSnapshotMaterializationInput
+)
 
 
 class SnapshotArtifactInvalid(RuntimeError):
@@ -62,7 +71,7 @@ class SQLiteSnapshotMaterializer:
 
     def materialize(
         self,
-        materialization: SnapshotMaterializationInput,
+        materialization: MaterializationInput,
     ) -> MaterializedSnapshot:
         schema = get_snapshot_schema(materialization.snapshot_projection_version)
         descriptor, name = tempfile.mkstemp(
@@ -73,9 +82,13 @@ class SQLiteSnapshotMaterializer:
         try:
             _close_descriptor(descriptor)
             Path(name).unlink()
-            source = project_source_records(materialization)
-            projection = derive_snapshot_rows(materialization, source)
-            _validate_projection(materialization, source, projection)
+            if isinstance(materialization, ResolvedSnapshotMaterializationInput):
+                projection = project_resolved_snapshot(materialization)
+                _validate_resolved_projection(materialization, projection)
+            else:
+                source = project_source_records(materialization)
+                projection = derive_snapshot_rows(materialization, source)
+                _validate_projection(materialization, source, projection)
             metadata_row = _metadata_row(materialization, projection)
             engine = create_engine(f"sqlite:///{path.as_posix()}")
             try:
@@ -89,7 +102,7 @@ class SQLiteSnapshotMaterializer:
                         f"PRAGMA application_id = {SQLITE_APPLICATION_ID}"
                     )
                     connection.exec_driver_sql(
-                        f"PRAGMA user_version = {SQLITE_USER_VERSION}"
+                        f"PRAGMA user_version = {schema.user_version}"
                     )
                     schema.metadata.create_all(connection)
                     for table_name in schema.table_order:
@@ -123,7 +136,7 @@ class SQLiteSnapshotMaterializer:
 
 def verify_snapshot_file(
     path: Path,
-    materialization: SnapshotMaterializationInput,
+    materialization: MaterializationInput,
     projection: SnapshotProjection,
 ) -> None:
     """Reopen a staged artifact immutably and verify its complete contract."""
@@ -145,7 +158,7 @@ def verify_snapshot_file(
         user_version = connection.execute("PRAGMA user_version").fetchone()[0]
         if (
             application_id != SQLITE_APPLICATION_ID
-            or user_version != SQLITE_USER_VERSION
+            or user_version != expected_schema.user_version
         ):
             raise SnapshotArtifactInvalid("snapshot SQLite version markers differ")
         tables = {
@@ -162,42 +175,37 @@ def verify_snapshot_file(
             projection,
         ):
             raise SnapshotArtifactInvalid("snapshot metadata differs from build input")
-        cutoff = materialization.request.through_week
-        for table_name in _WEEK_TABLES:
-            leaked = connection.execute(
-                f'SELECT 1 FROM "{table_name}" WHERE week > ? LIMIT 1',
-                (cutoff,),
-            ).fetchone()
-            if leaked is not None:
-                raise SnapshotArtifactInvalid("snapshot contains post-cutoff facts")
-        playoff_start = materialization.planning_context.playoff_start_week
-        if playoff_start is None:
-            bracket_count = connection.execute(
-                "SELECT COUNT(*) FROM playoff_matchups"
-            ).fetchone()[0]
-            if bracket_count:
-                raise SnapshotArtifactInvalid("snapshot bracket cutoff is unknown")
+        if isinstance(materialization, ResolvedSnapshotMaterializationInput):
+            _verify_resolved_cutoffs(connection, materialization)
         else:
-            leaked = connection.execute(
-                "SELECT 1 FROM playoff_matchups "
-                "WHERE (? + round - 1) > ? LIMIT 1",
-                (playoff_start, cutoff),
-            ).fetchone()
-            if leaked is not None:
-                raise SnapshotArtifactInvalid(
-                    "snapshot contains post-cutoff bracket facts"
-                )
+            _verify_v2_cutoff(connection, materialization)
         identity_rows = [
             dict(row)
             for row in connection.execute(
-                "SELECT * FROM roster_identities ORDER BY roster_id"
+                "SELECT * FROM roster_identities ORDER BY league_id, roster_id"
             ).fetchall()
         ]
-        roster_ids = {
-            row[0]
-            for row in connection.execute("SELECT roster_id FROM rosters").fetchall()
-        }
-        _validate_roster_identities(materialization, identity_rows, roster_ids)
+        if isinstance(materialization, ResolvedSnapshotMaterializationInput):
+            _verify_resolved_identities(connection, materialization, identity_rows)
+            orphan_move = connection.execute(
+                "SELECT 1 FROM transaction_moves AS m "
+                "LEFT JOIN transactions AS t "
+                "ON t.league_id = m.league_id "
+                "AND t.transaction_id = m.transaction_id "
+                "WHERE t.transaction_id IS NULL LIMIT 1"
+            ).fetchone()
+            if orphan_move is not None:
+                raise SnapshotArtifactInvalid(
+                    "snapshot transaction move has no league-scoped parent"
+                )
+        else:
+            roster_ids = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT roster_id FROM rosters"
+                ).fetchall()
+            }
+            _validate_roster_identities(materialization, identity_rows, roster_ids)
     except sqlite3.Error as error:
         raise SnapshotArtifactInvalid("snapshot SQLite verification failed") from error
     finally:
@@ -261,6 +269,213 @@ def _validate_projection(
             )
 
 
+def _validate_resolved_projection(
+    materialization: ResolvedSnapshotMaterializationInput,
+    projection: SnapshotProjection,
+) -> None:
+    selected_scopes = {
+        entry.scope_key for entry in materialization.inputs.manifest.entries
+    }
+    source_count = sum(
+        len(rows)
+        for table, rows in projection.rows.items()
+        if table not in _V3_DERIVED_TABLES
+    )
+    if len(projection.provenance) != source_count:
+        raise SnapshotArtifactInvalid("source row provenance is incomplete")
+    if any(entry.scope_key not in selected_scopes for entry in projection.provenance):
+        raise SnapshotArtifactInvalid("source row provenance is outside the manifest")
+
+    seasons = materialization.inputs.seasons
+    expected_membership = {
+        season.identity.sleeper_league_id: (
+            str(season.identity.competition_id),
+            str(season.identity.competition_season_id),
+            str(season.identity.season_year),
+            season.through_week,
+        )
+        for season in seasons
+    }
+    actual_membership = {
+        row["league_id"]: (
+            row["competition_id"],
+            row["competition_season_id"],
+            str(row["season_year"]),
+            row["through_week"],
+        )
+        for row in projection.rows_for("snapshot_seasons")
+    }
+    if actual_membership != expected_membership:
+        raise SnapshotArtifactInvalid("snapshot season membership is incomplete")
+
+    for table_name, rows in projection.rows.items():
+        if table_name in {"players", "snapshot_metadata", "snapshot_seasons"}:
+            continue
+        for row in rows:
+            league_id = row.get("league_id")
+            if league_id not in expected_membership:
+                raise SnapshotArtifactInvalid("snapshot row is outside season membership")
+            season = row.get("season")
+            if season is not None and table_name != "draft_picks":
+                if str(season) != expected_membership[league_id][2]:
+                    raise SnapshotArtifactInvalid(
+                        "snapshot row season conflicts with league membership"
+                    )
+
+    expected_mappings = _resolved_mapping_rows(materialization)
+    actual_mappings = {
+        (row["league_id"], row["roster_id"]): (
+            row["competition_id"],
+            row["competition_season_id"],
+            row["season_roster_id"],
+            row["franchise_id"],
+        )
+        for row in projection.rows_for("roster_identities")
+    }
+    if actual_mappings != expected_mappings:
+        raise SnapshotArtifactInvalid("snapshot roster identities are incomplete")
+
+    roster_keys = {
+        (row["league_id"], row["roster_id"])
+        for row in projection.rows_for("rosters")
+    }
+    if roster_keys != set(expected_mappings):
+        raise SnapshotArtifactInvalid("snapshot rosters do not match exact mappings")
+    for table_name in (
+        "matchups",
+        "player_performances",
+        "roster_players",
+        "standings",
+    ):
+        if any(
+            (row["league_id"], row["roster_id"]) not in roster_keys
+            for row in projection.rows_for(table_name)
+        ):
+            raise SnapshotArtifactInvalid("snapshot contains an unknown roster reference")
+    transaction_keys = {
+        (row["league_id"], row["transaction_id"])
+        for row in projection.rows_for("transactions")
+    }
+    if any(
+        (row["league_id"], row["transaction_id"]) not in transaction_keys
+        for row in projection.rows_for("transaction_moves")
+    ):
+        raise SnapshotArtifactInvalid(
+            "snapshot transaction move has no league-scoped parent"
+        )
+
+
+def _verify_v2_cutoff(
+    connection: sqlite3.Connection,
+    materialization: SnapshotMaterializationInput,
+) -> None:
+    cutoff = materialization.request.through_week
+    for table_name in _WEEK_TABLES:
+        leaked = connection.execute(
+            f'SELECT 1 FROM "{table_name}" WHERE week > ? LIMIT 1',
+            (cutoff,),
+        ).fetchone()
+        if leaked is not None:
+            raise SnapshotArtifactInvalid("snapshot contains post-cutoff facts")
+    playoff_start = materialization.planning_context.playoff_start_week
+    if playoff_start is None:
+        bracket_count = connection.execute(
+            "SELECT COUNT(*) FROM playoff_matchups"
+        ).fetchone()[0]
+        if bracket_count:
+            raise SnapshotArtifactInvalid("snapshot bracket cutoff is unknown")
+        return
+    leaked = connection.execute(
+        "SELECT 1 FROM playoff_matchups WHERE (? + round - 1) > ? LIMIT 1",
+        (playoff_start, cutoff),
+    ).fetchone()
+    if leaked is not None:
+        raise SnapshotArtifactInvalid("snapshot contains post-cutoff bracket facts")
+
+
+def _verify_resolved_cutoffs(
+    connection: sqlite3.Connection,
+    materialization: ResolvedSnapshotMaterializationInput,
+) -> None:
+    for season in materialization.inputs.seasons:
+        league_id = season.identity.sleeper_league_id
+        cutoff = season.through_week
+        for table_name in _WEEK_TABLES:
+            leaked = connection.execute(
+                f'SELECT 1 FROM "{table_name}" '
+                "WHERE league_id = ? AND week > ? LIMIT 1",
+                (league_id, cutoff),
+            ).fetchone()
+            if leaked is not None:
+                raise SnapshotArtifactInvalid("snapshot contains post-cutoff facts")
+        playoff_start = season.settings.playoff_start_week
+        if playoff_start is None:
+            bracket_count = connection.execute(
+                "SELECT COUNT(*) FROM playoff_matchups WHERE league_id = ?",
+                (league_id,),
+            ).fetchone()[0]
+            if bracket_count:
+                raise SnapshotArtifactInvalid("snapshot bracket cutoff is unknown")
+            continue
+        leaked = connection.execute(
+            "SELECT 1 FROM playoff_matchups "
+            "WHERE league_id = ? AND (? + round - 1) > ? LIMIT 1",
+            (league_id, playoff_start, cutoff),
+        ).fetchone()
+        if leaked is not None:
+            raise SnapshotArtifactInvalid("snapshot contains post-cutoff bracket facts")
+
+
+def _verify_resolved_identities(
+    connection: sqlite3.Connection,
+    materialization: ResolvedSnapshotMaterializationInput,
+    identity_rows: list[dict[str, Any]],
+) -> None:
+    roster_keys = {
+        (row[0], row[1])
+        for row in connection.execute(
+            "SELECT league_id, roster_id FROM rosters"
+        ).fetchall()
+    }
+    if {(row["league_id"], row["roster_id"]) for row in identity_rows} != roster_keys:
+        raise SnapshotArtifactInvalid(
+            "snapshot roster identities do not match snapshot rosters"
+        )
+    expected = _resolved_mapping_rows(materialization)
+    actual = {
+        (row["league_id"], row["roster_id"]): (
+            row["competition_id"],
+            row["competition_season_id"],
+            row["season_roster_id"],
+            row["franchise_id"],
+        )
+        for row in identity_rows
+    }
+    if actual != expected:
+        raise SnapshotArtifactInvalid("snapshot roster identities differ from build input")
+
+
+def _resolved_mapping_rows(
+    materialization: ResolvedSnapshotMaterializationInput,
+) -> dict[tuple[str, int], tuple[str, str, str, str]]:
+    league_by_season = {
+        season.identity.competition_season_id: season.identity.sleeper_league_id
+        for season in materialization.inputs.seasons
+    }
+    return {
+        (
+            league_by_season[mapping.competition_season_id],
+            int(mapping.sleeper_roster_id),
+        ): (
+            str(mapping.competition_id),
+            str(mapping.competition_season_id),
+            str(mapping.season_roster_id),
+            str(mapping.franchise_id),
+        )
+        for mapping in materialization.inputs.roster_mappings
+    }
+
+
 def _validate_roster_identities(
     materialization: SnapshotMaterializationInput,
     rows: tuple[Mapping[str, Any], ...] | list[Mapping[str, Any]],
@@ -303,28 +518,53 @@ def _validate_roster_identities(
 
 
 def _metadata_row(
-    materialization: SnapshotMaterializationInput,
+    materialization: MaterializationInput,
     projection: SnapshotProjection,
 ) -> dict[str, Any]:
-    manifest = [
-        entry.model_dump(mode="json") for entry in materialization.manifest.entries
-    ]
+    if isinstance(materialization, ResolvedSnapshotMaterializationInput):
+        inputs = materialization.inputs
+        manifest_entries = inputs.manifest.entries
+        primary = next(
+            season
+            for season in inputs.seasons
+            if season.role.value == "primary"
+        )
+        competition_id = primary.identity.competition_id
+        competition_season_id = primary.identity.competition_season_id
+        sleeper_league_id = primary.identity.sleeper_league_id
+        season_year = primary.identity.season_year
+        through_week = primary.through_week
+        as_of_date = inputs.primary.as_of_date
+        input_revision = inputs.input_revision
+    else:
+        manifest_entries = materialization.manifest.entries
+        context = materialization.planning_context
+        request = materialization.request
+        competition_id = context.competition_id
+        competition_season_id = context.competition_season_id
+        sleeper_league_id = context.sleeper_league_id
+        season_year = context.season_year
+        through_week = request.through_week
+        as_of_date = request.as_of_date
+        input_revision = None
+    manifest = [entry.model_dump(mode="json") for entry in manifest_entries]
     warnings = [warning.model_dump(mode="json") for warning in projection.warnings]
-    context = materialization.planning_context
-    request = materialization.request
-    return {
+    row = {
         "singleton_id": 1,
         "build_key": materialization.build_key,
-        "competition_id": str(context.competition_id),
-        "primary_competition_season_id": str(context.competition_season_id),
-        "sleeper_league_id": context.sleeper_league_id,
-        "season_year": context.season_year,
-        "through_week": request.through_week,
-        "as_of_date": request.as_of_date.isoformat(),
+        "competition_id": str(competition_id),
+        "primary_competition_season_id": str(competition_season_id),
+        "sleeper_league_id": sleeper_league_id,
+        "season_year": season_year,
+        "through_week": through_week,
+        "as_of_date": as_of_date.isoformat(),
         "snapshot_projection_version": materialization.snapshot_projection_version,
         "selected_requests_json": canonical_json_bytes(manifest).decode("utf-8"),
         "completeness_warnings_json": canonical_json_bytes(warnings).decode("utf-8"),
     }
+    if input_revision is not None:
+        row["input_revision"] = input_revision
+    return row
 
 
 def _hash_file(path: Path) -> tuple[str, int]:
