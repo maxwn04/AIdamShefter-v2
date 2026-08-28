@@ -12,6 +12,7 @@ from uuid import UUID
 from sqlalchemy import create_engine
 
 from backend.services.datalayer.canonical_json import canonical_json_bytes
+from backend.services.datalayer.errors import DatalayerError
 from backend.services.datalayer.snapshot_service import (
     MaterializedSnapshot,
     SnapshotMaterializationInput,
@@ -54,7 +55,7 @@ MaterializationInput: TypeAlias = (
 )
 
 
-class SnapshotArtifactInvalid(RuntimeError):
+class SnapshotArtifactInvalid(DatalayerError):
     """A staged SQLite artifact does not satisfy its immutable manifest."""
 
 

@@ -63,21 +63,12 @@ from backend.services.datalayer.snapshot_selection import (
     plan_snapshot_requirements,
     select_snapshot_requests,
 )
+from backend.services.datalayer.snapshot_replay import normalize_snapshot_payload
 from backend.services.datalayer.sleeper.endpoints import (
     EndpointRecords,
     LeagueRostersEndpointRecords,
-    normalize_league,
-    normalize_league_rosters,
-    normalize_league_users,
-    normalize_losers_bracket,
-    normalize_matchups,
-    normalize_nfl_state,
-    normalize_player_catalog,
-    normalize_traded_picks,
-    normalize_transactions,
-    normalize_winners_bracket,
 )
-from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
+from backend.services.datalayer.sleeper.scope import ScopeKey
 from backend.services.datalayer.versions import SNAPSHOT_PROJECTION_VERSION
 
 
@@ -413,7 +404,7 @@ class DatalayerSnapshotService:
             replayed.append(
                 SnapshotEndpointRecords(
                     manifest_entry=manifest_entry,
-                    records=_normalize_payload(
+                    records=normalize_snapshot_payload(
                         self._payload_value(payload),
                         requirement,
                     ),
@@ -520,35 +511,6 @@ class DatalayerSnapshotService:
         if isinstance(error, LocalArtifactVerificationError):
             return SnapshotUnavailable("selected snapshot payload is unavailable")
         return InternalDatalayerFailure(str(snapshot_id))
-
-
-def _normalize_payload(
-    payload: JsonValue,
-    requirement: SnapshotRequirement,
-) -> EndpointRecords:
-    endpoint = requirement.request
-    match endpoint.endpoint_kind:
-        case EndpointKind.LEAGUE:
-            return normalize_league(payload, endpoint)
-        case EndpointKind.LEAGUE_USERS:
-            return normalize_league_users(payload, endpoint)
-        case EndpointKind.LEAGUE_ROSTERS:
-            return normalize_league_rosters(payload, endpoint)
-        case EndpointKind.NFL_STATE:
-            return normalize_nfl_state(payload, endpoint)
-        case EndpointKind.PLAYER_CATALOG:
-            return normalize_player_catalog(payload, endpoint)
-        case EndpointKind.MATCHUPS:
-            return normalize_matchups(payload, endpoint)
-        case EndpointKind.TRANSACTIONS:
-            return normalize_transactions(payload, endpoint)
-        case EndpointKind.TRADED_PICKS:
-            return normalize_traded_picks(payload, endpoint)
-        case EndpointKind.WINNERS_BRACKET:
-            return normalize_winners_bracket(payload, endpoint)
-        case EndpointKind.LOSERS_BRACKET:
-            return normalize_losers_bracket(payload, endpoint)
-    assert_never(endpoint.endpoint_kind)
 
 
 def _nonblank(value: str, name: str) -> str:

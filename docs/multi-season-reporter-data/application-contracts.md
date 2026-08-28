@@ -1,0 +1,211 @@
+# Multi-Season Reporter Data Application Contracts
+
+## Vocabulary and Ownership
+
+| Term | Meaning | Owner |
+| --- | --- | --- |
+| Primary season | Generation season bounded by the requested week | Generation request |
+| Historical season | Same-competition season with a lower sequence | Core lineage |
+| Season settings | League rules decoded from the selected raw League payload | Input resolver |
+| Resolved inputs | Complete frozen facts and identities for one build | Input resolver |
+| Season membership | Sealed declaration that an artifact contains a season | Snapshot resource |
+| Input revision | Hash of all facts and identity mappings that affect output | Resolved inputs |
+| Franchise | Durable team identity across season rosters | Core roster mapping |
+
+## Public Contracts
+
+```python
+class SnapshotPreparationMode(StrEnum):
+    LIVE = "live"
+    READINESS_ONLY = "readiness_only"
+
+class PrepareSnapshotRequest(ContractModel):
+    snapshot: SnapshotRequest
+    mode: SnapshotPreparationMode
+    requested_at: AwareDatetime
+
+class PreparedSnapshot(ContractModel):
+    snapshot: ReadyDataSnapshot
+    refresh_receipts: tuple[RefreshReceipt, ...]
+```
+
+`GenerationService` selects a mode and calls
+`DatalayerSnapshotPreparationService.get_or_create`. It does not construct a
+refresh or requirement plan. Live generation uses `LIVE`; backtests use
+`READINESS_ONLY`.
+
+The external snapshot request remains primary-season based:
+
+```python
+SnapshotRequest(
+    competition_season_id=primary_season_id,
+    through_week=week_end,
+    as_of_date=execution_date,
+)
+```
+
+`ReadyDataSnapshot` and snapshot detail responses expose ordered
+`included_seasons` and `input_revision`. Existing primary season and week fields
+remain authoritative for default scoping and backward compatibility.
+
+## Internal Resolution Contracts
+
+Expected next states are different models, so invalid combinations cannot be
+constructed:
+
+```python
+@dataclass(frozen=True)
+class RefreshSeason:
+    season: SnapshotSeasonIdentity
+    through_week: int
+    reason: Literal["missing", "stale"]
+    missing_scopes: tuple[ScopeKey, ...]
+
+@dataclass(frozen=True)
+class MapSeasonRosters:
+    season: SnapshotSeasonIdentity
+    roster_ids: tuple[str, ...]
+
+@dataclass(frozen=True)
+class ResolvedSnapshotInputs:
+    primary: SnapshotRequest
+    seasons: tuple[ResolvedSnapshotSeason, ...]
+    manifest: tuple[SelectedSnapshotRequest, ...]
+    roster_mappings: tuple[ResolvedRosterMapping, ...]
+    input_revision: str
+
+ResolutionState = ResolvedSnapshotInputs | RefreshSeason | MapSeasonRosters
+```
+
+`ResolvedSnapshotInputs` is complete by construction. It has one primary season,
+every predecessor, exact selected requests for all requirements, exact roster
+mappings, frozen League settings, and a verified revision. It is the only input
+accepted by `DatalayerResolvedSnapshotBuilder.get_or_create`. The existing
+request-based `DatalayerSnapshotService` remains the version-2 compatibility
+adapter until generation cutover; it is not widened to accept both contracts.
+
+The resource layer supplies one batched operation that returns the latest
+complete eligible observation for each requested scope. It does not load full
+request history and does not perform one query per scope.
+
+## Runtime Contracts
+
+`FrozenLeagueData.open` dispatches once by artifact version. Version-2 readers
+retain their existing contract. Version-3 adds:
+
+```python
+def available_seasons(self) -> tuple[SnapshotSeason, ...]: ...
+def get_league_history(self) -> dict[str, Any]: ...
+def get_franchise_history(self, franchise_or_primary_roster: str | int) -> dict[str, Any]: ...
+```
+
+Every season-scoped curated method gains keyword-only `season: int | None =
+None`; `None` selects the primary season. `player_summary` stays snapshot-global.
+Reporter tools mirror these contracts. Guarded SQL exposes the version-specific
+allowlist, including `snapshot_seasons` for version 3.
+
+## Invariants
+
+- Included seasons are exactly the primary plus all lower-sequence seasons in
+  one competition, ordered oldest to primary.
+- Exactly one membership is primary and matches the snapshot row and request.
+- Historical cutoffs are week 18; the primary cutoff is the requested week.
+- Season year, competition-season ID, and Sleeper league ID are unique within a
+  snapshot.
+- Snapshot settings and requirements derive from the selected raw League
+  payload, never from a mutable normalized head.
+- Every requirement has exactly one eligible complete selected request.
+- Every included roster has exactly one season-roster and franchise mapping.
+  A franchise may correctly recur in different seasons.
+- The manifest, mappings, and season identities are frozen before a build is
+  claimed; the builder never reselects them.
+- `input_revision` is identical in resolved inputs, build key, PostgreSQL ready
+  row, artifact metadata, and sealed membership audit.
+- SQLite keys and joins remain collision-safe when Sleeper reuses user, roster,
+  matchup, week, or transaction identifiers across leagues.
+- Existing curated calls without `season` retain primary-season shapes and
+  semantics.
+- Artifact metadata, SQLite season rows, PostgreSQL membership, artifact hash,
+  and ready snapshot identity agree before open succeeds.
+
+## Input Revision Contract
+
+The revision hashes canonical JSON containing ordered season identity/cutoff,
+ordered scope/payload-hash pairs, and ordered exact roster mappings. Request IDs,
+refresh IDs, observation times, and build times are audit metadata and do not
+affect factual identity.
+
+Consequences:
+
+- changed Sleeper bytes create a new revision;
+- a roster-to-franchise correction creates a new revision even with unchanged
+  Sleeper bytes;
+- identical payloads and mappings reuse the same artifact;
+- a concurrent later refresh affects only a future resolution.
+
+## Errors Defined at Boundaries
+
+Expected missing/stale/mapping conditions remain `ResolutionState` values.
+Only these boundary errors are public:
+
+| Error | Meaning |
+| --- | --- |
+| `SnapshotInputsUnavailable` | One bounded refresh attempt did not produce exact required input |
+| `RosterIdentityMappingRequired` | Human-owned durable identity mapping is missing |
+| `RefreshUnavailable` | Automatic refresh could not be claimed, joined, or completed |
+| `DatalayerScopeConflict` | Lineage, scope, payload, or mapping identities contradict |
+| `SnapshotArtifactInvalid` | Built/opened artifact disagrees with schema, membership, hash, or revision |
+
+Errors identify the affected season and stable resource IDs. They do not expose
+raw payload bodies or encourage callers to infer the next action from prose.
+Curated invalid season/week inputs remain ordinary boundary validation errors
+translated by the reporter tool adapter.
+
+## Lifecycle
+
+Snapshot states remain `building -> ready|failed` and `ready -> expired`.
+Request membership, season membership, artifact hash, and revision seal in one
+transaction. One active build exists per canonical key.
+
+Equivalent automatic refreshes share one durable active key. A waiter observes
+the receipt and resolves inputs again. Manual refreshes are not suppressed.
+Automatic preparation permits at most one refresh attempt for a season in one
+call, preventing unbounded repair loops.
+
+## Compatibility and Transition
+
+1. Add lineage/candidate reads, season membership, input revision, and automatic
+   refresh coordination without changing generation behavior.
+2. Add the closed resolver states and preparation facade behind focused tests.
+3. Add version-3 projection/materialization consuming only resolved inputs.
+4. Add a single version-2/version-3 runtime dispatch and version-3 queries.
+5. Add reporter tools and generation policy version 2. Pending policy-version-1
+   generations keep their submitted `never` semantics; reruns are new requests.
+6. Activate version 3 only after mapping readiness and compatibility gates pass.
+7. Never rewrite old artifacts or manifests.
+
+The legacy `datalayer/` facade may remain single-season. The implementation
+target is the backend application stack.
+
+## Acceptance Coverage
+
+| Behavior | Focused coverage |
+| --- | --- |
+| Lineage includes all and only predecessors | Core lineage resource tests |
+| Raw League payload controls settings/requirements | Resolver tests with normalized-head drift |
+| Missing inputs return the oldest refresh state | Resolver state tests |
+| Ready history is not age-refreshed | Clocked resolver tests |
+| Only stale latest live primary refreshes | Clocked preparation integration test |
+| Backtest never age-refreshes | Generation mode test |
+| Repeated season need terminates | Preparation bounded-loop test |
+| Equivalent preparations join one refresh | Refresh coordination test |
+| Partial refresh is followed by exact re-resolution | Resolver/coordination test |
+| Missing later-season mapping is actionable | Roster mapping test |
+| Mapping correction changes revision | Input-revision test |
+| Concurrent later refresh cannot alter claimed input | Snapshot service test |
+| Multi-season identifier reuse does not collide | Real version-3 SQLite fixture |
+| Primary default and explicit history both work | Version-3 runtime tests |
+| Version dispatch does not leak into queries | Version-2/version-3 contract tests |
+| Guarded SQL joins seasons through franchise ID | Real SQLite guarded-SQL test |
+| Artifact/DB membership disagreement is rejected | Snapshot open/seal tests |
+| Model can discover history without mandatory use | Reporter tool/procedure tests |

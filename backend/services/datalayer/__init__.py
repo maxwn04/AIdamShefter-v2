@@ -110,6 +110,7 @@ from backend.services.datalayer.sleeper.responses import (
 from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 from backend.services.datalayer.versions import (
     INGESTION_NORMALIZER_VERSION,
+    RESOLVED_SNAPSHOT_PROJECTION_VERSION,
     SNAPSHOT_PROJECTION_VERSION,
 )
 
@@ -122,6 +123,7 @@ __all__ = [
     "EndpointApplyMetadata",
     "DatalayerError",
     "DatalayerRefreshService",
+    "DatalayerResolvedSnapshotBuilder",
     "DatalayerSnapshotService",
     "DatalayerResourceNotFound",
     "DatalayerScopeConflict",
@@ -169,6 +171,7 @@ __all__ = [
     "RefreshTrigger",
     "RefreshUnavailable",
     "ResolvedRosterMapping",
+    "ResolvedSnapshotMaterializationInput",
     "ResolvedSnapshotInputs",
     "ResolvedSnapshotSeason",
     "ResolvedRosterIdentity",
@@ -181,6 +184,7 @@ __all__ = [
     "RequestStatus",
     "RosterIdentityMappingRequired",
     "SNAPSHOT_PROJECTION_VERSION",
+    "RESOLVED_SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
     "ScopeRefreshResult",
     "SQLiteSnapshotMaterializer",
@@ -222,6 +226,7 @@ __all__ = [
     "build_player_catalog_request",
     "build_standard_refresh_plan",
     "canonical_snapshot_build_key",
+    "canonical_resolved_snapshot_build_key",
     "build_traded_picks_request",
     "build_transactions_request",
     "build_winners_bracket_request",
@@ -260,6 +265,7 @@ def __getattr__(name: str) -> Any:
         "PlannedRefresh",
         "build_standard_refresh_plan",
         "DatalayerSnapshotService",
+        "DatalayerResolvedSnapshotBuilder",
         "MaterializedSnapshot",
         "SnapshotEndpointRecords",
         "SnapshotMaterializationInput",
@@ -271,6 +277,7 @@ def __getattr__(name: str) -> Any:
         "plan_snapshot_requirements",
         "select_snapshot_requests",
         "SQLiteSnapshotMaterializer",
+        "ResolvedSnapshotMaterializationInput",
         "FrozenLeagueData",
         "FrozenRosterIdentity",
         "FrozenSnapshotInvalid",
@@ -292,6 +299,7 @@ def __getattr__(name: str) -> Any:
         "SnapshotInputResolver",
         "SnapshotPreparationMode",
         "SnapshotSeasonSettings",
+        "canonical_resolved_snapshot_build_key",
     }:
         if name in {
             "DatalayerSnapshotPreparationService",
@@ -392,6 +400,27 @@ def __getattr__(name: str) -> Any:
             )
 
             return SQLiteSnapshotMaterializer
+        if name == "ResolvedSnapshotMaterializationInput":
+            from backend.services.datalayer.snapshot_sqlite import (
+                ResolvedSnapshotMaterializationInput,
+            )
+
+            return ResolvedSnapshotMaterializationInput
+        if name in {
+            "DatalayerResolvedSnapshotBuilder",
+            "canonical_resolved_snapshot_build_key",
+        }:
+            from backend.services.datalayer.resolved_snapshot_builder import (
+                DatalayerResolvedSnapshotBuilder,
+                canonical_resolved_snapshot_build_key,
+            )
+
+            return {
+                "DatalayerResolvedSnapshotBuilder": DatalayerResolvedSnapshotBuilder,
+                "canonical_resolved_snapshot_build_key": (
+                    canonical_resolved_snapshot_build_key
+                ),
+            }[name]
         if name in {
             "DatalayerSnapshotService",
             "MaterializedSnapshot",

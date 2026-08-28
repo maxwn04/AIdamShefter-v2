@@ -24,6 +24,9 @@ from backend.services.datalayer.snapshot_sqlite.v3 import (
     ResolvedSnapshotMaterializationInput,
     project_resolved_snapshot,
 )
+from backend.services.datalayer.snapshot_sqlite.sealed_artifact import (
+    verify_sealed_snapshot_file,
+)
 
 __all__ = [
     "SnapshotProjection",
@@ -40,4 +43,5 @@ __all__ = [
     "project_source_records",
     "project_resolved_snapshot",
     "verify_snapshot_file",
+    "verify_sealed_snapshot_file",
 ]
