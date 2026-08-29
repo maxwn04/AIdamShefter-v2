@@ -9,6 +9,9 @@ consists of:
 - an explicit cutoff contract;
 - one selected complete API request per required endpoint scope;
 - one exact stable core identity for every selected Sleeper roster;
+- ordered, sealed included-season membership with one matching primary;
+- a factual `input_revision` over payload hashes, season boundaries, and exact
+  roster mappings for projection version 3;
 - one snapshot projection version covering normalization, derivation, and
   SQLite compatibility;
 - a content-addressed, read-only SQLite artifact;
@@ -159,7 +162,7 @@ no request candidate exists. Historical midseason settings changes are
 deliberately unsupported in v2; supporting them later requires versioned
 settings observations and a snapshot-projection-version change.
 
-For the initial single-season artifact:
+Projection version 2 retains the original single-season request set:
 
 - one league response;
 - one league-users response;
@@ -172,6 +175,14 @@ For the initial single-season artifact:
 - the traded-picks response when the league has draft rounds;
 - winners/losers bracket responses only when relevant under `through_week` and
   season-stable settings.
+
+Projection version 3 applies the same season-scoped requirements independently
+to every included season. Historical seasons use cutoff 18 and the primary uses
+the requested cutoff. The global player catalog is projected once, NFL state is
+not a snapshot requirement, and the builder loads payloads only by the exact
+request IDs frozen by `SnapshotInputResolver`. Missing input is inspected
+through the same resolver used by generation and the operator readiness API;
+the materializer never selects a newer candidate itself.
 
 The request manifest assigns each selected request a stable selection role.
 Requiredness comes from the snapshot request and league settings—not from
@@ -451,9 +462,13 @@ with shared storage without changing snapshot identity or query runtime.
 `FrozenLeagueData.open(ready_snapshot)`:
 
 - uses SQLite read-only immutable mode;
-- validates snapshot projection version against supported versions;
+- dispatches once to a version-2 or version-3 reader and validates that
+  version's schema;
 - compares the internal build key and projection version with the expected
   values on `ReadyDataSnapshot`;
+- validates and caches version-3 season membership, `input_revision`, league
+  coverage, cutoff coverage, and season-scoped roster identities; version 2
+  synthesizes a compatible one-primary-season catalog;
 - opens one query connection for the context lifetime;
 - exposes only curated methods and guarded SQL;
 - closes deterministically at context exit.
@@ -482,7 +497,10 @@ with focused changes:
 - use snapshot metadata rather than facade configuration for league/week;
 - include stable competition/franchise IDs where helpful and non-breaking;
 - normalize `Decimal` values at the JSON/tool boundary;
-- make every SQL statement explicitly single-season scoped;
+- resolve an explicit or primary-default season once and keep every curated SQL
+  statement scoped to its league and competition season;
+- follow durable `franchise_id`, never historical display names, for
+  cross-season franchise history;
 - add query-contract tests against legacy fixture expectations.
 
 Tool schemas and descriptions belong to the reporter. This prevents factual

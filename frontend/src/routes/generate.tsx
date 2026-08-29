@@ -22,7 +22,6 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/errors";
-import { DateTime } from "@/components/shared/date-time";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,8 +43,16 @@ import {
 import { useSubmitGeneration } from "@/features/generations/queries";
 import type { ModelCatalogItem } from "@/features/models/api";
 import { useModelCatalog } from "@/features/models/queries";
-import { useRosterMappings } from "@/features/roster-mappings/queries";
-import { useSeasonDetail, useSeasonList } from "@/features/seasons/queries";
+import { useSeasonList } from "@/features/seasons/queries";
+import { SnapshotReadinessPanel } from "@/features/snapshot-readiness/readiness-panel";
+import {
+  preparationModeForGeneration,
+  readinessAllowsGeneration,
+} from "@/features/snapshot-readiness/policy";
+import {
+  usePrepareSnapshot,
+  useSnapshotReadiness,
+} from "@/features/snapshot-readiness/queries";
 import { cn } from "@/lib/utils";
 
 const seasonListParameters = { limit: 200, offset: 0 } as const;
@@ -273,6 +280,7 @@ export function Component(): React.JSX.Element {
     name: "competitionSeasonId",
   });
   const selectedMode = useWatch({ control: form.control, name: "mode" });
+  const selectedWeekEnd = useWatch({ control: form.control, name: "weekEnd" });
   const selectedPrimaryModel = useWatch({
     control: form.control,
     name: "requestedPrimaryModel",
@@ -286,15 +294,6 @@ export function Component(): React.JSX.Element {
     name: "memory.automaticRecall",
   });
   const draftValues = useWatch({ control: form.control });
-  const seasonDetailQuery = useSeasonDetail(
-    competitionId,
-    selectedSeasonId || undefined,
-  );
-  const mappingsQuery = useRosterMappings(
-    competitionId,
-    selectedSeasonId || undefined,
-  );
-
   const seasons = useMemo(
     () => seasonsQuery.data?.page.items ?? [],
     [seasonsQuery.data],
@@ -310,6 +309,22 @@ export function Component(): React.JSX.Element {
   const selectedSeason = seasons.find(
     ({ season }) => season.id === selectedSeasonId,
   );
+  const readinessMode = preparationModeForGeneration(selectedMode);
+  const readinessParameters = useMemo(
+    () => ({ throughWeek: selectedWeekEnd, mode: readinessMode }),
+    [readinessMode, selectedWeekEnd],
+  );
+  const snapshotReadinessQuery = useSnapshotReadiness(
+    competitionId,
+    selectedSeasonId || undefined,
+    readinessParameters,
+    Boolean(selectedSeason) && !competitionQuery.data?.competition.archived_at,
+  );
+  const prepareSnapshot = usePrepareSnapshot(
+    resolvedCompetitionId,
+    selectedSeasonId,
+  );
+  const resetSnapshotPreparation = prepareSnapshot.reset;
   const modelOptions = useMemo(
     () => modelsQuery.data?.models ?? [],
     [modelsQuery.data],
@@ -326,15 +341,9 @@ export function Component(): React.JSX.Element {
     fallbackModels.every(
       (model) => model !== selectedPrimaryModel && validModelIds.has(model),
     );
-  const lastSuccessfulRefresh =
-    seasonDetailQuery.data?.summary.latest_successful_refresh_at ?? null;
-  const mappingStatus = mappingsQuery.data?.mapping.status;
-  const hasNormalizedData = seasonDetailQuery.data?.normalized_overview != null;
   const readyToGenerate =
     Boolean(selectedSeason) &&
-    Boolean(lastSuccessfulRefresh) &&
-    hasNormalizedData &&
-    mappingStatus === "ready" &&
+    readinessAllowsGeneration(snapshotReadinessQuery.data) &&
     !competitionQuery.data?.competition.archived_at;
 
   useEffect(() => {
@@ -347,6 +356,15 @@ export function Component(): React.JSX.Element {
       saveGenerationDraft(competitionId, parsed.data.values);
     }
   }, [competitionId, draftValues]);
+
+  useEffect(() => {
+    resetSnapshotPreparation();
+  }, [
+    readinessMode,
+    resetSnapshotPreparation,
+    selectedSeasonId,
+    selectedWeekEnd,
+  ]);
 
   useEffect(() => {
     if (seasons.length === 0) return;
@@ -482,7 +500,7 @@ export function Component(): React.JSX.Element {
   const submit = form.handleSubmit(async (values) => {
     if (!readyToGenerate) {
       form.setError("root.server", {
-        message: "Finish the selected season's data setup before generating.",
+        message: "Snapshot readiness must be known before generating.",
       });
       return;
     }
@@ -1249,74 +1267,46 @@ export function Component(): React.JSX.Element {
             </dl>
           </section>
 
-          <section className="rounded-lg border border-border bg-card p-5">
-            <div className="flex items-center gap-2">
-              <Clock3
-                className="size-4 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <h2 className="font-semibold">Data readiness</h2>
-            </div>
-            {seasonDetailQuery.isPending || mappingsQuery.isPending ? (
-              <Skeleton className="mt-4 h-20 w-full" />
-            ) : seasonDetailQuery.isError || mappingsQuery.isError ? (
-              <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/5 p-3">
-                <p className="text-sm text-destructive">
-                  Season readiness could not be loaded.
-                </p>
-                <Button
-                  type="button"
-                  className="mt-3"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    void Promise.all([
-                      seasonDetailQuery.refetch(),
-                      mappingsQuery.refetch(),
-                    ]);
-                  }}
-                >
-                  Retry readiness
-                </Button>
+          {competition.archived_at ? (
+            <section className="rounded-lg border border-border bg-card p-5">
+              <div className="flex items-center gap-2">
+                <Clock3
+                  className="size-4 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <h2 className="font-semibold">Data readiness</h2>
               </div>
-            ) : (
-              <>
-                <p
-                  className={cn(
-                    "mt-4 text-sm font-medium",
-                    readyToGenerate ? "text-primary" : "text-destructive",
-                  )}
-                >
-                  {competition.archived_at
-                    ? "Archived league"
-                    : !hasNormalizedData
-                      ? "Sleeper data not loaded"
-                      : mappingStatus !== "ready"
-                        ? "Team identity setup required"
-                        : !lastSuccessfulRefresh
-                          ? "No successful refresh"
-                          : "Ready to generate"}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  Last successful refresh:{" "}
-                  <DateTime value={lastSuccessfulRefresh} />
-                </p>
-                {!readyToGenerate ? (
-                  <Link
-                    className="mt-4 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
-                    to={`/competitions/${competitionId}?season=${selectedSeasonId}`}
-                  >
-                    Finish season setup
-                  </Link>
-                ) : null}
-              </>
-            )}
-            <p className="mt-4 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
-              Refresh and generation snapshots are separate. A same-day run may
-              reuse an earlier ready daily snapshot; snapshot time is shown on
-              the resulting run audit.
-            </p>
-          </section>
+              <p className="mt-4 text-sm font-medium text-destructive">
+                Archived league
+              </p>
+            </section>
+          ) : (
+            <SnapshotReadinessPanel
+              competitionId={competitionId}
+              readiness={snapshotReadinessQuery.data}
+              readinessPending={snapshotReadinessQuery.isPending}
+              readinessError={snapshotReadinessQuery.error}
+              preparation={prepareSnapshot.data}
+              preparationPending={prepareSnapshot.isPending}
+              preparationError={prepareSnapshot.error}
+              onRetry={() => {
+                void snapshotReadinessQuery.refetch();
+              }}
+              onPrepare={() => {
+                prepareSnapshot.mutate(
+                  {
+                    through_week: selectedWeekEnd,
+                    mode: readinessMode,
+                  },
+                  {
+                    onSuccess: () => {
+                      toast.success("Snapshot preparation complete");
+                    },
+                  },
+                );
+              }}
+            />
+          )}
 
           {form.formState.errors.root?.server ? (
             <div

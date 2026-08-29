@@ -196,6 +196,16 @@ structured conflicts; unresolved inputs and refresh availability are
 structured service-unavailable responses with only safe stable identifiers;
 artifact validation failures are sanitized internal failures.
 
+The generation form keys readiness by competition, primary season, week end,
+and preparation mode. `ready` and `refresh_required` permit submission because
+generation owns the same bounded preparation; only the latter offers an
+explicit **Prepare now** action. `roster_mapping_required`, loading, failed, or
+unknown readiness blocks submission. Mapping links use the returned
+competition-season ID rather than resolving a historical name. Preparation
+invalidates readiness, refresh history, snapshot audit, season overview, and
+roster-mapping queries for every season named by a receipt or structured
+failure.
+
 ## Invariants
 
 - Included seasons are exactly the primary plus all lower-sequence seasons in

@@ -69,6 +69,34 @@ export const queryKeys = {
         seasonId,
         "snapshots",
       ] as const,
+    snapshotReadinessScope: (competitionId: string, seasonId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "snapshot-readiness",
+      ] as const,
+    snapshotReadiness: (
+      competitionId: string,
+      seasonId: string,
+      parameters: Readonly<object>,
+    ) =>
+      [
+        ...queryKeys.competitions.snapshotReadinessScope(
+          competitionId,
+          seasonId,
+        ),
+        parameters,
+      ] as const,
+    snapshotPreparation: (competitionId: string, seasonId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "seasons",
+        seasonId,
+        "snapshot-preparation",
+      ] as const,
     generations: (competitionId: string) =>
       ["competitions", competitionId, "generations"] as const,
     generationList: (competitionId: string, parameters: Readonly<object>) =>

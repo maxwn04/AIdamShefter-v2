@@ -112,8 +112,10 @@ Exact selected API requests are sealed audit membership, not reuse identity.
   free-form SQL execute only against a verified frozen SQLite artifact.
 - V1 stores frozen SQLite artifacts on the local filesystem under a configured
   datalayer directory. No external object-storage service is required.
-- The initial reporter snapshot contains one competition season. Durable
-  franchise identity is included, but multi-season reporter SQL is deferred.
+- Retained projection-version-2 snapshots contain one primary season. New
+  projection-version-3 snapshots contain the complete ordered competition
+  lineage through the primary season and use durable franchise identity for
+  cross-season history.
 - Existing query return shapes and expected `{"found": false}` lookup behavior
   are preserved where practical. Platform resource and workflow failures use
   typed exceptions instead of tool-shaped dictionaries.
@@ -124,26 +126,34 @@ Exact selected API requests are sealed audit membership, not reuse identity.
   Live/backtest/retrospective labels belong to generation policy, not snapshot
   identity. `as_of_date` is a coarse daily reuse label, not a timestamp or
   request-eligibility cutoff.
-- `DatalayerSnapshotService.get_or_create()` is the only ordinary snapshot
-  operation. It owns reuse versus build and uses an atomic canonical build key.
+- `DatalayerSnapshotService.get_or_create()` remains the isolated compatibility
+  path for pending settings-version-1 generations. New settings-version-2
+  generation and operator calls use `DatalayerSnapshotPreparationService`,
+  which resolves exact inputs, coordinates bounded refresh, and delegates to
+  the resolved-input version-3 builder.
 
 ## Primary Public Capabilities
 
-The component has three caller-facing Python entry points:
+The component has four caller-facing Python entry points during the explicit
+version-2/version-3 compatibility window:
 
 ```python
 refresh = DatalayerRefreshService(...)
-snapshots = DatalayerSnapshotService(...)
+legacy_snapshots = DatalayerSnapshotService(...)
+snapshots = DatalayerSnapshotPreparationService(...)
 data = FrozenLeagueData.open(ready_snapshot)
 ```
 
 - `DatalayerRefreshService` records a refresh and updates eligible current
   normalized scopes.
-- `DatalayerSnapshotService.get_or_create()` builds or reuses a ready,
-  immutable snapshot for a week-scoped factual boundary and daily reuse
-  contract.
+- `DatalayerSnapshotService.get_or_create()` preserves reproducible version-2
+  execution for already-pending policy-version-1 generations.
+- `DatalayerSnapshotPreparationService.get_or_create()` resolves every prior
+  season, refreshes at most one returned season per resolution step, and builds
+  or reuses an immutable version-3 snapshot keyed by factual `input_revision`.
 - `FrozenLeagueData` exposes curated factual queries and guarded SQL to the
-  reporter without exposing persistence or source-fetch behavior.
+  reporter without exposing persistence or source-fetch behavior. Opening
+  dispatches once to the version-2 or version-3 reader.
 
 The exact contracts are specified in
 [`application-contracts.md`](application-contracts.md).

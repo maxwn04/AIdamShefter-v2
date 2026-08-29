@@ -1,6 +1,7 @@
 # Multi-Season Reporter Data Design
 
-**Status:** Architecture reviewed; ready for implementation
+**Status:** Implementation complete through operator integration; real-data
+release gate pending
 
 ## Purpose
 
@@ -63,6 +64,28 @@ single-season compatibility surface and is not the implementation target.
   remain readable under their old version but are never mutated.
 - The primary season still owns generation and memory scope. Including historical
   facts does not change the generation's `competition_season_id`.
+- The generation form reads the same network-free resolver state used by the
+  API. Ready coverage is visible, refresh-required work may be prepared
+  explicitly or left to generation, and exact historical mapping blockers link
+  to that season's existing mapping workflow.
+
+## Readiness and Cutover Gate
+
+The code stack remains unmerged and undeployed until an operator reviews a
+real-data readiness report. The gate is:
+
+1. inspect every non-archived competition's latest attached season;
+2. derive the cutoff from the newest successful refresh plan, classifying a
+   missing usable cutoff as setup-required rather than guessing;
+3. run readiness-only inspection and explicit preparation so fetchable
+   historical gaps can backfill;
+4. record the ready version-3 snapshot ID, factual revision, ordered coverage,
+   refresh receipts, artifact size, and request duration;
+5. record exact mapping blockers, resolve them through the normal mapping UI,
+   and rerun readiness;
+6. open at least one retained version-2 artifact when one exists;
+7. stop for explicit approval before merge, migration application, deployment,
+   cutover, or a live-generation smoke test.
 
 ## Non-Goals
 
