@@ -11,6 +11,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backend.resources.memory.search_documents import SearchDocumentQuery
+from backend.services.memory import MemoryRetrievalResult
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
 from backend.services.reporter.runner.models import ToolCall, ToolExecutionResult
 from backend.services.reporter.runner.recording import (
@@ -32,6 +34,9 @@ from backend.services.reporter.runner.tools.brief_tools import (
     set_outline,
 )
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.memory_presentation import (
+    MemoryPresentationAdapter,
+)
 from backend.services.reporter.runner.tools.procedure_tools import (
     register_procedure_tools,
 )
@@ -424,6 +429,41 @@ def test_runner_hides_tool_execution_metadata_from_model_messages() -> None:
     assert recorded.result_text == sent_text
     assert recorded.metadata == metadata
     assert "private-id" not in sent_text
+
+
+def test_runner_records_exact_semantic_memory_result_with_hidden_bindings() -> None:
+    revision_id = uuid4()
+    presentation = MemoryPresentationAdapter(SimpleNamespace()).present(  # type: ignore[arg-type]
+        MemoryRetrievalResult(
+            competition_id=uuid4(),
+            revision_id=revision_id,
+            matches=(),
+        ),
+        query=SearchDocumentQuery(text="playoff push", limit=9),
+        limit=8,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("search_memory")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with("search_memory", lambda: presentation),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    sent_text = complete.requests[1]["messages"][-1]["content"]
+    assert recorded.result == presentation.result
+    assert recorded.result_text == sent_text
+    assert recorded.metadata == presentation.metadata
+    assert str(revision_id) not in sent_text
+    assert "pinned_revision_id" not in sent_text
 
 
 def test_runner_records_parallel_tools_in_provider_order_with_exact_results() -> None:

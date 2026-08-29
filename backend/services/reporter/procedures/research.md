@@ -42,10 +42,10 @@ Run independent reads together when their results do not depend on one another. 
 
 After the broad current-week inventory, do not treat the evidence base as sufficient for a recap or request asking for storylines, trends, rankings, retrospectives, or season context until one targeted `search_memory` continuity check has been attempted. Standings movement, streaks, contender or pretender judgments, repeated outcomes, transactions, matchups, and changed stakes are already plausible hooks; the purpose of search is to discover whether matching memory exists. Build searches from current evidence:
 
-- Prefer `team_keys` for current team names or roster IDs, and use exact entity keys, tags, or references only when another tool has supplied them. These are alternative discovery signals, so any one may find a candidate.
-- Use `text` only for one short lexical concept, name, phrase, or explicit `OR` set. Unquoted words are jointly required; it is not semantic search. Never pack unrelated teams, players, and themes into one text query. If distinct hooks are independently valuable, test them with separate focused calls.
-- Use `kinds`, `statuses`, and `week` only as hard filters. The `week` filter selects one exact memory week, not an at-or-before cutoff; omit it for continuity spanning prior weeks.
-- Prefer 5-10 focused results. Do not perform an unfiltered browse merely because memory exists.
+- Prefer `team_keys` for current team names or roster IDs, and combine them with tags or a focused text concept when that sharpens the editorial question. Canonical memory identifiers are intentionally unavailable.
+- Use `text` for one short concept, name, phrase, or explicit `OR` set. Never pack unrelated teams, players, and themes into one query. If distinct hooks are independently valuable, test them with separate focused calls.
+- Use `kinds`, `statuses`, and inclusive `week_from` / `week_to` only when they genuinely narrow the question. Omit temporal bounds for continuity spanning the season.
+- Prefer 5-8 focused semantic results. Include evidence or related summaries when they help evaluate continuity, but remember that memory is a lead rather than proof. Do not perform an unfiltered browse merely because memory exists.
 - Discard any match dated after the article's configured coverage.
 
 This is a continuity check, not a fixed research phase. Skip it when the request is purely factual and narrow or current evidence provides no plausible historical hook. Stop after an empty or low-value result unless a more specific query is justified.

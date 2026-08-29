@@ -53,6 +53,10 @@ def query_search_documents(
         )
     if query.week is not None:
         statement = statement.where(MemorySearchDocument.week == query.week)
+    if query.week_from is not None:
+        statement = statement.where(MemorySearchDocument.week >= query.week_from)
+    if query.week_to is not None:
+        statement = statement.where(MemorySearchDocument.week <= query.week_to)
 
     signals: list[sa.ColumnElement[bool]] = []
     if query.entity_keys:

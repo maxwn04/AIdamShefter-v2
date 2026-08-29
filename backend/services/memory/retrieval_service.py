@@ -4,6 +4,7 @@ from typing import Annotated, Literal, TypeAlias, cast
 from uuid import UUID
 
 from pydantic import Field, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.resources.memory.common.errors import (
@@ -119,6 +120,12 @@ class MemoryRetrievalRequest(ContractModel):
 
 class HydratedMemoryMatch(ContractModel):
     memory: HydratedMemory
+    week: SkipJsonSchema[int | None] = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        exclude=True,
+    )
     score: float = Field(ge=0)
     score_components: SearchScoreComponents
     matched_entity_keys: tuple[NonBlankStr, ...] = ()
@@ -198,6 +205,7 @@ class MemoryRetrievalService:
             matches.append(
                 HydratedMemoryMatch(
                     memory=memory,
+                    week=candidate.week,
                     score=candidate.score,
                     score_components=candidate.score_components,
                     matched_entity_keys=candidate.matched_entity_keys,

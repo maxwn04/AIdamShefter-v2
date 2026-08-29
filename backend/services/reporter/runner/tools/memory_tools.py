@@ -7,7 +7,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    ValidationError,
+    model_validator,
+)
 
 from backend.services.memory import (
     ContextNoteContent,
@@ -21,8 +28,11 @@ from backend.services.memory import (
     StorylineContent,
     TriggerContent,
 )
-from backend.services.reporter.runner.models import ToolDef
+from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.memory_presentation import (
+    MemoryPresentationAdapter,
+)
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
@@ -30,7 +40,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "3"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "4"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -134,41 +144,16 @@ class SearchMemoryArgs(_StrictModel):
     text: str | None = Field(
         default=None,
         description=(
-            "Optional PostgreSQL web-style lexical search, not semantic search. "
-            "Unquoted terms are jointly required. Keep one short concept, name, "
-            "or phrase per call; use quotes for a phrase, OR for explicit "
-            "alternatives, and -term to exclude a term. Do not concatenate "
-            "unrelated teams, players, and themes."
+            "Optional focused editorial concept, name, or phrase. Search uses "
+            "lexical matching internally, so keep each call centered on one "
+            "continuity question; use OR only for explicit alternatives."
         ),
     )
     team_keys: list[str] = Field(
         default_factory=list,
         description=(
-            "Current team names or roster IDs. Each is resolved internally to "
-            "canonical franchise and season-roster keys; matching any key can "
-            "discover a memory."
-        ),
-    )
-    entity_keys: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Exact canonical entity keys already returned by another tool or memory "
-            "result. Matching any key can discover a memory. Prefer team_keys for "
-            "ordinary team names or roster IDs."
-        ),
-    )
-    evidence_version_ids: list[UUID] = Field(
-        default_factory=list,
-        description=(
-            "Exact memory evidence-version IDs from an earlier result. Matching any "
-            "ID can discover a memory."
-        ),
-    )
-    related_item_ids: list[UUID] = Field(
-        default_factory=list,
-        description=(
-            "Exact stable memory-item IDs from an earlier result. Matching any ID "
-            "can discover a related memory."
+            "Current team names or roster IDs. They are resolved internally; "
+            "canonical identifiers are never required or returned."
         ),
     )
     tags: list[str] = Field(
@@ -188,34 +173,44 @@ class SearchMemoryArgs(_StrictModel):
             "statuses. Status vocabulary depends on memory kind."
         ),
     )
-    week: int | None = Field(
+    week_from: int | None = Field(
         default=None,
         ge=0,
-        description=(
-            "Optional hard filter for one exact memory week. This is not an "
-            "at-or-before cutoff. Omit it when searching continuity across weeks."
-        ),
+        description="Optional inclusive first relevant memory week.",
+    )
+    week_to: int | None = Field(
+        default=None,
+        ge=0,
+        description="Optional inclusive last relevant memory week.",
     )
     limit: int = Field(
-        default=10,
+        default=8,
         ge=1,
         le=25,
-        description="Maximum hydrated matches to return; prefer 5-10 focused results.",
+        description="Maximum semantic memories to return; prefer 5-8 focused results.",
     )
-    expand_exact_references: bool = Field(
-        default=False,
+    include_evidence: bool = Field(
+        default=True,
         description=(
-            "Also hydrate exact evidence linked from matching storylines and "
-            "originating events linked from matching facts."
+            "Include up to three semantic evidence summaries when available."
         ),
     )
-    expand_stable_references: bool = Field(
-        default=False,
+    include_related: bool = Field(
+        default=True,
         description=(
-            "Also hydrate visible storyline or event items referenced by matching "
-            "storylines and triggers."
+            "Include up to three semantic related-memory summaries when available."
         ),
     )
+
+    @model_validator(mode="after")
+    def _validate_week_range(self) -> SearchMemoryArgs:
+        if (
+            self.week_from is not None
+            and self.week_to is not None
+            and self.week_from > self.week_to
+        ):
+            raise ValueError("week_from cannot be greater than week_to")
+        return self
 
 
 class SaveMemoryEventArgs(_StrictModel):
@@ -294,13 +289,11 @@ def _tool(name: str, description: str, arguments: type[BaseModel]) -> ToolDef:
 MEMORY_TOOL_SPECS: list[ToolDef] = [
     _tool(
         _READ_TOOL,
-        "Search fully hydrated canonical memory at this generation's pinned "
-        "revision. Text, entity/team keys, references, and tags are alternative "
-        "discovery signals: matching any one can discover a memory. Kinds, statuses, "
-        "and exact week are hard filters applied to every result. With no discovery "
-        "signal, the tool browses memories allowed by those filters. Text is lexical "
-        "web search, not semantic search; see the text field for syntax. Returned "
-        "memories are research leads and must be verified against frozen data.",
+        "Search reporter memory by editorial intent at this generation's pinned "
+        "revision. Text, team names, and tags are discovery signals; kinds, statuses, "
+        "and inclusive week bounds narrow the results. Returned memories contain "
+        "semantic writing context rather than storage identifiers. Treat every "
+        "memory as a research lead and verify material claims against frozen data.",
         SearchMemoryArgs,
     ),
     _tool(
@@ -363,9 +356,13 @@ class TypedMemoryAdapter:
         self._completed_semantic_saves: dict[
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
+        self._presentation = MemoryPresentationAdapter(data)
 
-    def search(self, arguments: SearchMemoryArgs) -> dict[str, Any]:
-        entity_keys = list(arguments.entity_keys)
+    def search(self, arguments: SearchMemoryArgs) -> ToolExecutionResult:
+        season_id = self._memory_context.competition_season_id
+        if season_id is None:
+            raise RuntimeError("reporter memory search requires season scope")
+        entity_keys: list[str] = []
         for roster_key in arguments.team_keys:
             identity = self._resolve_roster(roster_key)
             entity_keys.extend(
@@ -377,19 +374,19 @@ class TypedMemoryAdapter:
         query = SearchDocumentQuery(
             text=arguments.text,
             entity_keys=tuple(dict.fromkeys(entity_keys)),
-            evidence_version_ids=tuple(arguments.evidence_version_ids),
-            related_item_ids=tuple(arguments.related_item_ids),
             tags=tuple(arguments.tags),
             kinds=tuple(arguments.kinds),
             statuses=tuple(arguments.statuses),
-            week=arguments.week,
-            limit=arguments.limit,
+            competition_season_id=season_id,
+            week_from=arguments.week_from,
+            week_to=arguments.week_to,
+            limit=arguments.limit + 1,
         )
         result = self._memory_context.search(
             MemoryRetrievalRequest(
                 query=query,
-                expand_exact_references=arguments.expand_exact_references,
-                expand_stable_references=arguments.expand_stable_references,
+                expand_exact_references=arguments.include_evidence,
+                expand_stable_references=arguments.include_related,
             )
         )
         self._pinned_agent_candidates.update(
@@ -397,7 +394,11 @@ class TypedMemoryAdapter:
             for match in result.matches
             if match.memory.item.agent_key is not None
         )
-        return {"ok": True, **result.model_dump(mode="json")}
+        return self._presentation.present(
+            result,
+            query=query,
+            limit=arguments.limit,
+        )
 
     def save_memory_event(
         self,
@@ -953,7 +954,7 @@ def register_memory_tools(
 
     adapter = TypedMemoryAdapter(memory_context, data)
 
-    def search_memory(**kwargs: Any) -> dict[str, Any]:
+    def search_memory(**kwargs: Any) -> ToolExecutionResult | dict[str, Any]:
         try:
             return adapter.search(SearchMemoryArgs.model_validate(kwargs))
         except (ValidationError, MemoryToolInputError) as error:

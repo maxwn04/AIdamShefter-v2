@@ -13,7 +13,9 @@ from uuid import UUID
 from backend.services.datalayer.canonical_json import canonical_json_bytes, parse_json_bytes
 from backend.services.datalayer.contracts import ReadyDataSnapshot
 from backend.services.datalayer.query.identity import (
+    FrozenRosterIdentity,
     RosterIdentityResolution,
+    get_roster_identity_by_canonical_id,
     resolve_roster_identity,
 )
 from backend.services.datalayer.query.curated import (
@@ -309,6 +311,24 @@ class FrozenLeagueData:
             competition_season_id=self._competition_season_id,
             league_id=self._league_id,
             roster_key=roster_key,
+        )
+
+    def get_roster_identity_by_canonical_id(
+        self,
+        *,
+        franchise_id: UUID | None = None,
+        season_roster_id: UUID | None = None,
+    ) -> FrozenRosterIdentity | None:
+        connection = self._conn()
+        if self._competition_id is None or self._competition_season_id is None:
+            raise RuntimeError("FrozenLeagueData identity scope is unavailable")
+        return get_roster_identity_by_canonical_id(
+            connection,
+            competition_id=self._competition_id,
+            competition_season_id=self._competition_season_id,
+            league_id=self._league_id,
+            franchise_id=franchise_id,
+            season_roster_id=season_roster_id,
         )
 
     def get_roster_snapshot(self, roster_key: Any, week: int) -> dict[str, Any]:

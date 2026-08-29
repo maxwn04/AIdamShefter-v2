@@ -134,6 +134,30 @@ def test_search_supports_filter_only_browsing_limits_and_scope(
         manager.search(other.root_revision_id, SearchDocumentQuery())
 
 
+def test_search_supports_inclusive_week_ranges_and_exact_week_compatibility(
+    database_engine: Engine,
+) -> None:
+    domain, _, revision_id = _committed_bundle(database_engine)
+    manager = _manager(database_engine, domain)
+
+    exact = manager.search(revision_id, SearchDocumentQuery(week=7))
+    ranged = manager.search(
+        revision_id,
+        SearchDocumentQuery(week_from=7, week_to=7),
+    )
+    after = manager.search(revision_id, SearchDocumentQuery(week_from=8))
+
+    assert exact
+    assert [candidate.version_id for candidate in ranged] == [
+        candidate.version_id for candidate in exact
+    ]
+    assert after == ()
+    with pytest.raises(ValueError, match="week_from cannot be greater"):
+        SearchDocumentQuery(week_from=8, week_to=7)
+    with pytest.raises(ValueError, match="week cannot be combined"):
+        SearchDocumentQuery(week=7, week_from=7)
+
+
 def test_search_visibility_is_pinned_to_the_exact_revision(
     database_engine: Engine,
 ) -> None:

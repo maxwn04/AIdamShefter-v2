@@ -14,7 +14,7 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 
 - Use `read_brief` when the current facts, callbacks, storylines, or outline are not already available in context.
 - Use a targeted datalayer call when a promising angle has one material evidence gap. Return to broader research only when the premise itself needs substantial investigation.
-- For recaps and requests about storylines, trends, rankings, or retrospectives, use `search_memory` after current evidence reveals a concrete team, player, transaction, matchup, or stakes hook. Prefer structured team keys; when lexical text is needed, test one focused concept or explicit alternative set rather than packing unrelated names into one query. Skip it for purely narrow factual work, and discard matches dated after the configured coverage.
+- For recaps and requests about storylines, trends, rankings, or retrospectives, use `search_memory` after current evidence reveals a concrete team, player, transaction, matchup, or stakes hook. Search by editorial intent with team names, focused text or tags, and inclusive week bounds when useful. Treat its semantic summaries as leads, verify material claims with datalayer tools, skip it for purely narrow factual work, and discard memories beyond configured coverage.
 - Use `save_storyline` for developed narrative angles supported by saved fact IDs.
 - Use `save_memory_callback` only after the older event and current payoff both exist as reverified facts.
 - Use `set_outline` when explicit structure will improve emphasis, coverage, or drafting. An outline is optional and revisable.

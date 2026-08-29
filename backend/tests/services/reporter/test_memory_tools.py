@@ -28,6 +28,7 @@ from backend.services.memory import (
     MemoryRetrievalResult,
 )
 from backend.services.reporter.runner.run_log import RunLog
+from backend.services.reporter.runner.models import ToolExecutionResult
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.memory_tools import (
@@ -97,6 +98,25 @@ class FrozenData:
             return RosterIdentityNotFound(roster_key=roster_key)
         return ResolvedRosterIdentity(roster_key=roster_key, identity=identity)
 
+    def get_roster_identity_by_canonical_id(
+        self,
+        *,
+        franchise_id: UUID | None = None,
+        season_roster_id: UUID | None = None,
+    ) -> FrozenRosterIdentity | None:
+        return next(
+            (
+                identity
+                for identity in self.identities.values()
+                if identity.franchise_id == franchise_id
+                or identity.season_roster_id == season_roster_id
+            ),
+            None,
+        )
+
+    def get_player_summary(self, player_key: Any) -> dict[str, Any]:
+        return {"found": False, "player_key": player_key}
+
 
 def _registered(
     *,
@@ -139,6 +159,17 @@ def _call(registry: ToolRegistry, name: str, **arguments: Any) -> dict[str, Any]
     assert handler is not None
     result = handler(**arguments)
     assert isinstance(result, dict)
+    return result
+
+
+def _search_call(
+    registry: ToolRegistry,
+    **arguments: Any,
+) -> ToolExecutionResult | dict[str, Any]:
+    handler = registry.get_handler("search_memory")
+    assert handler is not None
+    result = handler(**arguments)
+    assert isinstance(result, (ToolExecutionResult, dict))
     return result
 
 
@@ -234,7 +265,7 @@ def _event_match() -> HydratedMemoryMatch:
     )
 
 
-def test_registers_legacy_semantic_surface() -> None:
+def test_registers_semantic_memory_surface() -> None:
     registry, _, _, _, _ = _registered()
     assert registry.tool_names == [
         "search_memory",
@@ -250,7 +281,7 @@ def test_registers_legacy_semantic_surface() -> None:
     ]
 
 
-def test_search_schema_explains_discovery_filters_and_lexical_syntax() -> None:
+def test_search_schema_exposes_only_editorial_selectors() -> None:
     search = next(
         spec["function"]
         for spec in MEMORY_TOOL_SPECS
@@ -259,26 +290,87 @@ def test_search_schema_explains_discovery_filters_and_lexical_syntax() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "3"
-    assert "alternative discovery signals" in description
-    assert "hard filters" in description
-    assert "not semantic search" in properties["text"]["description"]
-    assert "OR for explicit alternatives" in properties["text"]["description"]
-    assert "team names or roster IDs" in properties["team_keys"]["description"]
-    assert "one exact memory week" in properties["week"]["description"]
-    assert properties["limit"]["default"] == 10
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "4"
+    assert "editorial intent" in description
+    assert "storage identifiers" in description
+    assert set(properties) == {
+        "text",
+        "team_keys",
+        "tags",
+        "kinds",
+        "statuses",
+        "week_from",
+        "week_to",
+        "limit",
+        "include_evidence",
+        "include_related",
+    }
+    assert properties["limit"]["default"] == 8
     assert properties["limit"]["maximum"] == 25
+    assert properties["include_evidence"]["default"] is True
+    assert properties["include_related"]["default"] is True
 
 
 def test_search_remains_pinned_and_resolves_team_keys() -> None:
     registry, _, memory, retrieval, _ = _registered()
-    result = _call(registry, "search_memory", text="push", team_keys=["Team Taco"])
-    assert result["revision_id"] == str(memory.pinned_revision_id)
+    execution = _search_call(
+        registry,
+        text="push",
+        team_keys=["Team Taco"],
+    )
+    assert isinstance(execution, ToolExecutionResult)
+    assert execution.result == {
+        "memories": [],
+        "notice": "No relevant memory matched these editorial selectors.",
+        "truncated": False,
+    }
+    assert execution.metadata["pinned_revision_id"] == str(
+        memory.pinned_revision_id
+    )
     assert retrieval.calls[0].query.entity_keys == (
         f"franchise:{TACO_FRANCHISE_ID}",
         f"season_roster:{TACO_ROSTER_ID}",
     )
-    assert retrieval.calls[0].query.limit == 10
+    assert retrieval.calls[0].query.competition_season_id == SEASON_ID
+    assert retrieval.calls[0].query.limit == 9
+    assert retrieval.calls[0].expand_exact_references is True
+    assert retrieval.calls[0].expand_stable_references is True
+
+
+def test_search_rejects_identifier_inputs_and_reversed_ranges() -> None:
+    registry, _, _, retrieval, _ = _registered()
+    identifier = _search_call(registry, entity_keys=["franchise:hidden"])
+    reversed_range = _search_call(registry, week_from=9, week_to=8)
+    assert isinstance(identifier, dict)
+    assert isinstance(reversed_range, dict)
+    assert identifier["error"]["code"] == "invalid_memory_input"
+    assert reversed_range["error"]["code"] == "invalid_memory_input"
+    assert retrieval.calls == []
+
+
+def test_search_maps_editorial_range_and_expansion_preferences() -> None:
+    registry, _, _, retrieval, _ = _registered()
+    execution = _search_call(
+        registry,
+        tags=["playoffs"],
+        kinds=["storyline"],
+        statuses=["active"],
+        week_from=4,
+        week_to=8,
+        limit=3,
+        include_evidence=False,
+        include_related=False,
+    )
+    assert isinstance(execution, ToolExecutionResult)
+    request = retrieval.calls[0]
+    assert request.query.tags == ("playoffs",)
+    assert request.query.kinds == (MemoryKind.STORYLINE,)
+    assert request.query.statuses == ("active",)
+    assert request.query.week_from == 4
+    assert request.query.week_to == 8
+    assert request.query.limit == 4
+    assert request.expand_exact_references is False
+    assert request.expand_stable_references is False
 
 
 def test_legacy_writes_buffer_typed_proposals() -> None:
@@ -367,9 +459,10 @@ def test_post_submit_bridge_buffers_only_supporting_facts_idempotently() -> None
 
 def test_eval_mode_keeps_search_and_skips_legacy_writes() -> None:
     registry, _, memory, retrieval, _ = _registered(allow_memory_writes=False)
-    searched = _call(registry, "search_memory", text="Taco")
+    searched = _search_call(registry, text="Taco")
     blocked = _call(registry, "save_memory_event", **_event_args())
-    assert searched["ok"] is True
+    assert isinstance(searched, ToolExecutionResult)
+    assert searched.result["memories"] == []
     assert blocked["saved"] is False
     assert blocked["eval_mode"] is True
     assert blocked["recorded"] is False

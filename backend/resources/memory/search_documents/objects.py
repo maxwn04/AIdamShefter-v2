@@ -4,7 +4,8 @@ from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, StringConstraints, field_validator
+from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.resources.memory.common.kinds import MemoryKind
@@ -52,7 +53,23 @@ class SearchDocumentQuery(ContractModel):
     statuses: tuple[NonBlankStr, ...] = ()
     competition_season_id: UUID | None = None
     week: int | None = Field(default=None, ge=0, strict=True)
+    week_from: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
+    week_to: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
     limit: int = Field(default=20, ge=1, le=100, strict=True)
+
+    @model_validator(mode="after")
+    def _validate_week_filters(self) -> SearchDocumentQuery:
+        if self.week is not None and (
+            self.week_from is not None or self.week_to is not None
+        ):
+            raise ValueError("week cannot be combined with week_from or week_to")
+        if (
+            self.week_from is not None
+            and self.week_to is not None
+            and self.week_from > self.week_to
+        ):
+            raise ValueError("week_from cannot be greater than week_to")
+        return self
 
     @field_validator(
         "entity_keys",

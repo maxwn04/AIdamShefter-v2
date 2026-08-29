@@ -65,6 +65,10 @@ class GenerationMemoryContext:
         self._proposals: list[MemoryProposal] = []
         self._closed = False
 
+    @property
+    def competition_season_id(self) -> UUID | None:
+        return self._competition_season_id
+
     def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""
 
