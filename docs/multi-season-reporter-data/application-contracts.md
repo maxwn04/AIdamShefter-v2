@@ -110,6 +110,20 @@ validate their catalog against sealed membership and revision before any query.
 Reporter tools mirror these contracts. Guarded SQL exposes the
 version-specific allowlist, including `snapshot_seasons` for version 3.
 
+`get_league_history` returns `found`, the competition and primary year, and an
+oldest-to-primary `seasons` list. Each season entry contains its competition-
+season and Sleeper league IDs, year, sequence, role, cutoff, league name, team
+count, and standings at that cutoff.
+
+`get_franchise_history` treats only a canonical UUID string as a direct durable
+franchise lookup. Every other input is resolved against the primary season's
+roster/team/manager identities before querying by `franchise_id`. A successful
+result contains ordered appearances with season metadata, season-roster and
+Sleeper roster identities, contemporaneous names, and the cutoff standing or
+`None`. Seasons without an appearance are omitted. Missing and ambiguous
+primary references remain ordinary `found: false` values; names are never
+matched independently in historical seasons.
+
 ## Invariants
 
 - Included seasons are exactly the primary plus all lower-sequence seasons in

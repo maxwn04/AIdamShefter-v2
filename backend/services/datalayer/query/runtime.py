@@ -12,6 +12,8 @@ from backend.services.datalayer.contracts import ReadyDataSnapshot
 from backend.services.datalayer.query.contracts import SnapshotSeason
 from backend.services.datalayer.query.curated import (
     get_bench_analysis,
+    get_franchise_history,
+    get_league_history,
     get_league_snapshot,
     get_player_summary,
     get_player_weekly_log,
@@ -105,6 +107,21 @@ class FrozenLeagueData:
 
     def available_seasons(self) -> tuple[SnapshotSeason, ...]:
         return self._state()[1].seasons
+
+    def get_league_history(self) -> dict[str, Any]:
+        connection, reader = self._state()
+        return get_league_history(connection, reader.seasons)
+
+    def get_franchise_history(
+        self,
+        franchise_or_primary_roster: str | int,
+    ) -> dict[str, Any]:
+        connection, reader = self._state()
+        return get_franchise_history(
+            connection,
+            reader.seasons,
+            franchise_or_primary_roster,
+        )
 
     def get_league_snapshot(
         self,

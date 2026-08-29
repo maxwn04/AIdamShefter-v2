@@ -212,8 +212,11 @@ than introducing version-capability errors.
 
 `franchise_history` accepts an exact franchise UUID or resolves a roster/team
 reference inside the primary season first. It never performs loose-name matching
-across all years. Guarded SQL remains SELECT-only, single-statement, allowlisted,
-and row-limited.
+across all years. The resolved durable franchise ID is the only cross-season
+join key; roster IDs, team names, manager names, and season-roster IDs are
+reported as season-local attributes. Missing appearances are omitted and a
+retained version-2 artifact naturally returns one primary appearance. Guarded
+SQL remains SELECT-only, single-statement, allowlisted, and row-limited.
 
 ## Failure Model
 

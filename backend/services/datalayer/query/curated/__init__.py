@@ -1,5 +1,9 @@
 """Curated factual queries over one frozen league snapshot."""
 
+from backend.services.datalayer.query.curated.history import (
+    get_franchise_history,
+    get_league_history,
+)
 from backend.services.datalayer.query.curated.league import (
     get_bench_analysis,
     get_league_snapshot,
@@ -32,6 +36,8 @@ from backend.services.datalayer.query.curated.transactions import (
 
 __all__ = [
     "get_bench_analysis",
+    "get_franchise_history",
+    "get_league_history",
     "get_league_snapshot",
     "get_player_summary",
     "get_player_weekly_log",
