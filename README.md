@@ -58,6 +58,27 @@ uv run reporter-v2 "power rankings with analysis" --week 8    # Any article type
 uv run reporter-v2 "deep dive on Team Taco's season" --week 8 # Team-focused
 ```
 
+## Local Supabase MCP Server
+
+The `aidam-supabase-mcp` stdio server gives a local MCP host direct PostgreSQL
+access. It exposes connection discovery plus unrestricted SQL execution,
+including DDL and destructive writes. It reads `SUPABASE_DATABASE_URL` first
+and otherwise uses `AIDAM_MIGRATION_DATABASE_URL` from the project `.env`.
+Set `AIDAM_MCP_ENV_FILE` when the credential file lives elsewhere, such as the
+main checkout while Codex runs the server from a worktree. Credentials are never
+written to MCP host configuration.
+
+On Windows, use native PowerShell and register the absolute `uv.exe` path plus
+this repository path with your MCP host. For Codex:
+
+```powershell
+codex mcp add aidam-supabase -- `
+  C:\path\to\uv.exe run --frozen --directory C:\path\to\AIdamShefter-v2 `
+  aidam-supabase-mcp
+```
+
+Start a new Codex task after registration so the host reloads its MCP servers.
+
 ## API Server
 
 The product API exposes process health, canonical memory, and the polling-oriented
