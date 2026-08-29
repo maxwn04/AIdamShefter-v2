@@ -1,4 +1,5 @@
 from datetime import UTC, date, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
@@ -18,6 +19,10 @@ from backend.resources.sleeper_data import (
     RefreshRun,
     RefreshRunPage,
 )
+from backend.resources.sleeper_data.snapshots import (
+    SnapshotSeasonMembership,
+    SnapshotSeasonRole,
+)
 from backend.services.datalayer import (
     DatalayerResourceNotFound,
     DatalayerScopeConflict,
@@ -25,16 +30,34 @@ from backend.services.datalayer import (
     EndpointPayloadRejected,
     InvalidDatalayerRequest,
     NormalizationStatus,
+    PreparedSnapshot,
+    PrepareSnapshotRequest,
+    ReadyDataSnapshot,
+    ReadySnapshotSeason,
+    ReadySnapshotReadiness,
     RefreshOutcome,
     RefreshRequest,
     RefreshStatus,
+    RefreshUnavailable,
     RequestStatus,
+    RosterIdentityMappingRequired,
     ScopeKey,
     ScopeRefreshResult,
+    SnapshotPreparationMode,
+    SnapshotReadinessSeason,
     SnapshotStatus,
+    SnapshotInputsUnavailable,
     SnapshotUnavailable,
 )
-from backend.services.datalayer.local_files import StoredLocalArtifact
+from backend.services.datalayer.local_files import (
+    StoredLocalArtifact,
+    VerifiedLocalArtifact,
+)
+from backend.services.datalayer.refresh_coordination import (
+    RefreshReceipt,
+    RefreshReceiptDisposition,
+)
+from backend.services.datalayer.snapshot_sqlite import SnapshotArtifactInvalid
 
 
 NOW = datetime(2026, 8, 23, 12, tzinfo=UTC)
@@ -108,6 +131,29 @@ class StubSnapshots:
         return DataSnapshotPage(items=(self.snapshot,), total=1, limit=4, offset=1)
 
 
+class StubReadiness:
+    def __init__(self, result: object) -> None:
+        self.result = result
+        self.requests: list[PrepareSnapshotRequest] = []
+
+    def inspect(self, request: PrepareSnapshotRequest) -> object:
+        self.requests.append(request)
+        return self.result
+
+
+class StubPreparation:
+    def __init__(self, result: PreparedSnapshot) -> None:
+        self.result = result
+        self.requests: list[PrepareSnapshotRequest] = []
+        self.error: Exception | None = None
+
+    def get_or_create(self, request: PrepareSnapshotRequest) -> PreparedSnapshot:
+        self.requests.append(request)
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
 def _dependencies() -> SimpleNamespace:
     competition_id = uuid4()
     season_id = uuid4()
@@ -179,6 +225,18 @@ def _dependencies() -> SimpleNamespace:
         status=SnapshotStatus.READY,
         snapshot_projection_version="2",
         code_version="test",
+        input_revision=digest,
+        included_seasons=(
+            SnapshotSeasonMembership(
+                competition_id=competition_id,
+                competition_season_id=season_id,
+                sleeper_league_id="sleeper-2026",
+                season_year=2026,
+                sequence_number=1,
+                role=SnapshotSeasonRole.PRIMARY,
+                through_week=8,
+            ),
+        ),
         completeness_warnings=(),
         failure=None,
         artifact=StoredLocalArtifact(
@@ -189,6 +247,48 @@ def _dependencies() -> SimpleNamespace:
         created_at=NOW,
         completed_at=NOW,
     )
+    readiness_season = SnapshotReadinessSeason(
+        competition_season_id=season_id,
+        sleeper_league_id="sleeper-2026",
+        season_year=2026,
+        sequence_number=1,
+        role=SnapshotSeasonRole.PRIMARY,
+        through_week=8,
+    )
+    ready_snapshot = ReadyDataSnapshot(
+        id=snapshot.id,
+        competition_id=competition_id,
+        primary_competition_season_id=season_id,
+        through_week=8,
+        as_of_date=date(2026, 8, 23),
+        build_key=snapshot.build_key,
+        snapshot_projection_version="3",
+        artifact=VerifiedLocalArtifact(
+            path=Path(__file__).resolve(),
+            storage_key=f"snapshots/sha256/{digest[:2]}/{digest}.sqlite",
+            sha256=digest,
+            byte_length=123,
+        ),
+        input_revision=digest,
+        included_seasons=(
+            ReadySnapshotSeason(
+                competition_season_id=season_id,
+                sleeper_league_id="sleeper-2026",
+                season_year=2026,
+                sequence_number=1,
+                role=SnapshotSeasonRole.PRIMARY,
+                through_week=8,
+            ),
+        ),
+    )
+    receipt = RefreshReceipt(
+        claim_id=uuid4(),
+        competition_season_id=season_id,
+        through_week=8,
+        refresh_run_id=refresh_id,
+        status=RefreshStatus.SUCCEEDED,
+        disposition=RefreshReceiptDisposition.CLAIMED,
+    )
     refreshes = StubRefreshManager(refresh)
     return SimpleNamespace(
         competition_id=competition_id,
@@ -197,6 +297,15 @@ def _dependencies() -> SimpleNamespace:
         refreshes=refreshes,
         league_seasons=StubLeagueSeasons(overview),
         snapshots=StubSnapshots(snapshot),
+        readiness=StubReadiness(
+            ReadySnapshotReadiness(
+                input_revision=digest,
+                included_seasons=(readiness_season,),
+            )
+        ),
+        preparation=StubPreparation(
+            PreparedSnapshot(snapshot=ready_snapshot, refresh_receipts=(receipt,))
+        ),
     )
 
 
@@ -234,6 +343,13 @@ async def test_data_routes_preserve_scoped_transport_contracts() -> None:
             f"{base}/refreshes/{dependencies.refreshes.refresh.id}"
         )
         overview = await client.get(f"{base}/overview")
+        readiness = await client.get(
+            f"{base}/snapshot-readiness?through_week=8&mode=readiness_only"
+        )
+        preparation = await client.post(
+            f"{base}/snapshot-preparations",
+            json={"through_week": 8, "mode": "live"},
+        )
         snapshots = await client.get(f"{base}/snapshots?limit=4&offset=1")
 
     assert omitted.status_code == 201
@@ -262,8 +378,26 @@ async def test_data_routes_preserve_scoped_transport_contracts() -> None:
         dependencies.refreshes.refresh.id
     )
     assert overview.json()["overview"]["league_name"] == "Sleeper League"
+    assert readiness.status_code == 200
+    assert readiness.json()["state"]["kind"] == "ready"
+    assert readiness.json()["state"]["included_seasons"][0]["season_year"] == 2026
+    readiness_request = dependencies.readiness.requests[0]
+    assert readiness_request.mode is SnapshotPreparationMode.READINESS_ONLY
+    assert readiness_request.snapshot.through_week == 8
+    assert readiness_request.requested_at.tzinfo is not None
+    assert preparation.status_code == 200
+    assert preparation.json()["snapshot"]["snapshot_projection_version"] == "3"
+    assert preparation.json()["snapshot"]["input_revision"] == "a" * 64
+    assert preparation.json()["refresh_receipts"][0]["status"] == "succeeded"
+    preparation_request = dependencies.preparation.requests[0]
+    assert preparation_request.mode is SnapshotPreparationMode.LIVE
+    assert preparation_request.snapshot.as_of_date == (
+        preparation_request.requested_at.date()
+    )
     snapshot_json = snapshots.json()["page"]["items"][0]
     assert snapshot_json["artifact"] == {"sha256": "a" * 64, "byte_length": 123}
+    assert snapshot_json["input_revision"] == "a" * 64
+    assert snapshot_json["included_seasons"][0]["role"] == "primary"
     assert "storage_key" not in snapshots.text
 
 
@@ -328,6 +462,41 @@ async def test_manual_refresh_rejects_invalid_bodies(
             503,
             "snapshot_unavailable",
         ),
+        (
+            RosterIdentityMappingRequired(
+                "Sleeper rosters require durable franchise mappings",
+                competition_season_id=UUID(
+                    "10000000-0000-0000-0000-000000000001"
+                ),
+                sleeper_roster_ids=("1", "2"),
+            ),
+            409,
+            "roster_identity_mapping_required",
+        ),
+        (
+            SnapshotInputsUnavailable(
+                UUID("10000000-0000-0000-0000-000000000001"),
+            ),
+            503,
+            "snapshot_inputs_unavailable",
+        ),
+        (
+            RefreshUnavailable(
+                UUID("10000000-0000-0000-0000-000000000001"),
+                claim_id=UUID("20000000-0000-0000-0000-000000000001"),
+                refresh_run_id=UUID(
+                    "30000000-0000-0000-0000-000000000001"
+                ),
+                retryable=True,
+            ),
+            503,
+            "refresh_unavailable",
+        ),
+        (
+            SnapshotArtifactInvalid("private artifact detail"),
+            500,
+            "snapshot_artifact_invalid",
+        ),
     ],
 )
 async def test_datalayer_errors_use_stable_safe_envelopes(
@@ -348,7 +517,118 @@ async def test_datalayer_errors_use_stable_safe_envelopes(
 
     assert response.status_code == expected_status
     assert response.json()["error"]["code"] == expected_code
-    assert "missing" not in response.text
+    if isinstance(error, DatalayerResourceNotFound):
+        assert "missing" not in response.text
+    if isinstance(error, SnapshotArtifactInvalid):
+        assert "private artifact detail" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_actionable_preparation_errors_keep_only_safe_identifiers() -> None:
+    dependencies = _dependencies()
+    season_id = UUID("10000000-0000-0000-0000-000000000001")
+    dependencies.refreshes.error = RosterIdentityMappingRequired(
+        "Sleeper rosters require durable franchise mappings",
+        competition_season_id=season_id,
+        sleeper_roster_ids=("1", "2"),
+    )
+    app, client = await _client(dependencies)
+    url = (
+        f"/api/v1/data/competitions/{dependencies.competition_id}"
+        f"/seasons/{dependencies.season_id}/refreshes/{uuid4()}"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.get(url)
+
+    assert response.status_code == 409
+    assert response.json()["error"] == {
+        "code": "roster_identity_mapping_required",
+        "summary": "Sleeper rosters require durable franchise mappings",
+        "competition_season_id": str(season_id),
+        "sleeper_roster_ids": ["1", "2"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_snapshot_preparation_translates_mapping_requirement() -> None:
+    dependencies = _dependencies()
+    blocked_season_id = UUID("10000000-0000-0000-0000-000000000001")
+    dependencies.preparation.error = RosterIdentityMappingRequired(
+        "Sleeper rosters require durable franchise mappings",
+        competition_season_id=blocked_season_id,
+        sleeper_roster_ids=("3", "4"),
+    )
+    app, client = await _client(dependencies)
+    url = (
+        f"/api/v1/data/competitions/{dependencies.competition_id}"
+        f"/seasons/{dependencies.season_id}/snapshot-preparations"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.post(
+            url,
+            json={"through_week": 8, "mode": "readiness_only"},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["competition_season_id"] == str(
+        blocked_season_id
+    )
+    assert response.json()["error"]["sleeper_roster_ids"] == ["3", "4"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"through_week": True, "mode": "live"},
+        {"through_week": 0, "mode": "live"},
+        {"through_week": 19, "mode": "readiness_only"},
+        {"through_week": "8", "mode": "live"},
+        {"through_week": 8, "mode": "unknown"},
+        {"through_week": 8, "mode": "live", "unexpected": True},
+    ],
+)
+async def test_snapshot_preparation_rejects_invalid_bodies(
+    payload: dict[str, object],
+) -> None:
+    dependencies = _dependencies()
+    app, client = await _client(dependencies)
+    url = (
+        f"/api/v1/data/competitions/{dependencies.competition_id}"
+        f"/seasons/{dependencies.season_id}/snapshot-preparations"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.post(url, json=payload)
+
+    assert response.status_code == 422
+    assert dependencies.preparation.requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "query",
+    [
+        "through_week=0&mode=live",
+        "through_week=19&mode=readiness_only",
+        "through_week=8&mode=unknown",
+    ],
+)
+async def test_snapshot_readiness_rejects_invalid_query(query: str) -> None:
+    dependencies = _dependencies()
+    app, client = await _client(dependencies)
+    url = (
+        f"/api/v1/data/competitions/{dependencies.competition_id}"
+        f"/seasons/{dependencies.season_id}/snapshot-readiness?{query}"
+    )
+
+    async with app.router.lifespan_context(app), client:
+        response = await client.get(url)
+
+    assert response.status_code == 422
+    assert dependencies.readiness.requests == []
 
 
 def test_openapi_contains_refresh_and_data_audit_boundaries() -> None:
@@ -359,6 +639,8 @@ def test_openapi_contains_refresh_and_data_audit_boundaries() -> None:
         f"{base}/refreshes",
         f"{base}/refreshes/{{refresh_id}}",
         f"{base}/overview",
+        f"{base}/snapshot-readiness",
+        f"{base}/snapshot-preparations",
         f"{base}/snapshots",
     }.issubset(schema["paths"])
     assert schema["paths"][f"{base}/refreshes"]["post"]["responses"]["201"]

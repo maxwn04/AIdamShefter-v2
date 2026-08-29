@@ -35,6 +35,9 @@ from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.datalayer.preparation_service import (
     DatalayerSnapshotPreparationService,
 )
+from backend.services.datalayer.readiness_service import (
+    DatalayerSnapshotReadinessService,
+)
 from backend.services.datalayer.snapshot_service import DatalayerSnapshotService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.generations import GenerationService
@@ -211,6 +214,14 @@ def test_data_api_composition_builds_refresh_and_audit_dependencies(
         assert isinstance(dependencies.refreshes, RefreshRunManager)
         assert isinstance(dependencies.league_seasons, LeagueSeasonManager)
         assert isinstance(dependencies.snapshots, DataSnapshotManager)
+        assert isinstance(
+            dependencies.readiness,
+            DatalayerSnapshotReadinessService,
+        )
+        assert isinstance(
+            dependencies.preparation,
+            DatalayerSnapshotPreparationService,
+        )
     finally:
         dependencies.close()
         engine.dispose()

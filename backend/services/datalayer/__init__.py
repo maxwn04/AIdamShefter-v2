@@ -128,6 +128,7 @@ __all__ = [
     "DatalayerResourceNotFound",
     "DatalayerScopeConflict",
     "DatalayerSnapshotPreparationService",
+    "DatalayerSnapshotReadinessService",
     "EndpointKind",
     "EndpointRecords",
     "EndpointRequest",
@@ -170,6 +171,7 @@ __all__ = [
     "RefreshStatus",
     "RefreshTrigger",
     "RefreshUnavailable",
+    "RefreshRequiredSnapshotReadiness",
     "ResolvedRosterMapping",
     "ResolvedSnapshotMaterializationInput",
     "ResolvedSnapshotInputs",
@@ -183,6 +185,7 @@ __all__ = [
     "SanitizedSourceError",
     "RequestStatus",
     "RosterIdentityMappingRequired",
+    "RosterMappingRequiredSnapshotReadiness",
     "SNAPSHOT_PROJECTION_VERSION",
     "RESOLVED_SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
@@ -198,12 +201,15 @@ __all__ = [
     "SnapshotInputsUnavailable",
     "SnapshotMaterializationInput",
     "SnapshotPreparationMode",
+    "SnapshotReadiness",
+    "SnapshotReadinessSeason",
     "SnapshotSelectionRole",
     "SnapshotSeason",
     "SnapshotStatus",
     "SnapshotSeasonSettings",
     "SnapshotUnavailable",
     "ReadyDataSnapshot",
+    "ReadySnapshotReadiness",
     "ReadySnapshotSeason",
     "SleeperSourceClient",
     "SourceAttempt",
@@ -287,6 +293,7 @@ def __getattr__(name: str) -> Any:
         "RosterIdentityNotFound",
         "RosterIdentityResolution",
         "DatalayerSnapshotPreparationService",
+        "DatalayerSnapshotReadinessService",
         "PreparedSnapshot",
         "RefreshCoordinator",
         "RefreshReceipt",
@@ -301,8 +308,44 @@ def __getattr__(name: str) -> Any:
         "SnapshotPreparationMode",
         "SnapshotSeason",
         "SnapshotSeasonSettings",
+        "ReadySnapshotReadiness",
+        "RefreshRequiredSnapshotReadiness",
+        "RosterMappingRequiredSnapshotReadiness",
+        "SnapshotReadiness",
+        "SnapshotReadinessSeason",
         "canonical_resolved_snapshot_build_key",
     }:
+        if name in {
+            "DatalayerSnapshotReadinessService",
+            "ReadySnapshotReadiness",
+            "RefreshRequiredSnapshotReadiness",
+            "RosterMappingRequiredSnapshotReadiness",
+            "SnapshotReadiness",
+            "SnapshotReadinessSeason",
+        }:
+            from backend.services.datalayer.readiness_service import (
+                DatalayerSnapshotReadinessService,
+                ReadySnapshotReadiness,
+                RefreshRequiredSnapshotReadiness,
+                RosterMappingRequiredSnapshotReadiness,
+                SnapshotReadiness,
+                SnapshotReadinessSeason,
+            )
+
+            return {
+                "DatalayerSnapshotReadinessService": (
+                    DatalayerSnapshotReadinessService
+                ),
+                "ReadySnapshotReadiness": ReadySnapshotReadiness,
+                "RefreshRequiredSnapshotReadiness": (
+                    RefreshRequiredSnapshotReadiness
+                ),
+                "RosterMappingRequiredSnapshotReadiness": (
+                    RosterMappingRequiredSnapshotReadiness
+                ),
+                "SnapshotReadiness": SnapshotReadiness,
+                "SnapshotReadinessSeason": SnapshotReadinessSeason,
+            }[name]
         if name in {
             "DatalayerSnapshotPreparationService",
             "PreparedSnapshot",
