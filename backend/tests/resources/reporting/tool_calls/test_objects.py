@@ -29,17 +29,21 @@ def test_finish_contract_requires_full_results_for_completed_calls() -> None:
     completed = FinishToolCall(
         tool_call_id=uuid4(),
         status="failed",
-        full_result_text='{"ok": false}',
+        result={"ok": False},
+        result_text='{"ok": false}',
+        metadata={"diagnostic": "bounded"},
         error_text="unknown tool",
         error={"type": "unknown_tool"},
     )
     assert completed.error_text == "unknown tool"
-    with pytest.raises(ValidationError, match="full result"):
+    assert completed.metadata == {"diagnostic": "bounded"}
+    with pytest.raises(ValidationError, match="exact result"):
         FinishToolCall(tool_call_id=uuid4(), status="failed")
     with pytest.raises(ValidationError, match="cannot include an error"):
         FinishToolCall(
             tool_call_id=uuid4(),
             status="succeeded",
-            full_result_text="ok",
+            result="ok",
+            result_text="ok",
             error_text="unexpected",
         )

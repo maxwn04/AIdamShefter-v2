@@ -26,6 +26,7 @@ from backend.services.reporter.runner.completion import (
 from backend.services.reporter.runner.models import (
     ChatMessage,
     ToolCall,
+    ToolExecutionResult,
     assistant_tool_call_message,
     extract_text,
     extract_tool_calls,
@@ -284,8 +285,8 @@ class Runner:
                 "type": "UnknownToolError",
                 "message": message,
             }
-            result: Any = {"error": message}
-            result_content = self._as_tool_result_content(result)
+            execution_result = ToolExecutionResult(result={"error": message})
+            result_content = self._as_tool_result_content(execution_result.result)
             duration_ms = self._duration_ms(start)
             self.log.add_tool_call(
                 call.name,
@@ -298,8 +299,9 @@ class Runner:
                 execution_id,
                 ToolExecutionFinish(
                     status="failed",
-                    full_result_text=result_content,
-                    structured_result=cast(dict[str, JsonValue], result),
+                    result=execution_result.result,
+                    result_text=result_content,
+                    metadata=execution_result.metadata,
                     error_text=message,
                     error=error,
                 ),
@@ -309,9 +311,9 @@ class Runner:
         artifact_recording_error: ArtifactRecordingError | None = None
         try:
             with self.tool_context.bind_tool_execution(execution_id):
-                result = handler(**call.arguments)
-                if asyncio.iscoroutine(result):
-                    result = await result
+                handler_result = handler(**call.arguments)
+                if asyncio.iscoroutine(handler_result):
+                    handler_result = await handler_result
         except asyncio.CancelledError:
             self._finish_tool_execution(
                 execution_id,
@@ -322,12 +324,12 @@ class Runner:
             artifact_recording_error = exc
             error = sanitize_provider_error(exc)
             error_text = str(error.get("message") or type(exc).__name__)
-            result = {"error": error_text}
+            handler_result = {"error": error_text}
             status = "failed"
         except Exception as exc:
             error = sanitize_provider_error(exc)
             error_text = str(error.get("message") or type(exc).__name__)
-            result = {"error": error_text}
+            handler_result = {"error": error_text}
             status = "failed"
         else:
             error = None
@@ -335,7 +337,8 @@ class Runner:
             status = "succeeded"
 
         duration_ms = self._duration_ms(start)
-        result_content = self._as_tool_result_content(result)
+        execution_result = self._normalize_tool_result(handler_result)
+        result_content = self._as_tool_result_content(execution_result.result)
         self.log.add_tool_call(
             call.name,
             call.arguments,
@@ -347,8 +350,9 @@ class Runner:
             execution_id,
             ToolExecutionFinish(
                 status=status,
-                full_result_text=result_content,
-                structured_result=self._structured_result(result_content),
+                result=execution_result.result,
+                result_text=result_content,
+                metadata=execution_result.metadata,
                 error_text=error_text,
                 error=error,
             ),
@@ -453,18 +457,10 @@ class Runner:
         return isinstance(data, dict) and data.get("ok") is True
 
     @staticmethod
-    def _structured_result(
-        result: str,
-    ) -> dict[str, JsonValue] | list[JsonValue] | None:
-        try:
-            parsed = json.loads(result)
-        except (json.JSONDecodeError, TypeError):
-            return None
-        if isinstance(parsed, dict):
-            return cast(dict[str, JsonValue], parsed)
-        if isinstance(parsed, list):
-            return cast(list[JsonValue], parsed)
-        return None
+    def _normalize_tool_result(result: Any) -> ToolExecutionResult:
+        if isinstance(result, ToolExecutionResult):
+            return result
+        return ToolExecutionResult(result=cast(JsonValue, result))
 
     @staticmethod
     def _duration_ms(start: float) -> int:

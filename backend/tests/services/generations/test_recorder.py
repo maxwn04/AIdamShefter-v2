@@ -243,8 +243,9 @@ def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
         execution_id,
         ToolExecutionFinish(
             status="succeeded",
-            full_result_text='{"found": true}',
-            structured_result={"found": True},
+            result={"found": True},
+            result_text='{"found": true}',
+            metadata={"candidate_count": 3},
         ),
     )
 
@@ -259,8 +260,9 @@ def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
     finished = tool_calls.finished[0]
     assert finished.tool_call_id == execution_id
     assert finished.status.value == "succeeded"
-    assert finished.full_result_text == '{"found": true}'
-    assert finished.structured_result == {"found": True}
+    assert finished.result == {"found": True}
+    assert finished.result_text == '{"found": true}'
+    assert finished.metadata == {"candidate_count": 3}
 
 
 def test_recorder_rejects_tools_without_a_successful_turn() -> None:

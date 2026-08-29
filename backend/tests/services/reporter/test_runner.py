@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
-from backend.services.reporter.runner.models import ToolCall
+from backend.services.reporter.runner.models import ToolCall, ToolExecutionResult
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
@@ -359,6 +359,73 @@ def test_runner_tool_call_dispatch() -> None:
     assert result_message["content"] == '{"ok": true, "value": 7}'
 
 
+@pytest.mark.parametrize(
+    ("raw_result", "expected_text"),
+    [
+        ("plain text", "plain text"),
+        (7, "7"),
+        (["one", 2], '["one", 2]'),
+        (None, "null"),
+    ],
+)
+def test_runner_keeps_raw_tool_results_compatible(
+    raw_result: Any,
+    expected_text: str,
+) -> None:
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with("lookup", lambda: raw_result),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    assert recorded.result == raw_result
+    assert recorded.result_text == expected_text
+    assert recorded.metadata == {}
+    assert complete.requests[1]["messages"][-1]["content"] == expected_text
+
+
+def test_runner_hides_tool_execution_metadata_from_model_messages() -> None:
+    logical_result = {"memories": [{"headline": "A callback"}]}
+    metadata = {
+        "bindings": [{"item_id": "private-id", "result_ordinal": 0}],
+        "candidate_count": 4,
+    }
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with(
+            "lookup",
+            lambda: ToolExecutionResult(result=logical_result, metadata=metadata),
+        ),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    sent_text = complete.requests[1]["messages"][-1]["content"]
+    assert recorded.result == logical_result
+    assert recorded.result_text == sent_text
+    assert recorded.metadata == metadata
+    assert "private-id" not in sent_text
+
+
 def test_runner_records_parallel_tools_in_provider_order_with_exact_results() -> None:
     async def handler(*, value: int, delay: float) -> dict[str, Any]:
         await asyncio.sleep(delay)
@@ -390,7 +457,7 @@ def test_runner_records_parallel_tools_in_provider_order_with_exact_results() ->
         "succeeded",
     ]
     persisted_by_id = {
-        execution_id: result.full_result_text
+        execution_id: result.result_text
         for execution_id, result in recorder.finished
     }
     persisted_in_provider_order = [
@@ -441,7 +508,7 @@ def test_runner_records_unknown_tools_and_sanitized_handler_exceptions() -> None
         for message in complete.requests[1]["messages"]
         if message["role"] == "tool"
     ]
-    assert sent == [result.full_result_text for result in results]
+    assert sent == [result.result_text for result in results]
 
 
 def test_runner_records_tool_cancellation_and_reraises() -> None:

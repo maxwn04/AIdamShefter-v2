@@ -136,8 +136,9 @@ class GenerationExecutionRecorder:
             FinishToolCall(
                 tool_call_id=execution_id,
                 status=result.status,
-                full_result_text=result.full_result_text,
-                structured_result=result.structured_result,
+                result=result.result,
+                result_text=result.result_text,
+                metadata=result.metadata,
                 error_text=result.error_text,
                 error=result.error,
             )

@@ -178,8 +178,9 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
         execution_id,
         ToolExecutionFinish(
             status="succeeded",
-            full_result_text='{"ok": false}',
-            structured_result={"ok": False},
+            result={"ok": False},
+            result_text='{"ok": false}',
+            metadata={"source": "test"},
         ),
     )
 
@@ -191,8 +192,9 @@ def test_retry_and_fallback_round_trip_as_sequential_durable_attempts(
     assert stored_tool.ai_call_id == page.items[1].id
     assert stored_tool.tool_ordinal == 0
     assert stored_tool.status.value == "succeeded"
-    assert stored_tool.full_result_text == '{"ok": false}'
-    assert stored_tool.structured_result == {"ok": False}
+    assert stored_tool.result == {"ok": False}
+    assert stored_tool.result_text == '{"ok": false}'
+    assert stored_tool.metadata == {"source": "test"}
 
     artifacts = artifact_manager.list(ArtifactQuery(generation_id=generation_id))
     assert artifacts.total == 1

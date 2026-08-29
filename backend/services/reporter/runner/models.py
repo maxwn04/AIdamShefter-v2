@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import JsonValue
 
 
 ToolDef = dict[str, Any]
@@ -18,6 +20,14 @@ class ToolCall:
     id: str
     name: str
     arguments: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ToolExecutionResult:
+    """Logical tool result plus application-only execution metadata."""
+
+    result: JsonValue | str
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
 
 
 def tool_result_message(call: ToolCall, result: Any) -> ChatMessage:

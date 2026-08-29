@@ -41,8 +41,9 @@ class BeginToolCall(ContractModel):
 class FinishToolCall(ContractModel):
     tool_call_id: UUID
     status: ToolCallTerminalStatus
-    full_result_text: str | None = None
-    structured_result: dict[str, JsonValue] | list[JsonValue] | None = None
+    result: JsonValue | None = None
+    result_text: str | None = None
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
     error_text: NonBlankStr | None = None
     error: dict[str, JsonValue] | None = None
 
@@ -51,8 +52,8 @@ class FinishToolCall(ContractModel):
         if self.status in {
             ToolCallTerminalStatus.SUCCEEDED,
             ToolCallTerminalStatus.FAILED,
-        } and self.full_result_text is None:
-            raise ValueError("completed tool calls require the full result text")
+        } and self.result_text is None:
+            raise ValueError("completed tool calls require the exact result text")
         if self.status is ToolCallTerminalStatus.SUCCEEDED and (
             self.error_text is not None or self.error is not None
         ):
@@ -78,8 +79,9 @@ class ToolCall(ContractModel):
     implementation_version: str
     arguments: dict[str, JsonValue]
     status: ToolCallStatus
-    full_result_text: str | None
-    structured_result: dict[str, JsonValue] | list[JsonValue] | None
+    result: JsonValue | None
+    result_text: str | None
+    metadata: dict[str, JsonValue]
     error_text: str | None
     error: dict[str, JsonValue] | None
     started_at: AwareDatetime

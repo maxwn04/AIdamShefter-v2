@@ -252,8 +252,9 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
         implementation_version="1",
         arguments={"week": 8},
         status=ToolCallStatus.SUCCEEDED,
-        full_result_text='{"found":true}',
-        structured_result={"found": True},
+        result={"found": True},
+        result_text='{"found":true}',
+        metadata={"candidate_count": 3},
         error_text=None,
         error=None,
         started_at=NOW,
@@ -508,7 +509,11 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     assert ai_call.json()["ai_call"]["usage"]["raw_provider_usage"] == {
         "provider_total": 140
     }
-    assert tool_call.json()["tool_call"]["full_result_text"] == '{"found":true}'
+    assert tool_call.json()["tool_call"]["result"] == {"found": True}
+    assert tool_call.json()["tool_call"]["result_text"] == '{"found":true}'
+    assert tool_call.json()["tool_call"]["metadata"] == {"candidate_count": 3}
+    assert "full_result_text" not in tool_call.json()["tool_call"]
+    assert "structured_result" not in tool_call.json()["tool_call"]
     assert artifacts.json()["page"]["items"][0]["path"] == "article.md"
     assert artifacts.json()["page"]["items"][0]["revision_count"] == 2
     assert (

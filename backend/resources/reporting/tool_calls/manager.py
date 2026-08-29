@@ -107,8 +107,9 @@ class ToolCallManager:
                 )
             now = datetime.now(UTC)
             stored.status = command.status.value
-            stored.full_result_text = command.full_result_text
-            stored.structured_result_jsonb = command.structured_result
+            stored.result_jsonb = command.result
+            stored.result_text = command.result_text
+            stored.metadata_jsonb = command.metadata
             stored.error_text = command.error_text
             stored.error_jsonb = command.error
             stored.completed_at = now
@@ -212,8 +213,9 @@ def _decode(stored: StoredToolCall) -> ToolCall:
         implementation_version=stored.implementation_version,
         arguments=stored.arguments_jsonb,
         status=stored.status,
-        full_result_text=stored.full_result_text,
-        structured_result=stored.structured_result_jsonb,
+        result=stored.result_jsonb,
+        result_text=stored.result_text,
+        metadata=stored.metadata_jsonb,
         error_text=stored.error_text,
         error=stored.error_jsonb,
         started_at=cast(datetime, stored.started_at),

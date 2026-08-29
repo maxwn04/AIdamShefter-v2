@@ -3472,8 +3472,6 @@ export interface components {
             } | null;
             /** Error Text */
             error_text: string | null;
-            /** Full Result Text */
-            full_result_text: string | null;
             /**
              * Generation Id
              * Format: uuid
@@ -3486,18 +3484,21 @@ export interface components {
             id: string;
             /** Implementation Version */
             implementation_version: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: components["schemas"]["pydantic__types__JsonValue"];
+            };
             /** Provider Tool Call Id */
             provider_tool_call_id: string | null;
+            result: components["schemas"]["pydantic__types__JsonValue"] | null;
+            /** Result Text */
+            result_text: string | null;
             /**
              * Started At
              * Format: date-time
              */
             started_at: string;
             status: components["schemas"]["ToolCallStatus"];
-            /** Structured Result */
-            structured_result: {
-                [key: string]: components["schemas"]["pydantic__types__JsonValue"];
-            } | components["schemas"]["pydantic__types__JsonValue"][] | null;
             /** Tool Name */
             tool_name: string;
             /** Tool Ordinal */

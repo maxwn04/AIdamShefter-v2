@@ -69,8 +69,9 @@ class ToolExecutionStart:
 @dataclass(frozen=True, slots=True)
 class ToolExecutionFinish:
     status: ToolExecutionStatus
-    full_result_text: str | None = None
-    structured_result: dict[str, JsonValue] | list[JsonValue] | None = None
+    result: JsonValue | None = None
+    result_text: str | None = None
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
     error_text: str | None = None
     error: dict[str, JsonValue] | None = None
 
