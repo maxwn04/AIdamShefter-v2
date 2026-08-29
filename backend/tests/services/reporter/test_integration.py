@@ -10,7 +10,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from backend.services.datalayer import FrozenRosterIdentity, ResolvedRosterIdentity
+from backend.services.datalayer import (
+    FrozenRosterIdentity,
+    ResolvedRosterIdentity,
+    SnapshotSeason,
+)
 from backend.services.memory import (
     GenerationMemoryContext,
     MemoryRetrievalRequest,
@@ -80,9 +84,42 @@ class ExecutionRecordingProbe:
 
 
 class FakeFrozenLeagueData:
-    def get_league_snapshot(self, week: int | None = None) -> dict[str, Any]:
+    def available_seasons(self) -> tuple[SnapshotSeason, ...]:
+        return (
+            SnapshotSeason(
+                competition_id=UUID(int=1),
+                competition_season_id=UUID(int=2),
+                sleeper_league_id="league_123",
+                season_year=2026,
+                sequence_number=2,
+                role="primary",
+                through_week=8,
+            ),
+        )
+
+    def get_league_history(self) -> dict[str, Any]:
+        return {"found": True, "primary_season": 2026, "seasons": []}
+
+    def get_franchise_history(
+        self,
+        franchise_or_primary_roster: str | int,
+    ) -> dict[str, Any]:
+        return {
+            "found": True,
+            "franchise_id": str(UUID(int=4)),
+            "roster_key": str(franchise_or_primary_roster),
+            "appearances": [],
+        }
+
+    def get_league_snapshot(
+        self,
+        week: int | None = None,
+        *,
+        season: int | None = None,
+    ) -> dict[str, Any]:
         return {
             "week": week,
+            "season": season or 2026,
             "standings": [
                 {"team_name": "Team Taco", "wins": 7, "losses": 1, "rank": 1},
                 {"team_name": "Waiver Wire", "wins": 2, "losses": 6, "rank": 8},
@@ -127,6 +164,36 @@ class FakeFrozenLeagueData:
                 manager_name="Bob" if is_waiver_wire else "Alice",
             ),
         )
+
+
+class HistoryFrozenLeagueData(FakeFrozenLeagueData):
+    def available_seasons(self) -> tuple[SnapshotSeason, ...]:
+        return (
+            SnapshotSeason(
+                competition_id=UUID(int=1),
+                competition_season_id=UUID(int=5),
+                sleeper_league_id="league_2025",
+                season_year=2025,
+                sequence_number=1,
+                role="history",
+                through_week=18,
+            ),
+            *super().available_seasons(),
+        )
+
+    def get_franchise_history(
+        self,
+        franchise_or_primary_roster: str | int,
+    ) -> dict[str, Any]:
+        return {
+            "found": True,
+            "franchise_id": str(UUID(int=4)),
+            "roster_key": str(franchise_or_primary_roster),
+            "appearances": [
+                {"season": 2025, "team_name": "Old Taco", "rank": 4},
+                {"season": 2026, "team_name": "Team Taco", "rank": 1},
+            ],
+        }
 
 
 class EmptyMemoryRetrieval:
@@ -419,6 +486,108 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     )
     tool_mutations = histories["research_brief.md"] + histories["article.md"]
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
+
+
+def test_generate_article_records_argument_complete_historical_evidence() -> None:
+    recorder = ExecutionRecordingProbe()
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("available_seasons", call_id="s1")]),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "franchise_history",
+                        {"franchise_or_primary_roster": "Team Taco"},
+                        "s2",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "league_snapshot",
+                        {"week": 18, "season": 2025},
+                        "s3",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_taco_history",
+                            "claim_text": (
+                                "The Taco franchise appeared as Old Taco in 2025 "
+                                "and Team Taco in 2026."
+                            ),
+                            "data_refs": [
+                                "franchise_history("
+                                "franchise_or_primary_roster=Team Taco)",
+                                "league_snapshot(week=18, season=2025)",
+                            ],
+                            "category": "history",
+                        },
+                        "s4",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {
+                            "path": "article.md",
+                            "content": (
+                                "# Taco Through Time\n\n"
+                                "Old Taco became Team Taco across the frozen history."
+                            ),
+                        },
+                        "s5",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "s6",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            HistoryFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+        )
+    )
+
+    brief = next(
+        artifact
+        for artifact in output.artifacts
+        if artifact.path == "research_brief.md"
+    )
+    assert output.submitted_path == "article.md"
+    assert "league_snapshot(week=18, season=2025)" in brief.content
+    assert any(
+        entry["event_type"] == "tool_call"
+        and entry["data"]["tool_name"] == "league_snapshot"
+        and entry["data"]["params"] == {"week": 18, "season": 2025}
+        for entry in output.run_log_entries
+    )
+    first_tools = {
+        spec["function"]["name"] for spec in complete.requests[0]["tools"]
+    }
+    assert {"available_seasons", "league_history", "franchise_history"}.issubset(
+        first_tools
+    )
 
 
 def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> None:

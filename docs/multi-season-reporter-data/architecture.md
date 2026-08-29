@@ -218,6 +218,12 @@ reported as season-local attributes. Missing appearances are omitted and a
 retained version-2 artifact naturally returns one primary appearance. Guarded
 SQL remains SELECT-only, single-statement, allowlisted, and row-limited.
 
+Reporter access remains primary-first and history is opt-in. Discovery and
+curated history tools establish scope before any explicit-season drill-down.
+The reporter's existing tool-call recorder is the historical evidence receipt;
+the research brief references those calls with complete arguments instead of
+introducing another provenance model.
+
 ## Failure Model
 
 Expected preparation outcomes are values, not exceptions:

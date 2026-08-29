@@ -124,6 +124,27 @@ Sleeper roster identities, contemporaneous names, and the cutoff standing or
 primary references remain ordinary `found: false` values; names are never
 matched independently in historical seasons.
 
+## Reporter Tool Contracts
+
+The reporter exposes `available_seasons`, `league_history`, and
+`franchise_history` as explicit discovery and curated-history tools. Every
+season-scoped reporter tool accepts an optional four-digit `season`; omission
+retains primary-season behavior. `player_summary`, history/discovery tools, and
+`run_sql` remain snapshot-global.
+
+Historical research is opt-in. The reporter discovers included years, prefers
+curated history summaries, and adds explicit-season detail calls only when the
+request, memory, or current facts create a material historical lead. Brief
+source references retain the tool name and every material argument, including
+the season year. A comparison, callback, record, or superlative requires frozen
+evidence for every season involved. Historical names never establish durable
+franchise identity independently; `franchise_history` performs the one allowed
+primary-season resolution before following `franchise_id`.
+
+Existing durable tool-call recording is the evidence receipt. It stores tool
+name, implementation version, arguments, result, and status, so multi-season
+access introduces no parallel evidence store.
+
 ## Invariants
 
 - Included seasons are exactly the primary plus all lower-sequence seasons in

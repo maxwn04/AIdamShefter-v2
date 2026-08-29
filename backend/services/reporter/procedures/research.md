@@ -16,6 +16,7 @@ Use this guide when the article covers several teams or weeks, a featured interp
 Choose the smallest useful view for the current question:
 
 - League-wide orientation: `league_snapshot` and `standings`.
+- Cross-season orientation: `available_seasons`, then `league_history` or `franchise_history`.
 - Complete player-level coverage for every game in one week: `week_games`. Its result is large; use it only when that breadth materially helps.
 - One featured matchup: `team_game`.
 - Team form, opponents, and season context: `team_dossier` and `team_schedule`.
@@ -28,6 +29,8 @@ Choose the smallest useful view for the current question:
 - Historical narrative leads: `search_memory`, followed by datalayer verification of any lead worth using.
 
 Run independent reads together when their results do not depend on one another. Avoid overlapping broad calls that reproduce the same evidence, and do not expand the week range merely to find more material.
+
+History is opt-in. Use it only when the request, recalled memory, or current facts create a meaningful cross-season lead; an ordinary weekly recap remains primary-season first. For a historical lead, discover the available seasons, prefer the curated history tools for orientation, and drill down with explicit `season=YYYY` arguments. Resolve historical teams through durable franchise identity rather than matching old names independently. Save evidence for every season involved in a comparison, callback, record, or superlative, and include every material tool argument in the source reference.
 
 ## Evidence Judgment
 
