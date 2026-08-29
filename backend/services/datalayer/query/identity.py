@@ -6,10 +6,14 @@ import sqlite3
 from typing import Any, Literal, TypeAlias
 from uuid import UUID
 
-from backend.resources._contracts import ContractModel, DisplayName, NonBlankStr
+from backend.services.datalayer.query.contracts import (
+    DisplayName,
+    NonBlankStr,
+    QueryValue,
+)
 
 
-class FrozenRosterIdentity(ContractModel):
+class FrozenRosterIdentity(QueryValue):
     competition_id: UUID
     competition_season_id: UUID
     season_roster_id: UUID
@@ -19,19 +23,19 @@ class FrozenRosterIdentity(ContractModel):
     manager_name: DisplayName = None
 
 
-class ResolvedRosterIdentity(ContractModel):
+class ResolvedRosterIdentity(QueryValue):
     status: Literal["resolved"] = "resolved"
     roster_key: str
     identity: FrozenRosterIdentity
 
 
-class AmbiguousRosterIdentity(ContractModel):
+class AmbiguousRosterIdentity(QueryValue):
     status: Literal["ambiguous"] = "ambiguous"
     roster_key: str
     matches: tuple[FrozenRosterIdentity, ...]
 
 
-class RosterIdentityNotFound(ContractModel):
+class RosterIdentityNotFound(QueryValue):
     status: Literal["not_found"] = "not_found"
     roster_key: str
 

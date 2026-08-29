@@ -16,8 +16,10 @@ from backend.services.datalayer import (
     FrozenLeagueData,
     FrozenSnapshotInvalid,
     ReadyDataSnapshot,
+    ReadySnapshotSeason,
     ResolvedRosterIdentity,
     RosterIdentityNotFound,
+    SnapshotSeason,
     SnapshotRequest,
     VerifiedLocalArtifact,
 )
@@ -51,6 +53,9 @@ from backend.tests.services.datalayer.test_snapshot_source_projection import (
     _fixture_input,
     _roster_identities,
 )
+from backend.tests.services.datalayer.test_snapshot_sqlite_v3 import (
+    _materialization as _v3_materialization,
+)
 
 
 GOLDEN = (
@@ -76,11 +81,191 @@ def ready_snapshot(tmp_path: Path) -> Iterator[ReadyDataSnapshot]:
         artifact.path.unlink(missing_ok=True)
 
 
+@pytest.fixture
+def v3_ready_snapshot(tmp_path: Path) -> Iterator[ReadyDataSnapshot]:
+    materialization = _v3_materialization()
+    artifact = SQLiteSnapshotMaterializer(tmp_path / "staging-v3").materialize(
+        materialization
+    )
+    primary = next(
+        season
+        for season in materialization.inputs.seasons
+        if season.role.value == "primary"
+    )
+    sha256 = artifact.sha256
+    ready = ReadyDataSnapshot(
+        id=UUID(int=100),
+        competition_id=primary.identity.competition_id,
+        primary_competition_season_id=primary.identity.competition_season_id,
+        through_week=primary.through_week,
+        as_of_date=materialization.inputs.primary.as_of_date,
+        build_key=materialization.build_key,
+        snapshot_projection_version="3",
+        artifact=VerifiedLocalArtifact(
+            path=artifact.path.resolve(),
+            storage_key=f"snapshots/sha256/{sha256[:2]}/{sha256}.sqlite",
+            sha256=sha256,
+            byte_length=artifact.byte_length,
+        ),
+        completeness_warnings=artifact.completeness_warnings,
+        input_revision=materialization.inputs.input_revision,
+        included_seasons=tuple(
+            ReadySnapshotSeason(
+                competition_season_id=season.identity.competition_season_id,
+                sleeper_league_id=season.identity.sleeper_league_id,
+                season_year=season.identity.season_year,
+                sequence_number=season.identity.sequence_number,
+                role=season.role.value,
+                through_week=season.through_week,
+            )
+            for season in materialization.inputs.seasons
+        ),
+    )
+    try:
+        yield ready
+    finally:
+        artifact.path.unlink(missing_ok=True)
+
+
+def test_v3_catalog_primary_defaults_and_historical_reads_are_isolated(
+    v3_ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with FrozenLeagueData.open(v3_ready_snapshot) as data:
+        seasons = data.available_seasons()
+        assert all(isinstance(season, SnapshotSeason) for season in seasons)
+        assert [season.season_year for season in seasons] == [2025, 2026]
+        assert [season.role for season in seasons] == ["history", "primary"]
+        assert [season.through_week for season in seasons] == [18, 3]
+
+        assert data.get_league_snapshot(week=1) == data.get_league_snapshot(
+            week=1,
+            season=2026,
+        )
+        history = data.get_league_snapshot(week=1, season=2025)
+        primary = data.get_league_snapshot(week=1, season=2026)
+        assert history["league"]["name"] == "League 2025"
+        assert primary["league"]["name"] == "League 2026"
+
+        history_transactions = data.get_transactions(1, 1, season=2025)
+        primary_transactions = data.get_transactions(1, 1, season=2026)
+        assert len(history_transactions) == len(primary_transactions) == 1
+        assert history_transactions == primary_transactions
+        assert sum(
+            len(detail["assets_received"]) + len(detail["assets_sent"])
+            for detail in history_transactions[0]["details"]
+        ) == 2
+
+        history_identity = data.resolve_roster_identity("1", season=2025)
+        primary_identity = data.resolve_roster_identity("1", season=2026)
+        assert isinstance(history_identity, ResolvedRosterIdentity)
+        assert isinstance(primary_identity, ResolvedRosterIdentity)
+        assert history_identity.identity.competition_season_id != (
+            primary_identity.identity.competition_season_id
+        )
+        assert data.get_roster_identity_by_canonical_id(
+            franchise_id=history_identity.identity.franchise_id,
+            season=2025,
+        ) == history_identity.identity
+        assert data.get_roster_identity_by_canonical_id(
+            season_roster_id=primary_identity.identity.season_roster_id,
+        ) == primary_identity.identity
+
+
+def test_every_season_scoped_v3_call_defaults_to_primary(
+    v3_ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with FrozenLeagueData.open(v3_ready_snapshot) as data:
+        calls = (
+            lambda season=None: data.get_league_snapshot(1, season=season),
+            lambda season=None: data.get_bench_analysis("1", 1, season=season),
+            lambda season=None: data.get_standings(1, season=season),
+            lambda season=None: data.get_team_dossier("1", 1, season=season),
+            lambda season=None: data.get_team_schedule("1", season=season),
+            lambda season=None: data.get_week_games(1, season=season),
+            lambda season=None: data.get_week_games_with_players(1, season=season),
+            lambda season=None: data.get_team_game("1", 1, season=season),
+            lambda season=None: data.get_team_game_with_players(
+                "1", 1, season=season
+            ),
+            lambda season=None: data.get_week_player_leaderboard(
+                1, 3, season=season
+            ),
+            lambda season=None: data.get_season_leaders(
+                season=season, week_from=1, week_to=1, limit=3
+            ),
+            lambda season=None: data.get_transactions(1, 1, season=season),
+            lambda season=None: data.get_team_transactions(
+                "1", 1, 1, season=season
+            ),
+            lambda season=None: data.get_week_transactions(1, season=season),
+            lambda season=None: data.get_team_week_transactions(
+                "1", 1, season=season
+            ),
+            lambda season=None: data.get_player_weekly_log(
+                "Player One", 1, 1, season=season
+            ),
+            lambda season=None: data.get_roster_at_cutoff("1", season=season),
+            lambda season=None: data.resolve_roster_identity("1", season=season),
+            lambda season=None: data.get_roster_snapshot("1", 1, season=season),
+            lambda season=None: data.get_playoff_bracket(season=season),
+            lambda season=None: data.get_team_playoff_path("1", season=season),
+        )
+        for call in calls:
+            assert call() == call(2026)
+
+
+def test_v3_season_and_cutoff_validation_are_catalog_scoped(
+    v3_ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with FrozenLeagueData.open(v3_ready_snapshot) as data:
+        assert data.get_week_games(week=18, season=2025) == []
+        with pytest.raises(ValueError, match="1 through 3"):
+            data.get_week_games(week=4, season=2026)
+        with pytest.raises(ValueError, match="2025, 2026"):
+            data.get_week_games(season=2024)
+        with pytest.raises(ValueError, match="integer"):
+            data.get_week_games(season=True)  # type: ignore[arg-type]
+
+
+def test_v3_ready_membership_and_revision_mismatches_fail_closed(
+    v3_ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with pytest.raises(FrozenSnapshotInvalid, match="input revision"):
+        FrozenLeagueData.open(
+            v3_ready_snapshot.model_copy(update={"input_revision": "f" * 64})
+        )
+    with pytest.raises(FrozenSnapshotInvalid, match="season membership"):
+        FrozenLeagueData.open(
+            v3_ready_snapshot.model_copy(
+                update={"included_seasons": v3_ready_snapshot.included_seasons[1:]}
+            )
+        )
+
+
+def test_v3_malformed_catalog_fails_closed(
+    v3_ready_snapshot: ReadyDataSnapshot,
+    tmp_path: Path,
+) -> None:
+    changed = _mutated_copy(
+        v3_ready_snapshot.artifact.path,
+        tmp_path / "wrong-v3-cutoff.sqlite",
+        "UPDATE snapshot_seasons SET through_week = 17 WHERE role = 'history'",
+    )
+    with pytest.raises(FrozenSnapshotInvalid, match="historical cutoff"):
+        FrozenLeagueData.open(
+            v3_ready_snapshot.model_copy(update={"artifact": changed})
+        )
+
+
 def test_full_regular_query_contract_matches_legacy_golden(
     ready_snapshot: ReadyDataSnapshot,
 ) -> None:
     expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
     with FrozenLeagueData.open(ready_snapshot) as data:
+        seasons = data.available_seasons()
+        assert len(seasons) == 1
+        assert seasons[0].role == "primary"
+        assert seasons[0].through_week == ready_snapshot.through_week
         actual = {
             "league_snapshot": data.get_league_snapshot(week=2),
             "bench_analysis_league": data.get_bench_analysis(week=2),
