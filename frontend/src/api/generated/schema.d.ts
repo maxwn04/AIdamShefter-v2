@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/data/competitions/{competition_id}/seasons/{season_id}/snapshot-preparations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare Snapshot */
+        post: operations["prepare_snapshot_api_v1_data_competitions__competition_id__seasons__season_id__snapshot_preparations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data/competitions/{competition_id}/seasons/{season_id}/snapshot-readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Inspect Snapshot Readiness */
+        get: operations["inspect_snapshot_readiness_api_v1_data_competitions__competition_id__seasons__season_id__snapshot_readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/data/competitions/{competition_id}/seasons/{season_id}/snapshots": {
         parameters: {
             query?: never;
@@ -1593,13 +1627,25 @@ export interface components {
         };
         /** DataErrorDetail */
         DataErrorDetail: {
+            /** Claim Id */
+            claim_id?: string | null;
             /**
              * Code
              * @enum {string}
              */
-            code: "invalid_data_request" | "data_resource_not_found" | "data_scope_conflict" | "endpoint_payload_rejected" | "snapshot_unavailable" | "datalayer_internal_failure";
+            code: "invalid_data_request" | "data_resource_not_found" | "data_scope_conflict" | "endpoint_payload_rejected" | "refresh_unavailable" | "roster_identity_mapping_required" | "snapshot_artifact_invalid" | "snapshot_inputs_unavailable" | "snapshot_unavailable" | "datalayer_internal_failure";
+            /** Competition Season Id */
+            competition_season_id?: string | null;
             /** Correlation Id */
             correlation_id?: string | null;
+            /** Missing Scopes */
+            missing_scopes?: string[] | null;
+            /** Refresh Run Id */
+            refresh_run_id?: string | null;
+            /** Retryable */
+            retryable?: boolean | null;
+            /** Sleeper Roster Ids */
+            sleeper_roster_ids?: string[] | null;
             /** Summary */
             summary: string;
         };
@@ -1643,6 +1689,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Included Seasons */
+            included_seasons: components["schemas"]["SnapshotSeasonSummary"][];
+            /** Input Revision */
+            input_revision: string | null;
             /**
              * Primary Competition Season Id
              * Format: uuid
@@ -2901,6 +2951,42 @@ export interface components {
             /** Player Id */
             player_id: string;
         };
+        /** PreparedSnapshotSummary */
+        PreparedSnapshotSummary: {
+            artifact: components["schemas"]["SnapshotArtifactSummary"];
+            /**
+             * As Of Date
+             * Format: date
+             */
+            as_of_date: string;
+            /** Build Key */
+            build_key: string;
+            /**
+             * Competition Id
+             * Format: uuid
+             */
+            competition_id: string;
+            /** Completeness Warnings */
+            completeness_warnings: components["schemas"]["CompletenessWarning"][];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Included Seasons */
+            included_seasons: components["schemas"]["SnapshotSeasonSummary"][];
+            /** Input Revision */
+            input_revision: string | null;
+            /**
+             * Primary Competition Season Id
+             * Format: uuid
+             */
+            primary_competition_season_id: string;
+            /** Snapshot Projection Version */
+            snapshot_projection_version: string;
+            /** Through Week */
+            through_week: number;
+        };
         /**
          * ProposedMemoryRef
          * @description Preallocated canonical identity returned to a proposal caller.
@@ -2955,11 +3041,39 @@ export interface components {
             source_api_request_id: string;
         };
         pydantic__types__JsonValue: unknown;
+        /** ReadySnapshotReadinessState */
+        ReadySnapshotReadinessState: {
+            /** Included Seasons */
+            included_seasons: components["schemas"]["SnapshotSeasonSummary"][];
+            /** Input Revision */
+            input_revision: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ready";
+        };
         /**
          * ReceiptConfidence
          * @enum {string}
          */
         ReceiptConfidence: "unverified" | "inferred" | "source_backed";
+        /** RefreshRequiredSnapshotReadinessState */
+        RefreshRequiredSnapshotReadinessState: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "refresh_required";
+            /** Missing Scopes */
+            missing_scopes: string[];
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "missing" | "stale";
+            season: components["schemas"]["SnapshotSeasonSummary"];
+        };
         /** RefreshRun */
         RefreshRun: {
             /** Code Version */
@@ -3109,6 +3223,17 @@ export interface components {
         /** RosterMappingMutationResponse */
         RosterMappingMutationResponse: {
             result: components["schemas"]["RosterMappingResult"];
+        };
+        /** RosterMappingRequiredSnapshotReadinessState */
+        RosterMappingRequiredSnapshotReadinessState: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "roster_mapping_required";
+            season: components["schemas"]["SnapshotSeasonSummary"];
+            /** Sleeper Roster Ids */
+            sleeper_roster_ids: string[];
         };
         /** RosterMappingResponse */
         RosterMappingResponse: {
@@ -3357,6 +3482,87 @@ export interface components {
             code: string;
             /** Summary */
             summary: string;
+        };
+        /** SnapshotPreparationBody */
+        SnapshotPreparationBody: {
+            mode: components["schemas"]["SnapshotPreparationMode"];
+            /** Through Week */
+            through_week: number;
+        };
+        /**
+         * SnapshotPreparationMode
+         * @enum {string}
+         */
+        SnapshotPreparationMode: "live" | "readiness_only";
+        /** SnapshotPreparationResponse */
+        SnapshotPreparationResponse: {
+            /** Refresh Receipts */
+            refresh_receipts: components["schemas"]["SnapshotRefreshReceiptSummary"][];
+            snapshot: components["schemas"]["PreparedSnapshotSummary"];
+        };
+        /** SnapshotReadinessResponse */
+        SnapshotReadinessResponse: {
+            /**
+             * Checked At
+             * Format: date-time
+             */
+            checked_at: string;
+            mode: components["schemas"]["SnapshotPreparationMode"];
+            /** State */
+            state: components["schemas"]["ReadySnapshotReadinessState"] | components["schemas"]["RefreshRequiredSnapshotReadinessState"] | components["schemas"]["RosterMappingRequiredSnapshotReadinessState"];
+            /** Through Week */
+            through_week: number;
+        };
+        /** SnapshotRefreshReceiptSummary */
+        SnapshotRefreshReceiptSummary: {
+            /**
+             * Claim Id
+             * Format: uuid
+             */
+            claim_id: string;
+            /**
+             * Competition Season Id
+             * Format: uuid
+             */
+            competition_season_id: string;
+            /**
+             * Disposition
+             * @enum {string}
+             */
+            disposition: "claimed" | "joined";
+            /**
+             * Refresh Run Id
+             * Format: uuid
+             */
+            refresh_run_id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "succeeded" | "partial" | "failed" | "cancelled";
+            /** Through Week */
+            through_week: number;
+        };
+        /** SnapshotSeasonSummary */
+        SnapshotSeasonSummary: {
+            /**
+             * Competition Season Id
+             * Format: uuid
+             */
+            competition_season_id: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "primary" | "history";
+            /** Season Year */
+            season_year: number;
+            /** Sequence Number */
+            sequence_number: number;
+            /** Sleeper League Id */
+            sleeper_league_id: string;
+            /** Through Week */
+            through_week: number;
         };
         /**
          * SnapshotStatus
@@ -4695,6 +4901,153 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RefreshRunResponse"];
+                };
+            };
+            /** @description Invalid workflow input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The scoped data resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The requested operation conflicts with stored data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The request or endpoint payload was rejected. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description A required datalayer dependency is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+        };
+    };
+    prepare_snapshot_api_v1_data_competitions__competition_id__seasons__season_id__snapshot_preparations_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-ID"?: string | null;
+            };
+            path: {
+                competition_id: string;
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotPreparationBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotPreparationResponse"];
+                };
+            };
+            /** @description Invalid workflow input. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The scoped data resource was not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The requested operation conflicts with stored data. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description The request or endpoint payload was rejected. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+            /** @description A required datalayer dependency is unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataErrorResponse"];
+                };
+            };
+        };
+    };
+    inspect_snapshot_readiness_api_v1_data_competitions__competition_id__seasons__season_id__snapshot_readiness_get: {
+        parameters: {
+            query: {
+                mode: components["schemas"]["SnapshotPreparationMode"];
+                through_week: number;
+            };
+            header?: {
+                "X-Correlation-ID"?: string | null;
+            };
+            path: {
+                competition_id: string;
+                season_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotReadinessResponse"];
                 };
             };
             /** @description Invalid workflow input. */
