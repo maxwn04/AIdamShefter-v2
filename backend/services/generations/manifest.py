@@ -15,7 +15,7 @@ from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.resources.reporting.generations import GenerationKind
 
 
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
@@ -38,10 +38,93 @@ class GenerationRequestInput(ContractModel):
     resolved_settings: dict[str, JsonValue]
 
 
+class DataSnapshotSeasonInput(ContractModel):
+    competition_season_id: UUID
+    sleeper_league_id: NonBlankStr
+    season_year: int = Field(strict=True, ge=1900, le=9999)
+    sequence_number: PositiveInt
+    role: Literal["primary", "history"]
+    through_week: PositiveWeek
+
+
+class SnapshotRefreshReceiptInput(ContractModel):
+    claim_id: UUID
+    competition_season_id: UUID
+    through_week: PositiveWeek
+    refresh_run_id: UUID
+    status: Literal["succeeded", "partial", "failed", "cancelled"]
+    disposition: Literal["claimed", "joined"]
+
+
+class SnapshotPreparationInput(ContractModel):
+    mode: Literal["legacy_never", "live", "readiness_only"]
+    refresh_receipts: tuple[SnapshotRefreshReceiptInput, ...] = ()
+
+
 class DataSnapshotInput(ContractModel):
     data_snapshot_id: UUID
+    primary_competition_season_id: UUID
     snapshot_projection_version: NonBlankStr
     artifact_sha256: Sha256
+    input_revision: Sha256 | None = None
+    included_seasons: tuple[DataSnapshotSeasonInput, ...]
+    preparation: SnapshotPreparationInput
+
+    @model_validator(mode="after")
+    def validate_coverage(self) -> "DataSnapshotInput":
+        seasons = self.included_seasons
+        if not seasons:
+            raise ValueError("data snapshot requires included season coverage")
+        identities = [season.competition_season_id for season in seasons]
+        league_ids = [season.sleeper_league_id for season in seasons]
+        years = [season.season_year for season in seasons]
+        sequences = [season.sequence_number for season in seasons]
+        for values, label in (
+            (identities, "competition seasons"),
+            (league_ids, "Sleeper leagues"),
+            (years, "season years"),
+            (sequences, "season sequences"),
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError(f"included {label} must be unique")
+        if sequences != sorted(sequences):
+            raise ValueError("included seasons must be ordered oldest to primary")
+        primary = [season for season in seasons if season.role == "primary"]
+        if len(primary) != 1:
+            raise ValueError("included seasons require exactly one primary")
+        if primary[0] != seasons[-1]:
+            raise ValueError("the primary season must be last")
+        if primary[0].competition_season_id != self.primary_competition_season_id:
+            raise ValueError("included primary must match the snapshot primary")
+        if any(season.through_week != 18 for season in seasons[:-1]):
+            raise ValueError("historical included seasons require cutoff week 18")
+
+        receipts = self.preparation.refresh_receipts
+        if self.preparation.mode == "legacy_never" and receipts:
+            raise ValueError("legacy preparation cannot contain refresh receipts")
+        if self.preparation.mode != "legacy_never" and self.input_revision is None:
+            raise ValueError("prepared snapshots require an input revision")
+        season_cutoffs = {
+            season.competition_season_id: season.through_week for season in seasons
+        }
+        receipt_seasons = [receipt.competition_season_id for receipt in receipts]
+        claim_ids = [receipt.claim_id for receipt in receipts]
+        refresh_run_ids = [receipt.refresh_run_id for receipt in receipts]
+        for values, label in (
+            (receipt_seasons, "receipt seasons"),
+            (claim_ids, "receipt claims"),
+            (refresh_run_ids, "receipt refresh runs"),
+        ):
+            if len(values) != len(set(values)):
+                raise ValueError(f"snapshot {label} must be unique")
+        for receipt in receipts:
+            if season_cutoffs.get(receipt.competition_season_id) != (
+                receipt.through_week
+            ):
+                raise ValueError(
+                    "refresh receipt must match an included season and cutoff"
+                )
+        return self
 
 
 class CanonicalMemoryInput(ContractModel):
@@ -245,6 +328,7 @@ __all__ = [
     "CanonicalMemoryInput",
     "CodeRevisionInput",
     "DataSnapshotInput",
+    "DataSnapshotSeasonInput",
     "EvaluationArtifactMemoryInput",
     "GenerationManifestInput",
     "GenerationRequestInput",
@@ -253,6 +337,8 @@ __all__ = [
     "ProcedureInput",
     "RetryPolicyInput",
     "RunnerExecutionInput",
+    "SnapshotPreparationInput",
+    "SnapshotRefreshReceiptInput",
     "ToolInput",
     "build_generation_manifest",
     "canonical_json_bytes",

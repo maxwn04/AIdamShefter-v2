@@ -1,5 +1,6 @@
 """Competition-scoped generation dependency composition."""
 
+from collections.abc import Iterator
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -26,7 +27,7 @@ def get_generation_api_dependencies(
     competition_id: Annotated[UUID, Depends(authorize_local_competition)],
     correlation_id: Annotated[UUID, Depends(get_correlation_id)],
     runtime: Annotated[ApiRuntimeDependencies, Depends(get_api_runtime)],
-) -> GenerationDependencies:
+) -> Iterator[GenerationDependencies]:
     """Build one request's local-user generation boundary."""
 
     generation_runtime = cast(GenerationRuntimeDependencies, runtime)
@@ -35,9 +36,13 @@ def get_generation_api_dependencies(
         scope=CompetitionScope(competition_id=competition_id),
         correlation_id=correlation_id,
     )
-    return build_generation_dependencies(
+    dependencies = build_generation_dependencies(
         generation_runtime.session_factory,
         context,
         model_registry=generation_runtime.model_registry,
     )
+    try:
+        yield dependencies
+    finally:
+        dependencies.close()
 

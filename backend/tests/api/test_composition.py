@@ -32,6 +32,9 @@ from backend.resources.sleeper_data import (
     RefreshRunManager,
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
+from backend.services.datalayer.preparation_service import (
+    DatalayerSnapshotPreparationService,
+)
 from backend.services.datalayer.snapshot_service import DatalayerSnapshotService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.generations import GenerationService
@@ -245,6 +248,7 @@ def test_datalayer_snapshot_composition_is_scoped_without_opening_a_session(
 
 def test_generation_composition_builds_one_scoped_service_without_a_session(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     competition_id = uuid4()
     engine = create_engine("sqlite://")
@@ -275,8 +279,24 @@ def test_generation_composition_builds_one_scoped_service_without_a_session(
             generation_revision="generation-test",
         ),
     )
+    closed: list[bool] = []
+    original_close = dependencies.snapshot_inputs.source.close
+
+    def close_source() -> None:
+        closed.append(True)
+        original_close()
+
+    monkeypatch.setattr(dependencies.snapshot_inputs.source, "close", close_source)
     try:
         assert isinstance(dependencies.service, GenerationService)
+        assert isinstance(
+            dependencies.snapshot_inputs.legacy,
+            DatalayerSnapshotService,
+        )
+        assert isinstance(
+            dependencies.snapshot_inputs.preparation,
+            DatalayerSnapshotPreparationService,
+        )
         assert dependencies.generations.competition_id == competition_id
         assert dependencies.ai_calls.competition_id == competition_id
         assert dependencies.tool_calls.competition_id == competition_id
@@ -285,4 +305,6 @@ def test_generation_composition_builds_one_scoped_service_without_a_session(
         assert isinstance(dependencies.articles, ArticleOverviewReader)
         assert isinstance(dependencies.usage, GenerationUsageService)
     finally:
+        dependencies.close()
         engine.dispose()
+    assert closed == [True]

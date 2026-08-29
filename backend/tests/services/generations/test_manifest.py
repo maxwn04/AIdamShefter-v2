@@ -13,6 +13,7 @@ from backend.services.generations import (
     CanonicalMemoryInput,
     CodeRevisionInput,
     DataSnapshotInput,
+    DataSnapshotSeasonInput,
     EvaluationArtifactMemoryInput,
     GenerationManifestInput,
     GenerationRequestInput,
@@ -21,6 +22,8 @@ from backend.services.generations import (
     ProcedureInput,
     RetryPolicyInput,
     RunnerExecutionInput,
+    SnapshotPreparationInput,
+    SnapshotRefreshReceiptInput,
     ToolInput,
     build_generation_manifest,
     canonical_json_bytes,
@@ -79,8 +82,21 @@ def _inputs(
         ),
         data_snapshot=DataSnapshotInput(
             data_snapshot_id=_uuid(1),
+            primary_competition_season_id=_uuid(10),
             snapshot_projection_version="snapshot-v3",
             artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(
+                DataSnapshotSeasonInput(
+                    competition_season_id=_uuid(10),
+                    sleeper_league_id="league-2026",
+                    season_year=2026,
+                    sequence_number=2,
+                    role="primary",
+                    through_week=8,
+                ),
+            ),
+            preparation=SnapshotPreparationInput(mode="live"),
         ),
         memory_input=memory_input or CanonicalMemoryInput(revision_id=_uuid(2)),
         cutoffs=ManifestCutoffs(
@@ -127,10 +143,10 @@ def test_canonical_json_has_a_locked_utf8_vector() -> None:
 def test_manifest_has_a_locked_schema_and_hash() -> None:
     built = build_generation_manifest(_inputs())
 
-    assert built.schema_version == 1
-    assert built.manifest["schema_version"] == 1
+    assert built.schema_version == 2
+    assert built.manifest["schema_version"] == 2
     assert built.manifest_hash == (
-        "8f81bc1c86321ea63b245dcf4459bb8e6e900894682ed9028f14c2345fff0ba0"
+        "e98a1845a3f3eae19b20c8d6804c287f10dcd6fdf516a3035fd4b777f2302556"
     )
     assert built.canonical_bytes.decode("utf-8").startswith(
         '{"assets":{"procedures":[{"content_sha256":"'
@@ -153,6 +169,136 @@ def test_mapping_order_does_not_change_manifest_identity() -> None:
     )
 
     assert build_generation_manifest(inputs) == build_generation_manifest(reordered)
+
+
+def test_snapshot_revision_coverage_and_receipts_change_manifest_identity() -> None:
+    inputs = _inputs()
+    history = DataSnapshotSeasonInput(
+        competition_season_id=_uuid(9),
+        sleeper_league_id="league-2025",
+        season_year=2025,
+        sequence_number=1,
+        role="history",
+        through_week=18,
+    )
+    primary = inputs.data_snapshot.included_seasons[0]
+    receipt = SnapshotRefreshReceiptInput(
+        claim_id=_uuid(30),
+        competition_season_id=primary.competition_season_id,
+        through_week=primary.through_week,
+        refresh_run_id=_uuid(31),
+        status="succeeded",
+        disposition="claimed",
+    )
+    changed_coverage = inputs.model_copy(
+        update={
+            "data_snapshot": inputs.data_snapshot.model_copy(
+                update={"included_seasons": (history, primary)}
+            )
+        }
+    )
+    changed_revision = inputs.model_copy(
+        update={
+            "data_snapshot": inputs.data_snapshot.model_copy(
+                update={"input_revision": "e" * 64}
+            )
+        }
+    )
+    changed_receipts = inputs.model_copy(
+        update={
+            "data_snapshot": inputs.data_snapshot.model_copy(
+                update={
+                    "preparation": SnapshotPreparationInput(
+                        mode="live",
+                        refresh_receipts=(receipt,),
+                    )
+                }
+            )
+        }
+    )
+
+    original = build_generation_manifest(inputs).manifest_hash
+    assert build_generation_manifest(changed_coverage).manifest_hash != original
+    assert build_generation_manifest(changed_revision).manifest_hash != original
+    assert build_generation_manifest(changed_receipts).manifest_hash != original
+
+
+def test_snapshot_coverage_rejects_invalid_order_primary_and_receipts() -> None:
+    primary = _inputs().data_snapshot.included_seasons[0]
+    history = DataSnapshotSeasonInput(
+        competition_season_id=_uuid(9),
+        sleeper_league_id="league-2025",
+        season_year=2025,
+        sequence_number=1,
+        role="history",
+        through_week=18,
+    )
+    with pytest.raises(ValueError, match="oldest to primary"):
+        DataSnapshotInput(
+            data_snapshot_id=_uuid(1),
+            primary_competition_season_id=primary.competition_season_id,
+            snapshot_projection_version="3",
+            artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(primary, history),
+            preparation=SnapshotPreparationInput(mode="live"),
+        )
+    with pytest.raises(ValueError, match="match the snapshot primary"):
+        DataSnapshotInput(
+            data_snapshot_id=_uuid(1),
+            primary_competition_season_id=_uuid(99),
+            snapshot_projection_version="3",
+            artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(primary,),
+            preparation=SnapshotPreparationInput(mode="live"),
+        )
+    with pytest.raises(ValueError, match="match an included season and cutoff"):
+        DataSnapshotInput(
+            data_snapshot_id=_uuid(1),
+            primary_competition_season_id=primary.competition_season_id,
+            snapshot_projection_version="3",
+            artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(primary,),
+            preparation=SnapshotPreparationInput(
+                mode="live",
+                refresh_receipts=(
+                    SnapshotRefreshReceiptInput(
+                        claim_id=_uuid(30),
+                        competition_season_id=primary.competition_season_id,
+                        through_week=7,
+                        refresh_run_id=_uuid(31),
+                        status="failed",
+                        disposition="joined",
+                    ),
+                ),
+            ),
+        )
+
+
+def test_snapshot_coverage_rejects_missing_and_duplicate_seasons() -> None:
+    primary = _inputs().data_snapshot.included_seasons[0]
+    with pytest.raises(ValueError, match="requires included season coverage"):
+        DataSnapshotInput(
+            data_snapshot_id=_uuid(1),
+            primary_competition_season_id=primary.competition_season_id,
+            snapshot_projection_version="3",
+            artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(),
+            preparation=SnapshotPreparationInput(mode="live"),
+        )
+    with pytest.raises(ValueError, match="competition seasons must be unique"):
+        DataSnapshotInput(
+            data_snapshot_id=_uuid(1),
+            primary_competition_season_id=primary.competition_season_id,
+            snapshot_projection_version="3",
+            artifact_sha256="a" * 64,
+            input_revision="f" * 64,
+            included_seasons=(primary, primary),
+            preparation=SnapshotPreparationInput(mode="live"),
+        )
 
 
 def test_ordered_tool_bundle_changes_manifest_identity() -> None:

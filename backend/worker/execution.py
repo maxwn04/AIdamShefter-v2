@@ -36,9 +36,12 @@ async def execute_one_generation(
     """Execute one generation with worker credentials and deterministic cleanup."""
 
     runtime = runtime_factory()
+    dependencies: GenerationDependencies | None = None
     try:
         runtime.assert_ready()
         dependencies = dependency_factory(runtime, competition_id)
         return await dependencies.service.execute(generation_id)
     finally:
+        if dependencies is not None:
+            dependencies.close()
         runtime.close()

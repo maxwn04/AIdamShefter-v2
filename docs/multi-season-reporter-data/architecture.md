@@ -224,6 +224,18 @@ The reporter's existing tool-call recorder is the historical evidence receipt;
 the research brief references those calls with complete arguments instead of
 introducing another provenance model.
 
+Generation composition owns two explicit snapshot paths during transition. A
+settings-version-1 pending request calls the retained request-based version-2
+adapter without refresh. A settings-version-2 request calls the preparation
+facade with `LIVE` or `READINESS_ONLY`, receives a version-3 snapshot plus its
+refresh receipts, and records exact ordered season coverage in manifest version
+2. Reruns submit current policy rather than copying the old policy version.
+
+The competition-scoped generation dependency bundle owns the Sleeper transport
+needed by automatic refresh. API dependency teardown and every worker terminal
+path close that bundle deterministically; service and resource modules do not
+own process lifecycle.
+
 ## Failure Model
 
 Expected preparation outcomes are values, not exceptions:

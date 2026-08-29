@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 from uuid import UUID
 
 from pydantic import JsonValue
@@ -31,9 +32,13 @@ from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.services.datalayer import (
     DatalayerSnapshotService,
     FrozenLeagueData,
+    PreparedSnapshot,
+    PrepareSnapshotRequest,
     ReadyDataSnapshot,
     SnapshotRequest,
+    SnapshotPreparationMode,
 )
+from backend.services.datalayer.refresh_coordination import RefreshReceipt
 from backend.services.generations.contracts import (
     GenerationExecutionResult,
     GenerationRequest,
@@ -48,6 +53,7 @@ from backend.services.generations.manifest import (
     CanonicalMemoryInput,
     CodeRevisionInput,
     DataSnapshotInput,
+    DataSnapshotSeasonInput,
     GenerationManifestInput,
     GenerationRequestInput,
     ManifestCutoffs,
@@ -55,6 +61,8 @@ from backend.services.generations.manifest import (
     ProcedureInput,
     RetryPolicyInput,
     RunnerExecutionInput,
+    SnapshotPreparationInput,
+    SnapshotRefreshReceiptInput,
     ToolInput,
     build_generation_manifest,
 )
@@ -83,8 +91,11 @@ from backend.services.reporter.runner.completion import (
 )
 
 
-GENERATION_SETTINGS_SCHEMA_VERSION = 1
-SNAPSHOT_REFRESH_POLICY = "never"
+LEGACY_GENERATION_SETTINGS_SCHEMA_VERSION = 1
+GENERATION_SETTINGS_SCHEMA_VERSION = 2
+LEGACY_SNAPSHOT_REFRESH_POLICY = "never"
+SNAPSHOT_REFRESH_POLICY = "automatic_missing_and_latest_live_freshness"
+SNAPSHOT_MODE_POLICY = "live_for_live_readiness_only_for_backtest"
 BACKTEST_MEMORY_POLICY = "latest_same_season_at_or_before_week"
 
 ReporterCallable = Callable[..., Awaitable[ReporterOutput]]
@@ -95,6 +106,16 @@ Clock = Callable[[], datetime]
 
 class SnapshotResolver(Protocol):
     def get_or_create(self, request: SnapshotRequest) -> ReadyDataSnapshot: ...
+
+
+class SnapshotPreparer(Protocol):
+    def get_or_create(self, request: PrepareSnapshotRequest) -> PreparedSnapshot: ...
+
+
+@dataclass(frozen=True, slots=True)
+class _DecodedGenerationSettings:
+    settings: GenerationSettings
+    snapshot_policy: Literal["legacy_never", "automatic"]
 
 
 class Finalizer(Protocol):
@@ -113,7 +134,8 @@ class GenerationService:
         self,
         *,
         generations: GenerationManager,
-        snapshots: DatalayerSnapshotService | SnapshotResolver,
+        legacy_snapshots: DatalayerSnapshotService | SnapshotResolver,
+        snapshot_preparation: SnapshotPreparer,
         revisions: RevisionManager,
         retrieval: MemoryRetrievalService,
         ai_calls: AICallManager,
@@ -130,7 +152,8 @@ class GenerationService:
         clock: Clock | None = None,
     ) -> None:
         self._generations = generations
-        self._snapshots = snapshots
+        self._legacy_snapshots = legacy_snapshots
+        self._snapshot_preparation = snapshot_preparation
         self._revisions = revisions
         self._retrieval = retrieval
         self._ai_calls = ai_calls
@@ -182,14 +205,13 @@ class GenerationService:
             if pending.week_start is None or pending.week_end is None:
                 raise ValueError("generation execution requires a resolved week range")
             execution_at = _aware_utc(self._clock())
-            settings = _decode_settings(pending.settings)
-            snapshot = self._snapshots.get_or_create(
-                SnapshotRequest(
-                    competition_season_id=pending.competition_season_id,
-                    through_week=pending.week_end,
-                    as_of_date=execution_at.date(),
-                )
+            decoded = _decode_settings(pending.settings)
+            prepared, preparation_mode = self._prepare_snapshot(
+                pending,
+                decoded,
+                execution_at,
             )
+            snapshot = prepared.snapshot
             if (
                 snapshot.competition_id != pending.competition_id
                 or snapshot.primary_competition_season_id
@@ -208,9 +230,11 @@ class GenerationService:
             definition = self._prepare_definition(memory_enabled=True)
             manifest = _build_manifest(
                 generation=pending,
-                settings=settings,
+                settings=decoded.settings,
                 resolved_settings=pending.settings,
                 snapshot=snapshot,
+                preparation_mode=preparation_mode,
+                refresh_receipts=prepared.refresh_receipts,
                 revision=revision,
                 knowledge_cutoff_at=knowledge_cutoff_at,
                 definition=definition,
@@ -274,13 +298,15 @@ class GenerationService:
             with self._open_frozen_data(snapshot) as data:
                 output = await self._reporter(
                     data,
-                    _report_config(pending, settings),
+                    _report_config(pending, decoded.settings),
                     memory_context=memory,
-                    completion=_completion_settings(pending, settings),
-                    runner_config=_runner_config(settings),
+                    completion=_completion_settings(pending, decoded.settings),
+                    runner_config=_runner_config(decoded.settings),
                     recorder=recorder,
                     allow_memory_writes=pending.kind is GenerationKind.LIVE,
-                    automatic_memory_recall=settings.memory.automatic_recall,
+                    automatic_memory_recall=(
+                        decoded.settings.memory.automatic_recall
+                    ),
                     definition=definition,
                 )
             bundle = memory.take_completed_bundle()
@@ -341,7 +367,7 @@ class GenerationService:
                 week_start=source.week_start,
                 week_end=source.week_end,
                 requested_primary_model=source.requested_primary_model,
-                settings=_decode_settings(source.settings),
+                settings=_decode_settings(source.settings).settings,
                 rerun_of_generation_id=source.id,
             )
         )
@@ -426,6 +452,45 @@ class GenerationService:
             raise ValueError("backtest memory selection requires a root revision")
         return roots[0]
 
+    def _prepare_snapshot(
+        self,
+        generation: Generation,
+        decoded: _DecodedGenerationSettings,
+        execution_at: datetime,
+    ) -> tuple[
+        PreparedSnapshot,
+        Literal["legacy_never", "live", "readiness_only"],
+    ]:
+        if generation.week_end is None:
+            raise ValueError("snapshot preparation requires a cutoff week")
+        snapshot_request = SnapshotRequest(
+            competition_season_id=generation.competition_season_id,
+            through_week=generation.week_end,
+            as_of_date=execution_at.date(),
+        )
+        if decoded.snapshot_policy == "legacy_never":
+            return (
+                PreparedSnapshot(
+                    snapshot=self._legacy_snapshots.get_or_create(snapshot_request)
+                ),
+                "legacy_never",
+            )
+        mode = (
+            SnapshotPreparationMode.LIVE
+            if generation.kind is GenerationKind.LIVE
+            else SnapshotPreparationMode.READINESS_ONLY
+        )
+        return (
+            self._snapshot_preparation.get_or_create(
+                PrepareSnapshotRequest(
+                    snapshot=snapshot_request,
+                    mode=mode,
+                    requested_at=execution_at,
+                )
+            ),
+            mode.value,
+        )
+
     def _require_scope(self, competition_id: UUID) -> None:
         if competition_id != self._generations.competition_id:
             raise ValueError("generation request is outside the service competition")
@@ -438,26 +503,41 @@ def _resolved_settings(settings: GenerationSettings) -> dict[str, JsonValue]:
         **resolved,
         "input_policy": {
             "snapshot_refresh": SNAPSHOT_REFRESH_POLICY,
+            "snapshot_mode": SNAPSHOT_MODE_POLICY,
             "snapshot_as_of_date": "execution_utc_date",
             "backtest_memory": BACKTEST_MEMORY_POLICY,
         },
     }
 
 
-def _decode_settings(value: dict[str, JsonValue]) -> GenerationSettings:
-    if value.get("schema_version") != GENERATION_SETTINGS_SCHEMA_VERSION:
+def _decode_settings(value: dict[str, JsonValue]) -> _DecodedGenerationSettings:
+    schema_version = value.get("schema_version")
+    if schema_version == LEGACY_GENERATION_SETTINGS_SCHEMA_VERSION:
+        expected_policy = {
+            "snapshot_refresh": LEGACY_SNAPSHOT_REFRESH_POLICY,
+            "snapshot_as_of_date": "execution_utc_date",
+            "backtest_memory": BACKTEST_MEMORY_POLICY,
+        }
+        snapshot_policy: Literal["legacy_never", "automatic"] = "legacy_never"
+    elif schema_version == GENERATION_SETTINGS_SCHEMA_VERSION:
+        expected_policy = {
+            "snapshot_refresh": SNAPSHOT_REFRESH_POLICY,
+            "snapshot_mode": SNAPSHOT_MODE_POLICY,
+            "snapshot_as_of_date": "execution_utc_date",
+            "backtest_memory": BACKTEST_MEMORY_POLICY,
+        }
+        snapshot_policy = "automatic"
+    else:
         raise ValueError("generation settings schema version is unsupported")
-    expected_policy = {
-        "snapshot_refresh": SNAPSHOT_REFRESH_POLICY,
-        "snapshot_as_of_date": "execution_utc_date",
-        "backtest_memory": BACKTEST_MEMORY_POLICY,
-    }
     if value.get("input_policy") != expected_policy:
         raise ValueError("generation input policy differs from the submitted policy")
     decoded = {key: value[key] for key in ("report", "model", "runner")}
     if "memory" in value:
         decoded["memory"] = value["memory"]
-    return GenerationSettings.model_validate(decoded)
+    return _DecodedGenerationSettings(
+        settings=GenerationSettings.model_validate(decoded),
+        snapshot_policy=snapshot_policy,
+    )
 
 
 def _build_manifest(
@@ -466,6 +546,8 @@ def _build_manifest(
     settings: GenerationSettings,
     resolved_settings: dict[str, JsonValue],
     snapshot: ReadyDataSnapshot,
+    preparation_mode: Literal["legacy_never", "live", "readiness_only"],
+    refresh_receipts: tuple[RefreshReceipt, ...],
     revision: CanonicalRevision,
     knowledge_cutoff_at: datetime,
     definition: PreparedReporterDefinition,
@@ -484,8 +566,39 @@ def _build_manifest(
             ),
             data_snapshot=DataSnapshotInput(
                 data_snapshot_id=snapshot.id,
+                primary_competition_season_id=(
+                    snapshot.primary_competition_season_id
+                ),
                 snapshot_projection_version=snapshot.snapshot_projection_version,
                 artifact_sha256=snapshot.artifact.sha256,
+                input_revision=snapshot.input_revision,
+                included_seasons=tuple(
+                    DataSnapshotSeasonInput(
+                        competition_season_id=season.competition_season_id,
+                        sleeper_league_id=season.sleeper_league_id,
+                        season_year=season.season_year,
+                        sequence_number=season.sequence_number,
+                        role=season.role,
+                        through_week=season.through_week,
+                    )
+                    for season in snapshot.included_seasons
+                ),
+                preparation=SnapshotPreparationInput(
+                    mode=preparation_mode,
+                    refresh_receipts=tuple(
+                        SnapshotRefreshReceiptInput(
+                            claim_id=receipt.claim_id,
+                            competition_season_id=(
+                                receipt.competition_season_id
+                            ),
+                            through_week=receipt.through_week,
+                            refresh_run_id=receipt.refresh_run_id,
+                            status=receipt.status.value,
+                            disposition=receipt.disposition.value,
+                        )
+                        for receipt in refresh_receipts
+                    ),
+                ),
             ),
             memory_input=CanonicalMemoryInput(revision_id=revision.revision_id),
             cutoffs=ManifestCutoffs(

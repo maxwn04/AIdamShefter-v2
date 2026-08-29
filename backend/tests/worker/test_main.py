@@ -57,6 +57,15 @@ class StubService:
         )
 
 
+class StubDependencies:
+    def __init__(self, service: StubService) -> None:
+        self.service = service
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
 class StubRefreshManager:
     def __init__(self) -> None:
         self.calls: list[tuple[datetime, int]] = []
@@ -133,10 +142,11 @@ def test_execute_delegates_once_and_returns_bounded_terminal_output(
     generation_id = uuid4()
     captured_competitions: list[UUID] = []
     stdout = StringIO()
+    scoped = StubDependencies(service)
 
     def dependencies(_runtime: object, scoped_competition_id: UUID) -> object:
         captured_competitions.append(scoped_competition_id)
-        return SimpleNamespace(service=service)
+        return scoped
 
     exit_code = run(
         [
@@ -155,6 +165,7 @@ def test_execute_delegates_once_and_returns_bounded_terminal_output(
     assert exit_code == expected_exit
     assert runtime.ready is True
     assert runtime.closed is True
+    assert scoped.closed is True
     assert captured_competitions == [competition_id]
     assert service.executed == [generation_id]
     assert payload["generation_id"] == str(generation.id)
@@ -171,6 +182,7 @@ def test_execute_delegates_once_and_returns_bounded_terminal_output(
 def test_reconcile_stale_delegates_explicit_cutoff_and_limit() -> None:
     runtime = StubRuntime()
     service = StubService(_generation(GenerationStatus.FAILED))
+    dependencies = StubDependencies(service)
     stdout = StringIO()
 
     exit_code = run(
@@ -184,9 +196,7 @@ def test_reconcile_stale_delegates_explicit_cutoff_and_limit() -> None:
             "25",
         ],
         runtime_factory=lambda: runtime,
-        dependency_factory=lambda *_args, **_kwargs: SimpleNamespace(
-            service=service
-        ),
+        dependency_factory=lambda *_args, **_kwargs: dependencies,
         stdout=stdout,
     )
 
@@ -198,6 +208,7 @@ def test_reconcile_stale_delegates_explicit_cutoff_and_limit() -> None:
     assert service.policies[0].limit == 25
     assert payload["count"] == 1
     assert runtime.closed is True
+    assert dependencies.closed is True
 
 
 def test_reconcile_stale_refreshes_delegates_and_reports_terminal_derivation() -> None:
@@ -250,6 +261,7 @@ def test_worker_failures_are_sanitized_and_runtime_is_closed() -> None:
     runtime = StubRuntime()
     service = StubService(_generation(GenerationStatus.FAILED))
     service.error = RuntimeError("secret provider response")
+    dependencies = StubDependencies(service)
     stderr = StringIO()
 
     exit_code = run(
@@ -261,9 +273,7 @@ def test_worker_failures_are_sanitized_and_runtime_is_closed() -> None:
             str(uuid4()),
         ],
         runtime_factory=lambda: runtime,
-        dependency_factory=lambda *_args, **_kwargs: SimpleNamespace(
-            service=service
-        ),
+        dependency_factory=lambda *_args, **_kwargs: dependencies,
         stderr=stderr,
     )
 
@@ -271,6 +281,7 @@ def test_worker_failures_are_sanitized_and_runtime_is_closed() -> None:
     assert stderr.getvalue() == "generation worker failed (RuntimeError)\n"
     assert "secret provider response" not in stderr.getvalue()
     assert runtime.closed is True
+    assert dependencies.closed is True
 
 
 def test_readiness_failure_still_closes_runtime() -> None:
