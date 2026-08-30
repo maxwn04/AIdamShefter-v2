@@ -231,6 +231,12 @@ class GenerationMemoryContext:
         self._closed = True
         return bundle
 
+    def proposal_snapshot(self) -> tuple[MemoryProposal, ...]:
+        """Return the currently buffered proposals without closing the context."""
+
+        self._require_open()
+        return tuple(self._proposals)
+
     def discard(self) -> None:
         """Close and erase an abandoned proposal buffer without persistence."""
 

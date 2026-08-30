@@ -127,6 +127,21 @@ class RunLog(BaseModel):
     def add_completion(self, stats: dict[str, Any], *, turn: int) -> None:
         self._add(RunLogEntry(turn=turn, event_type="completion", data=stats))
 
+    def add_memory_closeout(
+        self,
+        event: str,
+        *,
+        turn: int,
+        **details: Any,
+    ) -> None:
+        self._add(
+            RunLogEntry(
+                turn=turn,
+                event_type="memory_closeout",
+                data={"event": event, **details},
+            )
+        )
+
     @property
     def tool_call_count(self) -> int:
         return sum(1 for entry in self.entries if entry.event_type == "tool_call")
@@ -227,6 +242,8 @@ class RunLog(BaseModel):
             )
         if entry.event_type == "completion":
             return f"{elapsed} COMPLETE: {json.dumps(data)}"
+        if entry.event_type == "memory_closeout":
+            return f"{elapsed} MEMORY CLOSEOUT: {json.dumps(data)}"
         return f"{elapsed} {entry.event_type}: {data}"
 
     @staticmethod

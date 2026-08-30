@@ -174,7 +174,7 @@ The runner tracks two lifecycle facts:
 
 A memory-enabled run begins with both false. A successful `submit_artifact` sets `article_submitted`, freezes the selected artifact revision, activates the closeout procedure in the returned result, and keeps the loop running. A successful `complete_memory_review` requires `article_submitted`, sets `memory_review_completed`, and terminates the loop.
 
-The runner terminates normally only when both facts are true. The tool definitions and their ordering remain constant on every completion request. A bounded closeout allowance guarantees the reporter receives an opportunity to act even when submission occurs at the normal writing-turn limit.
+The runner terminates normally only when both facts are true. The tool definitions and their ordering remain constant on every completion request. Six additional closeout turns guarantee the reporter receives an opportunity to act even when submission occurs at the normal writing-turn limit; the submission turn does not consume this allowance.
 
 Live finalization consumes the existing generation memory proposal bundle. Backtest mode continues returning blocked results for memory writes and completes closeout as a no-op.
 
@@ -198,7 +198,7 @@ Live finalization consumes the existing generation memory proposal bundle. Backt
 - Presentation or serialization failure fails the tool call and records diagnostics in metadata and error fields.
 - `complete_memory_review` before successful submission returns a bounded lifecycle error and does not terminate the runner.
 - Attempts to edit the submitted article retain the existing `artifact_finalized` error.
-- Reaching the closeout turn allowance without completion is recorded distinctly from successful or no-op closeout.
+- Reaching six closeout turns without completion is recorded distinctly, fails reporter execution, and causes generation failure to discard the proposal buffer.
 - Invalid memory proposals retain existing tool and generation-finalization error behavior.
 
 ## Compatibility and Transition

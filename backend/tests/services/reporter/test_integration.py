@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
+
 from backend.services.datalayer import FrozenRosterIdentity, ResolvedRosterIdentity
 from backend.services.memory import (
     GenerationMemoryContext,
@@ -15,6 +17,7 @@ from backend.services.memory import (
     MemoryRetrievalResult,
 )
 from backend.services.reporter.config import ReportConfig, TimeRange
+from backend.services.reporter.definition import prepare_reporter_definition
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.completion import CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
@@ -480,6 +483,15 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
                     )
                 ]
             ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "complete_memory_review",
+                        {},
+                        "bridge-closeout-call",
+                    )
+                ]
+            ),
         ]
     )
 
@@ -495,6 +507,25 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
     )
 
     assert output.submitted_path == "article.md"
+    prepared = prepare_reporter_definition(memory_enabled=True)
+    submit_result = next(
+        json.loads(message["content"])
+        for message in complete.requests[-1]["messages"]
+        if message.get("tool_call_id") == "submit-call"
+    )
+    assert submit_result["next_action"] == {
+        "type": "mandatory_procedure",
+        "name": "memory_closeout",
+        "content": prepared.procedure_contents["memory_closeout"],
+        "completion_tool": "complete_memory_review",
+        "memory_writes_enabled": True,
+    }
+    assert all(
+        request["tools"] == complete.requests[0]["tools"]
+        for request in complete.requests
+    )
+    assert output.run_log_summary["memory_closeout"]["status"] == "completed"
+    assert output.run_log_summary["memory_closeout"]["no_op"] is True
     bundle = memory_context.take_completed_bundle()
     assert [proposal.kind.value for proposal in bundle.proposals] == ["fact"]
     fact = bundle.proposals[0]
@@ -507,6 +538,121 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
         "data_refs": ["league_snapshot:week=8"],
     }
     assert fact.metadata.creating_tool_call_id is None
+
+
+@pytest.mark.parametrize(
+    ("allow_memory_writes", "expected_proposals"),
+    [(True, 1), (False, 0)],
+)
+def test_generation_closeout_buffers_live_writes_and_backtest_noop(
+    allow_memory_writes: bool,
+    expected_proposals: int,
+) -> None:
+    memory_context = GenerationMemoryContext(
+        competition_id=UUID(int=1),
+        generation_id=uuid4(),
+        pinned_revision_id=uuid4(),
+        retrieval=EmptyMemoryRetrieval(),
+        competition_season_id=UUID(int=2),
+        week=8,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_closeout_fixture",
+                            "claim_text": "Week 8 supplied a verified fact.",
+                            "data_refs": ["league_snapshot:week=8"],
+                        },
+                        "fact-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nVerified."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "complete_memory_review",
+                        {},
+                        "complete-call",
+                    ),
+                    tool_call(
+                        "save_league_note",
+                        {
+                            "key": "closeout_note",
+                            "value": "A durable league-wide closeout note.",
+                        },
+                        "memory-call",
+                    ),
+                    tool_call(
+                        "edit_artifact",
+                        {
+                            "path": "article.md",
+                            "old_text": "Verified.",
+                            "new_text": "Changed after submission.",
+                            "expected_revision": 1,
+                        },
+                        "immutable-call",
+                    ),
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            allow_memory_writes=allow_memory_writes,
+        )
+    )
+
+    summary = output.run_log_summary["memory_closeout"]
+    bundle = memory_context.take_completed_bundle()
+    assert summary["status"] == "completed"
+    assert summary["proposal_counts"]["total"] == expected_proposals
+    assert summary["no_op"] is (expected_proposals == 0)
+    assert len(bundle.proposals) == expected_proposals
+    events = [
+        entry["data"]["event"]
+        for entry in output.run_log_entries
+        if entry["event_type"] == "memory_closeout"
+    ]
+    assert events[:3] == [
+        "article_submitted",
+        "closeout_activated",
+        "memory_review_completed",
+    ]
+    assert ("memory_review_noop" in events) is (expected_proposals == 0)
+    assert output.submitted_artifact is not None
+    assert output.submitted_artifact.content == "# Week 8\n\nVerified."
+    assert output.submitted_artifact.revision == 1
+    if allow_memory_writes:
+        assert bundle.proposals[0].kind.value == "context_note"
+        assert bundle.proposals[0].operation == "create"
 
 
 def test_generation_starts_with_exact_recorded_automatic_recall_context() -> None:

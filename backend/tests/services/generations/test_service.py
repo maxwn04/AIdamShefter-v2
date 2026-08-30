@@ -28,6 +28,9 @@ from backend.services.generations import (
 from backend.services.memory import MemoryMutationResult
 from backend.services.reporter import ReporterOutput
 from backend.services.reporter.runner.completion import ProviderConfigurationError
+from backend.services.reporter.runner.memory_closeout import (
+    MemoryCloseoutIncompleteError,
+)
 from backend.services.reporter.runner.recording import ArtifactMutation
 from backend.services.reporter.runner.schemas import ArtifactSnapshot
 
@@ -604,7 +607,14 @@ async def test_backtest_without_eligible_or_root_memory_never_starts(tmp_path) -
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("error", [RuntimeError("provider"), asyncio.CancelledError()])
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("provider"),
+        MemoryCloseoutIncompleteError("closeout exhausted"),
+        asyncio.CancelledError(),
+    ],
+)
 async def test_reporter_failure_or_cancellation_closes_and_discards_context(
     tmp_path,
     error,

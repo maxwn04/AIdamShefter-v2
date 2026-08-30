@@ -42,8 +42,8 @@ The runner always sends the same ordered tool definitions to the model. It does 
 - Presentation failures fail that tool call because the exact model-visible result cannot be trusted.
 - `result`, `result_text`, and `metadata` for a tool execution are recorded coherently under the same call identity.
 - `complete_memory_review` returns an error before successful article submission and does not terminate the runner.
-- A successful `submit_artifact` does not terminate the runner. The runner guarantees a bounded closeout opportunity even when submission consumes the normal writing-turn budget.
-- If the reporter reaches the closeout limit without completing review, the run reports that explicit condition; it does not invent memory operations.
+- A successful `submit_artifact` does not terminate the runner. The runner guarantees six additional closeout turns even when submission consumes the normal writing-turn budget; the submission turn itself does not consume that allowance.
+- If the reporter reaches the six-turn closeout limit without completing review, reporter execution fails and the generation memory context is discarded. The run records exhaustion distinctly and does not invent memory operations.
 - Trigger state changes only through a valid buffered memory proposal. Merely recalling or mentioning a trigger does not fire or resolve it.
 - Canonical revision conflicts continue to use the generation finalizer's existing failure behavior; this feature does not add a second retry or transaction layer.
 
@@ -80,5 +80,4 @@ Hiding identifiers is a context-quality and trust-boundary improvement, not an a
 ## Deferred Decisions
 
 - Initial recall budgets per memory kind.
-- Whether closeout needs more than the initial bounded turn allowance.
 - Whether measured closeout quality eventually warrants a separate curator workflow.

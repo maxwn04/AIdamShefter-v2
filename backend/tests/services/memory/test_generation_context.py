@@ -124,3 +124,23 @@ def test_discard_closes_an_abandoned_proposal_buffer() -> None:
 
     with pytest.raises(GenerationMemoryContextClosedError):
         context.take_completed_bundle()
+
+
+def test_proposal_snapshot_is_read_only_and_does_not_close_context() -> None:
+    context = GenerationMemoryContext(
+        competition_id=uuid4(),
+        generation_id=uuid4(),
+        pinned_revision_id=uuid4(),
+        retrieval=RecordingRetrieval(),
+    )
+    event_reference = context.propose_event(_event())
+    reference = context.propose_fact(_fact(event_reference.version_id))
+
+    snapshot = context.proposal_snapshot()
+    bundle = context.take_completed_bundle()
+
+    assert tuple(proposal.proposed_ref() for proposal in snapshot) == (
+        event_reference,
+        reference,
+    )
+    assert bundle.proposals == snapshot

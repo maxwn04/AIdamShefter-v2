@@ -27,6 +27,7 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
+from backend.services.reporter.runner.memory_closeout import MemoryCloseoutState
 from backend.services.reporter.runner.recording import (
     ExecutionRecorder,
     MemoryRecallRecord,
@@ -44,6 +45,9 @@ from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.brief_tools import register_brief_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
+from backend.services.reporter.runner.tools.memory_closeout_tools import (
+    register_memory_closeout_tools,
+)
 from backend.services.reporter.runner.tools.memory_tools import register_memory_tools
 from backend.services.reporter.runner.tools.procedure_tools import register_procedure_tools
 from backend.services.reporter.runner.tools.registry import ToolRegistry
@@ -123,6 +127,15 @@ async def generate_article(
         artifacts=ArtifactStore(),
         brief=brief,
         recorder=resolved_recorder,
+        memory_closeout=(
+            MemoryCloseoutState(
+                procedure=prepared.procedure_contents["memory_closeout"],
+                memory_writes_enabled=allow_memory_writes,
+                proposal_snapshot=memory_context.proposal_snapshot,
+            )
+            if memory_context is not None
+            else None
+        ),
     )
 
     initial_context: tuple[str, ...] = ()
@@ -175,6 +188,7 @@ def _build_registry(
             data,
             allow_memory_writes=allow_memory_writes,
         )
+        register_memory_closeout_tools(registry)
     return registry, memory_adapter
 
 

@@ -45,6 +45,7 @@ Related upstream contracts:
 - The same reporter agent owns research, article writing, and memory closeout. Submission freezes the selected article revision and supplies the mandatory closeout procedure instead of terminating the runner.
 - The tool list remains unchanged for the entire conversation. Procedures guide behavior; they do not grant or revoke tools.
 - `complete_memory_review` terminates the run after the agent has saved useful memory or deliberately chosen a no-op.
+- Submission grants six additional model turns for closeout. Exhausting them without explicit completion fails the generation and discards its buffered memory proposals.
 - Live generation commits the closeout's buffered memory proposals through the existing generation finalization path. Backtests keep memory writes disabled.
 - The automatic structured-brief fact bridge is retired once memory closeout is proven.
 

@@ -130,7 +130,7 @@ def test_manifest_has_a_locked_schema_and_hash() -> None:
     assert built.schema_version == 1
     assert built.manifest["schema_version"] == 1
     assert built.manifest_hash == (
-        "7afb1bd111b65a26970558ce223b5a74166112c949140f9dc463b9e69b3bb359"
+        "8f81bc1c86321ea63b245dcf4459bb8e6e900894682ed9028f14c2345fff0ba0"
     )
     assert built.canonical_bytes.decode("utf-8").startswith(
         '{"assets":{"procedures":[{"content_sha256":"'
