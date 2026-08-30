@@ -79,6 +79,9 @@ const generationDraftValuesSchema = z
         .min(1, "Maximum turns must be at least 1."),
       procedureHistoryMode: z.enum(["replace", "append"]),
     }),
+    memory: z.object({
+      automaticRecall: z.boolean(),
+    }),
   })
   .superRefine((values, context) => {
     if (values.weekStart > values.weekEnd) {
@@ -201,6 +204,12 @@ export const persistedGenerationSettingsSchema = z
         procedure_history_mode: z.enum(["replace", "append"]),
       })
       .strict(),
+    memory: z
+      .object({
+        automatic_recall: z.boolean(),
+      })
+      .strict()
+      .default({ automatic_recall: true }),
     input_policy: z
       .object({
         snapshot_refresh: z.literal("never"),
@@ -298,6 +307,9 @@ export function createGenerationFormValuesFromDetail(
       maxTurns: settings.runner.max_turns,
       procedureHistoryMode: settings.runner.procedure_history_mode,
     },
+    memory: {
+      automaticRecall: settings.memory.automatic_recall,
+    },
   });
 
   return valuesResult.success ? valuesResult.data : undefined;
@@ -336,6 +348,7 @@ export function createGenerationFormDefaults(
       retry: { maxRetries: 3, baseDelaySeconds: 1, maxDelaySeconds: 30 },
     },
     runner: { maxTurns: 60, procedureHistoryMode: "append" },
+    memory: { automaticRecall: true },
   };
 }
 
@@ -389,6 +402,9 @@ export function mapGenerationFormToSubmitBody(
       runner: {
         max_turns: values.runner.maxTurns,
         procedure_history_mode: values.runner.procedureHistoryMode,
+      },
+      memory: {
+        automatic_recall: values.memory.automaticRecall,
       },
     },
   };

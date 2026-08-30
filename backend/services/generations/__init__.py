@@ -3,6 +3,7 @@
 from backend.services.generations.contracts import (
     GenerationBiasSettings,
     GenerationExecutionResult,
+    GenerationMemorySettings,
     GenerationModelSettings,
     GenerationReportSettings,
     GenerationRequest,
@@ -51,6 +52,7 @@ __all__ = [
     "GenerationManifestInput",
     "GenerationExecutionRecorder",
     "GenerationExecutionResult",
+    "GenerationMemorySettings",
     "GenerationFinalizationError",
     "GenerationFinalizationResult",
     "GenerationFinalizer",

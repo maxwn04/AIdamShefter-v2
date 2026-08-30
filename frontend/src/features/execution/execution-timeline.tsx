@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   ArrowRight,
-  BrainCircuit,
   ChevronDown,
   ChevronRight,
   CircleAlert,
@@ -21,7 +20,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type {
   AICallStatus,
   AICallSummary,
-  GenerationMemoryRecall,
   ToolCallStatus,
   ToolCallSummary,
 } from "@/features/execution/api";
@@ -29,7 +27,6 @@ import {
   useAICallDetail,
   useAICallList,
   useGenerationToolCallList,
-  useGenerationMemoryRecall,
   useToolCallDetail,
 } from "@/features/execution/queries";
 import { cn } from "@/lib/utils";
@@ -101,15 +98,6 @@ function toolStatus(status: ToolCallStatus): {
   return { label: "Running", variant: "secondary" };
 }
 
-function recallStatus(status: GenerationMemoryRecall["status"]): {
-  label: string;
-  variant: BadgeVariant;
-} {
-  if (status === "complete") return { label: "Complete", variant: "outline" };
-  if (status === "partial") return { label: "Partial", variant: "secondary" };
-  return { label: "Failed", variant: "destructive" };
-}
-
 function InlineError({
   title,
   error,
@@ -132,93 +120,6 @@ function InlineError({
         Try again
       </Button>
     </div>
-  );
-}
-
-function AutomaticRecallCard({
-  competitionId,
-  generationId,
-  active,
-  generationActive,
-}: ExecutionTimelineProps): React.JSX.Element | null {
-  const query = useGenerationMemoryRecall(
-    competitionId,
-    generationId,
-    active,
-    generationActive,
-  );
-
-  if (!active) return null;
-  if (query.isError) {
-    return (
-      <div className="mb-5">
-        <InlineError
-          title="Automatic recall unavailable"
-          error={query.error}
-          onRetry={() => void query.refetch()}
-        />
-      </div>
-    );
-  }
-  if (query.isPending || query.data.recall === null) {
-    return (
-      <article className="mb-5 rounded-lg border border-border bg-card p-4">
-        <div className="flex items-center gap-2">
-          <BrainCircuit
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h3 className="font-semibold">Automatic recall</h3>
-          {query.isPending || generationActive ? (
-            <Badge variant="secondary">Pending</Badge>
-          ) : (
-            <Badge variant="outline">Not recorded</Badge>
-          )}
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {generationActive
-            ? "Generation-start memory context is being prepared."
-            : "This generation has no automatic recall resource."}
-        </p>
-      </article>
-    );
-  }
-
-  const recall = query.data.recall;
-  const presentation = recallStatus(recall.status);
-  return (
-    <article className="mb-5 overflow-hidden rounded-lg border border-border bg-card">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <BrainCircuit
-            className="size-4 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h3 className="font-semibold">Automatic recall</h3>
-          <Badge variant={presentation.variant}>{presentation.label}</Badge>
-        </div>
-        <span className="text-xs text-muted-foreground">
-          <DateTime value={recall.created_at} />
-        </span>
-      </header>
-      <div className="grid min-w-0 gap-3 p-4 xl:grid-cols-2">
-        <StructuredContentViewer
-          title="Result"
-          content={recall.result}
-          defaultOpen
-        />
-        <StructuredContentViewer
-          title="Exact context text"
-          content={recall.result_text}
-          defaultOpen
-        />
-        <StructuredContentViewer
-          title="Metadata"
-          content={recall.metadata}
-          defaultOpen
-        />
-      </div>
-    </article>
   );
 }
 
@@ -744,48 +645,30 @@ export function ExecutionTimeline({
   ]);
 
   if (!active) return null;
-  if (aiCallsQuery.isPending)
-    return (
-      <>
-        <AutomaticRecallCard
-          {...{ competitionId, generationId, active, generationActive }}
-        />
-        <TimelineSkeleton />
-      </>
-    );
+  if (aiCallsQuery.isPending) return <TimelineSkeleton />;
   if (aiCallsQuery.isError) {
     return (
-      <>
-        <AutomaticRecallCard
-          {...{ competitionId, generationId, active, generationActive }}
-        />
-        <InlineError
-          title="Execution history unavailable"
-          error={aiCallsQuery.error}
-          onRetry={() => void aiCallsQuery.refetch()}
-        />
-      </>
+      <InlineError
+        title="Execution history unavailable"
+        error={aiCallsQuery.error}
+        onRetry={() => void aiCallsQuery.refetch()}
+      />
     );
   }
   if (aiCallsQuery.data.page.items.length === 0 && page === 1) {
     return (
-      <>
-        <AutomaticRecallCard
-          {...{ competitionId, generationId, active, generationActive }}
+      <div className="rounded-lg border border-dashed border-border bg-card/60 p-8 text-center sm:p-12">
+        <Cpu
+          className="mx-auto size-8 text-muted-foreground"
+          aria-hidden="true"
         />
-        <div className="rounded-lg border border-dashed border-border bg-card/60 p-8 text-center sm:p-12">
-          <Cpu
-            className="mx-auto size-8 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <h3 className="mt-5 font-editorial text-2xl font-semibold">
-            No AI attempts recorded
-          </h3>
-          <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
-            This generation has not recorded a model attempt yet.
-          </p>
-        </div>
-      </>
+        <h3 className="mt-5 font-editorial text-2xl font-semibold">
+          No AI attempts recorded
+        </h3>
+        <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
+          This generation has not recorded a model attempt yet.
+        </p>
+      </div>
     );
   }
 
@@ -810,9 +693,6 @@ export function ExecutionTimeline({
 
   return (
     <section aria-labelledby="execution-timeline-heading" className="min-w-0">
-      <AutomaticRecallCard
-        {...{ competitionId, generationId, active, generationActive }}
-      />
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3

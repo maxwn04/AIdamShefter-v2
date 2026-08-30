@@ -2214,6 +2214,14 @@ export interface components {
         GenerationMemoryRecallResponse: {
             recall: components["schemas"]["GenerationMemoryRecall"] | null;
         };
+        /** GenerationMemorySettings */
+        GenerationMemorySettings: {
+            /**
+             * Automatic Recall
+             * @default true
+             */
+            automatic_recall: boolean;
+        };
         /** GenerationModelSettings */
         GenerationModelSettings: {
             /**
@@ -2318,6 +2326,7 @@ export interface components {
         };
         /** GenerationSettings */
         GenerationSettings: {
+            memory?: components["schemas"]["GenerationMemorySettings"];
             model?: components["schemas"]["GenerationModelSettings"];
             report?: components["schemas"]["GenerationReportSettings"];
             runner?: components["schemas"]["GenerationRunnerSettings"];

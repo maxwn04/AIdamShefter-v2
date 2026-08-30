@@ -75,10 +75,15 @@ class GenerationRunnerSettings(ContractModel):
     procedure_history_mode: Literal["replace", "append"] = "append"
 
 
+class GenerationMemorySettings(ContractModel):
+    automatic_recall: bool = True
+
+
 class GenerationSettings(ContractModel):
     report: GenerationReportSettings = Field(default_factory=GenerationReportSettings)
     model: GenerationModelSettings = Field(default_factory=GenerationModelSettings)
     runner: GenerationRunnerSettings = Field(default_factory=GenerationRunnerSettings)
+    memory: GenerationMemorySettings = Field(default_factory=GenerationMemorySettings)
 
 
 class GenerationRequest(ContractModel):
@@ -153,6 +158,7 @@ class ReconcileResult(ContractModel):
 __all__ = [
     "GenerationBiasSettings",
     "GenerationExecutionResult",
+    "GenerationMemorySettings",
     "GenerationModelSettings",
     "GenerationReportSettings",
     "GenerationRequest",

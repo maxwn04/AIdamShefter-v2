@@ -147,6 +147,23 @@ The paired `metadata` may contain:
 
 Generation-start recall consumes generation scope, request intent, snapshot week, and pinned memory revision. The reporter receives only semantic context grouped into due callbacks, standing context, and likely relevant memories. Canonical bindings and selection diagnostics remain metadata.
 
+Automatic recall is controlled by the generation setting below and defaults to
+enabled:
+
+```json
+{
+  "memory": {
+    "automatic_recall": true
+  }
+}
+```
+
+When disabled, generation execution skips recall planning, persistence, and
+initial-context injection. Pinned `search_memory`, mandatory closeout, and the
+live/backtest memory-write policy are unchanged. Existing generations that
+predate the setting decode as enabled because that matches their runtime
+behavior.
+
 Trigger evaluation is deterministic. A trigger is due according to its stored fire policy and current generation scope, not because the writer happened to search for or interpret it.
 
 ### Memory closeout procedure
@@ -164,6 +181,31 @@ The procedure requires the reporter to:
 - finish by calling `complete_memory_review`.
 
 `complete_memory_review` has no required model-supplied bookkeeping fields. The application derives proposal counts and outcomes from recorded calls and the generation memory context.
+
+Successful semantic memory-write telemetry identifies the affected semantic
+kind and whether the proposal creates or replaces canonical memory. These
+application-only activity descriptors stay in tool metadata and never enter the
+reporter's result message. Repeated identical selections remain `saved=false`
+no-ops. Storyline metadata also describes any embedded trigger proposals so
+generation-level memory reporting does not lose nested writes.
+
+### Generation memory presentation
+
+Generation detail owns a dedicated memory section separate from raw execution.
+It organizes:
+
+- automatic due callbacks, standing context notes, and likely relevant memory;
+- supplemental semantic results returned by successful `search_memory` calls;
+- successful memory writes grouped by memory kind and labeled new or updated
+  from their create/replace outcome.
+
+The presentation uses the semantic result payloads already recorded for the
+reporter. Exact recall context text and private recall bindings remain available
+under an optional technical disclosure in the memory section; raw memory tool
+calls stay available in the execution inspector. Neither dominates the semantic
+memory view. The UI describes recalled and searched items as memory presented
+to the generation; it must not claim article usage without an explicit future
+usage signal.
 
 ## Lifecycle and State Transitions
 
@@ -186,6 +228,8 @@ Live finalization consumes the existing generation memory proposal bundle. Backt
 - All memory reads and writes remain league-and-season scoped.
 - A model cannot select a canonical record by supplying an identifier hidden from its context.
 - Due triggers and applicable context notes do not depend on an optional writer search.
+- Automatic recall is enabled by default and may be disabled without removing
+  manual search or closeout capabilities.
 - Submission makes the selected artifact immutable before closeout begins.
 - Tool availability does not change during a run.
 - Memory closeout permits zero writes and still requires explicit completion.

@@ -190,6 +190,14 @@ export const queryKeys = {
         generationId,
         "memory-recall",
       ] as const,
+    generationMemoryActivity: (competitionId: string, generationId: string) =>
+      [
+        "competitions",
+        competitionId,
+        "generations",
+        generationId,
+        "memory-activity",
+      ] as const,
     aiCallLists: (competitionId: string, generationId: string) =>
       [
         "competitions",

@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "4"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "5"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -523,20 +523,21 @@ class TypedMemoryAdapter:
             create=self._memory_context.propose_storyline,
             replace=self._memory_context.replace_storyline,
         )
-        saved_triggers: list[str] = []
+        trigger_results: list[dict[str, Any]] = []
         for raw_spec in arguments.trigger_specs:
             spec = SaveStorylineTriggerArgs.model_validate(
                 {**raw_spec, "storyline_id": raw_spec.get("storyline_id", arguments.id)}
             )
             trigger_result = self.save_storyline_trigger(context, spec)
-            saved_triggers.append(str(trigger_result["id"]))
+            trigger_results.append(trigger_result)
         payload = {
             **result,
             "id": arguments.id,
             "status": arguments.status,
             "team_ids": sleeper_team_ids,
             "linked_events": arguments.evidence_event_ids,
-            "triggers": saved_triggers,
+            "triggers": [str(result["id"]) for result in trigger_results],
+            "trigger_results": trigger_results,
         }
         if unresolved:
             payload["unresolved_team_keys"] = unresolved
@@ -671,10 +672,21 @@ class TypedMemoryAdapter:
                     "memory_already_selected",
                     f"{kind.value}:{agent_key} already changed in this run",
                 )
-            return {**previous[1], "saved": False, "no_change": True}
+            return {
+                **previous[1],
+                "saved": False,
+                "no_change": True,
+                "operation": "no_change",
+            }
         candidate = self._agent_candidate(kind, agent_key)
         if candidate is not None and candidate.content == canonical:
-            result = {"ok": True, "saved": False, "no_change": True}
+            result = {
+                "ok": True,
+                "saved": False,
+                "no_change": True,
+                "memory_kind": kind.value,
+                "operation": "no_change",
+            }
         elif candidate is None:
             reference = create(
                 canonical,
@@ -686,7 +698,7 @@ class TypedMemoryAdapter:
             )
             self._proposed_item_ids.add(reference.item_id)
             self._local_agent_refs[(kind, agent_key)] = reference
-            result = self._saved(reference)
+            result = self._saved(reference, kind=kind, operation="create")
         else:
             reference = replace(
                 candidate.item.item_id,
@@ -694,7 +706,7 @@ class TypedMemoryAdapter:
                 canonical,
                 metadata=self._metadata(context, week=week),
             )
-            result = self._saved(reference)
+            result = self._saved(reference, kind=kind, operation="replace")
         self._completed_semantic_saves[save_key] = (signature, result)
         return result
 
@@ -865,10 +877,17 @@ class TypedMemoryAdapter:
         )
 
     @staticmethod
-    def _saved(reference: Any) -> dict[str, Any]:
+    def _saved(
+        reference: Any,
+        *,
+        kind: MemoryKind,
+        operation: str,
+    ) -> dict[str, Any]:
         return {
             "ok": True,
             "saved": True,
+            "memory_kind": kind.value,
+            "operation": operation,
             "proposal": reference.model_dump(mode="json"),
         }
 
@@ -959,13 +978,43 @@ def register_memory_tools(
     }
 
     def make_handler(tool_name: str, arguments_model: type[BaseModel]) -> Any:
-        def handler(context: ToolContext, **kwargs: Any) -> dict[str, Any]:
+        def handler(
+            context: ToolContext, **kwargs: Any
+        ) -> ToolExecutionResult | dict[str, Any]:
             if not allow_memory_writes:
                 return memory_write_blocked_result(tool_name)
             try:
                 arguments = arguments_model.model_validate(kwargs)
                 method = getattr(adapter, tool_name)
-                return method(context, arguments)
+                result = method(context, arguments)
+                activity_items: list[dict[str, JsonValue]] = []
+                if result.get("saved") is True:
+                    activity_items.append(
+                        {
+                            "path": "result",
+                            "kind": result.pop("memory_kind"),
+                            "operation": result.pop("operation"),
+                        }
+                    )
+                else:
+                    result.pop("memory_kind", None)
+                    result.pop("operation", None)
+
+                trigger_results = result.pop("trigger_results", [])
+                for index, trigger_result in enumerate(trigger_results):
+                    if trigger_result.get("saved") is not True:
+                        continue
+                    activity_items.append(
+                        {
+                            "path": f"arguments.trigger_specs.{index}",
+                            "kind": trigger_result["memory_kind"],
+                            "operation": trigger_result["operation"],
+                        }
+                    )
+                metadata: dict[str, JsonValue] = {}
+                if activity_items:
+                    metadata["memory_activity"] = {"items": activity_items}
+                return ToolExecutionResult(result=result, metadata=metadata)
             except (ValidationError, MemoryToolInputError) as error:
                 return _safe_error(error, write=True)
 

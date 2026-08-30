@@ -16,6 +16,9 @@ The tool registry is built once and remains stable for every model turn. Procedu
 ## Component Model
 
 - **Generation-start recall** deterministically selects due triggers, scoped context notes, and a bounded set of likely relevant memories from generation scope and current canonical state.
+- **Generation memory policy** persists whether automatic recall is enabled for
+  the run. It defaults on and controls only prelude planning, recording, and
+  injection.
 - **`MemoryPresentationAdapter`** converts hydrated memory records into concise, kind-specific editorial context and produces a hidden binding map for the records it presented.
 - **`ToolExecutionResult`** is the internal runner boundary containing the logical `result` returned to the reporter and application-only `metadata`.
 - **Runner and generation recorder** serialize only `result` into the model conversation and persist `result`, `result_text`, and `metadata` as distinct tool-call fields.
@@ -23,10 +26,19 @@ The tool registry is built once and remains stable for every model turn. Procedu
 - **`memory_closeout` procedure** tells the reporter how to review verified artifacts and save useful facts, events, storylines, triggers, and context notes without requiring any write.
 - **`complete_memory_review` tool** explicitly records completion or no-op and terminates the runner after an article has been submitted.
 - **Generation memory context** buffers semantic memory proposals throughout the run and supplies the existing finalization bundle.
+- **Generation memory view** composes immutable recall telemetry and durable
+  memory tool-call records into a semantic audit grouped by recall source,
+  memory kind, and create/update outcome. Exact recall text and private recall
+  metadata remain available in a technical disclosure, while raw calls remain
+  available in the execution inspector.
 
 ## Data and Control Flow
 
-1. Generation pins its Sleeper snapshot and current memory revision. Generation-start recall evaluates due triggers and selects scope-relevant context notes and bounded relevant memory.
+1. Generation pins its Sleeper snapshot and current memory revision. When the
+   default-on automatic-recall setting is enabled, generation-start recall
+   evaluates due triggers and selects scope-relevant context notes and bounded
+   relevant memory. When disabled, no recall resource or initial memory context
+   message is produced.
 2. The reporter receives that semantic prelude and may call memory search during research. Each tool result contains only editorially useful content; the saved tool call separately records hidden bindings and retrieval diagnostics.
 3. The reporter builds the verified brief, drafts and verifies the article, then calls `submit_artifact`.
 4. Successful submission freezes the selected artifact revision. Its tool result also supplies the mandatory `memory_closeout` procedure, and the runner continues with the same messages, model, tool schemas, and memory context.
@@ -52,6 +64,13 @@ The runner always sends the same ordered tool definitions to the model. It does 
 Every tool call records arguments, logical result, exact serialized result text, application-only metadata, status, timing, and any error. This makes it possible to reproduce what the reporter saw without leaking retrieval internals into its prompt.
 
 Generation telemetry records the submission turn, closeout start and completion turns, whether closeout completed or was a no-op, and proposed memory counts by kind and operation.
+
+The generation UI presents automatic recall outside the execution timeline. It
+shows the specific callbacks, context notes, and likely relevant items returned;
+supplemental `search_memory` results; and successful saved items grouped by kind
+and canonical create/replace operation. This view describes memory presented to
+and saved by the generation. It does not infer that every presented item was
+used in article prose.
 
 The harness measures the complete memory funnel:
 

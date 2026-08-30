@@ -280,6 +280,7 @@ class GenerationService:
                     runner_config=_runner_config(settings),
                     recorder=recorder,
                     allow_memory_writes=pending.kind is GenerationKind.LIVE,
+                    automatic_memory_recall=settings.memory.automatic_recall,
                     definition=definition,
                 )
             bundle = memory.take_completed_bundle()
@@ -453,9 +454,10 @@ def _decode_settings(value: dict[str, JsonValue]) -> GenerationSettings:
     }
     if value.get("input_policy") != expected_policy:
         raise ValueError("generation input policy differs from the submitted policy")
-    return GenerationSettings.model_validate(
-        {key: value[key] for key in ("report", "model", "runner")}
-    )
+    decoded = {key: value[key] for key in ("report", "model", "runner")}
+    if "memory" in value:
+        decoded["memory"] = value["memory"]
+    return GenerationSettings.model_validate(decoded)
 
 
 def _build_manifest(

@@ -812,6 +812,81 @@ def test_generation_starts_with_exact_recorded_automatic_recall_context() -> Non
     assert "search_memory" not in recorder.tool_names
 
 
+def test_generation_can_disable_automatic_recall_without_removing_memory_tools() -> None:
+    from backend.tests.services.reporter.test_memory_recall import (
+        COMPETITION_ID,
+        CUTOFF,
+        REVISION_ID,
+        Retrieval,
+        SEASON_ID,
+        _note,
+        _trigger,
+    )
+
+    recorder = ExecutionRecordingProbe()
+    memory_context = GenerationMemoryContext(
+        competition_id=COMPETITION_ID,
+        generation_id=uuid4(),
+        pinned_revision_id=REVISION_ID,
+        retrieval=Retrieval(
+            triggers=(_trigger(80, target_week=8, target_at=CUTOFF),),
+            notes=(_note(81, {"scope": "competition", "note_key": "league"}),),
+        ),
+        competition_season_id=SEASON_ID,
+        week=8,
+        knowledge_cutoff_at=CUTOFF,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nTaco won."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+            automatic_memory_recall=False,
+        )
+    )
+
+    assert recorder.memory_recalls == []
+    assert [message["role"] for message in complete.requests[0]["messages"][:2]] == [
+        "system",
+        "user",
+    ]
+    assert complete.requests[0]["messages"][1]["content"].startswith(
+        "Generate a fantasy football article"
+    )
+    tool_names = [
+        definition["function"]["name"]
+        for definition in complete.requests[0]["tools"]
+    ]
+    assert "search_memory" in tool_names
+    assert "complete_memory_review" in tool_names
+
+
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:
     complete = FakeCompletion(
         [

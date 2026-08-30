@@ -154,10 +154,19 @@ def _registered(
     return registry, context, memory, retrieval, adapter
 
 
-def _call(registry: ToolRegistry, name: str, **arguments: Any) -> dict[str, Any]:
+def _execution_call(
+    registry: ToolRegistry, name: str, **arguments: Any
+) -> ToolExecutionResult | dict[str, Any]:
     handler = registry.get_handler(name)
     assert handler is not None
     result = handler(**arguments)
+    assert isinstance(result, (ToolExecutionResult, dict))
+    return result
+
+
+def _call(registry: ToolRegistry, name: str, **arguments: Any) -> dict[str, Any]:
+    execution = _execution_call(registry, name, **arguments)
+    result = execution.result if isinstance(execution, ToolExecutionResult) else execution
     assert isinstance(result, dict)
     return result
 
@@ -290,7 +299,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "4"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "5"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
@@ -444,8 +453,16 @@ def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
 def test_stable_id_resolves_internal_replace_revision() -> None:
     match = _event_match()
     registry, _, memory, _, _ = _registered(matches=(match,))
-    result = _call(registry, "save_memory_event", **_event_args())
+    execution = _execution_call(registry, "save_memory_event", **_event_args())
+    assert isinstance(execution, ToolExecutionResult)
+    result = execution.result
+    assert isinstance(result, dict)
     assert result["saved"] is True
+    assert "memory_kind" not in result
+    assert "operation" not in result
+    assert execution.metadata["memory_activity"] == {
+        "items": [{"path": "result", "kind": "event", "operation": "replace"}]
+    }
     proposal = memory.take_completed_bundle().proposals[0]
     assert proposal.operation == "replace"
     assert proposal.item_id == match.memory.item.item_id
@@ -494,11 +511,32 @@ def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> 
         ("save_league_note", league_args),
     )
 
-    first = [_call(registry, name, **arguments) for name, arguments in writes]
-    repeated = [_call(registry, name, **arguments) for name, arguments in writes]
+    first_executions = [
+        _execution_call(registry, name, **arguments) for name, arguments in writes
+    ]
+    repeated_executions = [
+        _execution_call(registry, name, **arguments) for name, arguments in writes
+    ]
+    assert all(isinstance(result, ToolExecutionResult) for result in first_executions)
+    assert all(
+        isinstance(result, ToolExecutionResult) for result in repeated_executions
+    )
+    first = [result.result for result in first_executions]
+    repeated = [result.result for result in repeated_executions]
 
     assert all(result["saved"] is True for result in first)
+    activity = [result.metadata["memory_activity"]["items"][0] for result in first_executions]
+    assert {item["kind"] for item in activity} == {
+        "event",
+        "storyline",
+        "trigger",
+        "context_note",
+    }
+    assert all(item["operation"] == "create" for item in activity)
+    assert all("memory_kind" not in result for result in first)
+    assert all("operation" not in result for result in first)
     assert all(result["saved"] is False and result["no_change"] for result in repeated)
+    assert all(result.metadata == {} for result in repeated_executions)
 
     conflicts = (
         ("save_memory_event", {**event_args, "summary": "Conflicting event."}),
@@ -521,6 +559,48 @@ def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> 
     assert len(bundle.proposals) == 5
     assert len({proposal.item_id for proposal in bundle.proposals}) == 5
     assert all(proposal.kind is not MemoryKind.FACT for proposal in bundle.proposals)
+
+
+def test_storyline_metadata_includes_embedded_trigger_write_outcomes() -> None:
+    registry, _, memory, _, _ = _registered()
+
+    execution = _execution_call(
+        registry,
+        "upsert_storyline_memory_card",
+        id="story_taco",
+        headline="Taco Takes Control",
+        summary="The playoff push is real.",
+        status="active",
+        team_keys=["Team Taco"],
+        trigger_specs=[
+            {
+                "id": "trigger_rematch",
+                "trigger_type": "rematch",
+                "target_week": 12,
+                "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+            }
+        ],
+    )
+
+    assert isinstance(execution, ToolExecutionResult)
+    result = execution.result
+    assert isinstance(result, dict)
+    assert result["triggers"] == ["trigger_rematch"]
+    assert "trigger_results" not in result
+    assert execution.metadata["memory_activity"] == {
+        "items": [
+            {"path": "result", "kind": "storyline", "operation": "create"},
+            {
+                "path": "arguments.trigger_specs.0",
+                "kind": "trigger",
+                "operation": "create",
+            },
+        ]
+    }
+    assert [proposal.kind for proposal in memory.take_completed_bundle().proposals] == [
+        MemoryKind.STORYLINE,
+        MemoryKind.TRIGGER,
+    ]
 
 
 def test_eval_mode_keeps_search_and_skips_legacy_writes() -> None:

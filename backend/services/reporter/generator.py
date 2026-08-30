@@ -70,6 +70,7 @@ async def generate_article(
     complete: CompletionFn | None = None,
     recorder: ExecutionRecorder | None = None,
     allow_memory_writes: bool = True,
+    automatic_memory_recall: bool = True,
     definition: PreparedReporterDefinition | None = None,
 ) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
@@ -86,6 +87,8 @@ async def generate_article(
         recorder: Optional generation-scoped durable execution recorder.
         allow_memory_writes: When False (eval mode), skip memory mutations
             while retaining pinned memory search.
+        automatic_memory_recall: When False, retain memory tools and closeout
+            while skipping the generation-start recall prelude.
     """
     prepared = definition or prepare_reporter_definition(
         memory_enabled=memory_context is not None
@@ -139,7 +142,7 @@ async def generate_article(
     )
 
     initial_context: tuple[str, ...] = ()
-    if memory_adapter is not None:
+    if memory_adapter is not None and automatic_memory_recall:
         recall = memory_adapter.build_recall(config)
         if resolved_recorder is not None:
             record_recall = getattr(resolved_recorder, "record_memory_recall", None)
