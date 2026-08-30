@@ -284,19 +284,20 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     assert "## Article Quality" in system_prompt
     assert "materially improve factual confidence" in system_prompt
     assert "Search by editorial intent" in system_prompt
-    assert "not storage identifiers or proof" in system_prompt
-    assert "the evidence base is incomplete until you attempt" in system_prompt
-    assert "do not require advance knowledge" in system_prompt
+    assert "semantic leads, not storage identity or proof" in system_prompt
+    assert "initial narrative leads" in system_prompt
+    assert "Do not call `search_memory` merely to rediscover" in system_prompt
+    assert "runtime may supply an `automatic_reporter_memory`" in system_prompt
     assert "They may be loaded in any order, combined, revisited" in system_prompt
     assert "one continuity question per call" in system_prompt
     assert "inclusive week bounds" in system_prompt
     assert "It does not create or update durable storyline cards" in system_prompt
 
     research = (copied / "procedures/research.md").read_text(encoding="utf-8")
-    assert "After the broad current-week inventory" in research
-    assert "do not treat the evidence base as sufficient" in research
-    assert "the purpose of search is to discover" in research
-    assert "skip it when the request is purely factual and narrow" in research.lower()
+    assert "Begin with any automatically recalled" in research
+    assert "use `search_memory` only when a concrete" in research
+    assert "optional targeted retrieval" in research
+    assert "Do not repeat the automatic prelude" in research
     assert "prefer 5-8 focused semantic results" in research.lower()
     assert "Canonical memory identifiers are intentionally unavailable" in research
     assert "Never pack unrelated teams" in research

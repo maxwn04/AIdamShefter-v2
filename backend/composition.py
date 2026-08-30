@@ -38,6 +38,7 @@ from backend.resources.reporting.article_overviews import ArticleOverviewReader
 from backend.resources.reporting.artifact_versions import ArtifactVersionManager
 from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import GenerationManager
+from backend.resources.reporting.memory_recalls import GenerationMemoryRecallManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.resources.sleeper_data import (
     ApiRequestManager,
@@ -229,6 +230,7 @@ class GenerationDependencies:
     tool_calls: ToolCallManager
     artifacts: ArtifactManager
     artifact_versions: ArtifactVersionManager
+    memory_recalls: GenerationMemoryRecallManager
     usage: GenerationUsageService
 
 
@@ -430,6 +432,7 @@ def build_generation_dependencies(
     tool_calls = ToolCallManager(session_factory, context)
     artifacts = ArtifactManager(session_factory, context)
     artifact_versions = ArtifactVersionManager(session_factory, context)
+    memory_recalls = GenerationMemoryRecallManager(session_factory, context)
     registry = model_registry or LiteLLMModelRegistry()
     memory = build_memory_api_dependencies(session_factory, context)
     snapshots = build_datalayer_snapshot_dependencies(
@@ -446,6 +449,7 @@ def build_generation_dependencies(
         tool_calls=tool_calls,
         artifacts=artifacts,
         artifact_versions=artifact_versions,
+        memory_recalls=memory_recalls,
         finalizer=GenerationFinalizer(session_factory, context),
         reporter_revision=runtime_revisions.reporter_revision,
         generation_revision=runtime_revisions.generation_revision,
@@ -462,6 +466,7 @@ def build_generation_dependencies(
         tool_calls=tool_calls,
         artifacts=artifacts,
         artifact_versions=artifact_versions,
+        memory_recalls=memory_recalls,
         usage=GenerationUsageService(ai_calls, registry),
     )
 

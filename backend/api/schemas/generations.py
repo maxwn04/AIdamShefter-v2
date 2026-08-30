@@ -19,6 +19,7 @@ from backend.resources.reporting.generations import (
     GenerationKind,
     GenerationPage,
 )
+from backend.resources.reporting.memory_recalls import GenerationMemoryRecall
 from backend.resources.reporting.tool_calls import ToolCall, ToolCallPage
 from backend.services.generations import GenerationSettings
 from backend.services.model_usage import GenerationUsage
@@ -57,6 +58,10 @@ class GenerationResponse(GenerationApiModel):
 
 class GenerationDetailResponse(GenerationApiModel):
     generation: GenerationDetail
+
+
+class GenerationMemoryRecallResponse(GenerationApiModel):
+    recall: GenerationMemoryRecall | None
 
 
 class GenerationPageResponse(GenerationApiModel):

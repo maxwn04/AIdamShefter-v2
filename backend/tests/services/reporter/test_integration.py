@@ -38,7 +38,9 @@ class ExecutionRecordingProbe:
         self.attempt_turns: dict[UUID, int] = {}
         self.successful_turns: dict[int, UUID] = {}
         self.tool_ai_calls: dict[UUID, UUID] = {}
+        self.tool_names: list[str] = []
         self.artifact_mutations: list[ArtifactMutation] = []
+        self.memory_recalls: list[Any] = []
 
     def begin_model_attempt(self, attempt):
         attempt_id = uuid4()
@@ -54,6 +56,7 @@ class ExecutionRecordingProbe:
 
     def begin_tool_execution(self, execution):
         execution_id = uuid4()
+        self.tool_names.append(execution.tool_name)
         self.tool_ai_calls[execution_id] = self.successful_turns[
             execution.turn_number
         ]
@@ -68,6 +71,9 @@ class ExecutionRecordingProbe:
     def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
         self.artifact_mutations.append(mutation)
         return uuid4()
+
+    def record_memory_recall(self, recall: Any) -> None:
+        self.memory_recalls.append(recall)
 
 
 class FakeFrozenLeagueData:
@@ -501,6 +507,87 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
         "data_refs": ["league_snapshot:week=8"],
     }
     assert fact.metadata.creating_tool_call_id is None
+
+
+def test_generation_starts_with_exact_recorded_automatic_recall_context() -> None:
+    from backend.tests.services.reporter.test_memory_recall import (
+        COMPETITION_ID,
+        CUTOFF,
+        REVISION_ID,
+        Retrieval,
+        SEASON_ID,
+        _note,
+        _trigger,
+    )
+
+    recorder = ExecutionRecordingProbe()
+    retrieval = Retrieval(
+        triggers=(_trigger(80, target_week=8, target_at=CUTOFF),),
+        notes=(_note(81, {"scope": "competition", "note_key": "league"}),),
+    )
+    memory_context = GenerationMemoryContext(
+        competition_id=COMPETITION_ID,
+        generation_id=uuid4(),
+        pinned_revision_id=REVISION_ID,
+        retrieval=retrieval,
+        competition_season_id=SEASON_ID,
+        week=8,
+        knowledge_cutoff_at=CUTOFF,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nTaco won."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+        )
+    )
+
+    assert output.artifacts[0].path == "article.md"
+    assert len(recorder.memory_recalls) == 1
+    recorded = recorder.memory_recalls[0]
+    messages = complete.requests[0]["messages"]
+    assert [message["role"] for message in messages[:3]] == [
+        "system",
+        "user",
+        "user",
+    ]
+    assert messages[1]["content"] == recorded.result_text
+    assert all(
+        request["messages"][1]["content"] == recorded.result_text
+        for request in complete.requests
+    )
+    assert "due_callbacks" in messages[1]["content"]
+    assert "standing_context" in messages[1]["content"]
+    assert "Context note 81" in messages[1]["content"]
+    assert "pinned_revision_id" not in messages[1]["content"]
+    assert recorded.metadata["pinned_revision_id"] == str(REVISION_ID)
+    assert "search_memory" not in recorder.tool_names
 
 
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:

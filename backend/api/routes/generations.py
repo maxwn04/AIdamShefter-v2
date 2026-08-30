@@ -19,6 +19,7 @@ from backend.api.schemas.generations import (
     ArtifactVersionPageResponse,
     ArtifactVersionResponse,
     GenerationDetailResponse,
+    GenerationMemoryRecallResponse,
     GenerationPageResponse,
     GenerationResponse,
     GenerationUsageResponse,
@@ -169,6 +170,19 @@ def generation_detail(
 ) -> GenerationDetailResponse:
     return GenerationDetailResponse(
         generation=dependencies.generations.get(generation_id)
+    )
+
+
+@router.get(
+    "/{generation_id}/memory-recall",
+    response_model=GenerationMemoryRecallResponse,
+)
+def generation_memory_recall(
+    generation_id: UUID,
+    dependencies: GenerationApi,
+) -> GenerationMemoryRecallResponse:
+    return GenerationMemoryRecallResponse(
+        recall=dependencies.memory_recalls.get(generation_id)
     )
 
 

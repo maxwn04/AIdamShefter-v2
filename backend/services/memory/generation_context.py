@@ -69,6 +69,14 @@ class GenerationMemoryContext:
     def competition_season_id(self) -> UUID | None:
         return self._competition_season_id
 
+    @property
+    def week(self) -> int | None:
+        return self._week
+
+    @property
+    def knowledge_cutoff_at(self) -> datetime | None:
+        return self._knowledge_cutoff_at
+
     def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""
 

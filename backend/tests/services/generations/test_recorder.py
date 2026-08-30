@@ -12,11 +12,13 @@ from backend.resources.reporting.ai_calls import AICallManager
 from backend.resources.reporting.artifact_versions import ArtifactVersionManager
 from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import GenerationManager
+from backend.resources.reporting.memory_recalls import GenerationMemoryRecallManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.services.generations import GenerationExecutionRecorder
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
+    MemoryRecallRecord,
     ModelAttemptFinish,
     ModelAttemptStart,
     RecordedTokenUsage,
@@ -67,6 +69,15 @@ class FakeGenerationManager:
     def update_progress(self, command):
         self.progress.append(command)
         return SimpleNamespace(id=command.generation_id)
+
+
+class FakeMemoryRecallManager:
+    def __init__(self) -> None:
+        self.recorded = []
+
+    def record(self, command):
+        self.recorded.append(command)
+        return SimpleNamespace(generation_id=command.generation_id)
 
 
 class FakeArtifactManager:
@@ -182,6 +193,47 @@ def test_recorder_maps_reporter_events_and_retains_success_identity() -> None:
     assert manager.finished[0].usage.input_tokens == 12
     assert recorder.successful_ai_call_id(2) == attempt_id
     assert recorder.successful_ai_call_id(3) is None
+
+
+def test_recorder_maps_generation_memory_recall_exactly() -> None:
+    generation_id = uuid4()
+    recorder, ai_calls, tool_calls, generations, artifacts, versions = (
+        make_recorder(generation_id)
+    )
+    recalls = FakeMemoryRecallManager()
+    recorder = GenerationExecutionRecorder(
+        generation_id,
+        cast(AICallManager, ai_calls),
+        cast(ToolCallManager, tool_calls),
+        cast(GenerationManager, generations),
+        cast(ArtifactManager, artifacts),
+        cast(ArtifactVersionManager, versions),
+        cast(GenerationMemoryRecallManager, recalls),
+    )
+    result = {
+        "context_type": "automatic_reporter_memory",
+        "due_callbacks": [],
+        "standing_context": [],
+        "likely_relevant_memories": [],
+        "partial": False,
+    }
+    result_text = '{"context_type":"automatic_reporter_memory"}'
+
+    recorder.record_memory_recall(
+        MemoryRecallRecord(
+            status="complete",
+            result=result,
+            result_text=result_text,
+            metadata={"pinned_revision": 4},
+        )
+    )
+
+    recorded = recalls.recorded[0]
+    assert recorded.generation_id == generation_id
+    assert recorded.status.value == "complete"
+    assert recorded.result == result
+    assert recorded.result_text == result_text
+    assert recorded.metadata == {"pinned_revision": 4}
 
 
 def test_failed_attempt_does_not_become_successful_identity() -> None:

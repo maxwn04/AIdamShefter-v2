@@ -21,6 +21,7 @@ from backend.services.memory import (
     EventContent,
     FactContent,
     GenerationMemoryContext,
+    HydratedMemoryMatch,
     MemoryKind,
     MemoryMutationMetadata,
     MemoryRetrievalRequest,
@@ -28,10 +29,15 @@ from backend.services.memory import (
     StorylineContent,
     TriggerContent,
 )
+from backend.services.reporter.config import ReportConfig
 from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.memory_presentation import (
     MemoryPresentationAdapter,
+)
+from backend.services.reporter.runner.tools.memory_recall import (
+    MemoryRecallPlan,
+    MemoryRecallPlanner,
 )
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
@@ -357,6 +363,16 @@ class TypedMemoryAdapter:
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
         self._presentation = MemoryPresentationAdapter(data)
+        self._recall = MemoryRecallPlanner(
+            memory_context,
+            data,
+            self._presentation,
+        )
+
+    def build_recall(self, config: ReportConfig) -> MemoryRecallPlan:
+        plan = self._recall.plan(config)
+        self._cache_pinned_candidates(plan.candidates)
+        return plan
 
     def search(self, arguments: SearchMemoryArgs) -> ToolExecutionResult:
         season_id = self._memory_context.competition_season_id
@@ -389,15 +405,21 @@ class TypedMemoryAdapter:
                 expand_stable_references=arguments.include_related,
             )
         )
-        self._pinned_agent_candidates.update(
-            ((match.memory.item.kind, match.memory.item.agent_key), match.memory)
-            for match in result.matches
-            if match.memory.item.agent_key is not None
-        )
+        self._cache_pinned_candidates(result.matches)
         return self._presentation.present(
             result,
             query=query,
             limit=arguments.limit,
+        )
+
+    def _cache_pinned_candidates(
+        self,
+        matches: tuple[HydratedMemoryMatch, ...],
+    ) -> None:
+        self._pinned_agent_candidates.update(
+            ((match.memory.item.kind, match.memory.item.agent_key), match.memory)
+            for match in matches
+            if match.memory.item.agent_key is not None
         )
 
     def save_memory_event(

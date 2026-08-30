@@ -27,7 +27,10 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
-from backend.services.reporter.runner.recording import ExecutionRecorder
+from backend.services.reporter.runner.recording import (
+    ExecutionRecorder,
+    MemoryRecallRecord,
+)
 from backend.services.reporter.runner.research_brief import (
     BriefBias,
     BriefContext,
@@ -122,7 +125,27 @@ async def generate_article(
         recorder=resolved_recorder,
     )
 
-    output = await runner.run(prepared.system_prompt, _build_user_message(config))
+    initial_context: tuple[str, ...] = ()
+    if memory_adapter is not None:
+        recall = memory_adapter.build_recall(config)
+        if resolved_recorder is not None:
+            record_recall = getattr(resolved_recorder, "record_memory_recall", None)
+            if callable(record_recall):
+                record_recall(
+                    MemoryRecallRecord(
+                        status=recall.status,
+                        result=recall.result,
+                        result_text=recall.result_text,
+                        metadata=recall.metadata,
+                    )
+                )
+        initial_context = (recall.result_text,)
+
+    output = await runner.run(
+        prepared.system_prompt,
+        _build_user_message(config),
+        initial_context=initial_context,
+    )
     if (
         memory_adapter is not None
         and allow_memory_writes

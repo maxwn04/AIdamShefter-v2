@@ -30,6 +30,7 @@ from backend.services.reporter.runner.models import (
     assistant_tool_call_message,
     extract_text,
     extract_tool_calls,
+    serialize_model_value,
     tool_result_message,
 )
 from backend.services.reporter.runner.provider_telemetry import sanitize_provider_error
@@ -122,9 +123,19 @@ class Runner:
     def client(self) -> CompletionClient:
         return self._client
 
-    async def run(self, system_prompt: str, user_message: str) -> ReporterOutput:
+    async def run(
+        self,
+        system_prompt: str,
+        user_message: str,
+        *,
+        initial_context: tuple[str, ...] = (),
+    ) -> ReporterOutput:
         messages: list[ChatMessage] = [
             {"role": "system", "content": system_prompt},
+            *(
+                {"role": "user", "content": content}
+                for content in initial_context
+            ),
             {"role": "user", "content": user_message},
         ]
         turn = 0
@@ -444,9 +455,7 @@ class Runner:
 
     @staticmethod
     def _as_tool_result_content(result: Any) -> str:
-        if isinstance(result, str):
-            return result
-        return json.dumps(result, default=str)
+        return serialize_model_value(result)
 
     @staticmethod
     def _is_successful_submit(result: str) -> bool:

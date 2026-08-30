@@ -246,6 +246,26 @@ def test_runner_simple_text_response() -> None:
     assert "turn_number" not in complete.requests[0]
 
 
+def test_runner_places_initial_context_between_system_and_assignment() -> None:
+    complete = FakeCompletion([make_response(text="Done.")])
+    runner = Runner(ToolRegistry(), complete=complete)
+
+    run(
+        runner.run(
+            "system",
+            "assignment",
+            initial_context=("first context", "second context"),
+        )
+    )
+
+    assert complete.requests[0]["messages"][:4] == [
+        {"role": "system", "content": "system"},
+        {"role": "user", "content": "first context"},
+        {"role": "user", "content": "second context"},
+        {"role": "user", "content": "assignment"},
+    ]
+
+
 def test_runner_brief_summary_propagates_stale_dependency_warnings() -> None:
     runner = Runner(
         ToolRegistry(),

@@ -19,6 +19,10 @@ from backend.resources.reporting.generations import (
     GenerationManager,
     UpdateGenerationProgress,
 )
+from backend.resources.reporting.memory_recalls import (
+    GenerationMemoryRecallManager,
+    RecordGenerationMemoryRecall,
+)
 from backend.resources.reporting.tool_calls import (
     BeginToolCall,
     FinishToolCall,
@@ -27,6 +31,7 @@ from backend.resources.reporting.tool_calls import (
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
+    MemoryRecallRecord,
     ModelAttemptFinish,
     ModelAttemptStart,
     ToolExecutionFinish,
@@ -45,6 +50,7 @@ class GenerationExecutionRecorder:
         generation_manager: GenerationManager,
         artifact_manager: ArtifactManager,
         artifact_version_manager: ArtifactVersionManager,
+        memory_recall_manager: GenerationMemoryRecallManager | None = None,
     ) -> None:
         self._generation_id = generation_id
         self._ai_call_manager = ai_call_manager
@@ -52,6 +58,7 @@ class GenerationExecutionRecorder:
         self._generation_manager = generation_manager
         self._artifact_manager = artifact_manager
         self._artifact_version_manager = artifact_version_manager
+        self._memory_recall_manager = memory_recall_manager
         self._successful_by_turn: dict[int, UUID] = {}
         self._tool_ai_calls: dict[UUID, UUID] = {}
         self._last_progress: tuple[int, str] | None = None
@@ -59,6 +66,19 @@ class GenerationExecutionRecorder:
     @property
     def generation_id(self) -> UUID:
         return self._generation_id
+
+    def record_memory_recall(self, recall: MemoryRecallRecord) -> None:
+        if self._memory_recall_manager is None:
+            raise RuntimeError("durable memory recall manager is unavailable")
+        self._memory_recall_manager.record(
+            RecordGenerationMemoryRecall(
+                generation_id=self._generation_id,
+                status=recall.status,
+                result=recall.result,
+                result_text=recall.result_text,
+                metadata=recall.metadata,
+            )
+        )
 
     def begin_model_attempt(self, attempt: ModelAttemptStart) -> UUID:
         started = self._ai_call_manager.begin_ai_call(

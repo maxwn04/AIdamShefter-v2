@@ -6,6 +6,10 @@ export type AICallPageResponse = components["schemas"]["AICallPageResponse"];
 export type AICallResponse = components["schemas"]["AICallResponse"];
 export type AICallStatus = components["schemas"]["AICallStatus"];
 export type AICallSummary = components["schemas"]["AICallSummary"];
+export type GenerationMemoryRecall =
+  components["schemas"]["GenerationMemoryRecall"];
+export type GenerationMemoryRecallResponse =
+  components["schemas"]["GenerationMemoryRecallResponse"];
 export type TokenUsage = components["schemas"]["TokenUsage"];
 export type ToolCall = components["schemas"]["ToolCall"];
 export type ToolCallPageResponse =
@@ -52,6 +56,17 @@ export function getAICall(
 ): Promise<AICallResponse> {
   return apiRequest(
     `${generationPath(competitionId, generationId)}/ai-calls/${aiCallId}`,
+    { signal },
+  );
+}
+
+export function getGenerationMemoryRecall(
+  competitionId: string,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<GenerationMemoryRecallResponse> {
+  return apiRequest(
+    `${generationPath(competitionId, generationId)}/memory-recall`,
     { signal },
   );
 }

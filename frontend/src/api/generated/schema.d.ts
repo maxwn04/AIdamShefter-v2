@@ -311,6 +311,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/generations/competitions/{competition_id}/{generation_id}/memory-recall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Generation Memory Recall */
+        get: operations["generation_memory_recall_api_v1_generations_competitions__competition_id___generation_id__memory_recall_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/generations/competitions/{competition_id}/{generation_id}/reruns": {
         parameters: {
             query?: never;
@@ -2172,6 +2189,31 @@ export interface components {
          * @enum {string}
          */
         GenerationKind: "live" | "backtest";
+        /** GenerationMemoryRecall */
+        GenerationMemoryRecall: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Generation Id
+             * Format: uuid
+             */
+            generation_id: string;
+            /** Metadata */
+            metadata: {
+                [key: string]: components["schemas"]["pydantic__types__JsonValue"];
+            };
+            result: components["schemas"]["pydantic__types__JsonValue"];
+            /** Result Text */
+            result_text: string;
+            status: components["schemas"]["MemoryRecallStatus"];
+        };
+        /** GenerationMemoryRecallResponse */
+        GenerationMemoryRecallResponse: {
+            recall: components["schemas"]["GenerationMemoryRecall"] | null;
+        };
         /** GenerationModelSettings */
         GenerationModelSettings: {
             /**
@@ -2647,6 +2689,11 @@ export interface components {
             changes: components["schemas"]["ProposedMemoryRef"][];
             revision: components["schemas"]["CanonicalRevision"] | null;
         };
+        /**
+         * MemoryRecallStatus
+         * @enum {string}
+         */
+        MemoryRecallStatus: "complete" | "partial" | "failed";
         /** MemoryRetrievalResult */
         MemoryRetrievalResult: {
             /**
@@ -5114,6 +5161,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ArtifactVersionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generation_memory_recall_api_v1_generations_competitions__competition_id___generation_id__memory_recall_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-ID"?: string | null;
+            };
+            path: {
+                competition_id: string;
+                generation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationMemoryRecallResponse"];
                 };
             };
             /** @description Validation Error */

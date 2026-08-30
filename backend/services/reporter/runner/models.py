@@ -32,13 +32,19 @@ class ToolExecutionResult:
 
 def tool_result_message(call: ToolCall, result: Any) -> ChatMessage:
     """Build an OpenAI-format tool result message."""
-    content = result if isinstance(result, str) else json.dumps(result, default=str)
+    content = serialize_model_value(result)
     return {
         "role": "tool",
         "tool_call_id": call.id,
         "name": call.name,
         "content": content,
     }
+
+
+def serialize_model_value(value: Any) -> str:
+    """Serialize one logical application value exactly as model context."""
+
+    return value if isinstance(value, str) else json.dumps(value, default=str)
 
 
 def assistant_tool_call_message(

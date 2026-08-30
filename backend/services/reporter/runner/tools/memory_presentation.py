@@ -151,6 +151,13 @@ class _PresentationState:
     omitted_count: int = 0
 
 
+@dataclass(frozen=True, slots=True)
+class PresentedMemoryGroup:
+    memories: tuple[MemoryContext, ...]
+    bindings: tuple[dict[str, JsonValue], ...]
+    omitted_count: int
+
+
 class MemoryPresentationAdapter:
     """Project hydrated memory into bounded editorial context and hidden metadata."""
 
@@ -164,30 +171,13 @@ class MemoryPresentationAdapter:
         query: SearchDocumentQuery,
         limit: int,
     ) -> ToolExecutionResult:
-        state = _PresentationState(bindings=[])
-        selected = retrieval.matches[:limit]
-        memories: list[MemoryContext] = []
-        for ordinal, match in enumerate(selected):
-            omissions: list[str] = []
-            binding_index = len(state.bindings)
-            state.bindings.append({})
-            presented = self._present_match(
-                match,
-                path=["memories", ordinal],
-                state=state,
-                omissions=omissions,
-            )
-            memories.append(presented)
-            state.bindings[binding_index] = self._binding(
-                match.memory,
-                path=["memories", ordinal],
-                match=match,
-                omissions=omissions,
-            )
-
+        group = self.present_group(
+            retrieval.matches,
+            root="memories",
+            limit=limit,
+        )
+        memories = list(group.memories)
         truncated = len(retrieval.matches) > limit
-        if truncated:
-            state.omitted_count += len(retrieval.matches) - limit
         context = MemorySearchContext(
             memories=memories,
             notice=(
@@ -207,9 +197,9 @@ class MemoryPresentationAdapter:
             ),
             "retrieved_count": len(retrieval.matches),
             "returned_count": len(memories),
-            "omitted_count": state.omitted_count,
+            "omitted_count": group.omitted_count,
             "truncated": truncated,
-            "bindings": cast(JsonValue, state.bindings),
+            "bindings": cast(JsonValue, list(group.bindings)),
         }
         return ToolExecutionResult(
             result=cast(
@@ -217,6 +207,42 @@ class MemoryPresentationAdapter:
                 context.model_dump(mode="json", exclude_none=True),
             ),
             metadata=metadata,
+        )
+
+    def present_group(
+        self,
+        matches: tuple[HydratedMemoryMatch, ...],
+        *,
+        root: str,
+        limit: int,
+    ) -> PresentedMemoryGroup:
+        """Present one bounded group with paths rooted in its public field."""
+
+        state = _PresentationState(bindings=[])
+        memories: list[MemoryContext] = []
+        for ordinal, match in enumerate(matches[:limit]):
+            omissions: list[str] = []
+            binding_index = len(state.bindings)
+            state.bindings.append({})
+            presented = self._present_match(
+                match,
+                path=[root, ordinal],
+                state=state,
+                omissions=omissions,
+            )
+            memories.append(presented)
+            state.bindings[binding_index] = self._binding(
+                match.memory,
+                path=[root, ordinal],
+                match=match,
+                omissions=omissions,
+            )
+
+        state.omitted_count += max(0, len(matches) - limit)
+        return PresentedMemoryGroup(
+            memories=tuple(memories),
+            bindings=tuple(state.bindings),
+            omitted_count=state.omitted_count,
         )
 
     def _present_match(

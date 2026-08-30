@@ -17,6 +17,7 @@ ModelAttemptStatus = Literal[
     "unknown_outcome",
 ]
 ToolExecutionStatus = Literal["succeeded", "failed", "cancelled"]
+MemoryRecallStatus = Literal["complete", "partial", "failed"]
 
 
 class ArtifactRecordingError(RuntimeError):
@@ -92,6 +93,14 @@ class GenerationProgress:
     current_stage: str
 
 
+@dataclass(frozen=True, slots=True)
+class MemoryRecallRecord:
+    status: MemoryRecallStatus
+    result: JsonValue
+    result_text: str
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+
+
 class CompletionRecorder(Protocol):
     """Record provider attempts for exactly one durable generation."""
 
@@ -129,10 +138,17 @@ class ArtifactRecorder(Protocol):
     ) -> UUID | None: ...
 
 
+class RecallRecorder(Protocol):
+    """Record one immutable generation-start memory recall."""
+
+    def record_memory_recall(self, recall: MemoryRecallRecord) -> None: ...
+
+
 class ExecutionRecorder(
     CompletionRecorder,
     RunnerRecorder,
     ArtifactRecorder,
+    RecallRecorder,
     Protocol,
 ):
     """Complete durable recorder contract used by a generation run."""
@@ -145,11 +161,14 @@ __all__ = [
     "CompletionRecorder",
     "ExecutionRecorder",
     "GenerationProgress",
+    "MemoryRecallRecord",
+    "MemoryRecallStatus",
     "ModelAttemptFinish",
     "ModelAttemptStart",
     "ModelAttemptStatus",
     "RecordedTokenUsage",
     "RunnerRecorder",
+    "RecallRecorder",
     "ToolExecutionFinish",
     "ToolExecutionStart",
     "ToolExecutionStatus",
