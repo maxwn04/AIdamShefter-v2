@@ -171,12 +171,14 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
         "tool_calls",
         "artifacts",
         "artifact_versions",
+        "generation_memory_recalls",
     }
     expected_checks = {
         "ck_artifacts_finalization_shape",
         "ck_generations_submitted_artifact_shape",
         "ck_generations_workspace_shape",
         "ck_generations_unambiguous_memory_input",
+        "ck_generation_memory_recalls_status",
     }
     expected_partial_uniques = {
         "uq_evaluation_workspaces_one_active",
@@ -190,6 +192,7 @@ def test_reporting_schema_has_only_structural_checks_and_history_guards(
         "tool_calls_protect_terminal",
         "artifact_versions_append_only",
         "artifacts_protect_identity_and_finalization",
+        "generation_memory_recalls_append_only",
     }
 
     with database_engine.connect() as connection:

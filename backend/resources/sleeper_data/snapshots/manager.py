@@ -139,19 +139,6 @@ class DataSnapshotManager:
                 allowed_seasons=allowed_seasons,
             )
             session.execute(
-                sa.insert(StoredSnapshotRequest),
-                [
-                    {
-                        "data_snapshot_id": stored.id,
-                        "api_request_id": membership.request_id,
-                        "scope_key": membership.scope_key.value,
-                        "response_sha256": membership.response_sha256,
-                        "selection_role": membership.selection_role.value,
-                    }
-                    for membership in command.requests
-                ],
-            )
-            session.execute(
                 sa.insert(StoredSnapshotSeason),
                 [
                     {
@@ -165,6 +152,19 @@ class DataSnapshotManager:
                         "through_week": membership.through_week,
                     }
                     for season, membership in season_rows
+                ],
+            )
+            session.execute(
+                sa.insert(StoredSnapshotRequest),
+                [
+                    {
+                        "data_snapshot_id": stored.id,
+                        "api_request_id": membership.request_id,
+                        "scope_key": membership.scope_key.value,
+                        "response_sha256": membership.response_sha256,
+                        "selection_role": membership.selection_role.value,
+                    }
+                    for membership in command.requests
                 ],
             )
             stored.status = SnapshotStatus.READY.value
