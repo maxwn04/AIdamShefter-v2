@@ -208,7 +208,7 @@ Live finalization consumes the existing generation memory proposal bundle. Backt
 3. Migrate memory search to semantic presentation and hidden bindings; preserve canonical store search APIs for trusted callers.
 4. Add the automatic recall prelude and deterministic trigger evaluation.
 5. Add the forced same-agent memory-closeout procedure and `complete_memory_review` terminal tool while keeping the tool schema stable.
-6. Exercise closeout with the structured-brief fact bridge disabled in controlled generations, then remove the bridge after acceptance checks pass.
+6. Retire the structured-brief fact bridge. Brief facts remain article working state, and only explicit reporter-selected proposals enter generation memory finalization.
 
 No compatibility layer should duplicate canonical writes. Reporting rows without metadata remain readable with an empty object.
 

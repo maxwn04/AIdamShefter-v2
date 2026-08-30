@@ -46,8 +46,8 @@ Related upstream contracts:
 - The tool list remains unchanged for the entire conversation. Procedures guide behavior; they do not grant or revoke tools.
 - `complete_memory_review` terminates the run after the agent has saved useful memory or deliberately chosen a no-op.
 - Submission grants six additional model turns for closeout. Exhausting them without explicit completion fails the generation and discards its buffered memory proposals.
-- Live generation commits the closeout's buffered memory proposals through the existing generation finalization path. Backtests keep memory writes disabled.
-- The automatic structured-brief fact bridge is retired once memory closeout is proven.
+- Live generation commits reporter-selected memory proposals through the existing generation finalization path. Backtests keep memory writes disabled.
+- Saved brief facts remain article working state. The retired structured-brief fact bridge never copies them into canonical memory automatically.
 
 ## Non-Goals
 

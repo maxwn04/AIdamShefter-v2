@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
+from pydantic import TypeAdapter
 
 from backend.resources.memory.common.errors import GenerationMemoryContextClosedError
 from backend.resources.memory.revisions import CanonicalRevision
@@ -25,7 +26,12 @@ from backend.services.generations import (
     RerunGenerationRequest,
     StaleGenerationPolicy,
 )
-from backend.services.memory import MemoryMutationResult
+from backend.services.memory import (
+    ContextNoteContent,
+    ContextNoteIdentity,
+    MemoryMutationMetadata,
+    MemoryMutationResult,
+)
 from backend.services.reporter import ReporterOutput
 from backend.services.reporter.runner.completion import ProviderConfigurationError
 from backend.services.reporter.runner.memory_closeout import (
@@ -217,6 +223,7 @@ class FakeReporter:
         self.calls = []
         self.error: BaseException | None = None
         self.exercise_recorder = False
+        self.propose_memory = False
         self.finalizer = None
 
     async def __call__(self, data, config, **kwargs):
@@ -237,6 +244,23 @@ class FakeReporter:
             )
         if self.error is not None:
             raise self.error
+        if self.propose_memory:
+            kwargs["memory_context"].propose_context_note(
+                TypeAdapter(ContextNoteIdentity).validate_python(
+                    {"scope": "competition", "note_key": "closeout_fixture"}
+                ),
+                ContextNoteContent.model_validate(
+                    {
+                        "narrative": "The playoff race remains unsettled.",
+                        "status": "active",
+                        "tags": ["playoffs"],
+                    }
+                ),
+                metadata=MemoryMutationMetadata(
+                    creating_tool_call_id=_uuid(700),
+                    agent_key="league_note:closeout_fixture",
+                ),
+            )
         content = "# Article"
         return ReporterOutput(
             submitted_path="article.md",
@@ -494,6 +518,27 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
         for entry in manifest["tools"]["implementations"]
     }
     assert procedure_versions["load_procedure"] == "4"
+
+
+@pytest.mark.asyncio
+async def test_live_execution_passes_explicit_memory_bundle_to_finalizer_once(
+    tmp_path,
+) -> None:
+    service, _, _, _, reporter, runtime, events = _service(tmp_path)
+    reporter.propose_memory = True
+
+    result = await service.execute(_uuid(3))
+
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert runtime.closed is True
+    assert events.count("finalize") == 1
+    assert len(reporter.finalizer.calls) == 1
+    bundle = reporter.finalizer.calls[0][2]
+    assert len(bundle.proposals) == 1
+    proposal = bundle.proposals[0]
+    assert proposal.kind.value == "context_note"
+    assert proposal.metadata.agent_key == "league_note:closeout_fixture"
+    assert proposal.metadata.creating_tool_call_id == _uuid(700)
 
 
 @pytest.mark.asyncio

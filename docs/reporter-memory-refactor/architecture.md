@@ -34,7 +34,7 @@ The tool registry is built once and remains stable for every model turn. Procedu
 6. The reporter calls `complete_memory_review`. The runner terminates only after both article submission and memory-review completion.
 7. Live generation finalization commits the submitted artifact and buffered memory proposals through the existing transaction. Backtest finalization receives no memory proposals because memory writes remain disabled.
 
-The runner always sends the same ordered tool definitions to the model. It does not remove research, artifact, or memory tools during closeout. ArtifactStore immutability prevents edits to the submitted artifact. The automatic structured-brief fact bridge is removed after the closeout path satisfies its acceptance gate.
+The runner always sends the same ordered tool definitions to the model. It does not remove research, artifact, or memory tools during closeout. ArtifactStore immutability prevents edits to the submitted artifact. Saved brief facts remain article working state and are not copied into canonical memory; explicit reporter-selected proposals are the only generation output passed to memory finalization.
 
 ## Failure and Recovery Semantics
 

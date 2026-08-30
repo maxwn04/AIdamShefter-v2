@@ -154,18 +154,11 @@ async def generate_article(
                 )
         initial_context = (recall.result_text,)
 
-    output = await runner.run(
+    return await runner.run(
         prepared.system_prompt,
         _build_user_message(config),
         initial_context=initial_context,
     )
-    if (
-        memory_adapter is not None
-        and allow_memory_writes
-        and output.run_log_summary.get("submitted") is True
-    ):
-        memory_adapter.buffer_brief_facts(output.research_brief)
-    return output
 
 
 def _build_registry(

@@ -114,16 +114,17 @@ class FakeFrozenLeagueData:
         return {"columns": [], "rows": [], "row_count": 0}
 
     def resolve_roster_identity(self, roster_key: str) -> ResolvedRosterIdentity:
+        is_waiver_wire = roster_key == "Waiver Wire"
         return ResolvedRosterIdentity(
             roster_key=roster_key,
             identity=FrozenRosterIdentity(
                 competition_id=UUID(int=1),
                 competition_season_id=UUID(int=2),
-                season_roster_id=UUID(int=3),
-                franchise_id=UUID(int=4),
-                sleeper_roster_id="1",
-                team_name="Team Taco",
-                manager_name="Alice",
+                season_roster_id=UUID(int=5 if is_waiver_wire else 3),
+                franchise_id=UUID(int=6 if is_waiver_wire else 4),
+                sleeper_roster_id="2" if is_waiver_wire else "1",
+                team_name="Waiver Wire" if is_waiver_wire else "Team Taco",
+                manager_name="Bob" if is_waiver_wire else "Alice",
             ),
         )
 
@@ -420,7 +421,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
 
-def test_generate_article_automatically_bridges_final_brief_storyline_facts() -> None:
+def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> None:
     recorder = ExecutionRecordingProbe()
     memory_context = GenerationMemoryContext(
         competition_id=UUID(int=1),
@@ -488,7 +489,7 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
                     tool_call(
                         "complete_memory_review",
                         {},
-                        "bridge-closeout-call",
+                        "no-op-closeout-call",
                     )
                 ]
             ),
@@ -526,28 +527,18 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
     )
     assert output.run_log_summary["memory_closeout"]["status"] == "completed"
     assert output.run_log_summary["memory_closeout"]["no_op"] is True
-    bundle = memory_context.take_completed_bundle()
-    assert [proposal.kind.value for proposal in bundle.proposals] == ["fact"]
-    fact = bundle.proposals[0]
-    assert fact.metadata.agent_key == (
-        "brief:story_taco_push:8:fact_taco_win"
-    )
-    assert fact.content.source_hints == {
-        "brief_fact_id": "fact_taco_win",
-        "brief_storyline_id": "story_taco_push",
-        "data_refs": ["league_snapshot:week=8"],
-    }
-    assert fact.metadata.creating_tool_call_id is None
+    assert memory_context.take_completed_bundle().proposals == ()
 
 
 @pytest.mark.parametrize(
     ("allow_memory_writes", "expected_proposals"),
-    [(True, 1), (False, 0)],
+    [(True, 5), (False, 0)],
 )
-def test_generation_closeout_buffers_live_writes_and_backtest_noop(
+def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
     allow_memory_writes: bool,
     expected_proposals: int,
 ) -> None:
+    recorder = ExecutionRecordingProbe()
     memory_context = GenerationMemoryContext(
         competition_id=UUID(int=1),
         generation_id=uuid4(),
@@ -592,6 +583,49 @@ def test_generation_closeout_buffers_live_writes_and_backtest_noop(
             make_response(
                 tool_calls=[
                     tool_call(
+                        "save_memory_event",
+                        {
+                            "id": "event_closeout_matchup",
+                            "event_type": "matchup",
+                            "week": 8,
+                            "headline": "Team Taco won the Week 8 matchup.",
+                            "summary": "Team Taco defeated Waiver Wire.",
+                            "importance": 4,
+                            "confidence": "verified",
+                            "source_refs": ["league_snapshot:week=8"],
+                            "matchup_id": "week-8-1",
+                            "details": {
+                                "kind": "matchup",
+                                "winner_roster_key": "Team Taco",
+                                "loser_roster_key": "Waiver Wire",
+                                "sleeper_matchup_id": "week-8-1",
+                            },
+                        },
+                        "event-memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "upsert_storyline_memory_card",
+                        {
+                            "id": "story_closeout_push",
+                            "headline": "Taco Takes Control",
+                            "summary": "The playoff push is real.",
+                            "status": "active",
+                            "priority": 4,
+                            "origin_week": 8,
+                            "team_keys": ["Team Taco"],
+                            "evidence_event_ids": ["event_closeout_matchup"],
+                        },
+                        "storyline-memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
                         "complete_memory_review",
                         {},
                         "complete-call",
@@ -603,6 +637,28 @@ def test_generation_closeout_buffers_live_writes_and_backtest_noop(
                             "value": "A durable league-wide closeout note.",
                         },
                         "memory-call",
+                    ),
+                    tool_call(
+                        "save_team_context",
+                        {
+                            "roster_key": "Team Taco",
+                            "narrative": "Team Taco is surging toward the playoffs.",
+                            "outlook": "surging",
+                        },
+                        "team-memory-call",
+                    ),
+                    tool_call(
+                        "save_storyline_trigger",
+                        {
+                            "id": "trigger_closeout_rematch",
+                            "storyline_id": "story_closeout_push",
+                            "trigger_type": "rematch",
+                            "target_week": 12,
+                            "condition": {
+                                "roster_keys": ["Team Taco", "Waiver Wire"]
+                            },
+                        },
+                        "trigger-memory-call",
                     ),
                     tool_call(
                         "edit_artifact",
@@ -627,6 +683,7 @@ def test_generation_closeout_buffers_live_writes_and_backtest_noop(
             completion=CompletionSettings(model="test-model"),
             complete=complete,
             allow_memory_writes=allow_memory_writes,
+            recorder=recorder,
         )
     )
 
@@ -651,8 +708,27 @@ def test_generation_closeout_buffers_live_writes_and_backtest_noop(
     assert output.submitted_artifact.content == "# Week 8\n\nVerified."
     assert output.submitted_artifact.revision == 1
     if allow_memory_writes:
-        assert bundle.proposals[0].kind.value == "context_note"
-        assert bundle.proposals[0].operation == "create"
+        assert summary["proposal_counts"]["by_kind"] == {
+            "context_note": 2,
+            "event": 1,
+            "storyline": 1,
+            "trigger": 1,
+        }
+        assert summary["proposal_counts"]["by_operation"] == {"create": 5}
+        kinds = [proposal.kind.value for proposal in bundle.proposals]
+        assert kinds.count("event") == 1
+        assert kinds.count("storyline") == 1
+        assert kinds.count("trigger") == 1
+        assert kinds.count("context_note") == 2
+        assert all(proposal.operation == "create" for proposal in bundle.proposals)
+        assert all(
+            proposal.metadata.creating_tool_call_id is not None
+            for proposal in bundle.proposals
+        )
+        assert all(proposal.kind.value != "fact" for proposal in bundle.proposals)
+    else:
+        assert summary["proposal_counts"]["by_kind"] == {}
+        assert summary["proposal_counts"]["by_operation"] == {}
 
 
 def test_generation_starts_with_exact_recorded_automatic_recall_context() -> None:

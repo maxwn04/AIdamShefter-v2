@@ -34,7 +34,7 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 
 ## Continuity Judgment
 
-After a successful live submission, the runtime automatically buffers the supporting facts referenced by final brief storylines, but it does not persist the storyline card itself. Use `upsert_storyline_memory_card` to maintain the durable narrative state of an arc when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Add a trigger only when a specific future condition would make the arc useful again.
+Brief storylines and their supporting facts remain working state for the current article; neither becomes durable automatically. During mandatory closeout, use `upsert_storyline_memory_card` to preserve an arc when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Add a trigger only when a specific future condition would make the arc useful again.
 
 ## Stop Or Switch
 

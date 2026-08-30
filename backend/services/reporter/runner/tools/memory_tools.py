@@ -19,7 +19,6 @@ from pydantic import (
 from backend.services.memory import (
     ContextNoteContent,
     EventContent,
-    FactContent,
     GenerationMemoryContext,
     HydratedMemoryMatch,
     MemoryKind,
@@ -651,44 +650,6 @@ class TypedMemoryAdapter:
             f"league_note:{arguments.key}", identity, canonical, context
         )
         return {**result, "key": arguments.key}
-
-    def buffer_brief_facts(self, brief: Any) -> list[dict[str, Any]]:
-        """Buffer every final brief storyline's supporting facts once."""
-        results: list[dict[str, Any]] = []
-        week = getattr(self._memory_context, "_week", None)
-        for storyline in brief.storylines:
-            for fact_id in storyline.supporting_fact_ids:
-                fact = brief.get_fact(fact_id)
-                if fact is None:
-                    continue
-                agent_key = f"brief:{storyline.id}:{week}:{fact.id}"
-                canonical = FactContent.model_validate(
-                    {
-                        "claim": fact.claim_text,
-                        "category": fact.category,
-                        "numbers": fact.numbers,
-                        "confidence": "inferred",
-                        "status": "active",
-                        "subjects": [],
-                        "originating_event_version_ids": [],
-                        "source_hints": {
-                            "brief_fact_id": fact.id,
-                            "brief_storyline_id": storyline.id,
-                            "data_refs": list(fact.data_refs),
-                        },
-                    }
-                )
-                results.append(
-                    self._upsert(
-                        MemoryKind.FACT,
-                        agent_key,
-                        canonical,
-                        context=None,
-                        create=self._memory_context.propose_fact,
-                        replace=self._memory_context.replace_fact,
-                    )
-                )
-        return results
 
     def _upsert(
         self,

@@ -373,37 +373,42 @@ def test_search_maps_editorial_range_and_expansion_preferences() -> None:
     assert request.expand_stable_references is False
 
 
-def test_legacy_writes_buffer_typed_proposals() -> None:
-    registry, _, memory, _, _ = _registered()
-    event = _call(registry, "save_memory_event", **_event_args())
-    card = _call(
-        registry,
-        "upsert_storyline_memory_card",
-        id="story_taco",
-        headline="Taco Takes Control",
-        summary="The playoff push is real.",
-        status="active",
-        priority=4,
-        origin_week=3,
-        team_keys=["Team Taco"],
-        evidence_event_ids=["event_week8"],
-    )
-    trigger = _call(
-        registry,
-        "save_storyline_trigger",
-        id="trigger_rematch",
-        storyline_id="story_taco",
-        trigger_type="rematch",
-        target_week=12,
-        condition={"roster_keys": ["Team Taco", "Waiver Wire"]},
-    )
-    team = _call(registry, "save_team_context", **_note())
-    league = _call(
-        registry,
-        "save_league_note",
-        key="playoff_race",
-        value="The top seed remains unsettled.",
-    )
+def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
+    registry, context, memory, _, _ = _registered()
+    with context.bind_tool_execution(UUID(int=101)):
+        event = _call(registry, "save_memory_event", **_event_args())
+    with context.bind_tool_execution(UUID(int=102)):
+        card = _call(
+            registry,
+            "upsert_storyline_memory_card",
+            id="story_taco",
+            headline="Taco Takes Control",
+            summary="The playoff push is real.",
+            status="active",
+            priority=4,
+            origin_week=3,
+            team_keys=["Team Taco"],
+            evidence_event_ids=["event_week8"],
+        )
+    with context.bind_tool_execution(UUID(int=103)):
+        trigger = _call(
+            registry,
+            "save_storyline_trigger",
+            id="trigger_rematch",
+            storyline_id="story_taco",
+            trigger_type="rematch",
+            target_week=12,
+            condition={"roster_keys": ["Team Taco", "Waiver Wire"]},
+        )
+    with context.bind_tool_execution(UUID(int=104)):
+        team = _call(registry, "save_team_context", **_note())
+    with context.bind_tool_execution(UUID(int=105)):
+        league = _call(
+            registry,
+            "save_league_note",
+            key="playoff_race",
+            value="The top seed remains unsettled.",
+        )
     assert all(item["ok"] for item in (event, card, trigger, team, league))
     assert card["team_ids"] == [1]
     assert team["roster_id"] == 1
@@ -421,6 +426,13 @@ def test_legacy_writes_buffer_typed_proposals() -> None:
         "trigger_rematch",
         f"team_context:{TACO_FRANCHISE_ID}",
         "league_note:playoff_race",
+    ]
+    assert [item.metadata.creating_tool_call_id for item in bundle.proposals] == [
+        UUID(int=101),
+        UUID(int=102),
+        UUID(int=103),
+        UUID(int=104),
+        UUID(int=105),
     ]
     assert bundle.proposals[0].content.source_hints["week"] == 3
     assert bundle.proposals[0].content.source_hints["importance"] == 4
@@ -440,21 +452,75 @@ def test_stable_id_resolves_internal_replace_revision() -> None:
     assert proposal.expected_item_revision == 7
 
 
-def test_post_submit_bridge_buffers_only_supporting_facts_idempotently() -> None:
+def test_brief_facts_never_enter_the_canonical_proposal_bundle() -> None:
     _, context, memory, _, adapter = _registered()
     _seed_brief(context)
-    first = adapter.buffer_brief_facts(context.brief.brief)
-    repeated = adapter.buffer_brief_facts(context.brief.brief)
-    assert first[0]["saved"] is True
-    assert repeated[0]["saved"] is False
-    bundle = memory.take_completed_bundle()
-    assert len(bundle.proposals) == 1
-    proposal = bundle.proposals[0]
-    assert proposal.kind is MemoryKind.FACT
-    assert proposal.metadata.agent_key == (
-        "brief:taco_playoff_push:8:taco_week8_win"
+    assert len(context.brief.brief.facts) == 1
+    assert len(context.brief.brief.storylines) == 1
+    assert not hasattr(adapter, "buffer_brief_facts")
+    assert memory.take_completed_bundle().proposals == ()
+
+
+def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> None:
+    registry, _, memory, _, _ = _registered()
+    event_args = _event_args()
+    card_args = {
+        "id": "story_taco",
+        "headline": "Taco Takes Control",
+        "summary": "The playoff push is real.",
+        "status": "active",
+        "priority": 4,
+        "origin_week": 3,
+        "team_keys": ["Team Taco"],
+        "evidence_event_ids": ["event_week8"],
+    }
+    trigger_args = {
+        "id": "trigger_rematch",
+        "storyline_id": "story_taco",
+        "trigger_type": "rematch",
+        "target_week": 12,
+        "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+    }
+    team_args = _note()
+    league_args = {
+        "key": "playoff_race",
+        "value": "The top seed remains unsettled.",
+    }
+    writes = (
+        ("save_memory_event", event_args),
+        ("upsert_storyline_memory_card", card_args),
+        ("save_storyline_trigger", trigger_args),
+        ("save_team_context", team_args),
+        ("save_league_note", league_args),
     )
-    assert proposal.content.source_hints["brief_storyline_id"] == "taco_playoff_push"
+
+    first = [_call(registry, name, **arguments) for name, arguments in writes]
+    repeated = [_call(registry, name, **arguments) for name, arguments in writes]
+
+    assert all(result["saved"] is True for result in first)
+    assert all(result["saved"] is False and result["no_change"] for result in repeated)
+
+    conflicts = (
+        ("save_memory_event", {**event_args, "summary": "Conflicting event."}),
+        (
+            "upsert_storyline_memory_card",
+            {**card_args, "summary": "Conflicting storyline."},
+        ),
+        ("save_storyline_trigger", {**trigger_args, "target_week": 13}),
+        ("save_team_context", {**team_args, "narrative": "Conflicting context."}),
+        ("save_league_note", {**league_args, "value": "Conflicting note."}),
+    )
+    rejected = [_call(registry, name, **arguments) for name, arguments in conflicts]
+    assert all(result["saved"] is False for result in rejected)
+    assert all(
+        result["error"]["code"] == "memory_already_selected"
+        for result in rejected
+    )
+
+    bundle = memory.take_completed_bundle()
+    assert len(bundle.proposals) == 5
+    assert len({proposal.item_id for proposal in bundle.proposals}) == 5
+    assert all(proposal.kind is not MemoryKind.FACT for proposal in bundle.proposals)
 
 
 def test_eval_mode_keeps_search_and_skips_legacy_writes() -> None:

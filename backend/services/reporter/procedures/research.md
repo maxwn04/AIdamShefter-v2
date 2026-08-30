@@ -50,7 +50,7 @@ Begin with any automatically recalled due callbacks, standing context, and likel
 
 This is optional targeted retrieval, not a fixed research phase. Do not repeat the automatic prelude as a tool call. Stop after an empty or low-value result unless a more specific question is justified.
 
-After a successful live submission, the runtime automatically buffers only the supporting facts referenced by final brief storylines; it does not create or update durable storyline cards. Use `upsert_storyline_memory_card` for an arc that should remain recognizable, and use `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` when durable event, callback, team, or league state should also be maintained. Memory work remains separate from proving today's article.
+Saved brief facts remain working evidence for this article and are not copied into durable memory. After successful submission, use mandatory closeout to explicitly select future-use continuity: `upsert_storyline_memory_card` for an arc that should remain recognizable, and `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` for durable event, callback, team, or league state. Memory selection remains separate from proving today's article.
 
 ## Stop Or Switch
 

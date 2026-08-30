@@ -291,7 +291,8 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     assert "They may be loaded in any order, combined, revisited" in system_prompt
     assert "one continuity question per call" in system_prompt
     assert "inclusive week bounds" in system_prompt
-    assert "It does not create or update durable storyline cards" in system_prompt
+    assert "never copied into durable memory automatically" in system_prompt
+    assert "explicitly preserve future-use continuity" in system_prompt
 
     research = (copied / "procedures/research.md").read_text(encoding="utf-8")
     assert "Begin with any automatically recalled" in research
@@ -302,10 +303,18 @@ def test_prompt_and_procedure_assets_document_intentional_artifact_divergence() 
     assert "Canonical memory identifiers are intentionally unavailable" in research
     assert "Never pack unrelated teams" in research
     assert "inclusive `week_from` / `week_to`" in research
-    assert "it does not create or update durable storyline cards" in research
+    assert "not copied into durable memory" in research
+    assert "explicitly select future-use continuity" in research
 
     storyline = (copied / "procedures/storyline.md").read_text(encoding="utf-8")
-    assert "it does not persist the storyline card itself" in storyline
+    assert "neither becomes durable automatically" in storyline
+    assert "During mandatory closeout" in storyline
+
+    closeout = (copied / "procedures/memory_closeout.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Brief facts are working evidence" in closeout
+    assert "event, storyline, trigger, team context, or league note" in closeout
 
 
 def test_generator_preserves_article_result_across_artifact_contract_divergence() -> None:
