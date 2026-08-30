@@ -6,6 +6,10 @@ export type AICallPageResponse = components["schemas"]["AICallPageResponse"];
 export type AICallResponse = components["schemas"]["AICallResponse"];
 export type AICallStatus = components["schemas"]["AICallStatus"];
 export type AICallSummary = components["schemas"]["AICallSummary"];
+export type GenerationMemoryRecall =
+  components["schemas"]["GenerationMemoryRecall"];
+export type GenerationMemoryRecallResponse =
+  components["schemas"]["GenerationMemoryRecallResponse"];
 export type TokenUsage = components["schemas"]["TokenUsage"];
 export type ToolCall = components["schemas"]["ToolCall"];
 export type ToolCallPageResponse =
@@ -20,6 +24,14 @@ export interface ExecutionPageParameters {
 }
 
 const MAX_TOOL_CALL_PAGE_SIZE = 200;
+const MEMORY_ACTIVITY_TOOL_NAMES = new Set([
+  "search_memory",
+  "save_memory_event",
+  "upsert_storyline_memory_card",
+  "save_storyline_trigger",
+  "save_team_context",
+  "save_league_note",
+]);
 
 function generationPath(competitionId: string, generationId: string): string {
   return `/api/v1/generations/competitions/${competitionId}/${generationId}`;
@@ -52,6 +64,17 @@ export function getAICall(
 ): Promise<AICallResponse> {
   return apiRequest(
     `${generationPath(competitionId, generationId)}/ai-calls/${aiCallId}`,
+    { signal },
+  );
+}
+
+export function getGenerationMemoryRecall(
+  competitionId: string,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<GenerationMemoryRecallResponse> {
+  return apiRequest(
+    `${generationPath(competitionId, generationId)}/memory-recall`,
     { signal },
   );
 }
@@ -94,6 +117,29 @@ export async function listGenerationToolCalls(
     }
     offset += response.page.items.length;
   }
+}
+
+export async function listGenerationMemoryToolCalls(
+  competitionId: string,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<ToolCall[]> {
+  const summaries = await listGenerationToolCalls(
+    competitionId,
+    generationId,
+    signal,
+  );
+  const memoryCalls = summaries.filter(
+    (summary) =>
+      summary.status === "succeeded" &&
+      MEMORY_ACTIVITY_TOOL_NAMES.has(summary.tool_name),
+  );
+  const responses = await Promise.all(
+    memoryCalls.map((summary) =>
+      getToolCall(competitionId, generationId, summary.id, signal),
+    ),
+  );
+  return responses.map((response) => response.tool_call);
 }
 
 export function getToolCall(

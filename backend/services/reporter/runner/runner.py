@@ -26,10 +26,17 @@ from backend.services.reporter.runner.completion import (
 from backend.services.reporter.runner.models import (
     ChatMessage,
     ToolCall,
+    ToolExecutionResult,
     assistant_tool_call_message,
     extract_text,
     extract_tool_calls,
+    serialize_model_value,
     tool_result_message,
+)
+from backend.services.reporter.runner.memory_closeout import (
+    MEMORY_CLOSEOUT_TURN_ALLOWANCE,
+    MemoryCloseoutIncompleteError,
+    MemoryCloseoutState,
 )
 from backend.services.reporter.runner.provider_telemetry import sanitize_provider_error
 from backend.services.reporter.runner.recording import (
@@ -55,10 +62,16 @@ from backend.services.reporter.runner.state import (
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
-__all__ = ["CompletionFn", "Runner", "RunnerRecordingError"]
+__all__ = [
+    "CompletionFn",
+    "MemoryCloseoutIncompleteError",
+    "Runner",
+    "RunnerRecordingError",
+]
 
 
 _UNKNOWN_TOOL_IMPLEMENTATION_VERSION = "unregistered-v1"
+_MEMORY_CLOSEOUT_TOOL_NAME = "complete_memory_review"
 
 
 class RunnerRecordingError(RuntimeError):
@@ -79,6 +92,7 @@ class Runner:
         artifacts: ArtifactStore | None = None,
         brief: ResearchBriefStore | None = None,
         recorder: RunnerRecorder | None = None,
+        memory_closeout: MemoryCloseoutState | None = None,
     ) -> None:
         if client is not None and complete is not None:
             raise ValueError("Pass client= or complete=, not both.")
@@ -109,10 +123,12 @@ class Runner:
             log=self.log,
             brief=self.brief,
             artifact_recorder=self._turn_artifacts,
+            memory_closeout=memory_closeout,
         )
         self.registry.set_context(self.tool_context)
         self._procedure_message_idx: int | None = None
         self._submitted = False
+        self._memory_closeout = memory_closeout
 
         if log_path is not None:
             self.log.start_streaming(log_path)
@@ -121,17 +137,35 @@ class Runner:
     def client(self) -> CompletionClient:
         return self._client
 
-    async def run(self, system_prompt: str, user_message: str) -> ReporterOutput:
+    async def run(
+        self,
+        system_prompt: str,
+        user_message: str,
+        *,
+        initial_context: tuple[str, ...] = (),
+    ) -> ReporterOutput:
         messages: list[ChatMessage] = [
             {"role": "system", "content": system_prompt},
+            *(
+                {"role": "user", "content": content}
+                for content in initial_context
+            ),
             {"role": "user", "content": user_message},
         ]
         turn = 0
 
         try:
-            while turn < self.config.max_turns and not self._submitted:
+            while self._can_start_turn(turn):
                 turn += 1
-                self._record_progress(turn, self.procedures.active or "running")
+                if self._memory_closeout is not None:
+                    self._memory_closeout.begin_turn()
+                stage = (
+                    "memory_closeout"
+                    if self._memory_closeout is not None
+                    and self._memory_closeout.article_submitted
+                    else self.procedures.active or "running"
+                )
+                self._record_progress(turn, stage)
                 response = await self._client.complete(
                     turn_number=turn,
                     messages=list(messages),
@@ -145,6 +179,12 @@ class Runner:
                     previous_stage = self.procedures.active
                     results = await self._execute_tool_batch(calls, turn)
                     self._flush_artifact_turn(turn)
+                    if any(
+                        call.name == "submit_artifact"
+                        and self._is_successful_submit(result)
+                        for call, result in zip(calls, results)
+                    ):
+                        self._activate_submission(turn)
                     if (
                         self.procedures.active is not None
                         and self.procedures.active != previous_stage
@@ -152,7 +192,11 @@ class Runner:
                         self._record_progress(turn, self.procedures.active)
                     for call, result_content in zip(calls, results):
                         if call.name == "load_procedure":
-                            self._append_procedure_message(messages, call, result_content)
+                            self._append_procedure_message(
+                                messages,
+                                call,
+                                result_content,
+                            )
                         else:
                             messages.append(tool_result_message(call, result_content))
 
@@ -162,8 +206,12 @@ class Runner:
                 if text:
                     self.log.add_model_text(text, turn=turn)
                     messages.append({"role": "assistant", "content": text})
+                    if self._closeout_is_active():
+                        continue
                     break
 
+                if self._closeout_is_active():
+                    continue
                 break
 
             self.log.add_completion(
@@ -192,6 +240,7 @@ class Runner:
                         for procedure in self.log.procedure_history
                     ],
                     "submitted": self._submitted,
+                    "memory_closeout": self._closeout_summary(),
                     "brief": self._build_brief_summary(),
                 },
                 run_log_entries=[
@@ -248,13 +297,26 @@ class Runner:
         calls: list[ToolCall],
         turn: int,
     ) -> list[str]:
-        executed = await asyncio.gather(
-            *[
-                self._execute_tool(call, turn, ordinal)
-                for ordinal, call in enumerate(calls)
-            ]
-        )
-        return list(executed)
+        results: list[str | None] = [None] * len(calls)
+        regular = [
+            (ordinal, call)
+            for ordinal, call in enumerate(calls)
+            if call.name != _MEMORY_CLOSEOUT_TOOL_NAME
+        ]
+        if regular:
+            executed = await asyncio.gather(
+                *[
+                    self._execute_tool(call, turn, ordinal)
+                    for ordinal, call in regular
+                ]
+            )
+            for (ordinal, _), result in zip(regular, executed):
+                results[ordinal] = result
+
+        for ordinal, call in enumerate(calls):
+            if call.name == _MEMORY_CLOSEOUT_TOOL_NAME:
+                results[ordinal] = await self._execute_tool(call, turn, ordinal)
+        return [cast(str, result) for result in results]
 
     async def _execute_tool(
         self,
@@ -284,8 +346,8 @@ class Runner:
                 "type": "UnknownToolError",
                 "message": message,
             }
-            result: Any = {"error": message}
-            result_content = self._as_tool_result_content(result)
+            execution_result = ToolExecutionResult(result={"error": message})
+            result_content = self._as_tool_result_content(execution_result.result)
             duration_ms = self._duration_ms(start)
             self.log.add_tool_call(
                 call.name,
@@ -298,8 +360,9 @@ class Runner:
                 execution_id,
                 ToolExecutionFinish(
                     status="failed",
-                    full_result_text=result_content,
-                    structured_result=cast(dict[str, JsonValue], result),
+                    result=execution_result.result,
+                    result_text=result_content,
+                    metadata=execution_result.metadata,
                     error_text=message,
                     error=error,
                 ),
@@ -309,9 +372,9 @@ class Runner:
         artifact_recording_error: ArtifactRecordingError | None = None
         try:
             with self.tool_context.bind_tool_execution(execution_id):
-                result = handler(**call.arguments)
-                if asyncio.iscoroutine(result):
-                    result = await result
+                handler_result = handler(**call.arguments)
+                if asyncio.iscoroutine(handler_result):
+                    handler_result = await handler_result
         except asyncio.CancelledError:
             self._finish_tool_execution(
                 execution_id,
@@ -322,12 +385,12 @@ class Runner:
             artifact_recording_error = exc
             error = sanitize_provider_error(exc)
             error_text = str(error.get("message") or type(exc).__name__)
-            result = {"error": error_text}
+            handler_result = {"error": error_text}
             status = "failed"
         except Exception as exc:
             error = sanitize_provider_error(exc)
             error_text = str(error.get("message") or type(exc).__name__)
-            result = {"error": error_text}
+            handler_result = {"error": error_text}
             status = "failed"
         else:
             error = None
@@ -335,7 +398,8 @@ class Runner:
             status = "succeeded"
 
         duration_ms = self._duration_ms(start)
-        result_content = self._as_tool_result_content(result)
+        execution_result = self._normalize_tool_result(handler_result)
+        result_content = self._as_tool_result_content(execution_result.result)
         self.log.add_tool_call(
             call.name,
             call.arguments,
@@ -347,8 +411,9 @@ class Runner:
             execution_id,
             ToolExecutionFinish(
                 status=status,
-                full_result_text=result_content,
-                structured_result=self._structured_result(result_content),
+                result=execution_result.result,
+                result_text=result_content,
+                metadata=execution_result.metadata,
                 error_text=error_text,
                 error=error,
             ),
@@ -359,10 +424,51 @@ class Runner:
                 "Could not record durable artifact mutation"
             ) from artifact_recording_error
 
-        if call.name == "submit_artifact" and self._is_successful_submit(result_content):
-            self._submitted = True
-
         return result_content
+
+    def _can_start_turn(self, turn: int) -> bool:
+        state = self._memory_closeout
+        if state is not None:
+            if state.memory_review_completed:
+                return False
+            if state.article_submitted:
+                if state.closeout_turns_used >= MEMORY_CLOSEOUT_TURN_ALLOWANCE:
+                    state.mark_exhausted()
+                    self.log.add_memory_closeout(
+                        "limit_exhausted",
+                        turn=turn,
+                        turns_used=state.closeout_turns_used,
+                        turn_allowance=MEMORY_CLOSEOUT_TURN_ALLOWANCE,
+                    )
+                    self._record_progress(turn, "memory_closeout_exhausted")
+                    raise MemoryCloseoutIncompleteError(
+                        "Memory review was not completed within the six-turn "
+                        "closeout allowance."
+                    )
+                return True
+        return turn < self.config.max_turns and not self._submitted
+
+    def _activate_submission(self, turn: int) -> None:
+        self._submitted = True
+        state = self._memory_closeout
+        if state is None or state.article_submitted:
+            return
+        state.activate(turn=turn)
+        self.log.add_memory_closeout(
+            "closeout_activated",
+            turn=turn,
+            turn_allowance=MEMORY_CLOSEOUT_TURN_ALLOWANCE,
+            memory_writes_enabled=state.memory_writes_enabled,
+        )
+        self._record_progress(turn, "memory_closeout")
+
+    def _closeout_is_active(self) -> bool:
+        return self._memory_closeout is not None and self._memory_closeout.active
+
+    def _closeout_summary(self) -> dict[str, Any]:
+        if self._memory_closeout is None:
+            return {"enabled": False, "status": "not_applicable"}
+        return self._memory_closeout.summary()
 
     def _begin_tool_execution(self, execution: ToolExecutionStart) -> UUID | None:
         if self._recorder is None:
@@ -440,9 +546,7 @@ class Runner:
 
     @staticmethod
     def _as_tool_result_content(result: Any) -> str:
-        if isinstance(result, str):
-            return result
-        return json.dumps(result, default=str)
+        return serialize_model_value(result)
 
     @staticmethod
     def _is_successful_submit(result: str) -> bool:
@@ -453,18 +557,10 @@ class Runner:
         return isinstance(data, dict) and data.get("ok") is True
 
     @staticmethod
-    def _structured_result(
-        result: str,
-    ) -> dict[str, JsonValue] | list[JsonValue] | None:
-        try:
-            parsed = json.loads(result)
-        except (json.JSONDecodeError, TypeError):
-            return None
-        if isinstance(parsed, dict):
-            return cast(dict[str, JsonValue], parsed)
-        if isinstance(parsed, list):
-            return cast(list[JsonValue], parsed)
-        return None
+    def _normalize_tool_result(result: Any) -> ToolExecutionResult:
+        if isinstance(result, ToolExecutionResult):
+            return result
+        return ToolExecutionResult(result=cast(JsonValue, result))
 
     @staticmethod
     def _duration_ms(start: float) -> int:

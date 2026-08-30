@@ -55,6 +55,11 @@ def test_streaming(tmp_path) -> None:
     log.add_artifact_write("brief", "save_fact", "fact_001", revision=1, turn=3)
     log.add_model_text("Drafting a lead from the standings.", turn=4)
     log.add_guardrail("tool_limit", 40, 50, turn=5)
+    log.add_memory_closeout(
+        "closeout_activated",
+        turn=6,
+        turn_allowance=6,
+    )
     log.add_completion({"status": "done"}, turn=6)
     log.stop_streaming()
 
@@ -65,6 +70,7 @@ def test_streaming(tmp_path) -> None:
     assert "save_fact(fact_001) -> brief rev 1" in content
     assert "Model: Drafting a lead from the standings." in content
     assert "GUARDRAIL: tool_limit (40/50)" in content
+    assert 'MEMORY CLOSEOUT: {"event": "closeout_activated"' in content
     assert 'COMPLETE: {"status": "done"}' in content
     assert "Completed:" in content
     assert "Total tool calls: 1" in content

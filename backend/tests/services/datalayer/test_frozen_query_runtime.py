@@ -275,12 +275,24 @@ def test_typed_roster_identity_resolution_uses_only_frozen_snapshot(
         by_id = data.resolve_roster_identity(1)
         by_team = data.resolve_roster_identity(" alpha ")
         by_manager = data.resolve_roster_identity("ALICE")
+        by_franchise = data.get_roster_identity_by_canonical_id(
+            franchise_id=UUID("00000000-0000-0000-0000-0000000000c9")
+        )
+        by_season_roster = data.get_roster_identity_by_canonical_id(
+            season_roster_id=UUID("00000000-0000-0000-0000-000000000065")
+        )
+        missing_canonical = data.get_roster_identity_by_canonical_id(
+            franchise_id=UUID(int=999)
+        )
         missing = data.resolve_roster_identity("missing")
         invalid = data.resolve_roster_identity("01")
 
     assert isinstance(by_id, ResolvedRosterIdentity)
     assert by_team == by_id.model_copy(update={"roster_key": "alpha"})
     assert by_manager == by_id.model_copy(update={"roster_key": "ALICE"})
+    assert by_franchise == by_id.identity
+    assert by_season_roster == by_id.identity
+    assert missing_canonical is None
     assert by_id.identity.model_dump(mode="json") == {
         "competition_id": "22222222-2222-2222-2222-222222222222",
         "competition_season_id": "11111111-1111-1111-1111-111111111111",

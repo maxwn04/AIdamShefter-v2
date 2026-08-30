@@ -7,13 +7,20 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    ValidationError,
+    model_validator,
+)
 
 from backend.services.memory import (
     ContextNoteContent,
     EventContent,
-    FactContent,
     GenerationMemoryContext,
+    HydratedMemoryMatch,
     MemoryKind,
     MemoryMutationMetadata,
     MemoryRetrievalRequest,
@@ -21,8 +28,16 @@ from backend.services.memory import (
     StorylineContent,
     TriggerContent,
 )
-from backend.services.reporter.runner.models import ToolDef
+from backend.services.reporter.config import ReportConfig
+from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.memory_presentation import (
+    MemoryPresentationAdapter,
+)
+from backend.services.reporter.runner.tools.memory_recall import (
+    MemoryRecallPlan,
+    MemoryRecallPlanner,
+)
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
@@ -30,7 +45,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "3"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "5"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -134,41 +149,16 @@ class SearchMemoryArgs(_StrictModel):
     text: str | None = Field(
         default=None,
         description=(
-            "Optional PostgreSQL web-style lexical search, not semantic search. "
-            "Unquoted terms are jointly required. Keep one short concept, name, "
-            "or phrase per call; use quotes for a phrase, OR for explicit "
-            "alternatives, and -term to exclude a term. Do not concatenate "
-            "unrelated teams, players, and themes."
+            "Optional focused editorial concept, name, or phrase. Search uses "
+            "lexical matching internally, so keep each call centered on one "
+            "continuity question; use OR only for explicit alternatives."
         ),
     )
     team_keys: list[str] = Field(
         default_factory=list,
         description=(
-            "Current team names or roster IDs. Each is resolved internally to "
-            "canonical franchise and season-roster keys; matching any key can "
-            "discover a memory."
-        ),
-    )
-    entity_keys: list[str] = Field(
-        default_factory=list,
-        description=(
-            "Exact canonical entity keys already returned by another tool or memory "
-            "result. Matching any key can discover a memory. Prefer team_keys for "
-            "ordinary team names or roster IDs."
-        ),
-    )
-    evidence_version_ids: list[UUID] = Field(
-        default_factory=list,
-        description=(
-            "Exact memory evidence-version IDs from an earlier result. Matching any "
-            "ID can discover a memory."
-        ),
-    )
-    related_item_ids: list[UUID] = Field(
-        default_factory=list,
-        description=(
-            "Exact stable memory-item IDs from an earlier result. Matching any ID "
-            "can discover a related memory."
+            "Current team names or roster IDs. They are resolved internally; "
+            "canonical identifiers are never required or returned."
         ),
     )
     tags: list[str] = Field(
@@ -188,34 +178,44 @@ class SearchMemoryArgs(_StrictModel):
             "statuses. Status vocabulary depends on memory kind."
         ),
     )
-    week: int | None = Field(
+    week_from: int | None = Field(
         default=None,
         ge=0,
-        description=(
-            "Optional hard filter for one exact memory week. This is not an "
-            "at-or-before cutoff. Omit it when searching continuity across weeks."
-        ),
+        description="Optional inclusive first relevant memory week.",
+    )
+    week_to: int | None = Field(
+        default=None,
+        ge=0,
+        description="Optional inclusive last relevant memory week.",
     )
     limit: int = Field(
-        default=10,
+        default=8,
         ge=1,
         le=25,
-        description="Maximum hydrated matches to return; prefer 5-10 focused results.",
+        description="Maximum semantic memories to return; prefer 5-8 focused results.",
     )
-    expand_exact_references: bool = Field(
-        default=False,
+    include_evidence: bool = Field(
+        default=True,
         description=(
-            "Also hydrate exact evidence linked from matching storylines and "
-            "originating events linked from matching facts."
+            "Include up to three semantic evidence summaries when available."
         ),
     )
-    expand_stable_references: bool = Field(
-        default=False,
+    include_related: bool = Field(
+        default=True,
         description=(
-            "Also hydrate visible storyline or event items referenced by matching "
-            "storylines and triggers."
+            "Include up to three semantic related-memory summaries when available."
         ),
     )
+
+    @model_validator(mode="after")
+    def _validate_week_range(self) -> SearchMemoryArgs:
+        if (
+            self.week_from is not None
+            and self.week_to is not None
+            and self.week_from > self.week_to
+        ):
+            raise ValueError("week_from cannot be greater than week_to")
+        return self
 
 
 class SaveMemoryEventArgs(_StrictModel):
@@ -294,13 +294,11 @@ def _tool(name: str, description: str, arguments: type[BaseModel]) -> ToolDef:
 MEMORY_TOOL_SPECS: list[ToolDef] = [
     _tool(
         _READ_TOOL,
-        "Search fully hydrated canonical memory at this generation's pinned "
-        "revision. Text, entity/team keys, references, and tags are alternative "
-        "discovery signals: matching any one can discover a memory. Kinds, statuses, "
-        "and exact week are hard filters applied to every result. With no discovery "
-        "signal, the tool browses memories allowed by those filters. Text is lexical "
-        "web search, not semantic search; see the text field for syntax. Returned "
-        "memories are research leads and must be verified against frozen data.",
+        "Search reporter memory by editorial intent at this generation's pinned "
+        "revision. Text, team names, and tags are discovery signals; kinds, statuses, "
+        "and inclusive week bounds narrow the results. Returned memories contain "
+        "semantic writing context rather than storage identifiers. Treat every "
+        "memory as a research lead and verify material claims against frozen data.",
         SearchMemoryArgs,
     ),
     _tool(
@@ -363,9 +361,23 @@ class TypedMemoryAdapter:
         self._completed_semantic_saves: dict[
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
+        self._presentation = MemoryPresentationAdapter(data)
+        self._recall = MemoryRecallPlanner(
+            memory_context,
+            data,
+            self._presentation,
+        )
 
-    def search(self, arguments: SearchMemoryArgs) -> dict[str, Any]:
-        entity_keys = list(arguments.entity_keys)
+    def build_recall(self, config: ReportConfig) -> MemoryRecallPlan:
+        plan = self._recall.plan(config)
+        self._cache_pinned_candidates(plan.candidates)
+        return plan
+
+    def search(self, arguments: SearchMemoryArgs) -> ToolExecutionResult:
+        season_id = self._memory_context.competition_season_id
+        if season_id is None:
+            raise RuntimeError("reporter memory search requires season scope")
+        entity_keys: list[str] = []
         for roster_key in arguments.team_keys:
             identity = self._resolve_roster(roster_key)
             entity_keys.extend(
@@ -377,27 +389,37 @@ class TypedMemoryAdapter:
         query = SearchDocumentQuery(
             text=arguments.text,
             entity_keys=tuple(dict.fromkeys(entity_keys)),
-            evidence_version_ids=tuple(arguments.evidence_version_ids),
-            related_item_ids=tuple(arguments.related_item_ids),
             tags=tuple(arguments.tags),
             kinds=tuple(arguments.kinds),
             statuses=tuple(arguments.statuses),
-            week=arguments.week,
-            limit=arguments.limit,
+            competition_season_id=season_id,
+            week_from=arguments.week_from,
+            week_to=arguments.week_to,
+            limit=arguments.limit + 1,
         )
         result = self._memory_context.search(
             MemoryRetrievalRequest(
                 query=query,
-                expand_exact_references=arguments.expand_exact_references,
-                expand_stable_references=arguments.expand_stable_references,
+                expand_exact_references=arguments.include_evidence,
+                expand_stable_references=arguments.include_related,
             )
         )
+        self._cache_pinned_candidates(result.matches)
+        return self._presentation.present(
+            result,
+            query=query,
+            limit=arguments.limit,
+        )
+
+    def _cache_pinned_candidates(
+        self,
+        matches: tuple[HydratedMemoryMatch, ...],
+    ) -> None:
         self._pinned_agent_candidates.update(
             ((match.memory.item.kind, match.memory.item.agent_key), match.memory)
-            for match in result.matches
+            for match in matches
             if match.memory.item.agent_key is not None
         )
-        return {"ok": True, **result.model_dump(mode="json")}
 
     def save_memory_event(
         self,
@@ -501,20 +523,21 @@ class TypedMemoryAdapter:
             create=self._memory_context.propose_storyline,
             replace=self._memory_context.replace_storyline,
         )
-        saved_triggers: list[str] = []
+        trigger_results: list[dict[str, Any]] = []
         for raw_spec in arguments.trigger_specs:
             spec = SaveStorylineTriggerArgs.model_validate(
                 {**raw_spec, "storyline_id": raw_spec.get("storyline_id", arguments.id)}
             )
             trigger_result = self.save_storyline_trigger(context, spec)
-            saved_triggers.append(str(trigger_result["id"]))
+            trigger_results.append(trigger_result)
         payload = {
             **result,
             "id": arguments.id,
             "status": arguments.status,
             "team_ids": sleeper_team_ids,
             "linked_events": arguments.evidence_event_ids,
-            "triggers": saved_triggers,
+            "triggers": [str(result["id"]) for result in trigger_results],
+            "trigger_results": trigger_results,
         }
         if unresolved:
             payload["unresolved_team_keys"] = unresolved
@@ -629,44 +652,6 @@ class TypedMemoryAdapter:
         )
         return {**result, "key": arguments.key}
 
-    def buffer_brief_facts(self, brief: Any) -> list[dict[str, Any]]:
-        """Buffer every final brief storyline's supporting facts once."""
-        results: list[dict[str, Any]] = []
-        week = getattr(self._memory_context, "_week", None)
-        for storyline in brief.storylines:
-            for fact_id in storyline.supporting_fact_ids:
-                fact = brief.get_fact(fact_id)
-                if fact is None:
-                    continue
-                agent_key = f"brief:{storyline.id}:{week}:{fact.id}"
-                canonical = FactContent.model_validate(
-                    {
-                        "claim": fact.claim_text,
-                        "category": fact.category,
-                        "numbers": fact.numbers,
-                        "confidence": "inferred",
-                        "status": "active",
-                        "subjects": [],
-                        "originating_event_version_ids": [],
-                        "source_hints": {
-                            "brief_fact_id": fact.id,
-                            "brief_storyline_id": storyline.id,
-                            "data_refs": list(fact.data_refs),
-                        },
-                    }
-                )
-                results.append(
-                    self._upsert(
-                        MemoryKind.FACT,
-                        agent_key,
-                        canonical,
-                        context=None,
-                        create=self._memory_context.propose_fact,
-                        replace=self._memory_context.replace_fact,
-                    )
-                )
-        return results
-
     def _upsert(
         self,
         kind: MemoryKind,
@@ -687,10 +672,21 @@ class TypedMemoryAdapter:
                     "memory_already_selected",
                     f"{kind.value}:{agent_key} already changed in this run",
                 )
-            return {**previous[1], "saved": False, "no_change": True}
+            return {
+                **previous[1],
+                "saved": False,
+                "no_change": True,
+                "operation": "no_change",
+            }
         candidate = self._agent_candidate(kind, agent_key)
         if candidate is not None and candidate.content == canonical:
-            result = {"ok": True, "saved": False, "no_change": True}
+            result = {
+                "ok": True,
+                "saved": False,
+                "no_change": True,
+                "memory_kind": kind.value,
+                "operation": "no_change",
+            }
         elif candidate is None:
             reference = create(
                 canonical,
@@ -702,7 +698,7 @@ class TypedMemoryAdapter:
             )
             self._proposed_item_ids.add(reference.item_id)
             self._local_agent_refs[(kind, agent_key)] = reference
-            result = self._saved(reference)
+            result = self._saved(reference, kind=kind, operation="create")
         else:
             reference = replace(
                 candidate.item.item_id,
@@ -710,7 +706,7 @@ class TypedMemoryAdapter:
                 canonical,
                 metadata=self._metadata(context, week=week),
             )
-            result = self._saved(reference)
+            result = self._saved(reference, kind=kind, operation="replace")
         self._completed_semantic_saves[save_key] = (signature, result)
         return result
 
@@ -881,10 +877,17 @@ class TypedMemoryAdapter:
         )
 
     @staticmethod
-    def _saved(reference: Any) -> dict[str, Any]:
+    def _saved(
+        reference: Any,
+        *,
+        kind: MemoryKind,
+        operation: str,
+    ) -> dict[str, Any]:
         return {
             "ok": True,
             "saved": True,
+            "memory_kind": kind.value,
+            "operation": operation,
             "proposal": reference.model_dump(mode="json"),
         }
 
@@ -953,7 +956,7 @@ def register_memory_tools(
 
     adapter = TypedMemoryAdapter(memory_context, data)
 
-    def search_memory(**kwargs: Any) -> dict[str, Any]:
+    def search_memory(**kwargs: Any) -> ToolExecutionResult | dict[str, Any]:
         try:
             return adapter.search(SearchMemoryArgs.model_validate(kwargs))
         except (ValidationError, MemoryToolInputError) as error:
@@ -975,13 +978,43 @@ def register_memory_tools(
     }
 
     def make_handler(tool_name: str, arguments_model: type[BaseModel]) -> Any:
-        def handler(context: ToolContext, **kwargs: Any) -> dict[str, Any]:
+        def handler(
+            context: ToolContext, **kwargs: Any
+        ) -> ToolExecutionResult | dict[str, Any]:
             if not allow_memory_writes:
                 return memory_write_blocked_result(tool_name)
             try:
                 arguments = arguments_model.model_validate(kwargs)
                 method = getattr(adapter, tool_name)
-                return method(context, arguments)
+                result = method(context, arguments)
+                activity_items: list[dict[str, JsonValue]] = []
+                if result.get("saved") is True:
+                    activity_items.append(
+                        {
+                            "path": "result",
+                            "kind": result.pop("memory_kind"),
+                            "operation": result.pop("operation"),
+                        }
+                    )
+                else:
+                    result.pop("memory_kind", None)
+                    result.pop("operation", None)
+
+                trigger_results = result.pop("trigger_results", [])
+                for index, trigger_result in enumerate(trigger_results):
+                    if trigger_result.get("saved") is not True:
+                        continue
+                    activity_items.append(
+                        {
+                            "path": f"arguments.trigger_specs.{index}",
+                            "kind": trigger_result["memory_kind"],
+                            "operation": trigger_result["operation"],
+                        }
+                    )
+                metadata: dict[str, JsonValue] = {}
+                if activity_items:
+                    metadata["memory_activity"] = {"items": activity_items}
+                return ToolExecutionResult(result=result, metadata=metadata)
             except (ValidationError, MemoryToolInputError) as error:
                 return _safe_error(error, write=True)
 

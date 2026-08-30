@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
+from pydantic import TypeAdapter
 
 from backend.resources.memory.common.errors import GenerationMemoryContextClosedError
 from backend.resources.memory.revisions import CanonicalRevision
@@ -25,9 +26,17 @@ from backend.services.generations import (
     RerunGenerationRequest,
     StaleGenerationPolicy,
 )
-from backend.services.memory import MemoryMutationResult
+from backend.services.memory import (
+    ContextNoteContent,
+    ContextNoteIdentity,
+    MemoryMutationMetadata,
+    MemoryMutationResult,
+)
 from backend.services.reporter import ReporterOutput
 from backend.services.reporter.runner.completion import ProviderConfigurationError
+from backend.services.reporter.runner.memory_closeout import (
+    MemoryCloseoutIncompleteError,
+)
 from backend.services.reporter.runner.recording import ArtifactMutation
 from backend.services.reporter.runner.schemas import ArtifactSnapshot
 
@@ -214,6 +223,7 @@ class FakeReporter:
         self.calls = []
         self.error: BaseException | None = None
         self.exercise_recorder = False
+        self.propose_memory = False
         self.finalizer = None
 
     async def __call__(self, data, config, **kwargs):
@@ -234,6 +244,23 @@ class FakeReporter:
             )
         if self.error is not None:
             raise self.error
+        if self.propose_memory:
+            kwargs["memory_context"].propose_context_note(
+                TypeAdapter(ContextNoteIdentity).validate_python(
+                    {"scope": "competition", "note_key": "closeout_fixture"}
+                ),
+                ContextNoteContent.model_validate(
+                    {
+                        "narrative": "The playoff race remains unsettled.",
+                        "status": "active",
+                        "tags": ["playoffs"],
+                    }
+                ),
+                metadata=MemoryMutationMetadata(
+                    creating_tool_call_id=_uuid(700),
+                    agent_key="league_note:closeout_fixture",
+                ),
+            )
         content = "# Article"
         return ReporterOutput(
             submitted_path="article.md",
@@ -388,6 +415,7 @@ def _request(kind: GenerationKind = GenerationKind.LIVE) -> GenerationRequest:
 
 def test_generation_settings_default_to_append_procedure_history() -> None:
     assert GenerationSettings().runner.procedure_history_mode == "append"
+    assert GenerationSettings().memory.automatic_recall is True
 
 
 def _service(
@@ -395,6 +423,7 @@ def _service(
     *,
     kind: GenerationKind = GenerationKind.LIVE,
     history: tuple[CanonicalRevision, ...] | None = None,
+    settings: GenerationSettings | None = None,
 ):
     events: list[str] = []
     manager = FakeGenerationManager(_uuid(1), events)
@@ -425,7 +454,10 @@ def _service(
         open_frozen_data=lambda snapshot: runtime,  # type: ignore[arg-type]
         clock=lambda: NOW,
     )
-    service.submit(_request(kind))
+    request = _request(kind)
+    if settings is not None:
+        request = request.model_copy(update={"settings": settings})
+    service.submit(request)
     return service, manager, snapshots, revisions, reporter, runtime, events
 
 
@@ -441,6 +473,7 @@ def test_submit_resolves_and_persists_typed_settings(tmp_path) -> None:
         "snapshot_as_of_date": "execution_utc_date",
         "backtest_memory": "latest_same_season_at_or_before_week",
     }
+    assert pending.settings["memory"] == {"automatic_recall": True}
     assert events == ["submit"]
     del service
 
@@ -482,6 +515,7 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
     assert bundle.expected_revision_id == _uuid(100)
     assert bundle.proposals == ()
     assert reporter.calls[0][2]["allow_memory_writes"] is True
+    assert reporter.calls[0][2]["automatic_memory_recall"] is True
     assert runtime.closed is True
     manifest = manager.starts[0].input_manifest
     assert manifest["cutoffs"]["domain_cutoff_at"] is None
@@ -491,6 +525,40 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
         for entry in manifest["tools"]["implementations"]
     }
     assert procedure_versions["load_procedure"] == "4"
+
+
+@pytest.mark.asyncio
+async def test_execution_passes_disabled_automatic_recall_setting(tmp_path) -> None:
+    settings = GenerationSettings.model_validate(
+        {"memory": {"automatic_recall": False}}
+    )
+    service, _, _, _, reporter, _, _ = _service(tmp_path, settings=settings)
+
+    result = await service.execute(_uuid(3))
+
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert reporter.calls[0][2]["automatic_memory_recall"] is False
+
+
+@pytest.mark.asyncio
+async def test_live_execution_passes_explicit_memory_bundle_to_finalizer_once(
+    tmp_path,
+) -> None:
+    service, _, _, _, reporter, runtime, events = _service(tmp_path)
+    reporter.propose_memory = True
+
+    result = await service.execute(_uuid(3))
+
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert runtime.closed is True
+    assert events.count("finalize") == 1
+    assert len(reporter.finalizer.calls) == 1
+    bundle = reporter.finalizer.calls[0][2]
+    assert len(bundle.proposals) == 1
+    proposal = bundle.proposals[0]
+    assert proposal.kind.value == "context_note"
+    assert proposal.metadata.agent_key == "league_note:closeout_fixture"
+    assert proposal.metadata.creating_tool_call_id == _uuid(700)
 
 
 @pytest.mark.asyncio
@@ -604,7 +672,14 @@ async def test_backtest_without_eligible_or_root_memory_never_starts(tmp_path) -
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("error", [RuntimeError("provider"), asyncio.CancelledError()])
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("provider"),
+        MemoryCloseoutIncompleteError("closeout exhausted"),
+        asyncio.CancelledError(),
+    ],
+)
 async def test_reporter_failure_or_cancellation_closes_and_discards_context(
     tmp_path,
     error,
@@ -698,6 +773,30 @@ def test_rerun_copies_terminal_intent_and_links_fresh_pending_row(tmp_path) -> N
     assert rerun.settings == manager.get(_uuid(3)).settings
     assert rerun.data_snapshot_id is None
     assert manager.get(_uuid(3)).status is GenerationStatus.FAILED
+
+
+def test_rerun_defaults_legacy_settings_without_memory_to_recall_enabled(
+    tmp_path,
+) -> None:
+    service, manager, _, _, _, _, _ = _service(tmp_path)
+    legacy_settings = dict(manager.rows[_uuid(3)].settings)
+    legacy_settings.pop("memory")
+    manager.rows[_uuid(3)] = manager.rows[_uuid(3)].model_copy(
+        update={
+            "status": GenerationStatus.SUCCEEDED,
+            "completed_at": NOW,
+            "settings": legacy_settings,
+        }
+    )
+
+    rerun = service.rerun(
+        RerunGenerationRequest(
+            source_generation_id=_uuid(3),
+            generation_id=_uuid(4),
+        )
+    )
+
+    assert rerun.settings["memory"] == {"automatic_recall": True}
 
 
 def test_reconcile_stale_returns_only_bounded_running_rows(tmp_path) -> None:

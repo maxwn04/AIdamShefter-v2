@@ -13,7 +13,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "4"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "5"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -268,15 +268,29 @@ def submit_artifact(
             artifact.revision,
             turn=ctx.turn,
         )
-        ctx.log.add_completion(stats, turn=ctx.turn)
-        return _success(
-            {
-                "artifact": artifact.model_dump(),
-                "finalized_revision": artifact.revision,
-                "stats": stats,
-                "brief_readiness": readiness.model_dump(mode="json"),
-            }
+        ctx.log.add_memory_closeout(
+            "article_submitted",
+            turn=ctx.turn,
+            submitted_path=artifact.path,
+            revision=artifact.revision,
         )
+        result: dict[str, Any] = {
+            "artifact": artifact.model_dump(),
+            "finalized_revision": artifact.revision,
+            "stats": stats,
+            "brief_readiness": readiness.model_dump(mode="json"),
+        }
+        if ctx.memory_closeout is not None:
+            result["next_action"] = {
+                "type": "mandatory_procedure",
+                "name": "memory_closeout",
+                "content": ctx.memory_closeout.procedure,
+                "completion_tool": "complete_memory_review",
+                "memory_writes_enabled": (
+                    ctx.memory_closeout.memory_writes_enabled
+                ),
+            }
+        return _success(result)
 
     return _execute(operation)
 

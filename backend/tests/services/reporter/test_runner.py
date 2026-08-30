@@ -11,8 +11,14 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backend.resources.memory.search_documents import SearchDocumentQuery
+from backend.services.memory import MemoryRetrievalResult
 from backend.services.reporter.runner.completion import CompletionClient, CompletionSettings
-from backend.services.reporter.runner.models import ToolCall
+from backend.services.reporter.runner.memory_closeout import (
+    MemoryCloseoutIncompleteError,
+    MemoryCloseoutState,
+)
+from backend.services.reporter.runner.models import ToolCall, ToolExecutionResult
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
@@ -32,6 +38,12 @@ from backend.services.reporter.runner.tools.brief_tools import (
     set_outline,
 )
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.memory_presentation import (
+    MemoryPresentationAdapter,
+)
+from backend.services.reporter.runner.tools.memory_closeout_tools import (
+    register_memory_closeout_tools,
+)
 from backend.services.reporter.runner.tools.procedure_tools import (
     register_procedure_tools,
 )
@@ -146,6 +158,57 @@ def registry_with(
     return registry
 
 
+def closeout_runner(
+    complete: FakeCompletion,
+    *,
+    max_turns: int = 60,
+    proposals: list[Any] | None = None,
+    register_write: bool = False,
+    recorder: RecordingProbe | None = None,
+) -> tuple[Runner, MemoryCloseoutState]:
+    buffered = proposals if proposals is not None else []
+    registry = ToolRegistry()
+    registry.register(
+        "submit_artifact",
+        lambda **_: '{"ok": true}',
+        tool_def("submit_artifact"),
+        "test-v1",
+    )
+    if register_write:
+        def save_memory_event() -> dict[str, Any]:
+            buffered.append(
+                SimpleNamespace(
+                    proposal_id=uuid4(),
+                    kind=SimpleNamespace(value="event"),
+                    operation="create",
+                )
+            )
+            return {"ok": True, "saved": True}
+
+        registry.register(
+            "save_memory_event",
+            save_memory_event,
+            tool_def("save_memory_event"),
+            "test-v1",
+        )
+    register_memory_closeout_tools(registry)
+    state = MemoryCloseoutState(
+        procedure="# Closeout",
+        memory_writes_enabled=True,
+        proposal_snapshot=lambda: tuple(buffered),  # type: ignore[arg-type]
+    )
+    return (
+        Runner(
+            registry,
+            complete=complete,
+            config=RunnerConfig(max_turns=max_turns),
+            memory_closeout=state,
+            recorder=recorder,
+        ),
+        state,
+    )
+
+
 def tool_call(
     name: str,
     arguments: dict[str, Any] | None = None,
@@ -239,6 +302,26 @@ def test_runner_simple_text_response() -> None:
     assert complete.requests[0]["messages"][1]["role"] == "user"
     assert complete.requests[0]["model"] is None
     assert "turn_number" not in complete.requests[0]
+
+
+def test_runner_places_initial_context_between_system_and_assignment() -> None:
+    complete = FakeCompletion([make_response(text="Done.")])
+    runner = Runner(ToolRegistry(), complete=complete)
+
+    run(
+        runner.run(
+            "system",
+            "assignment",
+            initial_context=("first context", "second context"),
+        )
+    )
+
+    assert complete.requests[0]["messages"][:4] == [
+        {"role": "system", "content": "system"},
+        {"role": "user", "content": "first context"},
+        {"role": "user", "content": "second context"},
+        {"role": "user", "content": "assignment"},
+    ]
 
 
 def test_runner_brief_summary_propagates_stale_dependency_warnings() -> None:
@@ -359,6 +442,108 @@ def test_runner_tool_call_dispatch() -> None:
     assert result_message["content"] == '{"ok": true, "value": 7}'
 
 
+@pytest.mark.parametrize(
+    ("raw_result", "expected_text"),
+    [
+        ("plain text", "plain text"),
+        (7, "7"),
+        (["one", 2], '["one", 2]'),
+        (None, "null"),
+    ],
+)
+def test_runner_keeps_raw_tool_results_compatible(
+    raw_result: Any,
+    expected_text: str,
+) -> None:
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with("lookup", lambda: raw_result),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    assert recorded.result == raw_result
+    assert recorded.result_text == expected_text
+    assert recorded.metadata == {}
+    assert complete.requests[1]["messages"][-1]["content"] == expected_text
+
+
+def test_runner_hides_tool_execution_metadata_from_model_messages() -> None:
+    logical_result = {"memories": [{"headline": "A callback"}]}
+    metadata = {
+        "bindings": [{"item_id": "private-id", "result_ordinal": 0}],
+        "candidate_count": 4,
+    }
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("lookup")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with(
+            "lookup",
+            lambda: ToolExecutionResult(result=logical_result, metadata=metadata),
+        ),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    sent_text = complete.requests[1]["messages"][-1]["content"]
+    assert recorded.result == logical_result
+    assert recorded.result_text == sent_text
+    assert recorded.metadata == metadata
+    assert "private-id" not in sent_text
+
+
+def test_runner_records_exact_semantic_memory_result_with_hidden_bindings() -> None:
+    revision_id = uuid4()
+    presentation = MemoryPresentationAdapter(SimpleNamespace()).present(  # type: ignore[arg-type]
+        MemoryRetrievalResult(
+            competition_id=uuid4(),
+            revision_id=revision_id,
+            matches=(),
+        ),
+        query=SearchDocumentQuery(text="playoff push", limit=9),
+        limit=8,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("search_memory")]),
+            make_response(text="Done."),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner = Runner(
+        registry_with("search_memory", lambda: presentation),
+        complete=complete,
+        recorder=recorder,
+    )
+
+    run(runner.run("system", "user"))
+
+    recorded = recorder.finished[0][1]
+    sent_text = complete.requests[1]["messages"][-1]["content"]
+    assert recorded.result == presentation.result
+    assert recorded.result_text == sent_text
+    assert recorded.metadata == presentation.metadata
+    assert str(revision_id) not in sent_text
+    assert "pinned_revision_id" not in sent_text
+
+
 def test_runner_records_parallel_tools_in_provider_order_with_exact_results() -> None:
     async def handler(*, value: int, delay: float) -> dict[str, Any]:
         await asyncio.sleep(delay)
@@ -390,7 +575,7 @@ def test_runner_records_parallel_tools_in_provider_order_with_exact_results() ->
         "succeeded",
     ]
     persisted_by_id = {
-        execution_id: result.full_result_text
+        execution_id: result.result_text
         for execution_id, result in recorder.finished
     }
     persisted_in_provider_order = [
@@ -441,7 +626,7 @@ def test_runner_records_unknown_tools_and_sanitized_handler_exceptions() -> None
         for message in complete.requests[1]["messages"]
         if message["role"] == "tool"
     ]
-    assert sent == [result.full_result_text for result in results]
+    assert sent == [result.result_text for result in results]
 
 
 def test_runner_records_tool_cancellation_and_reraises() -> None:
@@ -763,6 +948,206 @@ def test_runner_failed_submit_artifact_does_not_break_loop() -> None:
     assert output.run_log_summary["submitted"] is False
     assert output.run_log_summary["total_turns"] == 2
     assert len(complete.requests) == 2
+
+
+def test_memory_closeout_rejects_completion_before_submission() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("complete_memory_review", call_id="early")]
+            ),
+            make_response(
+                tool_calls=[tool_call("submit_artifact", call_id="submit")]
+            ),
+            make_response(
+                tool_calls=[tool_call("complete_memory_review", call_id="complete")]
+            ),
+        ]
+    )
+    runner, state = closeout_runner(complete)
+
+    output = run(runner.run("system", "user"))
+
+    early_result = next(
+        json.loads(message["content"])
+        for message in complete.requests[1]["messages"]
+        if message.get("tool_call_id") == "early"
+    )
+    assert early_result["error"]["code"] == "article_not_submitted"
+    assert state.memory_review_completed is True
+    assert output.run_log_summary["memory_closeout"]["status"] == "completed"
+    assert output.run_log_summary["memory_closeout"]["no_op"] is True
+
+
+def test_submit_and_complete_in_same_batch_cannot_skip_closeout() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call("submit_artifact", call_id="submit"),
+                    tool_call("complete_memory_review", call_id="too-soon"),
+                ]
+            ),
+            make_response(
+                tool_calls=[tool_call("complete_memory_review", call_id="complete")]
+            ),
+        ]
+    )
+    runner, state = closeout_runner(complete)
+
+    output = run(runner.run("system", "user"))
+
+    first_batch_results = {
+        message["tool_call_id"]: json.loads(message["content"])
+        for message in complete.requests[1]["messages"]
+        if message["role"] == "tool"
+    }
+    assert first_batch_results["too-soon"]["error"]["code"] == (
+        "article_not_submitted"
+    )
+    assert state.closeout_turns_used == 1
+    assert output.run_log_summary["memory_closeout"]["status"] == "completed"
+
+
+def test_closeout_continues_after_model_text_with_stable_tool_definitions() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("submit_artifact", call_id="submit")]
+            ),
+            make_response(text="I reviewed the final article."),
+            make_response(
+                tool_calls=[tool_call("complete_memory_review", call_id="complete")]
+            ),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner, _ = closeout_runner(complete, recorder=recorder)
+
+    output = run(runner.run("system", "user"))
+
+    assert output.run_log_summary["total_turns"] == 3
+    assert output.run_log_summary["memory_closeout"]["turns_used"] == 2
+    assert all(
+        request["tools"] == complete.requests[0]["tools"]
+        for request in complete.requests
+    )
+    assert GenerationProgress(
+        current_turn=1,
+        current_stage="memory_closeout",
+    ) in recorder.progress
+    assert recorder.progress[-1] == GenerationProgress(
+        current_turn=3,
+        current_stage="memory_closeout",
+    )
+
+
+def test_closeout_counts_parallel_write_before_completion() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("submit_artifact", call_id="submit")]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call("complete_memory_review", call_id="complete"),
+                    tool_call("save_memory_event", call_id="save"),
+                ]
+            ),
+        ]
+    )
+    recorder = RecordingProbe()
+    runner, _ = closeout_runner(
+        complete,
+        register_write=True,
+        recorder=recorder,
+    )
+
+    output = run(runner.run("system", "user"))
+
+    summary = output.run_log_summary["memory_closeout"]
+    assert summary["no_op"] is False
+    assert summary["proposal_counts"] == {
+        "total": 1,
+        "by_kind": {"event": 1},
+        "by_operation": {"create": 1},
+    }
+    completion_entry = next(
+        entry
+        for entry in output.run_log_entries
+        if entry["event_type"] == "memory_closeout"
+        and entry["data"]["event"] == "memory_review_completed"
+    )
+    assert completion_entry["data"]["outcome"] == "proposals_saved"
+    completion_execution_id = next(
+        execution_id
+        for execution_id, started in recorder.started
+        if started.tool_name == "complete_memory_review"
+    )
+    recorded = next(
+        result
+        for execution_id, result in recorder.finished
+        if execution_id == completion_execution_id
+    )
+    assert recorded.result == {
+        "ok": True,
+        "memory_review_completed": True,
+        "already_completed": False,
+        "outcome": "proposals_saved",
+        "proposal_counts": summary["proposal_counts"],
+    }
+    assert recorded.result_text == json.dumps(recorded.result)
+    assert recorded.metadata == {}
+
+
+def test_last_normal_turn_submission_gets_six_closeout_turns() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("submit_artifact", call_id="submit")]
+            ),
+            *[make_response(text=f"Review note {index}") for index in range(5)],
+            make_response(
+                tool_calls=[tool_call("complete_memory_review", call_id="complete")]
+            ),
+        ]
+    )
+    runner, _ = closeout_runner(complete, max_turns=1)
+
+    output = run(runner.run("system", "user"))
+
+    assert len(complete.requests) == 7
+    assert output.run_log_summary["total_turns"] == 7
+    assert output.run_log_summary["memory_closeout"]["turns_used"] == 6
+    assert output.run_log_summary["memory_closeout"]["completion_turn"] == 7
+
+
+def test_closeout_exhaustion_is_fatal_and_records_progress() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[tool_call("submit_artifact", call_id="submit")]
+            ),
+            *[make_response(text=f"Incomplete {index}") for index in range(6)],
+        ]
+    )
+    recorder = RecordingProbe()
+    runner, state = closeout_runner(
+        complete,
+        max_turns=1,
+        recorder=recorder,
+    )
+
+    with pytest.raises(MemoryCloseoutIncompleteError, match="six-turn"):
+        run(runner.run("system", "user"))
+
+    assert len(complete.requests) == 7
+    assert state.exhausted is True
+    assert recorder.progress[-1] == GenerationProgress(
+        current_turn=7,
+        current_stage="memory_closeout_exhausted",
+    )
+    assert runner.log.entries[-1].data["event"] == "limit_exhausted"
 
 
 def test_runner_parallel_edits_with_same_revision_allow_exactly_one_success() -> None:

@@ -12,11 +12,13 @@ from backend.resources.reporting.ai_calls import AICallManager
 from backend.resources.reporting.artifact_versions import ArtifactVersionManager
 from backend.resources.reporting.artifacts import ArtifactManager
 from backend.resources.reporting.generations import GenerationManager
+from backend.resources.reporting.memory_recalls import GenerationMemoryRecallManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.services.generations import GenerationExecutionRecorder
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
+    MemoryRecallRecord,
     ModelAttemptFinish,
     ModelAttemptStart,
     RecordedTokenUsage,
@@ -67,6 +69,15 @@ class FakeGenerationManager:
     def update_progress(self, command):
         self.progress.append(command)
         return SimpleNamespace(id=command.generation_id)
+
+
+class FakeMemoryRecallManager:
+    def __init__(self) -> None:
+        self.recorded = []
+
+    def record(self, command):
+        self.recorded.append(command)
+        return SimpleNamespace(generation_id=command.generation_id)
 
 
 class FakeArtifactManager:
@@ -184,6 +195,47 @@ def test_recorder_maps_reporter_events_and_retains_success_identity() -> None:
     assert recorder.successful_ai_call_id(3) is None
 
 
+def test_recorder_maps_generation_memory_recall_exactly() -> None:
+    generation_id = uuid4()
+    recorder, ai_calls, tool_calls, generations, artifacts, versions = (
+        make_recorder(generation_id)
+    )
+    recalls = FakeMemoryRecallManager()
+    recorder = GenerationExecutionRecorder(
+        generation_id,
+        cast(AICallManager, ai_calls),
+        cast(ToolCallManager, tool_calls),
+        cast(GenerationManager, generations),
+        cast(ArtifactManager, artifacts),
+        cast(ArtifactVersionManager, versions),
+        cast(GenerationMemoryRecallManager, recalls),
+    )
+    result = {
+        "context_type": "automatic_reporter_memory",
+        "due_callbacks": [],
+        "standing_context": [],
+        "likely_relevant_memories": [],
+        "partial": False,
+    }
+    result_text = '{"context_type":"automatic_reporter_memory"}'
+
+    recorder.record_memory_recall(
+        MemoryRecallRecord(
+            status="complete",
+            result=result,
+            result_text=result_text,
+            metadata={"pinned_revision": 4},
+        )
+    )
+
+    recorded = recalls.recorded[0]
+    assert recorded.generation_id == generation_id
+    assert recorded.status.value == "complete"
+    assert recorded.result == result
+    assert recorded.result_text == result_text
+    assert recorded.metadata == {"pinned_revision": 4}
+
+
 def test_failed_attempt_does_not_become_successful_identity() -> None:
     recorder, _, _, _, _, _ = make_recorder()
     attempt_id = recorder.begin_model_attempt(
@@ -243,8 +295,9 @@ def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
         execution_id,
         ToolExecutionFinish(
             status="succeeded",
-            full_result_text='{"found": true}',
-            structured_result={"found": True},
+            result={"found": True},
+            result_text='{"found": true}',
+            metadata={"candidate_count": 3},
         ),
     )
 
@@ -259,8 +312,9 @@ def test_recorder_maps_tool_execution_to_successful_turn_provenance() -> None:
     finished = tool_calls.finished[0]
     assert finished.tool_call_id == execution_id
     assert finished.status.value == "succeeded"
-    assert finished.full_result_text == '{"found": true}'
-    assert finished.structured_result == {"found": True}
+    assert finished.result == {"found": True}
+    assert finished.result_text == '{"found": true}'
+    assert finished.metadata == {"candidate_count": 3}
 
 
 def test_recorder_rejects_tools_without_a_successful_turn() -> None:

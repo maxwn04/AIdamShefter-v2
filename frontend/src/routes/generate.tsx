@@ -100,6 +100,7 @@ const serverFieldPaths: Readonly<
   "settings.model.retry.max_delay_seconds": "model.retry.maxDelaySeconds",
   "settings.runner.max_turns": "runner.maxTurns",
   "settings.runner.procedure_history_mode": "runner.procedureHistoryMode",
+  "settings.memory.automatic_recall": "memory.automaticRecall",
 };
 
 function Section({
@@ -279,6 +280,10 @@ export function Component(): React.JSX.Element {
   const fallbackModels = useWatch({
     control: form.control,
     name: "model.fallbackModels",
+  });
+  const automaticRecallEnabled = useWatch({
+    control: form.control,
+    name: "memory.automaticRecall",
   });
   const draftValues = useWatch({ control: form.control });
   const seasonDetailQuery = useSeasonDetail(
@@ -671,6 +676,24 @@ export function Component(): React.JSX.Element {
                 </p>
               ) : null}
             </fieldset>
+
+            <label className="mt-6 flex items-start gap-3 rounded-md border border-border p-4">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-primary"
+                {...form.register("memory.automaticRecall")}
+              />
+              <span>
+                <span className="block text-sm font-medium">
+                  Automatic memory recall
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-muted-foreground">
+                  Start the reporter with due callbacks, applicable standing
+                  context, and likely relevant memories. Supplemental memory
+                  search and closeout remain available when this is off.
+                </span>
+              </span>
+            </label>
           </Section>
 
           <Section
@@ -1215,6 +1238,12 @@ export function Component(): React.JSX.Element {
                   {selectedPrimaryModel
                     ? `${String(1 + fallbackModels.length)} model${fallbackModels.length === 0 ? "" : "s"}`
                     : "—"}
+                </dd>
+              </div>
+              <div className="flex items-start justify-between gap-3 border-t border-border pt-4">
+                <dt className="text-muted-foreground">Memory recall</dt>
+                <dd className="font-medium">
+                  {automaticRecallEnabled ? "On" : "Off"}
                 </dd>
               </div>
             </dl>

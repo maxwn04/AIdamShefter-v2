@@ -27,7 +27,11 @@ from backend.services.reporter.runner.completion import (
     CompletionSettings,
     make_completion_client,
 )
-from backend.services.reporter.runner.recording import ExecutionRecorder
+from backend.services.reporter.runner.memory_closeout import MemoryCloseoutState
+from backend.services.reporter.runner.recording import (
+    ExecutionRecorder,
+    MemoryRecallRecord,
+)
 from backend.services.reporter.runner.research_brief import (
     BriefBias,
     BriefContext,
@@ -41,6 +45,9 @@ from backend.services.reporter.runner.state import ArtifactStore, RunnerConfig
 from backend.services.reporter.runner.tools.artifact_tools import register_artifact_tools
 from backend.services.reporter.runner.tools.brief_tools import register_brief_tools
 from backend.services.reporter.runner.tools.datalayer_tools import register_datalayer_tools
+from backend.services.reporter.runner.tools.memory_closeout_tools import (
+    register_memory_closeout_tools,
+)
 from backend.services.reporter.runner.tools.memory_tools import register_memory_tools
 from backend.services.reporter.runner.tools.procedure_tools import register_procedure_tools
 from backend.services.reporter.runner.tools.registry import ToolRegistry
@@ -63,6 +70,7 @@ async def generate_article(
     complete: CompletionFn | None = None,
     recorder: ExecutionRecorder | None = None,
     allow_memory_writes: bool = True,
+    automatic_memory_recall: bool = True,
     definition: PreparedReporterDefinition | None = None,
 ) -> ReporterOutput:
     """Generate an article with the single-loop v2 runner.
@@ -79,6 +87,8 @@ async def generate_article(
         recorder: Optional generation-scoped durable execution recorder.
         allow_memory_writes: When False (eval mode), skip memory mutations
             while retaining pinned memory search.
+        automatic_memory_recall: When False, retain memory tools and closeout
+            while skipping the generation-start recall prelude.
     """
     prepared = definition or prepare_reporter_definition(
         memory_enabled=memory_context is not None
@@ -120,16 +130,38 @@ async def generate_article(
         artifacts=ArtifactStore(),
         brief=brief,
         recorder=resolved_recorder,
+        memory_closeout=(
+            MemoryCloseoutState(
+                procedure=prepared.procedure_contents["memory_closeout"],
+                memory_writes_enabled=allow_memory_writes,
+                proposal_snapshot=memory_context.proposal_snapshot,
+            )
+            if memory_context is not None
+            else None
+        ),
     )
 
-    output = await runner.run(prepared.system_prompt, _build_user_message(config))
-    if (
-        memory_adapter is not None
-        and allow_memory_writes
-        and output.run_log_summary.get("submitted") is True
-    ):
-        memory_adapter.buffer_brief_facts(output.research_brief)
-    return output
+    initial_context: tuple[str, ...] = ()
+    if memory_adapter is not None and automatic_memory_recall:
+        recall = memory_adapter.build_recall(config)
+        if resolved_recorder is not None:
+            record_recall = getattr(resolved_recorder, "record_memory_recall", None)
+            if callable(record_recall):
+                record_recall(
+                    MemoryRecallRecord(
+                        status=recall.status,
+                        result=recall.result,
+                        result_text=recall.result_text,
+                        metadata=recall.metadata,
+                    )
+                )
+        initial_context = (recall.result_text,)
+
+    return await runner.run(
+        prepared.system_prompt,
+        _build_user_message(config),
+        initial_context=initial_context,
+    )
 
 
 def _build_registry(
@@ -152,6 +184,7 @@ def _build_registry(
             data,
             allow_memory_writes=allow_memory_writes,
         )
+        register_memory_closeout_tools(registry)
     return registry, memory_adapter
 
 

@@ -17,7 +17,7 @@ Use this guide when a publishable draft exists and the remaining question is whe
 - Reuse the current draft and brief state when available. Use `read_artifact` or `read_brief` when state is unknown or a complete review will add value.
 - Use the smallest targeted datalayer view to resolve a missing, suspicious, or conflicting claim, then save the corrected evidence.
 - Use `edit_artifact` for a real correction or meaningful improvement, carrying forward the returned revision.
-- Use `submit_artifact` only after the actual draft meets the publication goal. Submission pins that revision and ends the loop.
+- Use `submit_artifact` only after the actual draft meets the publication goal. Submission pins that revision. When its result supplies the mandatory `memory_closeout` procedure, the same conversation continues for memory review and ends only through `complete_memory_review`.
 
 ## Audit Judgment
 
@@ -36,4 +36,4 @@ Use this guide when a publishable draft exists and the remaining question is whe
 
 Return to research when missing or questionable evidence could change a material claim. Return to storyline work when the facts are sound but the thesis or emphasis is misleading. Return to drafting when corrections require substantial prose changes.
 
-This goal is complete when no known material issue remains and another review would mostly repeat the same checks. Submit the current verified revision directly; a revision conflict means the artifact must be reread and publication confidence re-established.
+This goal is complete when no known material issue remains and another review would mostly repeat the same checks. Submit the current verified revision directly; a revision conflict means the artifact must be reread and publication confidence re-established. After a successful submission, do not revise the article. Follow any mandatory closeout procedure returned by the tool.

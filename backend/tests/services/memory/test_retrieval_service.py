@@ -123,6 +123,9 @@ def test_search_hydrates_all_kinds_and_expands_typed_references(
     assert [match.score for match in result.matches] == [
         candidate.score for candidate in candidates
     ]
+    assert [match.week for match in result.matches] == [
+        candidate.week for candidate in candidates
+    ]
     by_kind = {match.memory.item.kind: match for match in result.matches}
     assert set(by_kind) == set(MemoryKind)
     event = cast(Event, by_kind[MemoryKind.EVENT].memory)

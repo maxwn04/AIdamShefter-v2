@@ -43,6 +43,10 @@ from backend.resources.reporting.generations import (
     GenerationStatus,
     GenerationSummary,
 )
+from backend.resources.reporting.memory_recalls import (
+    GenerationMemoryRecall,
+    MemoryRecallStatus,
+)
 from backend.resources.reporting.tool_calls import (
     ToolCall,
     ToolCallPage,
@@ -252,8 +256,9 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
         implementation_version="1",
         arguments={"week": 8},
         status=ToolCallStatus.SUCCEEDED,
-        full_result_text='{"found":true}',
-        structured_result={"found": True},
+        result={"found": True},
+        result_text='{"found":true}',
+        metadata={"candidate_count": 3},
         error_text=None,
         error=None,
         started_at=NOW,
@@ -262,6 +267,24 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
     )
     tool_summary = ToolCallSummary.model_validate(
         tool_call.model_dump(include=set(ToolCallSummary.model_fields))
+    )
+    recall = GenerationMemoryRecall(
+        generation_id=generation_id,
+        status=MemoryRecallStatus.COMPLETE,
+        result={
+            "context_type": "automatic_reporter_memory",
+            "due_callbacks": [],
+            "standing_context": [],
+            "likely_relevant_memories": [],
+            "partial": False,
+        },
+        result_text=(
+            '{"context_type":"automatic_reporter_memory",'
+            '"due_callbacks":[],"standing_context":[],'
+            '"likely_relevant_memories":[],"partial":false}'
+        ),
+        metadata={"pinned_revision": 3},
+        created_at=NOW,
     )
     artifact = Artifact(
         id=artifact_id,
@@ -361,6 +384,7 @@ def _dependencies(competition_id: UUID, season_id: UUID) -> SimpleNamespace:
             exact=tool_call,
             page=ToolCallPage(items=(tool_summary,), total=1, limit=50, offset=0),
         ),
+        memory_recalls=StubManager(exact=recall, page=None),
         artifacts=StubManager(
             exact=artifact,
             page=ArtifactPage(
@@ -470,6 +494,14 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
         articles = await client.get(f"{base}/articles")
         detail = await client.get(f"{base}/{generation.id}")
         usage_response = await client.get(f"{base}/{generation.id}/usage")
+        recall_response = await client.get(
+            f"{base}/{generation.id}/memory-recall"
+        )
+        expected_recall_text = dependencies.memory_recalls.exact.result_text
+        dependencies.memory_recalls.exact = None
+        legacy_recall_response = await client.get(
+            f"{base}/{generation.id}/memory-recall"
+        )
         article = await client.get(f"{base}/{generation.id}/article")
         ai_calls = await client.get(f"{base}/{generation.id}/ai-calls")
         ai_call = await client.get(
@@ -503,12 +535,23 @@ async def test_polling_and_resource_routes_preserve_durable_payloads() -> None:
     assert detail.json()["generation"]["input_manifest"] == {"schema_version": 1}
     assert usage_response.json()["usage"]["estimated_cost"] == "0.0012"
     assert dependencies.usage.generation_ids == [generation.id]
+    assert recall_response.json()["recall"]["result_text"] == (
+        expected_recall_text
+    )
+    assert recall_response.json()["recall"]["metadata"] == {
+        "pinned_revision": 3
+    }
+    assert legacy_recall_response.json() == {"recall": None}
     assert article.json()["version"]["content"] == "# Final article"
     assert ai_calls.json()["page"]["items"][0]["usage"]["total_tokens"] == 140
     assert ai_call.json()["ai_call"]["usage"]["raw_provider_usage"] == {
         "provider_total": 140
     }
-    assert tool_call.json()["tool_call"]["full_result_text"] == '{"found":true}'
+    assert tool_call.json()["tool_call"]["result"] == {"found": True}
+    assert tool_call.json()["tool_call"]["result_text"] == '{"found":true}'
+    assert tool_call.json()["tool_call"]["metadata"] == {"candidate_count": 3}
+    assert "full_result_text" not in tool_call.json()["tool_call"]
+    assert "structured_result" not in tool_call.json()["tool_call"]
     assert artifacts.json()["page"]["items"][0]["path"] == "article.md"
     assert artifacts.json()["page"]["items"][0]["revision_count"] == 2
     assert (
@@ -565,6 +608,7 @@ def test_openapi_contains_generation_polling_and_audit_boundaries() -> None:
         f"{generation}/reruns",
         f"{generation}/article",
         f"{generation}/usage",
+        f"{generation}/memory-recall",
         f"{generation}/ai-calls",
         f"{generation}/ai-calls/{{ai_call_id}}",
         f"{generation}/tool-calls",

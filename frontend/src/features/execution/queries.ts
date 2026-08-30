@@ -3,7 +3,9 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { queryKeys } from "@/api/query-keys";
 import {
   getAICall,
+  getGenerationMemoryRecall,
   getToolCall,
+  listGenerationMemoryToolCalls,
   listGenerationToolCalls,
   listAICalls,
   listToolCalls,
@@ -39,6 +41,53 @@ export function useAICallList(
       listAICalls(competitionId, generationId, parameters, signal),
     enabled: enabled && competitionId.length > 0 && generationId.length > 0,
     placeholderData: keepPreviousData,
+    refetchInterval:
+      enabled && generationActive && browserCanPoll()
+        ? ACTIVE_SUMMARY_POLL_MS
+        : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useGenerationMemoryRecall(
+  competitionId: string,
+  generationId: string,
+  enabled: boolean,
+  generationActive: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.competitions.generationMemoryRecall(
+      competitionId,
+      generationId,
+    ),
+    queryFn: ({ signal }) =>
+      getGenerationMemoryRecall(competitionId, generationId, signal),
+    enabled: enabled && competitionId.length > 0 && generationId.length > 0,
+    refetchInterval: (query) =>
+      enabled &&
+      generationActive &&
+      query.state.data?.recall == null &&
+      browserCanPoll()
+        ? ACTIVE_SUMMARY_POLL_MS
+        : false,
+    refetchIntervalInBackground: false,
+  });
+}
+
+export function useGenerationMemoryToolCalls(
+  competitionId: string,
+  generationId: string,
+  enabled: boolean,
+  generationActive: boolean,
+) {
+  return useQuery({
+    queryKey: queryKeys.competitions.generationMemoryActivity(
+      competitionId,
+      generationId,
+    ),
+    queryFn: ({ signal }) =>
+      listGenerationMemoryToolCalls(competitionId, generationId, signal),
+    enabled: enabled && competitionId.length > 0 && generationId.length > 0,
     refetchInterval:
       enabled && generationActive && browserCanPoll()
         ? ACTIVE_SUMMARY_POLL_MS

@@ -128,6 +128,11 @@ class ToolCall(Base):
     implementation_version: Mapped[str] = mapped_column(Text, nullable=False)
     arguments_jsonb: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False)
+    result_jsonb: Mapped[Any | None] = mapped_column(JSONB, nullable=True)
+    result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_jsonb: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     full_result_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     structured_result_jsonb: Mapped[dict[str, Any] | list[Any] | None] = mapped_column(
         JSONB, nullable=True

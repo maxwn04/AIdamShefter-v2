@@ -59,6 +59,12 @@ from backend.resources.reporting.tool_calls import (
     ToolCallSummary,
     ToolCallTerminalStatus,
 )
+from backend.resources.reporting.memory_recalls import (
+    GenerationMemoryRecall,
+    GenerationMemoryRecallManager,
+    MemoryRecallStatus,
+    RecordGenerationMemoryRecall,
+)
 
 __all__ = [
     "AICall",
@@ -91,6 +97,8 @@ __all__ = [
     "GenerationKind",
     "GenerationLifecycleConflict",
     "GenerationManager",
+    "GenerationMemoryRecall",
+    "GenerationMemoryRecallManager",
     "GenerationPage",
     "GenerationQuery",
     "GenerationResourceError",
@@ -98,6 +106,8 @@ __all__ = [
     "GenerationStatus",
     "GenerationSummary",
     "StartGeneration",
+    "MemoryRecallStatus",
+    "RecordGenerationMemoryRecall",
     "TokenUsage",
     "ToolCall",
     "ToolCallConcurrencyConflict",

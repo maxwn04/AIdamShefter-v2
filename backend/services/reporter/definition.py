@@ -20,6 +20,10 @@ from backend.services.reporter.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_IMPLEMENTATION_VERSION,
     DATALAYER_TOOL_SPECS,
 )
+from backend.services.reporter.runner.tools.memory_closeout_tools import (
+    MEMORY_CLOSEOUT_TOOL_IMPLEMENTATION_VERSION,
+    MEMORY_CLOSEOUT_TOOL_SPECS,
+)
 from backend.services.reporter.runner.tools.memory_tools import (
     MEMORY_TOOL_IMPLEMENTATION_VERSION,
     MEMORY_TOOL_SPECS,
@@ -71,12 +75,15 @@ def prepare_reporter_definition(
     system_prompt = (reporter_dir / "prompts" / "system.md").read_text(
         encoding="utf-8"
     ).strip()
+    procedure_names = set(VALID_PROCEDURES)
+    if memory_enabled:
+        procedure_names.add("memory_closeout")
     procedures = tuple(
         PreparedProcedure(
             name=name,
             content=(PROCEDURE_DIR / f"{name}.md").read_text(encoding="utf-8"),
         )
-        for name in sorted(VALID_PROCEDURES)
+        for name in sorted(procedure_names)
     )
     groups = [
         (ARTIFACT_TOOL_SPECS, ARTIFACT_TOOL_IMPLEMENTATION_VERSION),
@@ -86,6 +93,12 @@ def prepare_reporter_definition(
     ]
     if memory_enabled:
         groups.append((MEMORY_TOOL_SPECS, MEMORY_TOOL_IMPLEMENTATION_VERSION))
+        groups.append(
+            (
+                MEMORY_CLOSEOUT_TOOL_SPECS,
+                MEMORY_CLOSEOUT_TOOL_IMPLEMENTATION_VERSION,
+            )
+        )
 
     tools = tuple(
         PreparedTool(

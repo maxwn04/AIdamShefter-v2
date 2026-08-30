@@ -14,7 +14,7 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 
 - Use `read_brief` when the current facts, callbacks, storylines, or outline are not already available in context.
 - Use a targeted datalayer call when a promising angle has one material evidence gap. Return to broader research only when the premise itself needs substantial investigation.
-- For recaps and requests about storylines, trends, rankings, or retrospectives, use `search_memory` after current evidence reveals a concrete team, player, transaction, matchup, or stakes hook. Prefer structured team keys; when lexical text is needed, test one focused concept or explicit alternative set rather than packing unrelated names into one query. Skip it for purely narrow factual work, and discard matches dated after the configured coverage.
+- Start from any automatically recalled callbacks, standing context, and likely relevant memories. Use `search_memory` only when current evidence reveals a distinct continuity question that the prelude does not answer. Search by editorial intent with team names, focused text or tags, and inclusive week bounds when useful. Treat all semantic memory as leads, verify material claims with datalayer tools, and discard memories beyond configured coverage.
 - Use `save_storyline` for developed narrative angles supported by saved fact IDs.
 - Use `save_memory_callback` only after the older event and current payoff both exist as reverified facts.
 - Use `set_outline` when explicit structure will improve emphasis, coverage, or drafting. An outline is optional and revisable.
@@ -34,7 +34,7 @@ Use this guide when the evidence is real but the central thesis, hierarchy of an
 
 ## Continuity Judgment
 
-After a successful live submission, the runtime automatically buffers the supporting facts referenced by final brief storylines, but it does not persist the storyline card itself. Use `upsert_storyline_memory_card` to maintain the durable narrative state of an arc when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Add a trigger only when a specific future condition would make the arc useful again.
+Brief storylines and their supporting facts remain working state for the current article; neither becomes durable automatically. During mandatory closeout, use `upsert_storyline_memory_card` to preserve an arc when a future generation could usefully recognize its next payoff or reversal. Relevant examples include trade evaluations, revenge or rematch conditions, playoff reversals, recurring lineup mistakes, waiver payoffs, and rivalry escalation. Add a trigger only when a specific future condition would make the arc useful again.
 
 ## Stop Or Switch
 

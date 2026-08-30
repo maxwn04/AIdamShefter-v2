@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from backend.services.reporter import prepare_reporter_definition
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
@@ -27,6 +29,9 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
     from backend.services.reporter.runner.tools.memory_tools import (
         register_memory_tools,
     )
+    from backend.services.reporter.runner.tools.memory_closeout_tools import (
+        register_memory_closeout_tools,
+    )
 
     data = object()
     memory = object()
@@ -39,6 +44,7 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
         memory,  # type: ignore[arg-type]
         data,  # type: ignore[arg-type]
     )
+    register_memory_closeout_tools(registry)
 
     assert registry.tool_specs == [tool.definition for tool in definition.tools]
     assert registry.tool_implementation_versions == [
@@ -50,6 +56,7 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
         "research",
         "storyline",
         "verification",
+        "memory_closeout",
     }
 
 
@@ -64,10 +71,17 @@ def test_definition_without_memory_omits_only_memory_tools() -> None:
         "save_storyline_trigger",
         "save_team_context",
         "save_league_note",
+        "complete_memory_review",
     }
     assert {tool.name for tool in with_memory.tools} - {
         tool.name for tool in without_memory.tools
     } == memory_names
+    assert {procedure.name for procedure in without_memory.procedures} == {
+        "drafting",
+        "research",
+        "storyline",
+        "verification",
+    }
 
 
 def test_registered_procedure_uses_prepared_content() -> None:
@@ -85,3 +99,22 @@ def test_registered_procedure_uses_prepared_content() -> None:
 
     assert handler is not None
     assert handler(name="research") == "frozen research"
+
+
+def test_memory_closeout_procedure_cannot_be_loaded_before_submission() -> None:
+    definition = prepare_reporter_definition(memory_enabled=True)
+    registry = ToolRegistry()
+    register_procedure_tools(registry, definition.procedure_contents)
+    registry.set_context(
+        ToolContext(
+            artifacts=ArtifactStore(),
+            procedures=ProcedureState(),
+            log=RunLog(),
+        )
+    )
+
+    handler = registry.get_handler("load_procedure")
+
+    assert handler is not None
+    result = json.loads(handler(name="memory_closeout"))
+    assert result["error"].startswith("Unknown procedure: memory_closeout")

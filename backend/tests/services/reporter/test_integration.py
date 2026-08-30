@@ -8,6 +8,8 @@ from types import SimpleNamespace
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
+
 from backend.services.datalayer import FrozenRosterIdentity, ResolvedRosterIdentity
 from backend.services.memory import (
     GenerationMemoryContext,
@@ -15,6 +17,7 @@ from backend.services.memory import (
     MemoryRetrievalResult,
 )
 from backend.services.reporter.config import ReportConfig, TimeRange
+from backend.services.reporter.definition import prepare_reporter_definition
 from backend.services.reporter.generator import generate_article
 from backend.services.reporter.runner.completion import CompletionSettings
 from backend.services.reporter.runner.models import ToolCall
@@ -38,7 +41,9 @@ class ExecutionRecordingProbe:
         self.attempt_turns: dict[UUID, int] = {}
         self.successful_turns: dict[int, UUID] = {}
         self.tool_ai_calls: dict[UUID, UUID] = {}
+        self.tool_names: list[str] = []
         self.artifact_mutations: list[ArtifactMutation] = []
+        self.memory_recalls: list[Any] = []
 
     def begin_model_attempt(self, attempt):
         attempt_id = uuid4()
@@ -54,6 +59,7 @@ class ExecutionRecordingProbe:
 
     def begin_tool_execution(self, execution):
         execution_id = uuid4()
+        self.tool_names.append(execution.tool_name)
         self.tool_ai_calls[execution_id] = self.successful_turns[
             execution.turn_number
         ]
@@ -68,6 +74,9 @@ class ExecutionRecordingProbe:
     def record_artifact_mutation(self, mutation: ArtifactMutation) -> UUID:
         self.artifact_mutations.append(mutation)
         return uuid4()
+
+    def record_memory_recall(self, recall: Any) -> None:
+        self.memory_recalls.append(recall)
 
 
 class FakeFrozenLeagueData:
@@ -105,16 +114,17 @@ class FakeFrozenLeagueData:
         return {"columns": [], "rows": [], "row_count": 0}
 
     def resolve_roster_identity(self, roster_key: str) -> ResolvedRosterIdentity:
+        is_waiver_wire = roster_key == "Waiver Wire"
         return ResolvedRosterIdentity(
             roster_key=roster_key,
             identity=FrozenRosterIdentity(
                 competition_id=UUID(int=1),
                 competition_season_id=UUID(int=2),
-                season_roster_id=UUID(int=3),
-                franchise_id=UUID(int=4),
-                sleeper_roster_id="1",
-                team_name="Team Taco",
-                manager_name="Alice",
+                season_roster_id=UUID(int=5 if is_waiver_wire else 3),
+                franchise_id=UUID(int=6 if is_waiver_wire else 4),
+                sleeper_roster_id="2" if is_waiver_wire else "1",
+                team_name="Waiver Wire" if is_waiver_wire else "Team Taco",
+                manager_name="Bob" if is_waiver_wire else "Alice",
             ),
         )
 
@@ -411,7 +421,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
     assert all(item.source_tool_call_id is not None for item in tool_mutations)
 
 
-def test_generate_article_automatically_bridges_final_brief_storyline_facts() -> None:
+def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> None:
     recorder = ExecutionRecordingProbe()
     memory_context = GenerationMemoryContext(
         competition_id=UUID(int=1),
@@ -474,6 +484,15 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
                     )
                 ]
             ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "complete_memory_review",
+                        {},
+                        "no-op-closeout-call",
+                    )
+                ]
+            ),
         ]
     )
 
@@ -489,18 +508,383 @@ def test_generate_article_automatically_bridges_final_brief_storyline_facts() ->
     )
 
     assert output.submitted_path == "article.md"
-    bundle = memory_context.take_completed_bundle()
-    assert [proposal.kind.value for proposal in bundle.proposals] == ["fact"]
-    fact = bundle.proposals[0]
-    assert fact.metadata.agent_key == (
-        "brief:story_taco_push:8:fact_taco_win"
+    prepared = prepare_reporter_definition(memory_enabled=True)
+    submit_result = next(
+        json.loads(message["content"])
+        for message in complete.requests[-1]["messages"]
+        if message.get("tool_call_id") == "submit-call"
     )
-    assert fact.content.source_hints == {
-        "brief_fact_id": "fact_taco_win",
-        "brief_storyline_id": "story_taco_push",
-        "data_refs": ["league_snapshot:week=8"],
+    assert submit_result["next_action"] == {
+        "type": "mandatory_procedure",
+        "name": "memory_closeout",
+        "content": prepared.procedure_contents["memory_closeout"],
+        "completion_tool": "complete_memory_review",
+        "memory_writes_enabled": True,
     }
-    assert fact.metadata.creating_tool_call_id is None
+    assert all(
+        request["tools"] == complete.requests[0]["tools"]
+        for request in complete.requests
+    )
+    assert output.run_log_summary["memory_closeout"]["status"] == "completed"
+    assert output.run_log_summary["memory_closeout"]["no_op"] is True
+    assert memory_context.take_completed_bundle().proposals == ()
+
+
+@pytest.mark.parametrize(
+    ("allow_memory_writes", "expected_proposals"),
+    [(True, 5), (False, 0)],
+)
+def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
+    allow_memory_writes: bool,
+    expected_proposals: int,
+) -> None:
+    recorder = ExecutionRecordingProbe()
+    memory_context = GenerationMemoryContext(
+        competition_id=UUID(int=1),
+        generation_id=uuid4(),
+        pinned_revision_id=uuid4(),
+        retrieval=EmptyMemoryRetrieval(),
+        competition_season_id=UUID(int=2),
+        week=8,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_fact",
+                        {
+                            "id": "fact_closeout_fixture",
+                            "claim_text": "Week 8 supplied a verified fact.",
+                            "data_refs": ["league_snapshot:week=8"],
+                        },
+                        "fact-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nVerified."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "save_memory_event",
+                        {
+                            "id": "event_closeout_matchup",
+                            "event_type": "matchup",
+                            "week": 8,
+                            "headline": "Team Taco won the Week 8 matchup.",
+                            "summary": "Team Taco defeated Waiver Wire.",
+                            "importance": 4,
+                            "confidence": "verified",
+                            "source_refs": ["league_snapshot:week=8"],
+                            "matchup_id": "week-8-1",
+                            "details": {
+                                "kind": "matchup",
+                                "winner_roster_key": "Team Taco",
+                                "loser_roster_key": "Waiver Wire",
+                                "sleeper_matchup_id": "week-8-1",
+                            },
+                        },
+                        "event-memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "upsert_storyline_memory_card",
+                        {
+                            "id": "story_closeout_push",
+                            "headline": "Taco Takes Control",
+                            "summary": "The playoff push is real.",
+                            "status": "active",
+                            "priority": 4,
+                            "origin_week": 8,
+                            "team_keys": ["Team Taco"],
+                            "evidence_event_ids": ["event_closeout_matchup"],
+                        },
+                        "storyline-memory-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "complete_memory_review",
+                        {},
+                        "complete-call",
+                    ),
+                    tool_call(
+                        "save_league_note",
+                        {
+                            "key": "closeout_note",
+                            "value": "A durable league-wide closeout note.",
+                        },
+                        "memory-call",
+                    ),
+                    tool_call(
+                        "save_team_context",
+                        {
+                            "roster_key": "Team Taco",
+                            "narrative": "Team Taco is surging toward the playoffs.",
+                            "outlook": "surging",
+                        },
+                        "team-memory-call",
+                    ),
+                    tool_call(
+                        "save_storyline_trigger",
+                        {
+                            "id": "trigger_closeout_rematch",
+                            "storyline_id": "story_closeout_push",
+                            "trigger_type": "rematch",
+                            "target_week": 12,
+                            "condition": {
+                                "roster_keys": ["Team Taco", "Waiver Wire"]
+                            },
+                        },
+                        "trigger-memory-call",
+                    ),
+                    tool_call(
+                        "edit_artifact",
+                        {
+                            "path": "article.md",
+                            "old_text": "Verified.",
+                            "new_text": "Changed after submission.",
+                            "expected_revision": 1,
+                        },
+                        "immutable-call",
+                    ),
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            allow_memory_writes=allow_memory_writes,
+            recorder=recorder,
+        )
+    )
+
+    summary = output.run_log_summary["memory_closeout"]
+    bundle = memory_context.take_completed_bundle()
+    assert summary["status"] == "completed"
+    assert summary["proposal_counts"]["total"] == expected_proposals
+    assert summary["no_op"] is (expected_proposals == 0)
+    assert len(bundle.proposals) == expected_proposals
+    events = [
+        entry["data"]["event"]
+        for entry in output.run_log_entries
+        if entry["event_type"] == "memory_closeout"
+    ]
+    assert events[:3] == [
+        "article_submitted",
+        "closeout_activated",
+        "memory_review_completed",
+    ]
+    assert ("memory_review_noop" in events) is (expected_proposals == 0)
+    assert output.submitted_artifact is not None
+    assert output.submitted_artifact.content == "# Week 8\n\nVerified."
+    assert output.submitted_artifact.revision == 1
+    if allow_memory_writes:
+        assert summary["proposal_counts"]["by_kind"] == {
+            "context_note": 2,
+            "event": 1,
+            "storyline": 1,
+            "trigger": 1,
+        }
+        assert summary["proposal_counts"]["by_operation"] == {"create": 5}
+        kinds = [proposal.kind.value for proposal in bundle.proposals]
+        assert kinds.count("event") == 1
+        assert kinds.count("storyline") == 1
+        assert kinds.count("trigger") == 1
+        assert kinds.count("context_note") == 2
+        assert all(proposal.operation == "create" for proposal in bundle.proposals)
+        assert all(
+            proposal.metadata.creating_tool_call_id is not None
+            for proposal in bundle.proposals
+        )
+        assert all(proposal.kind.value != "fact" for proposal in bundle.proposals)
+    else:
+        assert summary["proposal_counts"]["by_kind"] == {}
+        assert summary["proposal_counts"]["by_operation"] == {}
+
+
+def test_generation_starts_with_exact_recorded_automatic_recall_context() -> None:
+    from backend.tests.services.reporter.test_memory_recall import (
+        COMPETITION_ID,
+        CUTOFF,
+        REVISION_ID,
+        Retrieval,
+        SEASON_ID,
+        _note,
+        _trigger,
+    )
+
+    recorder = ExecutionRecordingProbe()
+    retrieval = Retrieval(
+        triggers=(_trigger(80, target_week=8, target_at=CUTOFF),),
+        notes=(_note(81, {"scope": "competition", "note_key": "league"}),),
+    )
+    memory_context = GenerationMemoryContext(
+        competition_id=COMPETITION_ID,
+        generation_id=uuid4(),
+        pinned_revision_id=REVISION_ID,
+        retrieval=retrieval,
+        competition_season_id=SEASON_ID,
+        week=8,
+        knowledge_cutoff_at=CUTOFF,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nTaco won."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    output = run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+        )
+    )
+
+    assert output.artifacts[0].path == "article.md"
+    assert len(recorder.memory_recalls) == 1
+    recorded = recorder.memory_recalls[0]
+    messages = complete.requests[0]["messages"]
+    assert [message["role"] for message in messages[:3]] == [
+        "system",
+        "user",
+        "user",
+    ]
+    assert messages[1]["content"] == recorded.result_text
+    assert all(
+        request["messages"][1]["content"] == recorded.result_text
+        for request in complete.requests
+    )
+    assert "due_callbacks" in messages[1]["content"]
+    assert "standing_context" in messages[1]["content"]
+    assert "Context note 81" in messages[1]["content"]
+    assert "pinned_revision_id" not in messages[1]["content"]
+    assert recorded.metadata["pinned_revision_id"] == str(REVISION_ID)
+    assert "search_memory" not in recorder.tool_names
+
+
+def test_generation_can_disable_automatic_recall_without_removing_memory_tools() -> None:
+    from backend.tests.services.reporter.test_memory_recall import (
+        COMPETITION_ID,
+        CUTOFF,
+        REVISION_ID,
+        Retrieval,
+        SEASON_ID,
+        _note,
+        _trigger,
+    )
+
+    recorder = ExecutionRecordingProbe()
+    memory_context = GenerationMemoryContext(
+        competition_id=COMPETITION_ID,
+        generation_id=uuid4(),
+        pinned_revision_id=REVISION_ID,
+        retrieval=Retrieval(
+            triggers=(_trigger(80, target_week=8, target_at=CUTOFF),),
+            notes=(_note(81, {"scope": "competition", "note_key": "league"}),),
+        ),
+        competition_season_id=SEASON_ID,
+        week=8,
+        knowledge_cutoff_at=CUTOFF,
+    )
+    complete = FakeCompletion(
+        [
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "create_artifact",
+                        {"path": "article.md", "content": "# Week 8\n\nTaco won."},
+                        "create-call",
+                    )
+                ]
+            ),
+            make_response(
+                tool_calls=[
+                    tool_call(
+                        "submit_artifact",
+                        {"path": "article.md", "expected_revision": 1},
+                        "submit-call",
+                    )
+                ]
+            ),
+        ]
+    )
+
+    run(
+        generate_article(
+            FakeFrozenLeagueData(),  # type: ignore[arg-type]
+            ReportConfig.for_week(8),
+            memory_context=memory_context,
+            completion=CompletionSettings(model="test-model"),
+            complete=complete,
+            recorder=recorder,
+            automatic_memory_recall=False,
+        )
+    )
+
+    assert recorder.memory_recalls == []
+    assert [message["role"] for message in complete.requests[0]["messages"][:2]] == [
+        "system",
+        "user",
+    ]
+    assert complete.requests[0]["messages"][1]["content"].startswith(
+        "Generate a fantasy football article"
+    )
+    tool_names = [
+        definition["function"]["name"]
+        for definition in complete.requests[0]["tools"]
+    ]
+    assert "search_memory" in tool_names
+    assert "complete_memory_review" in tool_names
 
 
 def test_generate_article_allows_backtracking_from_drafting_to_research() -> None:

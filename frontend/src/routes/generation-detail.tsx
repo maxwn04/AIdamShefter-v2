@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubmittedArticlePanel } from "@/features/articles/submitted-article-panel";
 import { ArtifactBrowser } from "@/features/artifacts/artifact-browser";
 import { ExecutionTimeline } from "@/features/execution/execution-timeline";
+import { GenerationMemoryPanel } from "@/features/execution/generation-memory-panel";
 import {
   createGenerationFormValuesFromDetail,
   saveGenerationDraft,
@@ -41,7 +42,13 @@ import { UsagePanel } from "@/features/usage/usage-panel";
 import { cn } from "@/lib/utils";
 
 const seasonListParameters = { limit: 200, offset: 0 } as const;
-const detailTabs = ["article", "artifacts", "execution", "usage"] as const;
+const detailTabs = [
+  "article",
+  "artifacts",
+  "memory",
+  "execution",
+  "usage",
+] as const;
 type DetailTab = (typeof detailTabs)[number];
 
 function detailTab(value: string | null, submitted: boolean): DetailTab {
@@ -443,6 +450,14 @@ export function Component(): React.JSX.Element {
               </dd>
             </div>
             <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
+              <dt className="text-muted-foreground">Automatic recall</dt>
+              <dd className="text-right font-medium">
+                {editableValues?.memory.automaticRecall === false
+                  ? "Off"
+                  : "On"}
+              </dd>
+            </div>
+            <div className="flex items-start justify-between gap-4 border-t border-border pt-4">
               <dt className="text-muted-foreground">Created</dt>
               <dd className="text-right">
                 <DateTime value={generation.created_at} showExact />
@@ -490,6 +505,7 @@ export function Component(): React.JSX.Element {
                 Article
               </TabsTrigger>
               <TabsTrigger value="artifacts">Artifacts</TabsTrigger>
+              <TabsTrigger value="memory">Memory</TabsTrigger>
               <TabsTrigger value="execution">Execution</TabsTrigger>
               <TabsTrigger value="usage">Usage</TabsTrigger>
             </TabsList>
@@ -520,6 +536,18 @@ export function Component(): React.JSX.Element {
               generationId={resolvedGenerationId}
               active={activeTab === "execution"}
               generationActive={active}
+            />
+          </TabsContent>
+          <TabsContent value="memory">
+            <GenerationMemoryPanel
+              key={resolvedGenerationId}
+              competitionId={resolvedCompetitionId}
+              generationId={resolvedGenerationId}
+              active={activeTab === "memory"}
+              generationActive={active}
+              automaticRecallEnabled={
+                editableValues?.memory.automaticRecall ?? true
+              }
             />
           </TabsContent>
           <TabsContent value="usage">

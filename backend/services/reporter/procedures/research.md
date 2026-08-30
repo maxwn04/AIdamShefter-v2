@@ -40,17 +40,17 @@ Run independent reads together when their results do not depend on one another. 
 
 ## Memory Judgment
 
-After the broad current-week inventory, do not treat the evidence base as sufficient for a recap or request asking for storylines, trends, rankings, retrospectives, or season context until one targeted `search_memory` continuity check has been attempted. Standings movement, streaks, contender or pretender judgments, repeated outcomes, transactions, matchups, and changed stakes are already plausible hooks; the purpose of search is to discover whether matching memory exists. Build searches from current evidence:
+Begin with any automatically recalled due callbacks, standing context, and likely relevant memories already supplied in the conversation. They can satisfy the initial continuity check, but they remain unverified narrative leads. After the current-week inventory, use `search_memory` only when a concrete team, player, transaction, matchup, or stakes question remains unanswered by that prelude. Build any supplemental search from current evidence:
 
-- Prefer `team_keys` for current team names or roster IDs, and use exact entity keys, tags, or references only when another tool has supplied them. These are alternative discovery signals, so any one may find a candidate.
-- Use `text` only for one short lexical concept, name, phrase, or explicit `OR` set. Unquoted words are jointly required; it is not semantic search. Never pack unrelated teams, players, and themes into one text query. If distinct hooks are independently valuable, test them with separate focused calls.
-- Use `kinds`, `statuses`, and `week` only as hard filters. The `week` filter selects one exact memory week, not an at-or-before cutoff; omit it for continuity spanning prior weeks.
-- Prefer 5-10 focused results. Do not perform an unfiltered browse merely because memory exists.
+- Prefer `team_keys` for current team names or roster IDs, and combine them with tags or a focused text concept when that sharpens the editorial question. Canonical memory identifiers are intentionally unavailable.
+- Use `text` for one short concept, name, phrase, or explicit `OR` set. Never pack unrelated teams, players, and themes into one query. If distinct hooks are independently valuable, test them with separate focused calls.
+- Use `kinds`, `statuses`, and inclusive `week_from` / `week_to` only when they genuinely narrow the question. Omit temporal bounds for continuity spanning the season.
+- Prefer 5-8 focused semantic results. Include evidence or related summaries when they help evaluate continuity, but remember that memory is a lead rather than proof. Do not perform an unfiltered browse merely because memory exists.
 - Discard any match dated after the article's configured coverage.
 
-This is a continuity check, not a fixed research phase. Skip it when the request is purely factual and narrow or current evidence provides no plausible historical hook. Stop after an empty or low-value result unless a more specific query is justified.
+This is optional targeted retrieval, not a fixed research phase. Do not repeat the automatic prelude as a tool call. Stop after an empty or low-value result unless a more specific question is justified.
 
-After a successful live submission, the runtime automatically buffers only the supporting facts referenced by final brief storylines; it does not create or update durable storyline cards. Use `upsert_storyline_memory_card` for an arc that should remain recognizable, and use `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` when durable event, callback, team, or league state should also be maintained. Memory work remains separate from proving today's article.
+Saved brief facts remain working evidence for this article and are not copied into durable memory. After successful submission, use mandatory closeout to explicitly select future-use continuity: `upsert_storyline_memory_card` for an arc that should remain recognizable, and `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` for durable event, callback, team, or league state. Memory selection remains separate from proving today's article.
 
 ## Stop Or Switch
 

@@ -11,6 +11,7 @@ from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecordingError,
 )
+from backend.services.reporter.runner.memory_closeout import MemoryCloseoutState
 from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 from backend.services.reporter.runner.tools.artifact_tools import (
@@ -38,6 +39,8 @@ class ArtifactRecordingProbe:
 
 def make_ctx(
     recorder: ArtifactRecordingProbe | None = None,
+    *,
+    memory_closeout: MemoryCloseoutState | None = None,
 ) -> ToolContext:
     ctx = ToolContext(
         artifacts=ArtifactStore(),
@@ -45,6 +48,7 @@ def make_ctx(
         log=RunLog(session_id="testlog"),
         turn=3,
         artifact_recorder=recorder,
+        memory_closeout=memory_closeout,
     )
     mutation = ctx.brief.prepare_fact(
         id="fact_submission_fixture",
@@ -310,7 +314,31 @@ def test_submit_pins_existing_snapshot_and_final_artifact_is_immutable() -> None
     assert repeated["error"]["code"] == "artifact_finalized"
     assert rejected_edit["error"]["code"] == "artifact_finalized"
     assert ctx.log.entries[-2].data["operation"] == "submit_artifact"
-    assert ctx.log.entries[-1].event_type == "completion"
+    assert ctx.log.entries[-1].event_type == "memory_closeout"
+    assert ctx.log.entries[-1].data["event"] == "article_submitted"
+
+
+def test_submit_returns_exact_mandatory_memory_closeout_procedure() -> None:
+    closeout = MemoryCloseoutState(
+        procedure="# Exact closeout\n\nCall the terminal tool.\n",
+        memory_writes_enabled=False,
+        proposal_snapshot=lambda: (),
+    )
+    ctx = make_ctx(memory_closeout=closeout)
+    create_artifact(ctx, path="article.md", content="# Final")
+
+    submitted = decode(
+        submit_artifact(ctx, path="article.md", expected_revision=1)
+    )
+
+    assert submitted["next_action"] == {
+        "type": "mandatory_procedure",
+        "name": "memory_closeout",
+        "content": "# Exact closeout\n\nCall the terminal tool.\n",
+        "completion_tool": "complete_memory_review",
+        "memory_writes_enabled": False,
+    }
+    assert closeout.article_submitted is False
 
 
 def test_only_changed_mutations_are_recorded_with_bound_tool_provenance() -> None:

@@ -28,6 +28,7 @@ from backend.services.memory import (
     MemoryRetrievalResult,
 )
 from backend.services.reporter.runner.run_log import RunLog
+from backend.services.reporter.runner.models import ToolExecutionResult
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.memory_tools import (
@@ -97,6 +98,25 @@ class FrozenData:
             return RosterIdentityNotFound(roster_key=roster_key)
         return ResolvedRosterIdentity(roster_key=roster_key, identity=identity)
 
+    def get_roster_identity_by_canonical_id(
+        self,
+        *,
+        franchise_id: UUID | None = None,
+        season_roster_id: UUID | None = None,
+    ) -> FrozenRosterIdentity | None:
+        return next(
+            (
+                identity
+                for identity in self.identities.values()
+                if identity.franchise_id == franchise_id
+                or identity.season_roster_id == season_roster_id
+            ),
+            None,
+        )
+
+    def get_player_summary(self, player_key: Any) -> dict[str, Any]:
+        return {"found": False, "player_key": player_key}
+
 
 def _registered(
     *,
@@ -134,11 +154,31 @@ def _registered(
     return registry, context, memory, retrieval, adapter
 
 
-def _call(registry: ToolRegistry, name: str, **arguments: Any) -> dict[str, Any]:
+def _execution_call(
+    registry: ToolRegistry, name: str, **arguments: Any
+) -> ToolExecutionResult | dict[str, Any]:
     handler = registry.get_handler(name)
     assert handler is not None
     result = handler(**arguments)
+    assert isinstance(result, (ToolExecutionResult, dict))
+    return result
+
+
+def _call(registry: ToolRegistry, name: str, **arguments: Any) -> dict[str, Any]:
+    execution = _execution_call(registry, name, **arguments)
+    result = execution.result if isinstance(execution, ToolExecutionResult) else execution
     assert isinstance(result, dict)
+    return result
+
+
+def _search_call(
+    registry: ToolRegistry,
+    **arguments: Any,
+) -> ToolExecutionResult | dict[str, Any]:
+    handler = registry.get_handler("search_memory")
+    assert handler is not None
+    result = handler(**arguments)
+    assert isinstance(result, (ToolExecutionResult, dict))
     return result
 
 
@@ -234,7 +274,7 @@ def _event_match() -> HydratedMemoryMatch:
     )
 
 
-def test_registers_legacy_semantic_surface() -> None:
+def test_registers_semantic_memory_surface() -> None:
     registry, _, _, _, _ = _registered()
     assert registry.tool_names == [
         "search_memory",
@@ -250,7 +290,7 @@ def test_registers_legacy_semantic_surface() -> None:
     ]
 
 
-def test_search_schema_explains_discovery_filters_and_lexical_syntax() -> None:
+def test_search_schema_exposes_only_editorial_selectors() -> None:
     search = next(
         spec["function"]
         for spec in MEMORY_TOOL_SPECS
@@ -259,59 +299,125 @@ def test_search_schema_explains_discovery_filters_and_lexical_syntax() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "3"
-    assert "alternative discovery signals" in description
-    assert "hard filters" in description
-    assert "not semantic search" in properties["text"]["description"]
-    assert "OR for explicit alternatives" in properties["text"]["description"]
-    assert "team names or roster IDs" in properties["team_keys"]["description"]
-    assert "one exact memory week" in properties["week"]["description"]
-    assert properties["limit"]["default"] == 10
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "5"
+    assert "editorial intent" in description
+    assert "storage identifiers" in description
+    assert set(properties) == {
+        "text",
+        "team_keys",
+        "tags",
+        "kinds",
+        "statuses",
+        "week_from",
+        "week_to",
+        "limit",
+        "include_evidence",
+        "include_related",
+    }
+    assert properties["limit"]["default"] == 8
     assert properties["limit"]["maximum"] == 25
+    assert properties["include_evidence"]["default"] is True
+    assert properties["include_related"]["default"] is True
 
 
 def test_search_remains_pinned_and_resolves_team_keys() -> None:
     registry, _, memory, retrieval, _ = _registered()
-    result = _call(registry, "search_memory", text="push", team_keys=["Team Taco"])
-    assert result["revision_id"] == str(memory.pinned_revision_id)
+    execution = _search_call(
+        registry,
+        text="push",
+        team_keys=["Team Taco"],
+    )
+    assert isinstance(execution, ToolExecutionResult)
+    assert execution.result == {
+        "memories": [],
+        "notice": "No relevant memory matched these editorial selectors.",
+        "truncated": False,
+    }
+    assert execution.metadata["pinned_revision_id"] == str(
+        memory.pinned_revision_id
+    )
     assert retrieval.calls[0].query.entity_keys == (
         f"franchise:{TACO_FRANCHISE_ID}",
         f"season_roster:{TACO_ROSTER_ID}",
     )
-    assert retrieval.calls[0].query.limit == 10
+    assert retrieval.calls[0].query.competition_season_id == SEASON_ID
+    assert retrieval.calls[0].query.limit == 9
+    assert retrieval.calls[0].expand_exact_references is True
+    assert retrieval.calls[0].expand_stable_references is True
 
 
-def test_legacy_writes_buffer_typed_proposals() -> None:
-    registry, _, memory, _, _ = _registered()
-    event = _call(registry, "save_memory_event", **_event_args())
-    card = _call(
+def test_search_rejects_identifier_inputs_and_reversed_ranges() -> None:
+    registry, _, _, retrieval, _ = _registered()
+    identifier = _search_call(registry, entity_keys=["franchise:hidden"])
+    reversed_range = _search_call(registry, week_from=9, week_to=8)
+    assert isinstance(identifier, dict)
+    assert isinstance(reversed_range, dict)
+    assert identifier["error"]["code"] == "invalid_memory_input"
+    assert reversed_range["error"]["code"] == "invalid_memory_input"
+    assert retrieval.calls == []
+
+
+def test_search_maps_editorial_range_and_expansion_preferences() -> None:
+    registry, _, _, retrieval, _ = _registered()
+    execution = _search_call(
         registry,
-        "upsert_storyline_memory_card",
-        id="story_taco",
-        headline="Taco Takes Control",
-        summary="The playoff push is real.",
-        status="active",
-        priority=4,
-        origin_week=3,
-        team_keys=["Team Taco"],
-        evidence_event_ids=["event_week8"],
+        tags=["playoffs"],
+        kinds=["storyline"],
+        statuses=["active"],
+        week_from=4,
+        week_to=8,
+        limit=3,
+        include_evidence=False,
+        include_related=False,
     )
-    trigger = _call(
-        registry,
-        "save_storyline_trigger",
-        id="trigger_rematch",
-        storyline_id="story_taco",
-        trigger_type="rematch",
-        target_week=12,
-        condition={"roster_keys": ["Team Taco", "Waiver Wire"]},
-    )
-    team = _call(registry, "save_team_context", **_note())
-    league = _call(
-        registry,
-        "save_league_note",
-        key="playoff_race",
-        value="The top seed remains unsettled.",
-    )
+    assert isinstance(execution, ToolExecutionResult)
+    request = retrieval.calls[0]
+    assert request.query.tags == ("playoffs",)
+    assert request.query.kinds == (MemoryKind.STORYLINE,)
+    assert request.query.statuses == ("active",)
+    assert request.query.week_from == 4
+    assert request.query.week_to == 8
+    assert request.query.limit == 4
+    assert request.expand_exact_references is False
+    assert request.expand_stable_references is False
+
+
+def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
+    registry, context, memory, _, _ = _registered()
+    with context.bind_tool_execution(UUID(int=101)):
+        event = _call(registry, "save_memory_event", **_event_args())
+    with context.bind_tool_execution(UUID(int=102)):
+        card = _call(
+            registry,
+            "upsert_storyline_memory_card",
+            id="story_taco",
+            headline="Taco Takes Control",
+            summary="The playoff push is real.",
+            status="active",
+            priority=4,
+            origin_week=3,
+            team_keys=["Team Taco"],
+            evidence_event_ids=["event_week8"],
+        )
+    with context.bind_tool_execution(UUID(int=103)):
+        trigger = _call(
+            registry,
+            "save_storyline_trigger",
+            id="trigger_rematch",
+            storyline_id="story_taco",
+            trigger_type="rematch",
+            target_week=12,
+            condition={"roster_keys": ["Team Taco", "Waiver Wire"]},
+        )
+    with context.bind_tool_execution(UUID(int=104)):
+        team = _call(registry, "save_team_context", **_note())
+    with context.bind_tool_execution(UUID(int=105)):
+        league = _call(
+            registry,
+            "save_league_note",
+            key="playoff_race",
+            value="The top seed remains unsettled.",
+        )
     assert all(item["ok"] for item in (event, card, trigger, team, league))
     assert card["team_ids"] == [1]
     assert team["roster_id"] == 1
@@ -330,6 +436,13 @@ def test_legacy_writes_buffer_typed_proposals() -> None:
         f"team_context:{TACO_FRANCHISE_ID}",
         "league_note:playoff_race",
     ]
+    assert [item.metadata.creating_tool_call_id for item in bundle.proposals] == [
+        UUID(int=101),
+        UUID(int=102),
+        UUID(int=103),
+        UUID(int=104),
+        UUID(int=105),
+    ]
     assert bundle.proposals[0].content.source_hints["week"] == 3
     assert bundle.proposals[0].content.source_hints["importance"] == 4
     assert bundle.proposals[0].metadata.week == 3
@@ -340,36 +453,162 @@ def test_legacy_writes_buffer_typed_proposals() -> None:
 def test_stable_id_resolves_internal_replace_revision() -> None:
     match = _event_match()
     registry, _, memory, _, _ = _registered(matches=(match,))
-    result = _call(registry, "save_memory_event", **_event_args())
+    execution = _execution_call(registry, "save_memory_event", **_event_args())
+    assert isinstance(execution, ToolExecutionResult)
+    result = execution.result
+    assert isinstance(result, dict)
     assert result["saved"] is True
+    assert "memory_kind" not in result
+    assert "operation" not in result
+    assert execution.metadata["memory_activity"] == {
+        "items": [{"path": "result", "kind": "event", "operation": "replace"}]
+    }
     proposal = memory.take_completed_bundle().proposals[0]
     assert proposal.operation == "replace"
     assert proposal.item_id == match.memory.item.item_id
     assert proposal.expected_item_revision == 7
 
 
-def test_post_submit_bridge_buffers_only_supporting_facts_idempotently() -> None:
+def test_brief_facts_never_enter_the_canonical_proposal_bundle() -> None:
     _, context, memory, _, adapter = _registered()
     _seed_brief(context)
-    first = adapter.buffer_brief_facts(context.brief.brief)
-    repeated = adapter.buffer_brief_facts(context.brief.brief)
-    assert first[0]["saved"] is True
-    assert repeated[0]["saved"] is False
-    bundle = memory.take_completed_bundle()
-    assert len(bundle.proposals) == 1
-    proposal = bundle.proposals[0]
-    assert proposal.kind is MemoryKind.FACT
-    assert proposal.metadata.agent_key == (
-        "brief:taco_playoff_push:8:taco_week8_win"
+    assert len(context.brief.brief.facts) == 1
+    assert len(context.brief.brief.storylines) == 1
+    assert not hasattr(adapter, "buffer_brief_facts")
+    assert memory.take_completed_bundle().proposals == ()
+
+
+def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> None:
+    registry, _, memory, _, _ = _registered()
+    event_args = _event_args()
+    card_args = {
+        "id": "story_taco",
+        "headline": "Taco Takes Control",
+        "summary": "The playoff push is real.",
+        "status": "active",
+        "priority": 4,
+        "origin_week": 3,
+        "team_keys": ["Team Taco"],
+        "evidence_event_ids": ["event_week8"],
+    }
+    trigger_args = {
+        "id": "trigger_rematch",
+        "storyline_id": "story_taco",
+        "trigger_type": "rematch",
+        "target_week": 12,
+        "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+    }
+    team_args = _note()
+    league_args = {
+        "key": "playoff_race",
+        "value": "The top seed remains unsettled.",
+    }
+    writes = (
+        ("save_memory_event", event_args),
+        ("upsert_storyline_memory_card", card_args),
+        ("save_storyline_trigger", trigger_args),
+        ("save_team_context", team_args),
+        ("save_league_note", league_args),
     )
-    assert proposal.content.source_hints["brief_storyline_id"] == "taco_playoff_push"
+
+    first_executions = [
+        _execution_call(registry, name, **arguments) for name, arguments in writes
+    ]
+    repeated_executions = [
+        _execution_call(registry, name, **arguments) for name, arguments in writes
+    ]
+    assert all(isinstance(result, ToolExecutionResult) for result in first_executions)
+    assert all(
+        isinstance(result, ToolExecutionResult) for result in repeated_executions
+    )
+    first = [result.result for result in first_executions]
+    repeated = [result.result for result in repeated_executions]
+
+    assert all(result["saved"] is True for result in first)
+    activity = [result.metadata["memory_activity"]["items"][0] for result in first_executions]
+    assert {item["kind"] for item in activity} == {
+        "event",
+        "storyline",
+        "trigger",
+        "context_note",
+    }
+    assert all(item["operation"] == "create" for item in activity)
+    assert all("memory_kind" not in result for result in first)
+    assert all("operation" not in result for result in first)
+    assert all(result["saved"] is False and result["no_change"] for result in repeated)
+    assert all(result.metadata == {} for result in repeated_executions)
+
+    conflicts = (
+        ("save_memory_event", {**event_args, "summary": "Conflicting event."}),
+        (
+            "upsert_storyline_memory_card",
+            {**card_args, "summary": "Conflicting storyline."},
+        ),
+        ("save_storyline_trigger", {**trigger_args, "target_week": 13}),
+        ("save_team_context", {**team_args, "narrative": "Conflicting context."}),
+        ("save_league_note", {**league_args, "value": "Conflicting note."}),
+    )
+    rejected = [_call(registry, name, **arguments) for name, arguments in conflicts]
+    assert all(result["saved"] is False for result in rejected)
+    assert all(
+        result["error"]["code"] == "memory_already_selected"
+        for result in rejected
+    )
+
+    bundle = memory.take_completed_bundle()
+    assert len(bundle.proposals) == 5
+    assert len({proposal.item_id for proposal in bundle.proposals}) == 5
+    assert all(proposal.kind is not MemoryKind.FACT for proposal in bundle.proposals)
+
+
+def test_storyline_metadata_includes_embedded_trigger_write_outcomes() -> None:
+    registry, _, memory, _, _ = _registered()
+
+    execution = _execution_call(
+        registry,
+        "upsert_storyline_memory_card",
+        id="story_taco",
+        headline="Taco Takes Control",
+        summary="The playoff push is real.",
+        status="active",
+        team_keys=["Team Taco"],
+        trigger_specs=[
+            {
+                "id": "trigger_rematch",
+                "trigger_type": "rematch",
+                "target_week": 12,
+                "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+            }
+        ],
+    )
+
+    assert isinstance(execution, ToolExecutionResult)
+    result = execution.result
+    assert isinstance(result, dict)
+    assert result["triggers"] == ["trigger_rematch"]
+    assert "trigger_results" not in result
+    assert execution.metadata["memory_activity"] == {
+        "items": [
+            {"path": "result", "kind": "storyline", "operation": "create"},
+            {
+                "path": "arguments.trigger_specs.0",
+                "kind": "trigger",
+                "operation": "create",
+            },
+        ]
+    }
+    assert [proposal.kind for proposal in memory.take_completed_bundle().proposals] == [
+        MemoryKind.STORYLINE,
+        MemoryKind.TRIGGER,
+    ]
 
 
 def test_eval_mode_keeps_search_and_skips_legacy_writes() -> None:
     registry, _, memory, retrieval, _ = _registered(allow_memory_writes=False)
-    searched = _call(registry, "search_memory", text="Taco")
+    searched = _search_call(registry, text="Taco")
     blocked = _call(registry, "save_memory_event", **_event_args())
-    assert searched["ok"] is True
+    assert isinstance(searched, ToolExecutionResult)
+    assert searched.result["memories"] == []
     assert blocked["saved"] is False
     assert blocked["eval_mode"] is True
     assert blocked["recorded"] is False

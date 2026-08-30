@@ -275,13 +275,18 @@ function ToolCallDetail({
             defaultOpen
           />
           <StructuredContentViewer
-            title="Structured result"
-            content={query.data.tool_call.structured_result ?? undefined}
+            title="Result"
+            content={query.data.tool_call.result ?? undefined}
             defaultOpen
           />
           <StructuredContentViewer
-            title="Full result text"
-            content={query.data.tool_call.full_result_text ?? undefined}
+            title="Exact result text"
+            content={query.data.tool_call.result_text ?? undefined}
+            defaultOpen
+          />
+          <StructuredContentViewer
+            title="Metadata"
+            content={query.data.tool_call.metadata}
             defaultOpen
           />
           <StructuredContentViewer

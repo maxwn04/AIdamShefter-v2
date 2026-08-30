@@ -26,6 +26,7 @@ from backend.resources.reporting.generations import (
     GenerationStatus,
     StartGeneration,
 )
+from backend.resources.reporting.memory_recalls import GenerationMemoryRecallManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.services.datalayer import (
     DatalayerSnapshotService,
@@ -122,6 +123,7 @@ class GenerationService:
         finalizer: Finalizer,
         reporter_revision: str,
         generation_revision: str,
+        memory_recalls: GenerationMemoryRecallManager | None = None,
         reporter: ReporterCallable = generate_article,
         prepare_definition: ReporterDefinitionFactory = prepare_reporter_definition,
         open_frozen_data: FrozenDataFactory = FrozenLeagueData.open,
@@ -135,6 +137,7 @@ class GenerationService:
         self._tool_calls = tool_calls
         self._artifacts = artifacts
         self._artifact_versions = artifact_versions
+        self._memory_recalls = memory_recalls
         self._finalizer = finalizer
         self._reporter_revision = _nonblank(reporter_revision, "reporter_revision")
         self._generation_revision = _nonblank(
@@ -266,6 +269,7 @@ class GenerationService:
                 self._generations,
                 self._artifacts,
                 self._artifact_versions,
+                self._memory_recalls,
             )
             with self._open_frozen_data(snapshot) as data:
                 output = await self._reporter(
@@ -276,6 +280,7 @@ class GenerationService:
                     runner_config=_runner_config(settings),
                     recorder=recorder,
                     allow_memory_writes=pending.kind is GenerationKind.LIVE,
+                    automatic_memory_recall=settings.memory.automatic_recall,
                     definition=definition,
                 )
             bundle = memory.take_completed_bundle()
@@ -449,9 +454,10 @@ def _decode_settings(value: dict[str, JsonValue]) -> GenerationSettings:
     }
     if value.get("input_policy") != expected_policy:
         raise ValueError("generation input policy differs from the submitted policy")
-    return GenerationSettings.model_validate(
-        {key: value[key] for key in ("report", "model", "runner")}
-    )
+    decoded = {key: value[key] for key in ("report", "model", "runner")}
+    if "memory" in value:
+        decoded["memory"] = value["memory"]
+    return GenerationSettings.model_validate(decoded)
 
 
 def _build_manifest(

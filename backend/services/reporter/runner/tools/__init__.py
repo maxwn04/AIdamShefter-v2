@@ -23,6 +23,11 @@ from backend.services.reporter.runner.tools.datalayer_tools import (
     DATALAYER_TOOL_SPECS,
     register_datalayer_tools,
 )
+from backend.services.reporter.runner.tools.memory_closeout_tools import (
+    MEMORY_CLOSEOUT_TOOL_SPECS,
+    complete_memory_review,
+    register_memory_closeout_tools,
+)
 from backend.services.reporter.runner.tools.memory_tools import (
     MEMORY_TOOL_SPECS,
     register_memory_tools,
@@ -38,10 +43,12 @@ __all__ = [
     "BRIEF_TOOL_SPECS",
     "ARTIFACT_TOOL_SPECS",
     "DATALAYER_TOOL_SPECS",
+    "MEMORY_CLOSEOUT_TOOL_SPECS",
     "MEMORY_TOOL_SPECS",
     "PROCEDURE_TOOL_SPECS",
     "ToolContext",
     "ToolRegistry",
+    "complete_memory_review",
     "create_artifact",
     "edit_artifact",
     "list_artifacts",
@@ -51,6 +58,7 @@ __all__ = [
     "register_artifact_tools",
     "register_brief_tools",
     "register_datalayer_tools",
+    "register_memory_closeout_tools",
     "register_memory_tools",
     "register_procedure_tools",
     "submit_artifact",

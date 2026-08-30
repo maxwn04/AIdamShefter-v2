@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
+
+from pydantic import JsonValue
 
 
 ToolDef = dict[str, Any]
@@ -20,15 +22,29 @@ class ToolCall:
     arguments: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class ToolExecutionResult:
+    """Logical tool result plus application-only execution metadata."""
+
+    result: JsonValue | str
+    metadata: dict[str, JsonValue] = field(default_factory=dict)
+
+
 def tool_result_message(call: ToolCall, result: Any) -> ChatMessage:
     """Build an OpenAI-format tool result message."""
-    content = result if isinstance(result, str) else json.dumps(result, default=str)
+    content = serialize_model_value(result)
     return {
         "role": "tool",
         "tool_call_id": call.id,
         "name": call.name,
         "content": content,
     }
+
+
+def serialize_model_value(value: Any) -> str:
+    """Serialize one logical application value exactly as model context."""
+
+    return value if isinstance(value, str) else json.dumps(value, default=str)
 
 
 def assistant_tool_call_message(

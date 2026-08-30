@@ -104,7 +104,7 @@ def _begin(
     )
 
 
-def test_tool_call_lifecycle_preserves_full_and_structured_results(
+def test_tool_call_lifecycle_preserves_result_text_and_metadata(
     ai_call_manager: AICallManager,
     tool_call_manager: ToolCallManager,
     session_factory: SessionFactory,
@@ -118,12 +118,14 @@ def test_tool_call_lifecycle_preserves_full_and_structured_results(
         FinishToolCall(
             tool_call_id=started.id,
             status="succeeded",
-            full_result_text='{"found": true, "rows": [1, 2]}',
-            structured_result={"found": True, "rows": [1, 2]},
+            result={"found": True, "rows": [1, 2]},
+            result_text='{"found": true, "rows": [1, 2]}',
+            metadata={"query_id": "private-query"},
         )
     )
-    assert finished.full_result_text == '{"found": true, "rows": [1, 2]}'
-    assert finished.structured_result == {"found": True, "rows": [1, 2]}
+    assert finished.result == {"found": True, "rows": [1, 2]}
+    assert finished.result_text == '{"found": true, "rows": [1, 2]}'
+    assert finished.metadata == {"query_id": "private-query"}
     assert finished.duration_ms is not None
     assert tool_call_manager.get(started.id) == finished
     page = tool_call_manager.list(ToolCallQuery(generation_id=generation_id))

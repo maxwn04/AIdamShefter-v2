@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from backend.services.reporter.runner.recording import (
@@ -23,6 +24,9 @@ from backend.services.reporter.runner.run_log import RunLog
 from backend.services.reporter.runner.schemas import ArtifactSnapshot
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 
+if TYPE_CHECKING:
+    from backend.services.reporter.runner.memory_closeout import MemoryCloseoutState
+
 
 @dataclass
 class ToolContext:
@@ -32,6 +36,7 @@ class ToolContext:
     brief: ResearchBriefStore = field(default_factory=ResearchBriefStore)
     turn: int = 0
     artifact_recorder: ArtifactRecorder | None = None
+    memory_closeout: MemoryCloseoutState | None = None
 
     def __post_init__(self) -> None:
         self._source_tool_call_id: ContextVar[UUID | None] = ContextVar(

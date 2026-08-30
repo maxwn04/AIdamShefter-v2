@@ -65,6 +65,18 @@ class GenerationMemoryContext:
         self._proposals: list[MemoryProposal] = []
         self._closed = False
 
+    @property
+    def competition_season_id(self) -> UUID | None:
+        return self._competition_season_id
+
+    @property
+    def week(self) -> int | None:
+        return self._week
+
+    @property
+    def knowledge_cutoff_at(self) -> datetime | None:
+        return self._knowledge_cutoff_at
+
     def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""
 
@@ -218,6 +230,12 @@ class GenerationMemoryContext:
         )
         self._closed = True
         return bundle
+
+    def proposal_snapshot(self) -> tuple[MemoryProposal, ...]:
+        """Return the currently buffered proposals without closing the context."""
+
+        self._require_open()
+        return tuple(self._proposals)
 
     def discard(self) -> None:
         """Close and erase an abandoned proposal buffer without persistence."""
