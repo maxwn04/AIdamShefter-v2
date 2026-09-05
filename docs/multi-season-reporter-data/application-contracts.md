@@ -145,6 +145,29 @@ Existing durable tool-call recording is the evidence receipt. It stores tool
 name, implementation version, arguments, result, and status, so multi-season
 access introduces no parallel evidence store.
 
+## Generation Integration Contracts
+
+New submissions persist generation-settings schema version 2. Its input policy
+uses `automatic_missing_and_latest_live_freshness`, maps live generations to
+`LIVE`, maps backtests to `READINESS_ONLY`, and derives the snapshot date from
+the UTC execution date. Generation code chooses only that mode and delegates to
+`DatalayerSnapshotPreparationService`.
+
+Already-pending settings-version-1 generations retain the exact submitted
+`never` policy and execute through the isolated version-2 snapshot adapter.
+Reruns are new submissions and therefore use settings version 2. The two
+snapshot interfaces remain separate dependencies; neither accepts a union of
+request and resolved-input contracts.
+
+Every newly started generation writes manifest schema version 2. Its snapshot
+input contains the primary season, optional factual `input_revision`, ordered
+oldest-to-primary season coverage, preparation mode, and ordered automatic
+refresh receipts. A receipt records its claim, refresh run, affected season,
+cutoff, terminal status, and claimed/joined disposition. Coverage is nonempty,
+unique, ordered, has exactly one matching final primary, and gives every
+historical season cutoff 18. Receipts must reference an included season at the
+same cutoff. Existing stored manifests are never rewritten.
+
 ## Invariants
 
 - Included seasons are exactly the primary plus all lower-sequence seasons in

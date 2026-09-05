@@ -18,28 +18,39 @@ def test_api_dependency_uses_local_actor_and_url_competition(
 ) -> None:
     competition_id = uuid4()
     correlation_id = uuid4()
-    sentinel = object()
+    closed: list[bool] = []
+    sentinel = SimpleNamespace(close=lambda: closed.append(True))
     captured: list[object] = []
 
-    def build(session_factory: object, context: object) -> object:
-        captured.extend((session_factory, context))
+    def build(
+        session_factory: object,
+        context: object,
+        *,
+        model_registry: object,
+    ) -> object:
+        captured.extend((session_factory, context, model_registry))
         return sentinel
 
     monkeypatch.setattr(api_dependencies, "build_generation_dependencies", build)
-    runtime = SimpleNamespace(session_factory="factory")
+    runtime = SimpleNamespace(session_factory="factory", model_registry="registry")
 
-    result = api_dependencies.get_generation_api_dependencies(
+    dependency = api_dependencies.get_generation_api_dependencies(
         competition_id,
         correlation_id,
         runtime,
     )
+    result = next(dependency)
 
     assert result is sentinel
     assert captured[0] == "factory"
+    assert captured[2] == "registry"
     context = captured[1]
     assert isinstance(context.actor, LocalUserActor)
     assert context.scope.competition_id == competition_id
     assert context.correlation_id == correlation_id
+    with pytest.raises(StopIteration):
+        next(dependency)
+    assert closed == [True]
 
 
 def test_worker_dependency_uses_system_actor_and_competition(

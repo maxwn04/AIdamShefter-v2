@@ -17,7 +17,18 @@ from backend.resources.reporting.generations import (
     GenerationLifecycleConflict,
     GenerationStatus,
 )
-from backend.services.datalayer import ReadyDataSnapshot, VerifiedLocalArtifact
+from backend.services.datalayer import (
+    PreparedSnapshot,
+    ReadyDataSnapshot,
+    ReadySnapshotSeason,
+    SnapshotPreparationMode,
+    VerifiedLocalArtifact,
+)
+from backend.services.datalayer.contracts import RefreshStatus
+from backend.services.datalayer.refresh_coordination import (
+    RefreshReceipt,
+    RefreshReceiptDisposition,
+)
 from backend.services.generations import (
     GenerationRequest,
     GenerationService,
@@ -155,19 +166,47 @@ class FakeGenerationManager:
         )
 
 
+class _FakeLegacySnapshots:
+    def __init__(self, owner: "FakeSnapshots") -> None:
+        self._owner = owner
+
+    def get_or_create(self, request):
+        self._owner.events.append("snapshot")
+        self._owner.legacy_requests.append(request)
+        if self._owner.error is not None:
+            raise self._owner.error
+        return self._owner.snapshot
+
+
+class _FakeSnapshotPreparation:
+    def __init__(self, owner: "FakeSnapshots") -> None:
+        self._owner = owner
+
+    def get_or_create(self, request):
+        self._owner.events.append("snapshot")
+        self._owner.preparation_requests.append(request)
+        if self._owner.error is not None:
+            raise self._owner.error
+        return PreparedSnapshot(
+            snapshot=self._owner.snapshot,
+            refresh_receipts=self._owner.refresh_receipts,
+        )
+
+
 class FakeSnapshots:
     def __init__(self, snapshot: ReadyDataSnapshot, events: list[str]) -> None:
         self.snapshot = snapshot
         self.events = events
-        self.requests = []
+        self.legacy_requests = []
+        self.preparation_requests = []
+        self.refresh_receipts = ()
         self.error: Exception | None = None
+        self.legacy = _FakeLegacySnapshots(self)
+        self.preparation = _FakeSnapshotPreparation(self)
 
-    def get_or_create(self, request):
-        self.events.append("snapshot")
-        self.requests.append(request)
-        if self.error is not None:
-            raise self.error
-        return self.snapshot
+    @property
+    def requests(self):
+        return self.preparation_requests
 
 
 class FakeRevisions:
@@ -389,12 +428,23 @@ def _snapshot(tmp_path: Path) -> ReadyDataSnapshot:
         through_week=8,
         as_of_date=NOW.date(),
         build_key="build-key",
-        snapshot_projection_version="snapshot-v2",
+        snapshot_projection_version="3",
         artifact=VerifiedLocalArtifact(
             path=(tmp_path / "snapshot.sqlite").resolve(),
             storage_key=f"snapshots/sha256/aa/{digest}.sqlite",
             sha256=digest,
             byte_length=1,
+        ),
+        input_revision="b" * 64,
+        included_seasons=(
+            ReadySnapshotSeason(
+                competition_season_id=_uuid(2),
+                sleeper_league_id="league-2026",
+                season_year=2026,
+                sequence_number=1,
+                role="primary",
+                through_week=8,
+            ),
         ),
     )
 
@@ -440,7 +490,8 @@ def _service(
     runtime = FakeFrozenData(events)
     service = GenerationService(
         generations=manager,  # type: ignore[arg-type]
-        snapshots=snapshots,
+        legacy_snapshots=snapshots.legacy,
+        snapshot_preparation=snapshots.preparation,
         revisions=revisions,  # type: ignore[arg-type]
         retrieval=SimpleNamespace(),  # type: ignore[arg-type]
         ai_calls=SimpleNamespace(),  # type: ignore[arg-type]
@@ -467,9 +518,10 @@ def test_submit_resolves_and_persists_typed_settings(tmp_path) -> None:
     pending = manager.get(_uuid(3))
 
     assert pending.status is GenerationStatus.PENDING
-    assert pending.settings["schema_version"] == 1
+    assert pending.settings["schema_version"] == 2
     assert pending.settings["input_policy"] == {
-        "snapshot_refresh": "never",
+        "snapshot_refresh": "automatic_missing_and_latest_live_freshness",
+        "snapshot_mode": "live_for_live_readiness_only_for_backtest",
         "snapshot_as_of_date": "execution_utc_date",
         "backtest_memory": "latest_same_season_at_or_before_week",
     }
@@ -506,8 +558,11 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
         "close",
         "finalize",
     ]
-    assert snapshots.requests[0].through_week == 8
-    assert snapshots.requests[0].as_of_date == NOW.date()
+    assert snapshots.requests[0].snapshot.through_week == 8
+    assert snapshots.requests[0].snapshot.as_of_date == NOW.date()
+    assert snapshots.requests[0].requested_at == NOW
+    assert snapshots.requests[0].mode is SnapshotPreparationMode.LIVE
+    assert snapshots.legacy_requests == []
     assert revisions.current_calls == 1
     assert result.generation.status is GenerationStatus.SUCCEEDED
     assert result.memory_result == MemoryMutationResult(revision=None, changes=())
@@ -520,6 +575,13 @@ async def test_live_execution_pins_inputs_before_reporter_and_closes_runtime(
     manifest = manager.starts[0].input_manifest
     assert manifest["cutoffs"]["domain_cutoff_at"] is None
     assert manifest["memory_input"]["revision_id"] == str(_uuid(100))
+    assert manifest["schema_version"] == 2
+    assert manifest["data_snapshot"]["input_revision"] == "b" * 64
+    assert manifest["data_snapshot"]["preparation"] == {
+        "mode": "live",
+        "refresh_receipts": [],
+    }
+    assert manifest["data_snapshot"]["included_seasons"][0]["season_year"] == 2026
     procedure_versions = {
         entry["name"]: entry["version"]
         for entry in manifest["tools"]["implementations"]
@@ -573,7 +635,7 @@ async def test_backtest_selects_latest_same_season_revision_and_is_read_only(
         _revision(1, season_id=_uuid(2), week=6),
         _revision(0, season_id=None, week=None),
     )
-    service, manager, _, revisions, reporter, _, _ = _service(
+    service, manager, snapshots, revisions, reporter, _, _ = _service(
         tmp_path,
         kind=GenerationKind.BACKTEST,
         history=history,
@@ -581,6 +643,7 @@ async def test_backtest_selects_latest_same_season_revision_and_is_read_only(
 
     result = await service.execute(_uuid(3))
 
+    assert snapshots.requests[0].mode is SnapshotPreparationMode.READINESS_ONLY
     assert revisions.current_calls == 1
     assert revisions.history_calls == 1
     assert manager.starts[0].input_memory_revision_id == _uuid(102)
@@ -588,6 +651,77 @@ async def test_backtest_selects_latest_same_season_revision_and_is_read_only(
     assert reporter.calls[0][2]["allow_memory_writes"] is False
     assert reporter.finalizer.calls[0][2].expected_revision_id == _uuid(102)
     assert result.memory_result is None
+
+
+@pytest.mark.asyncio
+async def test_pending_policy_v1_uses_legacy_snapshot_without_refresh(
+    tmp_path,
+) -> None:
+    service, manager, snapshots, _, _, _, _ = _service(tmp_path)
+    pending = manager.get(_uuid(3))
+    manager.rows[pending.id] = pending.model_copy(
+        update={
+            "settings": {
+                **pending.settings,
+                "schema_version": 1,
+                "input_policy": {
+                    "snapshot_refresh": "never",
+                    "snapshot_as_of_date": "execution_utc_date",
+                    "backtest_memory": "latest_same_season_at_or_before_week",
+                },
+            }
+        }
+    )
+    snapshots.snapshot = snapshots.snapshot.model_copy(
+        update={
+            "snapshot_projection_version": "snapshot-v2",
+            "input_revision": None,
+        }
+    )
+
+    result = await service.execute(_uuid(3))
+
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert len(snapshots.legacy_requests) == 1
+    assert snapshots.preparation_requests == []
+    manifest = manager.starts[0].input_manifest
+    assert manager.starts[0].manifest_schema_version == 2
+    assert manifest["data_snapshot"]["input_revision"] is None
+    assert manifest["data_snapshot"]["preparation"] == {
+        "mode": "legacy_never",
+        "refresh_receipts": [],
+    }
+
+
+@pytest.mark.asyncio
+async def test_refresh_receipts_are_retained_in_generation_manifest(tmp_path) -> None:
+    service, manager, snapshots, _, _, _, _ = _service(tmp_path)
+    snapshots.refresh_receipts = (
+        RefreshReceipt(
+            claim_id=_uuid(30),
+            competition_season_id=_uuid(2),
+            through_week=8,
+            refresh_run_id=_uuid(31),
+            status=RefreshStatus.PARTIAL,
+            disposition=RefreshReceiptDisposition.JOINED,
+        ),
+    )
+
+    await service.execute(_uuid(3))
+
+    assert manager.starts[0].input_manifest["data_snapshot"]["preparation"] == {
+        "mode": "live",
+        "refresh_receipts": [
+            {
+                "claim_id": str(_uuid(30)),
+                "competition_season_id": str(_uuid(2)),
+                "through_week": 8,
+                "refresh_run_id": str(_uuid(31)),
+                "status": "partial",
+                "disposition": "joined",
+            }
+        ],
+    }
 
 
 @pytest.mark.asyncio
@@ -754,10 +888,22 @@ async def test_finalization_failure_returns_failed_without_partial_output(tmp_pa
     assert manager.get(_uuid(3)).submitted_artifact_version_id is None
 
 
-def test_rerun_copies_terminal_intent_and_links_fresh_pending_row(tmp_path) -> None:
+def test_rerun_copies_intent_but_upgrades_policy_v1_to_v2(tmp_path) -> None:
     service, manager, _, _, _, _, _ = _service(tmp_path)
     manager.rows[_uuid(3)] = manager.rows[_uuid(3)].model_copy(
-        update={"status": GenerationStatus.FAILED, "completed_at": NOW}
+        update={
+            "status": GenerationStatus.FAILED,
+            "completed_at": NOW,
+            "settings": {
+                **manager.rows[_uuid(3)].settings,
+                "schema_version": 1,
+                "input_policy": {
+                    "snapshot_refresh": "never",
+                    "snapshot_as_of_date": "execution_utc_date",
+                    "backtest_memory": "latest_same_season_at_or_before_week",
+                },
+            },
+        }
     )
 
     rerun = service.rerun(
@@ -770,7 +916,11 @@ def test_rerun_copies_terminal_intent_and_links_fresh_pending_row(tmp_path) -> N
     assert rerun.status is GenerationStatus.PENDING
     assert rerun.rerun_of_generation_id == _uuid(3)
     assert rerun.request_text == manager.get(_uuid(3)).request_text
-    assert rerun.settings == manager.get(_uuid(3)).settings
+    assert manager.get(_uuid(3)).settings["schema_version"] == 1
+    assert rerun.settings["schema_version"] == 2
+    assert rerun.settings["input_policy"]["snapshot_refresh"] == (
+        "automatic_missing_and_latest_live_freshness"
+    )
     assert rerun.data_snapshot_id is None
     assert manager.get(_uuid(3)).status is GenerationStatus.FAILED
 

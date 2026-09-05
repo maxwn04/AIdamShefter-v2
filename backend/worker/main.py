@@ -56,6 +56,7 @@ def run(
             stderr=stderr,
         )
 
+    dependencies = None
     try:
         runtime = runtime_factory()
     except Exception as exc:
@@ -107,6 +108,8 @@ def run(
         stderr.write(f"generation worker failed ({type(exc).__name__})\n")
         return 2
     finally:
+        if dependencies is not None:
+            dependencies.close()
         runtime.close()
 
 

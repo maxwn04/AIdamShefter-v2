@@ -41,6 +41,7 @@ from backend.resources.reporting.generations import GenerationManager
 from backend.resources.reporting.memory_recalls import GenerationMemoryRecallManager
 from backend.resources.reporting.tool_calls import ToolCallManager
 from backend.resources.sleeper_data import (
+    AutomaticRefreshClaimManager,
     ApiRequestManager,
     DataSnapshotManager,
     LeagueSeasonManager,
@@ -49,10 +50,14 @@ from backend.resources.sleeper_data import (
     RosterManager,
 )
 from backend.services.datalayer import (
+    DatalayerResolvedSnapshotBuilder,
+    DatalayerSnapshotPreparationService,
     DatalayerSnapshotService,
     LocalDatalayerFileStore,
+    RefreshCoordinator,
     SQLiteSnapshotMaterializer,
     SleeperSourceClient,
+    SnapshotInputResolver,
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
 from backend.services.generations import GenerationFinalizer, GenerationService
@@ -220,6 +225,18 @@ class DatalayerSnapshotDependencies:
 
 
 @dataclass(frozen=True, slots=True)
+class GenerationSnapshotDependencies:
+    """Legacy and refresh-aware snapshot paths for generation execution."""
+
+    legacy: DatalayerSnapshotService
+    preparation: DatalayerSnapshotPreparationService
+    source: SleeperSourceClient
+
+    def close(self) -> None:
+        self.source.close()
+
+
+@dataclass(frozen=True, slots=True)
 class GenerationDependencies:
     """One competition-scoped generation workflow and its read managers."""
 
@@ -232,6 +249,10 @@ class GenerationDependencies:
     artifact_versions: ArtifactVersionManager
     memory_recalls: GenerationMemoryRecallManager
     usage: GenerationUsageService
+    snapshot_inputs: GenerationSnapshotDependencies
+
+    def close(self) -> None:
+        self.snapshot_inputs.close()
 
 
 def build_competition_catalog_dependencies(
@@ -416,6 +437,83 @@ def build_datalayer_snapshot_dependencies(
     )
 
 
+def build_generation_snapshot_dependencies(
+    session_factory: SessionFactory,
+    context: ManagerContext[CompetitionScope],
+    *,
+    settings: DatalayerSettings | None = None,
+) -> GenerationSnapshotDependencies:
+    """Compose legacy compatibility and refresh-aware generation snapshots."""
+
+    resolved = settings or DatalayerSettings.from_environment()
+    files = LocalDatalayerFileStore(resolved.data_root)
+    materializer = SQLiteSnapshotMaterializer(
+        files.root / ".staging" / "snapshots"
+    )
+    lineage = LeagueSeasonManager(session_factory, context)
+    requests = ApiRequestManager(session_factory, context)
+    snapshots = DataSnapshotManager(session_factory, context)
+    scopes = NormalizedScopeManager(session_factory, context)
+    mappings = RosterMappingManager(session_factory, context)
+    source = SleeperSourceClient(
+        base_url=resolved.sleeper_base_url,
+        timeout_seconds=resolved.sleeper_timeout_seconds,
+    )
+    roster_mappings = RosterMappingService(
+        mappings=mappings,
+        requests=requests,
+        scopes=scopes,
+        files=files,
+    )
+    refresh = DatalayerRefreshService(
+        source=source,
+        identities=lineage,
+        refreshes=RefreshRunManager(session_factory, context),
+        attempts=requests,
+        scopes=scopes,
+        files=files,
+        code_version=resolved.code_version,
+        max_attempts=resolved.sleeper_max_attempts,
+        retry_backoff_seconds=resolved.sleeper_retry_backoff_seconds,
+        inline_payload_max_bytes=resolved.inline_payload_max_bytes,
+        roster_mappings=roster_mappings,
+    )
+    preparation = DatalayerSnapshotPreparationService(
+        resolver=SnapshotInputResolver(
+            lineage=lineage,
+            requests=requests,
+            mappings=mappings,
+            files=files,
+            live_max_age_seconds=resolved.generation_refresh_max_age_seconds,
+        ),
+        refreshes=RefreshCoordinator(
+            claims=AutomaticRefreshClaimManager(session_factory, context),
+            refreshes=refresh,
+        ),
+        builder=DatalayerResolvedSnapshotBuilder(
+            requests=requests,
+            snapshots=snapshots,
+            materializer=materializer,
+            files=files,
+            code_version=resolved.code_version,
+        ),
+    )
+    legacy = DatalayerSnapshotService(
+        planning=lineage,
+        roster_identities=RosterManager(session_factory, context),
+        requests=requests,
+        snapshots=snapshots,
+        materializer=materializer,
+        files=files,
+        code_version=resolved.code_version,
+    )
+    return GenerationSnapshotDependencies(
+        legacy=legacy,
+        preparation=preparation,
+        source=source,
+    )
+
+
 def build_generation_dependencies(
     session_factory: SessionFactory,
     context: ManagerContext[CompetitionScope],
@@ -435,14 +533,15 @@ def build_generation_dependencies(
     memory_recalls = GenerationMemoryRecallManager(session_factory, context)
     registry = model_registry or LiteLLMModelRegistry()
     memory = build_memory_api_dependencies(session_factory, context)
-    snapshots = build_datalayer_snapshot_dependencies(
+    snapshots = build_generation_snapshot_dependencies(
         session_factory,
         context,
         settings=datalayer_settings,
     )
     service = GenerationService(
         generations=generations,
-        snapshots=snapshots.snapshot,
+        legacy_snapshots=snapshots.legacy,
+        snapshot_preparation=snapshots.preparation,
         revisions=memory.revisions,
         retrieval=memory.retrieval,
         ai_calls=ai_calls,
@@ -468,6 +567,7 @@ def build_generation_dependencies(
         artifact_versions=artifact_versions,
         memory_recalls=memory_recalls,
         usage=GenerationUsageService(ai_calls, registry),
+        snapshot_inputs=snapshots,
     )
 
 
