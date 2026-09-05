@@ -1158,6 +1158,33 @@ def test_closeout_exhaustion_is_fatal_and_records_progress() -> None:
     assert runner.log.entries[-1].data["event"] == "limit_exhausted"
 
 
+def test_final_closeout_turn_exposes_finish_requirement_after_write_repairs() -> None:
+    complete = FakeCompletion(
+        [
+            make_response(tool_calls=[tool_call("submit_artifact", call_id="submit")]),
+            *[
+                make_response(tool_calls=[tool_call("save_memory_event", call_id=f"save-{index}")])
+                for index in range(5)
+            ],
+            make_response(tool_calls=[
+                tool_call("save_memory_event", call_id="last-save"),
+                tool_call("complete_memory_review", call_id="complete"),
+            ]),
+        ]
+    )
+    runner, state = closeout_runner(complete, max_turns=1, register_write=True)
+
+    output = run(runner.run("system", "user"))
+
+    assert "turn 1 of 6; 5 further turns remain" in complete.requests[1]["messages"][-1]["content"]
+    final_instruction = complete.requests[-1]["messages"][-1]["content"]
+    assert "Final memory-review turn" in final_instruction
+    assert "complete_memory_review in this response" in final_instruction
+    assert state.memory_review_completed is True
+    assert output.run_log_summary["memory_closeout"]["proposal_counts"]["total"] == 6
+    assert len(complete.requests) == 7
+
+
 def test_runner_parallel_edits_with_same_revision_allow_exactly_one_success() -> None:
     artifacts = ArtifactStore()
     artifacts.create("article.md", "Alpha beta")
