@@ -51,6 +51,7 @@ class SearchDocumentQuery(ContractModel):
     text: NonBlankStr | None = None
     kinds: tuple[MemoryKind, ...] = ()
     statuses: tuple[NonBlankStr, ...] = ()
+    agent_key: NonBlankStr | None = None
     competition_season_id: UUID | None = None
     week: int | None = Field(default=None, ge=0, strict=True)
     week_from: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)

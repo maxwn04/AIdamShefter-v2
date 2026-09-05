@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING, Annotated, Any, Literal
@@ -31,6 +33,10 @@ from backend.services.memory import (
 from backend.services.reporter.config import ReportConfig
 from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
 from backend.services.reporter.runner.tools.context import ToolContext
+from backend.services.reporter.runner.tools.memory_event_evidence import (
+    EventEvidenceError,
+    resolve_event,
+)
 from backend.services.reporter.runner.tools.memory_presentation import (
     MemoryPresentationAdapter,
 )
@@ -45,7 +51,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "5"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "6"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -58,63 +64,6 @@ _WRITE_TOOLS = (
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class PlayerTradeAsset(_StrictModel):
-    kind: Literal["player"]
-    direction: Literal["sender_to_receiver", "receiver_to_sender"]
-    player_id: str = Field(min_length=1)
-
-
-class DraftPickTradeAsset(_StrictModel):
-    kind: Literal["draft_pick"]
-    direction: Literal["sender_to_receiver", "receiver_to_sender"]
-    draft_pick_id: UUID
-
-
-class BudgetTradeAsset(_StrictModel):
-    kind: Literal["budget"]
-    direction: Literal["sender_to_receiver", "receiver_to_sender"]
-    amount: int = Field(ge=0)
-
-
-TradeAsset = Annotated[
-    PlayerTradeAsset | DraftPickTradeAsset | BudgetTradeAsset,
-    Field(discriminator="kind"),
-]
-
-
-class ReporterTradeDetails(_StrictModel):
-    kind: Literal["trade"]
-    sender_roster_key: str = Field(min_length=1)
-    receiver_roster_key: str = Field(min_length=1)
-    assets: list[TradeAsset] = Field(min_length=1)
-
-
-class ReporterMatchupDetails(_StrictModel):
-    kind: Literal["matchup"]
-    winner_roster_key: str = Field(min_length=1)
-    loser_roster_key: str = Field(min_length=1)
-    sleeper_matchup_id: str = Field(min_length=1)
-
-
-ReporterEventDetails = Annotated[
-    ReporterTradeDetails | ReporterMatchupDetails,
-    Field(discriminator="kind"),
-]
-
-
-class ReporterEventContent(_StrictModel):
-    """Reporter event payload adapted to canonical trade/matchup constraints."""
-
-    event_type: Literal["trade", "matchup"]
-    headline: str = Field(min_length=1)
-    summary: str = Field(min_length=1)
-    salience: int = Field(ge=1, le=5)
-    confidence: Literal["unverified", "inferred"]
-    status: Literal["active", "superseded", "rejected", "archived"] = "active"
-    details: ReporterEventDetails
-    source_hints: dict[str, JsonValue] | None = None
 
 
 class ReporterRematchCondition(_StrictModel):
@@ -221,26 +170,28 @@ class SearchMemoryArgs(_StrictModel):
 class SaveMemoryEventArgs(_StrictModel):
     id: str = Field(min_length=1)
     event_type: Literal["trade", "matchup"]
-    week: int = Field(ge=0)
+    source_fact_ids: list[str] = Field(
+        min_length=1,
+        description=("Successfully saved brief fact IDs for one matchup or trade; "
+                     "runtime derives identities, week, and all assets."),
+    )
     headline: str = Field(min_length=1)
     summary: str = Field(min_length=1)
     importance: int = 1
-    confidence: Literal["verified", "inferred", "needs_verification"] = (
-        "needs_verification"
-    )
-    source_refs: list[JsonValue] = Field(default_factory=list)
-    numbers: dict[str, JsonValue] = Field(default_factory=dict)
-    entities: list[dict[str, JsonValue]] = Field(default_factory=list)
-    transaction_id: str | None = None
-    matchup_id: str | None = None
-    details: ReporterEventDetails | None = None
 
 
 class UpsertStorylineMemoryCardArgs(_StrictModel):
-    id: str = Field(min_length=1)
+    id: str | None = Field(
+        default=None, min_length=1,
+        description="Creation key for a new arc only. Update recalled cards with update_handle.",
+    )
+    update_handle: str | None = Field(
+        default=None, min_length=1,
+        description="memory_handle returned with the existing storyline. Mutually exclusive with id.",
+    )
     headline: str = Field(min_length=1)
     summary: str = Field(min_length=1)
-    status: Literal["active", "stale", "resolved"]
+    status: Literal["active", "stale", "resolved"] | None = None
     priority: int = Field(default=2, ge=1, le=5)
     importance: int | None = None
     arc_type: str | None = None
@@ -251,6 +202,13 @@ class UpsertStorylineMemoryCardArgs(_StrictModel):
     entities: list[dict[str, JsonValue]] = Field(default_factory=list)
     evidence_event_ids: list[str] = Field(default_factory=list)
     trigger_specs: list[dict[str, JsonValue]] = Field(default_factory=list)
+    resolution_summary: str | None = None
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> UpsertStorylineMemoryCardArgs:
+        if (self.id is None) == (self.update_handle is None):
+            raise ValueError("Use id to create a new arc OR update_handle from recalled memory to update it")
+        return self
 
 
 class SaveStorylineTriggerArgs(_StrictModel):
@@ -303,14 +261,17 @@ MEMORY_TOOL_SPECS: list[ToolDef] = [
     ),
     _tool(
         "save_memory_event",
-        "Save event evidence for later callbacks. A stable id creates or updates "
-        "the event. Include typed details for the trade participants and assets, "
-        "or the matchup winner, loser, and Sleeper matchup id.",
+        "Save one durable event from successful source_fact_ids in the brief. "
+        "Runtime derives the event week, identities, participants and all trade assets. "
+        "Use returned id in storyline evidence_event_ids only after a successful save or no_change receipt. "
+        "Never author matchup IDs, player IDs, draft-pick IDs or source_refs.",
         SaveMemoryEventArgs,
     ),
     _tool(
         "upsert_storyline_memory_card",
-        "Create or update a storyline memory card by stable id.",
+        "Create a new storyline with id, or update a recalled card with its memory_handle "
+        "as update_handle. Updates preserve origin, existing evidence and omitted state; "
+        "evidence_event_ids add successfully saved events. Do not invent a new key for a recalled arc.",
         UpsertStorylineMemoryCardArgs,
     ),
     _tool(
@@ -367,6 +328,21 @@ class TypedMemoryAdapter:
             data,
             self._presentation,
         )
+
+    @contextmanager
+    def write_savepoint(self) -> Iterator[None]:
+        """Keep a parent card and its dependent proposals atomic within a call."""
+        completed = self._completed_semantic_saves.copy()
+        local_refs = self._local_agent_refs.copy()
+        proposed_ids = self._proposed_item_ids.copy()
+        try:
+            with self._memory_context.proposal_savepoint():
+                yield
+        except BaseException:
+            self._completed_semantic_saves = completed
+            self._local_agent_refs = local_refs
+            self._proposed_item_ids = proposed_ids
+            raise
 
     def build_recall(self, config: ReportConfig) -> MemoryRecallPlan:
         plan = self._recall.plan(config)
@@ -426,25 +402,39 @@ class TypedMemoryAdapter:
         context: ToolContext,
         arguments: SaveMemoryEventArgs,
     ) -> dict[str, Any]:
-        if arguments.confidence == "verified" and not arguments.source_refs:
-            raise MemoryToolInputError(
-                "missing_source_refs",
-                "verified memory events require at least one source ref",
+        try:
+            resolved = resolve_event(
+                context, self._data, arguments.event_type, arguments.source_fact_ids,
+                competition_season_id=self._memory_context.competition_season_id,
             )
-        canonical = self._legacy_event(arguments)
+        except EventEvidenceError as error:
+            raise MemoryToolInputError("insufficient_event_evidence", str(error)) from error
+        canonical = EventContent.model_validate({
+            "event_type": arguments.event_type, "headline": arguments.headline,
+            "summary": arguments.summary, "salience": max(1, min(5, arguments.importance)),
+            "confidence": "source_backed" if context.current_tool_call_id else "inferred",
+            "primary_tool_call_id": context.current_tool_call_id,
+            "status": "active", "details": resolved.details,
+            "source_hints": resolved.audit,
+        })
         result = self._upsert(
             MemoryKind.EVENT,
             arguments.id,
             canonical,
             context=context,
-            week=arguments.week,
+            week=resolved.week,
+            occurred_at=resolved.occurred_at,
             create=self._memory_context.propose_event,
             replace=self._memory_context.replace_event,
         )
         return {
             **result,
             "id": arguments.id,
-            "confidence": arguments.confidence,
+            "event_type": arguments.event_type,
+            "week": resolved.week,
+            "source_fact_ids": arguments.source_fact_ids,
+            "confidence": canonical.confidence.value,
+            "_event_resolution": resolved.audit,
         }
 
     def upsert_storyline_memory_card(
@@ -452,35 +442,50 @@ class TypedMemoryAdapter:
         context: ToolContext,
         arguments: UpsertStorylineMemoryCardArgs,
     ) -> dict[str, Any]:
+        candidate = None
+        if arguments.update_handle:
+            candidate = self._presentation.resolve_handle(arguments.update_handle)
+            if candidate is None or candidate.item.kind is not MemoryKind.STORYLINE:
+                raise MemoryToolInputError("unknown_memory_handle", "Use the memory_handle returned on the existing storyline; search for the arc if it is not in context.")
+            if (candidate.version.competition_season_id is not None
+                    and candidate.version.competition_season_id != self._memory_context.competition_season_id):
+                raise MemoryToolInputError("cross_season_update_unsupported",
+                    "This storyline belongs to another season. Cross-season memory transfer is not supported by this update tool.")
+            agent_key = candidate.item.agent_key or arguments.update_handle
+        else:
+            agent_key = arguments.id
+            existing = self._agent_candidate(MemoryKind.STORYLINE, agent_key)
+            if existing is not None:
+                handle = self._presentation.handle_for(existing)
+                raise MemoryToolInputError("existing_storyline", f"Creation id already exists. Update it with update_handle={handle}; do not create another key.")
+        # Validate embedded trigger shapes before selecting the parent card.
+        trigger_specs = [SaveStorylineTriggerArgs.model_validate(raw) for raw in arguments.trigger_specs]
         subjects: list[dict[str, Any]] = []
         sleeper_team_ids: list[int | str] = []
-        unresolved: list[str] = []
         team_keys = list(arguments.team_keys)
         for entity in arguments.entities:
             if entity.get("entity_type", entity.get("type")) == "team":
-                team_keys.append(str(entity.get("roster_key", entity.get("id", ""))))
+                team_keys.append(str(entity.get("roster_key") or entity.get("id") or entity.get("name") or ""))
         for roster_key in dict.fromkeys(team_keys):
-            try:
-                roster = self._resolve_roster(roster_key)
-            except MemoryToolInputError:
-                unresolved.append(roster_key)
-                continue
+            roster = self._resolve_roster(roster_key)
             subjects.append(
                 {"kind": "franchise", "id": roster.franchise_id, "role": "focus"}
             )
             sleeper_team_ids.append(_numeric_when_possible(roster.sleeper_roster_id))
-        evidence = []
+        evidence = [ref.model_dump(mode="python") for ref in candidate.content.evidence] if candidate else []
         missing_events: list[str] = []
         for event_id in arguments.evidence_event_ids:
             reference = self._agent_reference(MemoryKind.EVENT, event_id)
             if reference is None:
                 missing_events.append(event_id)
             else:
+                if any(ref["version_id"] == reference.version_id for ref in evidence):
+                    continue
                 evidence.append(
                     {
                         "kind": "event",
                         "version_id": reference.version_id,
-                        "role": "support",
+                        "role": "update" if candidate else "origin" if not evidence else "support",
                     }
                 )
         if missing_events:
@@ -488,11 +493,11 @@ class TypedMemoryAdapter:
                 "unknown_evidence_events",
                 f"Could not resolve evidence events: {', '.join(missing_events)}",
             )
-        status = {"active": "active", "stale": "dormant", "resolved": "resolved"}[
-            arguments.status
-        ]
-        canonical = StorylineContent.model_validate(
-            {
+        status = candidate.content.status.value if candidate else "active"
+        if arguments.status is not None:
+            status = {"active": "active", "stale": "dormant", "resolved": "resolved"}[arguments.status]
+        values: dict[str, Any] = candidate.content.model_dump(mode="python") if candidate else {}
+        values.update({
                 "headline": arguments.headline,
                 "summary": arguments.summary,
                 "status": status,
@@ -509,38 +514,46 @@ class TypedMemoryAdapter:
                 "tags": arguments.tags,
                 "subjects": subjects,
                 "evidence": evidence,
-                "related_storylines": [],
+                "related_storylines": values.get("related_storylines", []),
                 "callback_condition": arguments.future_callback_condition,
-                "resolution_summary": None,
-            }
-        )
+                "resolution_summary": arguments.resolution_summary,
+            })
+        if candidate:
+            preserved = {"arc_type": "arc_type", "tags": "tags",
+                         "future_callback_condition": "callback_condition", "resolution_summary": "resolution_summary"}
+            for argument_field, content_field in preserved.items():
+                if argument_field not in arguments.model_fields_set:
+                    values[content_field] = getattr(candidate.content, content_field)
+            if not {"team_keys", "entities"}.intersection(arguments.model_fields_set):
+                values["subjects"] = candidate.content.subjects
+            if "importance" not in arguments.model_fields_set and "priority" not in arguments.model_fields_set:
+                values["salience"] = candidate.content.salience
+        canonical = StorylineContent.model_validate(values)
         result = self._upsert(
             MemoryKind.STORYLINE,
-            arguments.id,
+            agent_key,
             canonical,
             context=context,
-            week=arguments.origin_week,
+            week=candidate.version.week if candidate else arguments.origin_week,
+            candidate=candidate,
             create=self._memory_context.propose_storyline,
             replace=self._memory_context.replace_storyline,
         )
         trigger_results: list[dict[str, Any]] = []
-        for raw_spec in arguments.trigger_specs:
-            spec = SaveStorylineTriggerArgs.model_validate(
-                {**raw_spec, "storyline_id": raw_spec.get("storyline_id", arguments.id)}
-            )
+        for spec in trigger_specs:
+            spec = spec.model_copy(update={"storyline_id": spec.storyline_id or agent_key})
             trigger_result = self.save_storyline_trigger(context, spec)
             trigger_results.append(trigger_result)
         payload = {
             **result,
-            "id": arguments.id,
-            "status": arguments.status,
+            "id": agent_key,
+            "update_handle": arguments.update_handle,
+            "status": canonical.status.value,
             "team_ids": sleeper_team_ids,
             "linked_events": arguments.evidence_event_ids,
             "triggers": [str(result["id"]) for result in trigger_results],
             "trigger_results": trigger_results,
         }
-        if unresolved:
-            payload["unresolved_team_keys"] = unresolved
         return payload
 
     def save_storyline_trigger(
@@ -662,6 +675,8 @@ class TypedMemoryAdapter:
         week: int | None = None,
         create: Any,
         replace: Any,
+        candidate: Any = None,
+        occurred_at: datetime | None = None,
     ) -> dict[str, Any]:
         signature = canonical.model_dump_json()
         save_key = (kind.value, agent_key)
@@ -678,7 +693,7 @@ class TypedMemoryAdapter:
                 "no_change": True,
                 "operation": "no_change",
             }
-        candidate = self._agent_candidate(kind, agent_key)
+        candidate = candidate or self._agent_candidate(kind, agent_key)
         if candidate is not None and candidate.content == canonical:
             result = {
                 "ok": True,
@@ -694,6 +709,7 @@ class TypedMemoryAdapter:
                     context,
                     agent_key=agent_key,
                     week=week,
+                    occurred_at=occurred_at,
                 ),
             )
             self._proposed_item_ids.add(reference.item_id)
@@ -704,8 +720,13 @@ class TypedMemoryAdapter:
                 candidate.item.item_id,
                 candidate.version.revision_number,
                 canonical,
-                metadata=self._metadata(context, week=week),
+                metadata=self._metadata(
+                    context, week=week if week is not None else candidate.version.week,
+                    competition_season_id=candidate.version.competition_season_id,
+                    occurred_at=occurred_at or candidate.version.occurred_at,
+                ),
             )
+            self._local_agent_refs[(kind, agent_key)] = reference
             result = self._saved(reference, kind=kind, operation="replace")
         self._completed_semantic_saves[save_key] = (signature, result)
         return result
@@ -743,61 +764,6 @@ class TypedMemoryAdapter:
             context=context,
             create=self._memory_context.propose_context_note,
             replace=self._memory_context.replace_context_note,
-        )
-
-    def _legacy_event(self, arguments: SaveMemoryEventArgs) -> EventContent:
-        if arguments.details is None:
-            raise MemoryToolInputError(
-                "missing_event_details",
-                "Typed trade or matchup details are required for durable event memory",
-            )
-        confidence = (
-            "inferred"
-            if arguments.confidence in {"verified", "inferred"}
-            else "unverified"
-        )
-        return self._event(
-            ReporterEventContent(
-                event_type=arguments.event_type,
-                headline=arguments.headline,
-                summary=arguments.summary,
-                salience=max(1, min(5, arguments.importance)),
-                confidence=confidence,
-                details=arguments.details,
-                source_hints={
-                    "legacy_confidence": arguments.confidence,
-                    "week": arguments.week,
-                    "importance": arguments.importance,
-                    "source_refs": arguments.source_refs,
-                    "numbers": arguments.numbers,
-                    "transaction_id": arguments.transaction_id,
-                    "matchup_id": arguments.matchup_id,
-                    "entities": arguments.entities,
-                },
-            )
-        )
-
-    def _event(self, content: ReporterEventContent) -> EventContent:
-        details = content.details.model_dump(mode="python")
-        if isinstance(content.details, ReporterTradeDetails):
-            sender = self._resolve_roster(content.details.sender_roster_key)
-            receiver = self._resolve_roster(content.details.receiver_roster_key)
-            details.pop("sender_roster_key")
-            details.pop("receiver_roster_key")
-            details["sender_franchise_id"] = sender.franchise_id
-            details["receiver_franchise_id"] = receiver.franchise_id
-        else:
-            winner = self._resolve_roster(content.details.winner_roster_key)
-            loser = self._resolve_roster(content.details.loser_roster_key)
-            details.pop("winner_roster_key")
-            details.pop("loser_roster_key")
-            details["winner_franchise_id"] = winner.franchise_id
-            details["loser_franchise_id"] = loser.franchise_id
-        return EventContent.model_validate(
-            {
-                **content.model_dump(mode="python", exclude={"details"}),
-                "details": details,
-            }
         )
 
     def _trigger(self, content: ReporterTriggerContent) -> TriggerContent:
@@ -843,7 +809,7 @@ class TypedMemoryAdapter:
             return self._pinned_agent_candidates[key]
         result = self._memory_context.search(
             MemoryRetrievalRequest(
-                query=SearchDocumentQuery(kinds=(kind,), limit=100)
+                query=SearchDocumentQuery(kinds=(kind,), agent_key=agent_key, limit=2)
             )
         )
         matches = [
@@ -868,9 +834,15 @@ class TypedMemoryAdapter:
         local = self._local_agent_refs.get((kind, agent_key))
         if local is not None:
             return local
-        candidate = self._agent_candidate(kind, agent_key)
+        candidate = self._presentation.resolve_handle(agent_key)
+        if candidate is not None and candidate.item.kind is not kind:
+            raise MemoryToolInputError("memory_kind_mismatch", f"{agent_key} is not a {kind.value} memory")
+        candidate = candidate or self._agent_candidate(kind, agent_key)
         if candidate is None:
             return None
+        local = self._local_agent_refs.get((kind, candidate.item.agent_key))
+        if local is not None:
+            return local
         return _CanonicalReference(
             item_id=candidate.item.item_id,
             version_id=candidate.version.version_id,
@@ -897,13 +869,17 @@ class TypedMemoryAdapter:
         *,
         agent_key: str | None = None,
         week: int | None = None,
+        occurred_at: datetime | None = None,
+        competition_season_id: UUID | None = None,
     ) -> MemoryMutationMetadata:
         return MemoryMutationMetadata(
             creating_tool_call_id=(
                 context.current_tool_call_id if context is not None else None
             ),
             agent_key=agent_key,
+            competition_season_id=competition_season_id,
             week=week,
+            occurred_at=occurred_at,
         )
 
 
@@ -924,7 +900,8 @@ def _safe_error(
         message = str(error)
     else:
         code = "invalid_memory_input"
-        message = "Memory input did not match the typed contract"
+        fields = [".".join(map(str, detail["loc"])) + ": " + detail["msg"] for detail in error.errors(include_input=False, include_url=False)[:4]]
+        message = "Memory input did not match the typed contract: " + "; ".join(fields)
     result: dict[str, Any] = {
         "ok": False,
         "error": {"code": code, "message": message},
@@ -986,7 +963,8 @@ def register_memory_tools(
             try:
                 arguments = arguments_model.model_validate(kwargs)
                 method = getattr(adapter, tool_name)
-                result = method(context, arguments)
+                with adapter.write_savepoint():
+                    result = method(context, arguments)
                 activity_items: list[dict[str, JsonValue]] = []
                 if result.get("saved") is True:
                     activity_items.append(
@@ -1012,6 +990,9 @@ def register_memory_tools(
                         }
                     )
                 metadata: dict[str, JsonValue] = {}
+                resolution = result.pop("_event_resolution", None)
+                if resolution is not None:
+                    metadata["event_resolution"] = resolution
                 if activity_items:
                     metadata["memory_activity"] = {"items": activity_items}
                 return ToolExecutionResult(result=result, metadata=metadata)

@@ -18,7 +18,7 @@ from backend.resources.memory.search_documents.objects import (
 )
 
 
-EVENT_DOCUMENT_BUILDER_VERSION: Final = 1
+EVENT_DOCUMENT_BUILDER_VERSION: Final = 2
 
 
 def build_event_document(content: EventContent) -> SearchDocumentProjection:
@@ -58,7 +58,9 @@ def _event_entity_keys(content: EventContent) -> set[str]:
             if isinstance(asset, PlayerTradeAsset):
                 keys.add(f"player:{asset.player_id}")
             elif isinstance(asset, DraftPickTradeAsset):
-                keys.add(f"draft_pick:{asset.draft_pick_id}")
+                keys.add(_pick_key(asset))
+                if asset.original_franchise_id is not None:
+                    keys.add(f"franchise:{asset.original_franchise_id}")
         return keys
     if isinstance(details, MatchupEventPayload):
         return {
@@ -93,10 +95,16 @@ def _trade_asset_text(
     if isinstance(asset, PlayerTradeAsset):
         value = f"player:{asset.player_id}"
     elif isinstance(asset, DraftPickTradeAsset):
-        value = f"draft_pick:{asset.draft_pick_id}"
+        value = _pick_key(asset)
     else:
         value = f"budget:{asset.amount}"
     return f"{asset.direction.value} {value}"
+
+
+def _pick_key(asset: DraftPickTradeAsset) -> str:
+    if asset.draft_pick_id is not None:
+        return f"draft_pick:{asset.draft_pick_id}"
+    return f"draft_pick_natural:{asset.season}:{asset.round}:{asset.original_franchise_id}"
 
 
 def _event_content_hash(content: EventContent) -> str:

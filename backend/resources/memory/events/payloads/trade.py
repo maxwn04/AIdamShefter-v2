@@ -23,7 +23,21 @@ class PlayerTradeAsset(ContractModel):
 class DraftPickTradeAsset(ContractModel):
     kind: Literal["draft_pick"] = "draft_pick"
     direction: TradeAssetDirection
-    draft_pick_id: UUID
+    draft_pick_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
+    season: int | None = Field(default=None, ge=1900, le=9999, strict=True, exclude_if=lambda value: value is None)
+    round: int | None = Field(default=None, ge=1, strict=True, exclude_if=lambda value: value is None)
+    original_franchise_id: UUID | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def validate_identity(self) -> DraftPickTradeAsset:
+        natural = (self.season, self.round, self.original_franchise_id)
+        if self.draft_pick_id is not None:
+            if any(value is not None for value in natural):
+                raise ValueError("pick identity must use either canonical UUID or draft year/round/original franchise")
+        elif any(value is None for value in natural):
+            raise ValueError("natural pick identity requires draft year, round, and original franchise")
+        return self
+
 
 
 class BudgetTradeAsset(ContractModel):
@@ -54,7 +68,8 @@ class TradeEventPayload(ContractModel):
             if isinstance(asset, PlayerTradeAsset):
                 asset_keys.append((asset.kind, asset.player_id))
             elif isinstance(asset, DraftPickTradeAsset):
-                asset_keys.append((asset.kind, asset.draft_pick_id))
+                asset_keys.append((asset.kind, asset.draft_pick_id, asset.season,
+                                   asset.round, asset.original_franchise_id))
             else:
                 asset_keys.append((asset.kind, asset.direction))
         if len(asset_keys) != len(set(asset_keys)):

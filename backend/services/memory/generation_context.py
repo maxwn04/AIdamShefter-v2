@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID, uuid4
@@ -243,6 +245,18 @@ class GenerationMemoryContext:
 
         self._require_open()
         return tuple(self._proposals)
+
+    @contextmanager
+    def proposal_savepoint(self) -> Iterator[None]:
+        """Discard this tool's buffered changes if any dependent write fails."""
+
+        self._require_open()
+        start = len(self._proposals)
+        try:
+            yield
+        except BaseException:
+            del self._proposals[start:]
+            raise
 
     def discard(self) -> None:
         """Close and erase an abandoned proposal buffer without persistence."""

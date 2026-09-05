@@ -43,8 +43,8 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_PRESENTATION_SCHEMA_VERSION = 1
-MEMORY_PRESENTATION_BUILDER_VERSION = 1
+MEMORY_PRESENTATION_SCHEMA_VERSION = 2
+MEMORY_PRESENTATION_BUILDER_VERSION = 2
 MAX_PRESENTED_REFERENCES = 3
 
 
@@ -63,6 +63,7 @@ class SemanticAsset(_PresentationModel):
 
 
 class SemanticMemorySummary(_PresentationModel):
+    memory_handle: str | None = None
     kind: MemoryKind
     role: str
     headline: str | None = None
@@ -71,6 +72,7 @@ class SemanticMemorySummary(_PresentationModel):
 
 
 class StorylineMemoryContext(_PresentationModel):
+    memory_handle: str | None = None
     kind: Literal[MemoryKind.STORYLINE] = MemoryKind.STORYLINE
     headline: str
     summary: str
@@ -97,6 +99,7 @@ class FactMemoryContext(_PresentationModel):
 
 
 class EventMemoryContext(_PresentationModel):
+    memory_handle: str | None = None
     kind: Literal[MemoryKind.EVENT] = MemoryKind.EVENT
     event_type: str
     headline: str
@@ -163,6 +166,21 @@ class MemoryPresentationAdapter:
 
     def __init__(self, data: FrozenLeagueData) -> None:
         self._data = data
+        self._handles: dict[str, HydratedMemory] = {}
+        self._item_handles: dict[tuple[UUID, UUID], str] = {}
+
+    def handle_for(self, memory: HydratedMemory) -> str:
+        """Bind an editorial selector to exactly the presented pinned version."""
+        key = (memory.item.item_id, memory.version.version_id)
+        handle = self._item_handles.get(key)
+        if handle is None:
+            handle = f"memory_{len(self._handles) + 1}"
+            self._item_handles[key] = handle
+            self._handles[handle] = memory
+        return handle
+
+    def resolve_handle(self, handle: str) -> HydratedMemory | None:
+        return self._handles.get(handle)
 
     def present(
         self,
@@ -266,6 +284,7 @@ class MemoryPresentationAdapter:
                 state=state,
             )
             return StorylineMemoryContext(
+                memory_handle=self.handle_for(match.memory),
                 headline=content.headline,
                 summary=content.summary,
                 status=content.status.value,
@@ -311,6 +330,7 @@ class MemoryPresentationAdapter:
         if isinstance(content, EventContent):
             participants, assets = self._event_details(content, omissions)
             return EventMemoryContext(
+                memory_handle=self.handle_for(match.memory),
                 event_type=content.event_type.value,
                 headline=content.headline,
                 summary=content.summary,
@@ -403,8 +423,13 @@ class MemoryPresentationAdapter:
                     f"assets.{index}.label",
                 )
             elif isinstance(asset, DraftPickTradeAsset):
-                label = "Draft pick"
-                omissions.append(f"assets.{index}.draft_pick_label")
+                if asset.season is not None:
+                    original = self._roster_label(franchise_id=asset.original_franchise_id,
+                        omissions=omissions, field=f"assets.{index}.original_team")
+                    label = f"{asset.season} round {asset.round} pick (originally {original})"
+                else:
+                    label = "Draft pick"
+                    omissions.append(f"assets.{index}.draft_pick_label")
             elif isinstance(asset, BudgetTradeAsset):
                 label = f"{asset.amount} FAAB"
             else:
@@ -458,6 +483,7 @@ class MemoryPresentationAdapter:
             result_path = path + [len(summaries)]
             summaries.append(
                 SemanticMemorySummary(
+                    memory_handle=self.handle_for(memory),
                     kind=memory.item.kind,
                     role=role,
                     headline=headline,

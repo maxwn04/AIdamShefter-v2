@@ -88,7 +88,7 @@ def _validate_details(
         draft_pick_ids = [
             asset.draft_pick_id
             for asset in details.assets
-            if isinstance(asset, DraftPickTradeAsset)
+            if isinstance(asset, DraftPickTradeAsset) and asset.draft_pick_id is not None
         ]
         _validate_scoped_entities(
             session,
@@ -97,6 +97,12 @@ def _validate_details(
             DraftPick.id,
             DraftPick.competition_id,
             draft_pick_ids,
+        )
+        _validate_scoped_entities(
+            session, competition_id, "franchise", Franchise.id,
+            Franchise.competition_id,
+            [asset.original_franchise_id for asset in details.assets
+             if isinstance(asset, DraftPickTradeAsset) and asset.original_franchise_id is not None],
         )
         return
 

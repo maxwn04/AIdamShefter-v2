@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 from sqlalchemy.orm import Session
 
-from backend.database.models.memory import MemorySearchDocument
+from backend.database.models.memory import MemoryItem, MemorySearchDocument
 from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.search_documents.objects import SearchDocumentQuery
 
@@ -46,6 +46,10 @@ def query_search_documents(
         )
     if query.statuses:
         statement = statement.where(MemorySearchDocument.status.in_(query.statuses))
+    if query.agent_key is not None:
+        statement = statement.join(
+            MemoryItem, MemoryItem.id == MemorySearchDocument.item_id
+        ).where(MemoryItem.agent_key == query.agent_key)
     if query.competition_season_id is not None:
         statement = statement.where(
             MemorySearchDocument.competition_season_id
