@@ -325,6 +325,8 @@ def test_full_regular_query_contract_matches_legacy_golden(
     expected = {key: expected[key] for key in regular_keys}
     # Frozen scorecards retain source matchup identity and league scoring format.
     expected["league_snapshot"]["league"]["league_average_match"] = False
+    for row in expected["standings"]["standings"]:
+        row["streak_basis"] = "head_to_head"
     for key in ("week_games", "week_games_default", "week_games_with_players"):
         for game in expected[key]:
             game["sleeper_matchup_number"] = 1
@@ -375,6 +377,14 @@ def test_playoff_query_contract_matches_legacy_golden(tmp_path: Path) -> None:
         # The frozen query now retains each matchup's bracket perspective.
         for matchup in expected["team_playoff_path"]["matchups"]:
             matchup["bracket_type"] = expected["team_playoff_path"]["bracket_type"]
+        for key in ("playoff_brackets", "playoff_winners"):
+            for bracket_type, bracket in expected[key]["brackets"].items():
+                bracket["bracket_type"] = bracket_type
+                for matchups in bracket["rounds"].values():
+                    for matchup in matchups:
+                        matchup["bracket_type"] = bracket_type
+                for placement in bracket["placements"]:
+                    placement["bracket_type"] = bracket_type
         assert _json_round_trip(actual) == {key: expected[key] for key in actual}
     finally:
         artifact.path.unlink(missing_ok=True)

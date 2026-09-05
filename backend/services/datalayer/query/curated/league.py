@@ -736,7 +736,8 @@ def get_standings(
                     "points_against": float,
                     "rank": int,
                     "streak_type": str | None,
-                    "streak_len": int | None
+                    "streak_len": int | None,
+                    "streak_basis": str
                 },
                 ...
             ]
@@ -791,6 +792,10 @@ def get_standings(
             "rank": row.get("rank"),
             "streak_type": row.get("streak_type"),
             "streak_len": row.get("streak_len"),
+            "streak_basis": (
+                "head_to_head_and_league_average" if league_average_match
+                else "head_to_head"
+            ),
         })
 
     return {

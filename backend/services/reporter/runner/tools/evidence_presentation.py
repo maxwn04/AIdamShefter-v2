@@ -359,8 +359,14 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
             guidance.append("Use transactions for movement detail in the selected week range.")
     if any("source_week" in record.fields for record in records):
         guidance.append("source_week is provider grouping, not postgame timing. occurred_at is the provider created timestamp in UTC; it does not establish a response to a game or a causal motive. status=complete supports completed movement; other statuses do not.")
-    if any(record.fields.get("league_average_match") for record in records):
-        guidance.append("Standings include a league-average bonus matchup. Standings wins/losses are not head-to-head game counts; count game winner fields for head-to-head results.")
+    if any(
+        record.fields.get("league_average_match")
+        or record.fields.get("streak_basis") == "head_to_head_and_league_average"
+        for record in records
+    ):
+        guidance.append("Standings include a league-average bonus matchup. Standings wins/losses and streak_len count standings decisions, not head-to-head games; use game winner fields for head-to-head results and streaks.")
+    if any("bracket_type" in record.fields for record in records):
+        guidance.append("bracket_type identifies the source bracket. Bracket winner/loser fields describe its recorded outcome, which may differ from the higher-scoring team; do not infer advancement rules from scores alone.")
     return guidance
 
 

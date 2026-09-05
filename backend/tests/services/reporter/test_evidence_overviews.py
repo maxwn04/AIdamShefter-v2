@@ -119,6 +119,18 @@ def test_league_overview_excludes_transaction_details_and_explains_bonus_record(
     assert any(r["fields"].get("wins") == 2 for r in page["records"])
 
 
+def test_standings_row_retains_streak_basis_without_the_league_summary():
+    records = select("standings", {"standings": [{
+        "team_name": "Alpha", "streak_type": "W", "streak_len": 14,
+        "streak_basis": "head_to_head_and_league_average",
+    }]})
+    page = evidence_page(records)
+    assert page["records"][0]["fields"]["streak_basis"] == "head_to_head_and_league_average"
+    assert page["records"][0]["fields"]["streak_len"] == 14
+    assert records[0].field_paths["streak_basis"] == "/standings/0/streak_basis"
+    assert any("streak_len count standings decisions" in item for item in page["guidance"])
+
+
 def test_missing_timestamp_does_not_imply_occurrence_week_or_completed_status():
     records = select("transactions", [{"type": "waiver", "week": 1, "details": [{
         "team_name": "Unknown", "assets_received": [{"player_name": "Receiver"}], "assets_sent": [],
