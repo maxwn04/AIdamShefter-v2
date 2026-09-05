@@ -159,6 +159,11 @@ class Runner:
                 turn += 1
                 if self._memory_closeout is not None:
                     self._memory_closeout.begin_turn()
+                    if self._memory_closeout.active:
+                        messages.append({
+                            "role": "user",
+                            "content": self._memory_closeout.turn_guidance(),
+                        })
                 stage = (
                     "memory_closeout"
                     if self._memory_closeout is not None

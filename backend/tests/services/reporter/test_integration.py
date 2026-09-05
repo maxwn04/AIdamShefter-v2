@@ -774,26 +774,40 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
     allow_memory_writes: bool,
     expected_proposals: int,
 ) -> None:
+    from backend.tests.services.reporter.test_memory_evidence_handoff import SQLiteData
+    from backend.tests.services.reporter.test_memory_tools import (
+        COMPETITION_ID, SEASON_ID, TACO_FRANCHISE_ID, WIRE_FRANCHISE_ID,
+    )
+
+    data = SQLiteData()
+    data.connection.executescript("""
+        CREATE TABLE leagues(league_id TEXT, name TEXT);
+        INSERT INTO leagues VALUES ('league', 'Test League');
+    """)
     recorder = ExecutionRecordingProbe()
     memory_context = GenerationMemoryContext(
-        competition_id=UUID(int=1),
+        competition_id=COMPETITION_ID,
         generation_id=uuid4(),
         pinned_revision_id=uuid4(),
         retrieval=EmptyMemoryRetrieval(),
-        competition_season_id=UUID(int=2),
-        week=8,
+        competition_season_id=SEASON_ID,
+        week=3,
     )
     complete = FakeCompletion(
         [
-            make_response(tool_calls=[tool_call("league_snapshot", {"week": 8}, "evidence-call")]),
+            make_response(tool_calls=[tool_call("week_games", {"week": 3}, "evidence-call")]),
             make_response(
                 tool_calls=[
                     tool_call(
                         "save_fact",
                         {
                             "id": "fact_closeout_fixture",
-                            "claim_text": "Week 8 supplied a verified fact.",
-                            "_evidence": [{"tool": "league_snapshot", "where": {"winner_team_name": "Team Taco"}, "fields": ["winner_team_name"]}],
+                            "claim_text": "Team Taco defeated Waiver Wire 143.84-116.10 in Week 3.",
+                            "category": "score",
+                            "_evidence": [
+                                {"tool": "week_games", "where": {"team_name": "Team Taco"}, "fields": ["points_a"]},
+                                {"tool": "week_games", "where": {"team_name": "Waiver Wire"}, "fields": ["points_b"]},
+                            ],
                         },
                         "fact-call",
                     )
@@ -803,7 +817,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
                 tool_calls=[
                     tool_call(
                         "create_artifact",
-                        {"path": "article.md", "content": "# Week 8\n\nVerified."},
+                        {"path": "article.md", "content": "# Week 3\n\nVerified."},
                         "create-call",
                     )
                 ]
@@ -824,19 +838,10 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
                         {
                             "id": "event_closeout_matchup",
                             "event_type": "matchup",
-                            "week": 8,
-                            "headline": "Team Taco won the Week 8 matchup.",
+                            "source_fact_ids": ["fact_closeout_fixture"],
+                            "headline": "Team Taco won the Week 3 matchup.",
                             "summary": "Team Taco defeated Waiver Wire.",
                             "importance": 4,
-                            "confidence": "verified",
-                            "source_refs": ["league_snapshot:week=8"],
-                            "matchup_id": "week-8-1",
-                            "details": {
-                                "kind": "matchup",
-                                "winner_roster_key": "Team Taco",
-                                "loser_roster_key": "Waiver Wire",
-                                "sleeper_matchup_id": "week-8-1",
-                            },
                         },
                         "event-memory-call",
                     )
@@ -852,7 +857,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
                             "summary": "The playoff push is real.",
                             "status": "active",
                             "priority": 4,
-                            "origin_week": 8,
+                            "origin_week": 3,
                             "team_keys": ["Team Taco"],
                             "evidence_event_ids": ["event_closeout_matchup"],
                         },
@@ -912,17 +917,20 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
         ]
     )
 
-    output = run(
-        generate_article(
-            FakeFrozenLeagueData(),  # type: ignore[arg-type]
-            ReportConfig.for_week(8),
-            memory_context=memory_context,
-            completion=CompletionSettings(model="test-model"),
-            complete=complete,
-            allow_memory_writes=allow_memory_writes,
-            recorder=recorder,
+    try:
+        output = run(
+            generate_article(
+                data,  # type: ignore[arg-type]
+                ReportConfig.for_week(3),
+                memory_context=memory_context,
+                completion=CompletionSettings(model="test-model"),
+                complete=complete,
+                allow_memory_writes=allow_memory_writes,
+                recorder=recorder,
+            )
         )
-    )
+    finally:
+        data.connection.close()
 
     summary = output.run_log_summary["memory_closeout"]
     bundle = memory_context.take_completed_bundle()
@@ -942,7 +950,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
     ]
     assert ("memory_review_noop" in events) is (expected_proposals == 0)
     assert output.submitted_artifact is not None
-    assert output.submitted_artifact.content == "# Week 8\n\nVerified."
+    assert output.submitted_artifact.content == "# Week 3\n\nVerified."
     assert output.submitted_artifact.revision == 1
     if allow_memory_writes:
         assert summary["proposal_counts"]["by_kind"] == {
@@ -957,6 +965,12 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
         assert kinds.count("storyline") == 1
         assert kinds.count("trigger") == 1
         assert kinds.count("context_note") == 2
+        event = next(proposal for proposal in bundle.proposals if proposal.kind.value == "event")
+        assert event.content.details.sleeper_matchup_id == "6"
+        assert event.content.details.winner_franchise_id == TACO_FRANCHISE_ID
+        assert event.content.details.loser_franchise_id == WIRE_FRANCHISE_ID
+        assert event.metadata.week == 3
+        assert event.content.source_hints["source_fact_ids"] == ["fact_closeout_fixture"]
         assert all(proposal.operation == "create" for proposal in bundle.proposals)
         assert all(
             proposal.metadata.creating_tool_call_id is not None

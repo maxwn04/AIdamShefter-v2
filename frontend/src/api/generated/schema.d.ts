@@ -1718,16 +1718,19 @@ export interface components {
         /** DraftPickTradeAsset */
         DraftPickTradeAsset: {
             direction: components["schemas"]["TradeAssetDirection"];
-            /**
-             * Draft Pick Id
-             * Format: uuid
-             */
-            draft_pick_id: string;
+            /** Draft Pick Id */
+            draft_pick_id?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             kind: "draft_pick";
+            /** Original Franchise Id */
+            original_franchise_id?: string | null;
+            /** Round */
+            round?: number | null;
+            /** Season */
+            season?: number | null;
         };
         /**
          * EndpointKind
@@ -3325,6 +3328,8 @@ export interface components {
          * @description Revision-grounded discovery signals and structured result filters.
          */
         SearchDocumentQuery: {
+            /** Agent Key */
+            agent_key?: string | null;
             /** Competition Season Id */
             competition_season_id?: string | null;
             /**

@@ -320,3 +320,30 @@ def test_failed_rebuild_preserves_the_previous_projection(
             .order_by(MemorySearchDocument.version_id)
         ).all()
     assert after == before
+
+
+def test_exact_agent_key_filter_precedes_ranking_limit(database_engine: Engine) -> None:
+    from backend.resources.memory.storylines import StorylineContent
+    from backend.services.memory import MemoryMutationMetadata
+    from backend.tests.services.memory.test_mutation_service import _generation_context
+
+    domain = _seed_domain(database_engine)
+    context = _generation_context(domain)
+    target = None
+    for index in range(151):
+        reference = context.propose_storyline(StorylineContent.model_validate({
+            "headline": f"Arc {index}", "summary": "A season-long arc.", "status": "active",
+            "arc_type": "contender", "salience": 1 if index == 150 else 5,
+            "tags": [], "subjects": [], "evidence": [], "related_storylines": [],
+        }), metadata=MemoryMutationMetadata(agent_key=f"arc_{index}"))
+        if index == 150:
+            target = reference
+    committed = _service(database_engine, domain).apply(context.take_completed_bundle())
+    assert committed.revision is not None and target is not None
+    manager = _manager(database_engine, domain)
+    broad = manager.search(committed.revision.revision_id,
+        SearchDocumentQuery(kinds=(MemoryKind.STORYLINE,), limit=100))
+    assert target.item_id not in {candidate.item_id for candidate in broad}
+    exact = manager.search(committed.revision.revision_id,
+        SearchDocumentQuery(kinds=(MemoryKind.STORYLINE,), agent_key="arc_150", limit=2))
+    assert [candidate.item_id for candidate in exact] == [target.item_id]

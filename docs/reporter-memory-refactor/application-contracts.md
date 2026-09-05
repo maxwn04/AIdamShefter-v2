@@ -218,6 +218,12 @@ A memory-enabled run begins with both false. A successful `submit_artifact` sets
 
 The runner terminates normally only when both facts are true. The tool definitions and their ordering remain constant on every completion request. Six additional closeout turns guarantee the reporter receives an opportunity to act even when submission occurs at the normal writing-turn limit; the submission turn does not consume this allowance.
 
+Before each closeout completion request, the runner exposes the current turn and
+remaining allowance. The final turn explicitly directs the reporter to finish
+necessary writes and call `complete_memory_review` in that response. Completion
+executes after other tools in the batch. This guidance adds no turns and does not
+implicitly complete review, accept a failed write, or commit a proposal buffer.
+
 Live finalization consumes the existing generation memory proposal bundle. Backtest mode continues returning blocked results for memory writes and completes closeout as a no-op.
 
 ## Invariants

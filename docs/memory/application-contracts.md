@@ -332,3 +332,55 @@ recursively enriched, and the owning canonical aggregate is not rewritten.
 
 The agent never receives a search document as authoritative memory and never
 writes directly to the projection.
+
+
+## Source-derived reporter event handoff
+
+The reporter's `save_memory_event` takes successful `source_fact_ids`, an event
+kind, and editorial headline/summary/salience. Canonical saved bindings select
+executed source records; the frozen query runtime resolves exactly one matchup or
+completed two-party trade. The runtime derives matchup number, participants,
+asset identity and asset direction. All assets in the selected trade are retained,
+even when the selecting fact binds only one movement. Unsupported or ambiguous
+source events fail before a proposal is selected, with a repair message.
+
+Resolution reads use the guarded frozen SQL interface. Full query parameters,
+returned rows and selected bindings are retained in tool execution metadata and
+event source hints. The model receives a compact success receipt with the stable
+event key, source fact IDs and event week. Headlines and summaries remain editorial
+interpretation; selecting a factual source is not a proof of their wording.
+
+Transaction `source_week` is a provider grouping, not an occurrence interval.
+The source timestamp is preserved as `occurred_at` when available. Events can be
+saved only in the active generation's season; historical facts remain research
+leads until explicit cross-season transfer is implemented.
+
+Draft-pick event assets accept either the existing `draft_pick_id` UUID or a
+complete natural identity: `season` (the **draft year**), `round`, and
+`original_franchise_id`. This is an extension of the stored event JSON contract;
+it needs no relational column migration. Natural identities represent source
+picks whose frozen snapshot has no canonical pick UUID. Original franchise must
+belong to the competition. UUID and natural identity must not be mixed, incomplete
+identities are rejected, and two draft years remain distinct picks. Legacy UUID
+assets retain their exact previous serialized shape; new optional fields are not
+inserted into old content or its canonical hash input.
+
+## Recalled-memory update handles
+
+Semantic memory context includes a run-local `memory_handle`, bound to a canonical
+item and exact immutable version. Repeated hydration of that version returns the
+same handle. `upsert_storyline_memory_card` accepts either a new creation `id` or
+an `update_handle`. Creation keys already present at the pinned revision return an
+update handle instead of creating a duplicate. Exact creation-key resolution is
+filtered before ranking or limits; it is not a scan of the top recalled items.
+
+Updates preserve omitted subjects, status, tags, salience, callback, resolution,
+origin week and origin season, retain existing evidence and linked arcs, and append
+new successful event references. Explicit field changes still undergo canonical
+validation. Cross-season storyline updates currently return an actionable error.
+A handle linked after an event replacement in the same run resolves to the new
+selected event version. A card and its embedded trigger writes form one proposal
+savepoint: any failure rolls back all changes from that tool call, including local
+reference and idempotency caches. Earlier successful tool calls remain buffered.
+Successful tools still produce proposals; generation finalization controls atomic
+persistence and must not be inferred from a save receipt alone.

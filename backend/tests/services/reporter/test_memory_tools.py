@@ -186,20 +186,10 @@ def _event_args(*, event_id: str = "event_week8") -> dict[str, Any]:
     return {
         "id": event_id,
         "event_type": "matchup",
-        "week": 3,
+        "source_fact_ids": ["fact_event"],
         "headline": "Taco won the Week 8 matchup.",
         "summary": "Team Taco defeated Waiver Wire.",
         "importance": 4,
-        "confidence": "verified",
-        "source_refs": ["team_game:week8:taco"],
-        "numbers": {"week": 8},
-        "matchup_id": "week-8-1",
-        "details": {
-            "kind": "matchup",
-            "winner_roster_key": "Team Taco",
-            "loser_roster_key": "Waiver Wire",
-            "sleeper_matchup_id": "week-8-1",
-        },
     }
 
 
@@ -299,7 +289,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "5"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "6"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
@@ -383,7 +373,9 @@ def test_search_maps_editorial_range_and_expansion_preferences() -> None:
 
 
 def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
-    registry, context, memory, _, _ = _registered()
+    from backend.tests.services.reporter.test_memory_evidence_handoff import setup, saved_source_fact
+    registry, context, memory, _, _, _ = setup()
+    saved_source_fact(registry, context, week=3)
     with context.bind_tool_execution(UUID(int=101)):
         event = _call(registry, "save_memory_event", **_event_args())
     with context.bind_tool_execution(UUID(int=102)):
@@ -444,15 +436,17 @@ def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
         UUID(int=105),
     ]
     assert bundle.proposals[0].content.source_hints["week"] == 3
-    assert bundle.proposals[0].content.source_hints["importance"] == 4
+    assert bundle.proposals[0].content.salience == 4
     assert bundle.proposals[0].metadata.week == 3
     assert bundle.proposals[1].content.salience == 2
     assert bundle.proposals[1].metadata.week == 3
 
 
 def test_stable_id_resolves_internal_replace_revision() -> None:
+    from backend.tests.services.reporter.test_memory_evidence_handoff import setup, saved_source_fact
     match = _event_match()
-    registry, _, memory, _, _ = _registered(matches=(match,))
+    registry, context, memory, _, _, _ = setup((match,))
+    saved_source_fact(registry, context, week=3)
     execution = _execution_call(registry, "save_memory_event", **_event_args())
     assert isinstance(execution, ToolExecutionResult)
     result = execution.result
@@ -479,7 +473,9 @@ def test_brief_facts_never_enter_the_canonical_proposal_bundle() -> None:
 
 
 def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> None:
-    registry, _, memory, _, _ = _registered()
+    from backend.tests.services.reporter.test_memory_evidence_handoff import setup, saved_source_fact
+    registry, context, memory, _, _, _ = setup()
+    saved_source_fact(registry, context, week=3)
     event_args = _event_args()
     card_args = {
         "id": "story_taco",
@@ -536,7 +532,7 @@ def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> 
     assert all("memory_kind" not in result for result in first)
     assert all("operation" not in result for result in first)
     assert all(result["saved"] is False and result["no_change"] for result in repeated)
-    assert all(result.metadata == {} for result in repeated_executions)
+    assert all("memory_activity" not in result.metadata for result in repeated_executions)
 
     conflicts = (
         ("save_memory_event", {**event_args, "summary": "Conflicting event."}),
@@ -619,10 +615,10 @@ def test_eval_mode_keeps_search_and_skips_legacy_writes() -> None:
 def test_invalid_legacy_inputs_are_safe_and_do_not_buffer() -> None:
     registry, _, memory, _, _ = _registered()
     missing_source = _event_args()
-    missing_source["source_refs"] = []
+    missing_source["source_fact_ids"] = []
     verified = _call(registry, "save_memory_event", **missing_source)
     missing_details = _event_args()
-    missing_details.pop("details")
+    missing_details["source_fact_ids"] = ["not_saved"]
     details = _call(registry, "save_memory_event", **missing_details)
     unresolved = _call(
         registry,
@@ -630,9 +626,9 @@ def test_invalid_legacy_inputs_are_safe_and_do_not_buffer() -> None:
         roster_key="missing",
         narrative="Unknown team.",
     )
-    assert verified["error"]["code"] == "missing_source_refs"
+    assert verified["error"]["code"] == "invalid_memory_input"
     assert verified["saved"] is False
-    assert details["error"]["code"] == "missing_event_details"
+    assert details["error"]["code"] == "insufficient_event_evidence"
     assert details["saved"] is False
     assert unresolved["error"]["code"] == "roster_not_found"
     assert unresolved["saved"] is False

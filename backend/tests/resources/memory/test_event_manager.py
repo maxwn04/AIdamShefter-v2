@@ -671,3 +671,23 @@ def test_event_content_and_projection_roll_back_with_canonical_envelope(
                 .select_from(model)
                 .where(id_column == expected_id)
             ) == 0
+
+
+def test_natural_pick_original_franchise_must_belong_to_competition(
+    database_engine: Engine,
+) -> None:
+    domain = _seed_domain(database_engine)
+    values = _trade(domain).model_dump(mode="python")
+    values["details"]["assets"] = [
+        {"kind": "draft_pick", "direction": "receiver_to_sender", "season": year,
+         "round": 1, "original_franchise_id": domain.sender_id} for year in (2026, 2027)
+    ]
+    session_factory = create_session_factory(database_engine)
+    with session_factory() as session:
+        prepare_event_write(session, domain.competition_id, EventContent.model_validate(values))
+        values["details"]["assets"][0]["original_franchise_id"] = domain.other_franchise_id
+        with pytest.raises(CrossCompetitionEntityReferenceError):
+            prepare_event_write(session, domain.competition_id, EventContent.model_validate(values))
+        values["details"]["assets"][0]["original_franchise_id"] = uuid4()
+        with pytest.raises(EntityReferenceNotFoundError):
+            prepare_event_write(session, domain.competition_id, EventContent.model_validate(values))

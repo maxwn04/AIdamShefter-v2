@@ -120,3 +120,26 @@ def test_event_projection_hash_covers_complete_content_not_search_text() -> None
 
     assert original.document_text == changed_receipt.document_text
     assert original.content_hash != changed_receipt.content_hash
+
+
+def test_natural_pick_identity_remains_distinct_in_projection_and_codec() -> None:
+    import pytest
+    from backend.database.models.memory import EventVersion
+    from backend.resources.memory.events.codec import _decode_content, encode_event
+
+    values = _trade().model_dump(mode="python")
+    values["details"]["assets"] = [
+        {"kind": "draft_pick", "direction": "receiver_to_sender", "season": year,
+         "round": 1, "original_franchise_id": SENDER_ID} for year in (2026, 2027)
+    ]
+    content = EventContent.model_validate(values)
+    projection = build_event_document(content)
+    assert f"draft_pick_natural:2026:1:{SENDER_ID}" in projection.entity_keys
+    assert f"draft_pick_natural:2027:1:{SENDER_ID}" in projection.entity_keys
+    stored = EventVersion(version_id=PICK_ID, competition_id=SENDER_ID,
+        **encode_event(content, receipt_generation_id=None))
+    assert _decode_content(1, stored) == content
+    assert len(stored.details["assets"]) == 2
+    values["details"]["assets"].append(values["details"]["assets"][0])
+    with pytest.raises(ValueError, match="assets must be distinct"):
+        EventContent.model_validate(values)

@@ -62,6 +62,24 @@ class MemoryCloseoutState:
         if self.active:
             self.closeout_turns_used += 1
 
+    def turn_guidance(self) -> str:
+        """Expose the actual bounded lifecycle without inventing a completion."""
+        remaining = MEMORY_CLOSEOUT_TURN_ALLOWANCE - self.closeout_turns_used
+        if remaining == 0:
+            return (
+                "Final memory-review turn. Finish the necessary repairs or updates "
+                "and call complete_memory_review in this response. Writes in the "
+                "same response execute before completion. Do not start optional "
+                "research or unrelated memory writes."
+            )
+        return (
+            f"Memory-review turn {self.closeout_turns_used} of "
+            f"{MEMORY_CLOSEOUT_TURN_ALLOWANCE}; {remaining} further turns remain. "
+            "Prioritize supported events and updates to recalled storylines. "
+            "Use successful write receipts for dependencies, then call "
+            "complete_memory_review explicitly."
+        )
+
     def complete(self, *, turn: int) -> dict[str, Any]:
         if not self.article_submitted:
             return {
