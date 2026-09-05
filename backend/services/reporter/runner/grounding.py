@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from math import isclose
+from typing import Any
 
 from pydantic import JsonValue
 
 from backend.services.reporter.runner.evidence import EvidenceReader, EvidenceRecord
-from backend.services.reporter.runner.research_brief import BriefFact, ResearchBriefError
+from backend.services.reporter.runner.research_brief import (
+    BriefFact, ClaimBinding, ResearchBriefError,
+)
 
 
-def _reject(message: str) -> None:
-    raise ResearchBriefError("unsupported_fact", message)
+def _reject(message: str, **details: Any) -> None:
+    raise ResearchBriefError("unsupported_fact", message, **details)
 
 
 def _equal(actual: JsonValue, expected: JsonValue) -> bool:
@@ -28,6 +31,61 @@ def _equal(actual: JsonValue, expected: JsonValue) -> bool:
             _equal(left, right) for left, right in zip(actual, expected, strict=True)
         )
     return type(actual) is type(expected) and actual == expected
+
+
+def resolve_bindings(
+    selections: list[dict[str, Any]], evidence: EvidenceReader,
+) -> tuple[ClaimBinding, ...]:
+    """Hydrate source dimensions, checking supplied legacy dimensions if present."""
+    bindings: dict[tuple[str, str], ClaimBinding] = {}
+    dimensions = ("subject", "season", "week_from", "week_to", "perspective")
+    for selection in selections:
+        binding = ClaimBinding.model_validate(selection)
+        record = evidence.resolve(binding.ref)
+        if record is None or record.outcome not in {"found", "partial"}:
+            _reject(
+                f"Reference {binding.ref} does not resolve to available executed evidence.",
+                ref=binding.ref,
+                outcome=record.outcome if record else "unknown_reference",
+                repair={"action": "select_available_evidence", "instruction": "Select a ref returned by an executed data tool with outcome found or partial. Unavailable evidence cannot support this fact; narrow the claim or research the missing support."},
+            )
+        if binding.field not in record.fields:
+            _reject(
+                f"Binding {binding.ref}.{binding.field} does not match the executed value.",
+                ref=binding.ref, field=binding.field,
+                available_fields=list(record.fields)[:12],
+                fields_truncated=len(record.fields) > 12,
+                repair={"action": "select_executed_field", "instruction": "Select an exact field from this record and its executed value. The bounded field list describes only this record; use read_evidence for further source detail."},
+            )
+        if not _equal(record.fields[binding.field], binding.value):
+            _reject(
+                f"Binding {binding.ref}.{binding.field} does not match the executed value.",
+                ref=binding.ref, field=binding.field,
+                expected_value=record.fields[binding.field],
+                repair={"action": "match_executed_value", "instruction": "Use the exact executed value and revise the claim to match its support, or select different executed evidence. This rejection saved no fact."},
+            )
+        for dimension in dimensions:
+            if dimension in binding.model_fields_set and getattr(binding, dimension) != getattr(record, dimension):
+                _reject(
+                    f"Binding {binding.ref} has the wrong {dimension}.",
+                    ref=binding.ref, dimension=dimension,
+                    expected_value=getattr(record, dimension),
+                    repair={"action": "use_compact_binding", "instruction": "Send only ref, field, value. The runtime derives source subject, season, period and perspective; ensure the claim describes that source."},
+                )
+        bindings[(binding.ref, binding.field)] = binding.model_copy(update={
+            dimension: getattr(record, dimension) for dimension in dimensions
+        })
+    return tuple(bindings.values())
+
+
+def binding_numbers(bindings: tuple[ClaimBinding, ...]) -> dict[str, JsonValue]:
+    """Derive an unambiguous numeric summary from the authoritative selections."""
+    numeric = [binding for binding in bindings if isinstance(binding.value, (int, float)) and not isinstance(binding.value, bool)]
+    repeated = {binding.field for binding in numeric if sum(other.field == binding.field for other in numeric) > 1}
+    return {
+        f"{binding.ref}.{binding.field}" if binding.field in repeated else binding.field: binding.value
+        for binding in numeric
+    }
 
 
 def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
@@ -56,7 +114,7 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
     if set(records) != {binding.ref for binding in fact.bindings}:
         _reject("Every data_ref must supply at least one selected binding.")
     for key, value in fact.numbers.items():
-        if not any(binding.field == key and _equal(binding.value, value) for binding in fact.bindings):
+        if not any(key in {binding.field, f"{binding.ref}.{binding.field}"} and _equal(binding.value, value) for binding in fact.bindings):
             _reject(f"Number {key} must match a selected field binding.")
 
     if fact.category == "transaction":
@@ -118,7 +176,15 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
     elif fact.category == "superlative":
         if fact.superlative_direction is None:
             _reject("Superlatives require an explicit min/max direction.")
-        for binding in fact.bindings:
+        metrics = fact.bindings
+        if fact.superlative_binding is not None:
+            metrics = tuple(binding for binding in fact.bindings if (
+                binding.ref == fact.superlative_binding.ref
+                and binding.field == fact.superlative_binding.field
+            ))
+            if not metrics:
+                _reject("The asserted superlative metric must be selected in bindings.")
+        for binding in metrics:
             record = records[binding.ref]
             if not record.complete or not record.population:
                 _reject("Superlatives require an explicitly complete comparison population.")

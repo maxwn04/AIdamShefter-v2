@@ -71,7 +71,6 @@ class FakeCompletion:
                     {
                         "ref": record["ref"], "field": field,
                         "value": record["fields"][field],
-                        **{key: record[key] for key in ("subject", "season", "week_from", "week_to", "perspective")},
                     }
                     for field in selector["fields"]
                 )
@@ -162,8 +161,15 @@ class FakeFrozenLeagueData:
         season: int | None = None,
     ) -> dict[str, Any]:
         return {
-            "week": week,
-            "season": season or 2026,
+            "found": True,
+            "as_of_week": week,
+            "league": {
+                "name": "Test League",
+                "season": str(season or 2026),
+                "sport": "nfl",
+                "playoff_week_start": 15,
+                "league_average_match": False,
+            },
             "standings": [
                 {"team_name": "Team Taco", "wins": 7, "losses": 1, "rank": 1},
                 {"team_name": "Waiver Wire", "wins": 2, "losses": 6, "rank": 8},
@@ -573,7 +579,7 @@ def test_generate_article_records_argument_complete_historical_evidence() -> Non
                             "_evidence": [
                                 {"tool": "franchise_history", "where": {"team_name": "Old Taco"}, "fields": ["team_name", "season"]},
                                 {"tool": "franchise_history", "where": {"team_name": "Team Taco"}, "fields": ["team_name", "season"]},
-                                {"tool": "league_snapshot", "where": {"week": 18}, "fields": ["week", "season"]},
+                                {"tool": "league_snapshot", "where": {"league_average_match": False}, "fields": ["name", "league_average_match"]},
                             ],
                             "category": "history",
                         },
@@ -632,10 +638,11 @@ def test_generate_article_records_argument_complete_historical_evidence() -> Non
     )
     historical_record = next(
         record for record in historical_output["records"]
-        if record["fields"].get("week") == 18
+        if record["fields"].get("league_average_match") is False
     )
     assert historical_record["ref"] in brief.content
     assert {**historical_output["scope"], **historical_record}["season"] == 2025
+    assert {**historical_output["scope"], **historical_record}["week_to"] == 18
     assert any(
         entry["event_type"] == "tool_call"
         and entry["data"]["tool_name"] == "league_snapshot"
@@ -670,8 +677,7 @@ def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> N
                         {
                             "id": "fact_taco_win",
                             "claim_text": "Team Taco won in Week 8.",
-                            "_evidence": [{"tool": "league_snapshot", "where": {"week": 8}, "fields": ["week"]}],
-                            "numbers": {"week": 8},
+                            "_evidence": [{"tool": "league_snapshot", "where": {"winner_team_name": "Team Taco"}, "fields": ["winner_team_name"]}],
                             "category": "score",
                         },
                         "fact-call",

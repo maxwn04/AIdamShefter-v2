@@ -6,8 +6,8 @@ traversal order and registers immutable copies in a run-local catalog. Invocatio
 handles derive from runner turn and ordinal before execution. Recorder-free direct
 adapter calls use a separate direct-call namespace.
 
-The model receives selected record pages with common scope and caveats shared at
-the envelope level. The existing tool execution recorder receives JSON-safe full
+The model receives purpose-specific overview pages with common scope and a
+page-local caveat lookup referenced by individual records. The existing tool execution recorder receives JSON-safe full
 raw results, full selected record paths, identity resolutions, snapshot seasons
 and completeness warnings in private metadata. Durable execution IDs never enter
 the model response. A record ref plus its invocation binds public presentation to
@@ -22,10 +22,11 @@ traceability errors; it does not require a clean verification receipt. Structure
 binding validation remains in `save_fact`. Existing artifact/brief requirements
 and mandatory same-agent memory closeout remain. No extra completion call is added.
 
-Presentation favors explicit attribution and repairable references over minimal
-bytes for every small query. Small standings and trade fixtures grow because each
-usable selected field now carries its owner, scope and trace. Repeated scope,
-subject IDs and caveats are shared; larger result collections paginate at 40
-records. This is a bounded evidence interface, not a demonstrated token reduction.
+Presentation exposes all weekly game scores before optional player detail and
+hydrates immutable source context from compact fact selections. Transaction
+cards carry directional asset, status and timestamp context; their first page may
+grow while covering more moves. Repeated scope and page-local caveat definitions
+are shared; larger views paginate at 40 records. This is a bounded evidence
+interface, not a demonstrated paid-run token reduction.
 Measure failed lookups, factual errors, result size and model usage together in
 the prepared behavior evaluation before claiming net context or quality gains.

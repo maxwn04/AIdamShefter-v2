@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from hashlib import sha256
 import json
@@ -71,11 +72,12 @@ def selected_records(
         perspective: str | None, population: str | None,
         inherited_limits: tuple[str, ...], inherited_outcome: EvidenceOutcome = "found",
         inherited_complete: bool = True,
+        transaction_context: tuple[dict[str, Any], dict[str, str]] | None = None,
     ) -> None:
         if isinstance(node, (list, tuple)):
             for i, child in enumerate(node):
                 visit(child, f"{path}/{i}", subject, subject_id, node_season, start,
-                      end, perspective, f"{source}:{path}", inherited_limits, inherited_outcome, inherited_complete)
+                      end, perspective, f"{source}:{path}", inherited_limits, inherited_outcome, inherited_complete, transaction_context)
             return
         if not isinstance(node, dict):
             # Scalar list results still have an exact source field binding.
@@ -116,6 +118,20 @@ def selected_records(
         elif subject is None and (node.get("player_name") or node.get("full_name")):
             subject = str(node.get("player_name") or node.get("full_name"))
         local_limits = list(inherited_limits)
+        is_transaction = (tool in {"transactions", "team_transactions", "league_snapshot"}
+                          and node.get("type") in {"trade", "waiver", "free_agent"})
+        if is_transaction:
+            context_fields = {key: node[key] for key in ("type", "status", "bid_amount") if key in node}
+            context_paths = {key: f"{path}/{key}" for key in context_fields}
+            context_fields["source_week"] = node.get("week")
+            context_paths["source_week"] = f"{path}/week"
+            timestamp = node.get("created_ts")
+            if isinstance(timestamp, (int, float)):
+                context_fields["occurred_at"] = datetime.fromtimestamp(timestamp / 1000, tz=UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                context_paths["occurred_at"] = f"{path}/created_ts (Unix milliseconds to UTC)"
+            else:
+                local_limits.append("Transaction timestamp unavailable; occurrence timing is unknown.")
+            transaction_context = context_fields, context_paths
         for key in ("limitations", "warnings", "caveats", "warning", "limitation"):
             if node.get(key):
                 value = node[key]
@@ -133,7 +149,7 @@ def selected_records(
             outcome = "unavailable"
         elif outcome in {"found", "partial"} and (node.get("partial") is True or node.get("complete") is False):
             outcome = "partial"
-        if tool in {"transactions", "team_transactions", "league_snapshot"} and node.get("type") in {"trade", "waiver", "free_agent"} and node.get("status") != "complete":
+        if is_transaction and node.get("status") != "complete":
             outcome = "unavailable"
             local_limits.append("Transaction is not confirmed complete; listed assets are not evidence of completed movement.")
         record_limits = tuple(dict.fromkeys(local_limits + scoped_limits))
@@ -152,6 +168,13 @@ def selected_records(
             paths[key] = f"{path}/{_escape(key)}"
             if _points_field(key) and isinstance(value, (int, float)):
                 units[key] = "fantasy_points"
+        if transaction_context:
+            fields.update(transaction_context[0])
+            paths.update(transaction_context[1])
+            # The API endpoint's week groups transactions; it is not an occurrence interval.
+            fields.pop("week", None)
+            paths.pop("week", None)
+            start = end = None
         if own_subject and not player_metric and tool != "player_weekly_log":
             _, roster_key = identity(str(own_subject), node_season)
             roster_key = node.get("sleeper_roster_id") or roster_key
@@ -177,12 +200,16 @@ def selected_records(
                 units.pop(points_key, None)
                 side_subject = str(node[team_key])
                 side_id, _ = identity(side_subject, node_season)
+                side_fields = {points_key: _numeric_value(points_key, node[points_key]), "team_name": side_subject}
+                side_paths = {points_key: f"{path}/{points_key}", "team_name": f"{path}/{team_key}"}
+                if "sleeper_matchup_number" in node:
+                    side_fields["sleeper_matchup_number"] = node["sleeper_matchup_number"]
+                    side_paths["sleeper_matchup_number"] = f"{path}/sleeper_matchup_number"
                 records.append(EvidenceRecord(
                     ref=f"{source}.r{len(records)}", source=source, tool=tool, outcome=outcome,
                     subject=side_subject, subject_id=side_id, season=node_season,
                     week_from=start, week_to=end,
-                    fields={points_key: _numeric_value(points_key, node[points_key]), "team_name": side_subject},
-                    field_paths={points_key: f"{path}/{points_key}", "team_name": f"{path}/{team_key}"},
+                    fields=side_fields, field_paths=side_paths,
                     units={points_key: "fantasy_points"}, limitations=record_limits,
                 ))
         if fields or outcome != "found":
@@ -208,7 +235,7 @@ def selected_records(
             child_perspective = {"assets_sent": "sent", "assets_received": "received"}.get(key, perspective)
             child_start = 1 if key in {"standings", "standing"} else start
             visit(child, f"{path}/{_escape(key)}", child_subject, child_id, node_season,
-                  child_start, end, child_perspective, population, tuple(local_limits), outcome, node_complete)
+                  child_start, end, child_perspective, population, tuple(local_limits), outcome, node_complete, transaction_context)
 
     root_subject = None
     if isinstance(raw, dict):
@@ -225,23 +252,30 @@ def selected_records(
     return tuple(records)
 
 
-def evidence_page(records: tuple[EvidenceRecord, ...], offset: int = 0, limit: int = PAGE_SIZE) -> dict[str, Any]:
+def evidence_page(
+    records: tuple[EvidenceRecord, ...], offset: int = 0, limit: int = PAGE_SIZE,
+    *, view: str = "overview",
+) -> dict[str, Any]:
     if offset < 0 or not 1 <= limit <= PAGE_SIZE:
         raise ValueError(f"offset must be nonnegative and limit between 1 and {PAGE_SIZE}")
-    selected = records[offset:offset + limit]
+    if view not in {"overview", "detail"}:
+        raise ValueError("view must be overview or detail")
+    presented = _overview_records(records) if view == "overview" else records
+    selected = presented[offset:offset + limit]
     scope = {
         key: getattr(selected[0], key)
         for key in ("season", "week_from", "week_to", "perspective", "temporal_kind")
         if selected and all(getattr(record, key) == getattr(selected[0], key) for record in selected)
     }
     visible = []
-    limitations = list(dict.fromkeys(item for record in records for item in record.limitations))
+    limitations = list(dict.fromkeys(item for record in selected for item in record.limitations))
     for record in selected:
         payload = asdict(record)
         payload.pop("field_paths")  # exact provenance remains in private audit
         payload.pop("source")
         payload.pop("tool")
         payload.pop("subject_id")
+        payload["population_complete"] = payload.pop("complete")
         if not record.complete:
             payload.pop("population")
         if record.limitations:
@@ -264,12 +298,67 @@ def evidence_page(records: tuple[EvidenceRecord, ...], offset: int = 0, limit: i
         "source": records[0].source if records else None,
         "tool": records[0].tool if records else None,
         "scope": scope,
-        "subjects": {record.subject: record.subject_id for record in selected if record.subject and record.subject_id},
         "records": visible,
-        "total_records": len(records),
-        "next_offset": offset + len(selected) if offset + len(selected) < len(records) else None,
-        "limitations": limitations,
+        "view": view,
+        "total_records": len(presented),
+        "catalog_records": len(records),
+        "next_offset": offset + len(selected) if offset + len(selected) < len(presented) else None,
+        "limitation_definitions": limitations,
+        "guidance": _view_guidance(records, view),
     }
+
+
+def _overview_records(records: tuple[EvidenceRecord, ...]) -> tuple[EvidenceRecord, ...]:
+    """Select useful cards without changing catalog refs or claiming completeness."""
+    if not records:
+        return records
+    tool = records[0].tool
+    if tool in {"standings", "league_snapshot"}:
+        metadata_fields = {"found", "as_of_week", "through_week", "season", "week", "week_from", "week_to"}
+        records = tuple(record for record in records if record.outcome != "found" or not set(record.fields) <= metadata_fields)
+    if tool == "week_games":
+        return tuple(record for record in records if not any(
+            segment in path.split("/") for path in record.field_paths.values()
+            for segment in ("team_a_players", "team_b_players")
+        ))
+    if tool == "league_snapshot":
+        # Standings and all game sides fit together; transactions have a dedicated query.
+        return tuple(record for record in records if not any(
+            path.startswith("/transactions/") for path in record.field_paths.values()
+        ))
+    if tool in {"transactions", "team_transactions"}:
+        cards = tuple(record for record in records if (
+            record.perspective in {"sent", "received"}
+            or record.fields.get("net_draft_picks")
+            or record.outcome == "not_found"
+        ))
+        # Keep transactions with no listed movement visible, including failed/unknown rows.
+        empty_transactions = tuple(record for record in records if (
+            record.subject is None and "source_week" in record.fields
+            and "type" in record.fields
+            and not any(
+                path.startswith(record.field_paths["type"].rsplit("/", 1)[0] + "/")
+                for card in cards for path in card.field_paths.values()
+            )
+        ))
+        chosen = {record.ref for record in (*cards, *empty_transactions)}
+        return tuple(record for record in records if record.ref in chosen) or records
+    return records
+
+
+def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
+    guidance = ["Bind ref, field, value; source scope is filled by the runtime."]
+    if any(record.limitations for record in records):
+        guidance.append("limitation_definitions is a lookup: each caveat applies only to records citing its limitation_refs.")
+    if view == "overview" and records and records[0].tool in {"week_games", "league_snapshot"}:
+        guidance.append("Game scores and winners are head-to-head results. Use team_game for player detail; read_evidence view=detail accesses the full catalog.")
+        if records[0].tool == "league_snapshot":
+            guidance.append("Use transactions for movement detail in the selected week range.")
+    if any("source_week" in record.fields for record in records):
+        guidance.append("source_week is provider grouping, not postgame timing. occurred_at is the provider created timestamp in UTC; it does not establish a response to a game or a causal motive. status=complete supports completed movement; other statuses do not.")
+    if any(record.fields.get("league_average_match") for record in records):
+        guidance.append("Standings include a league-average bonus matchup. Standings wins/losses are not head-to-head game counts; count game winner fields for head-to-head results.")
+    return guidance
 
 
 def public_subject_id(franchise_id: str) -> str:

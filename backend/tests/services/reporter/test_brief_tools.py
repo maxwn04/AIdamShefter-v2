@@ -216,3 +216,97 @@ def test_projection_recording_failure_rolls_back_brief_and_artifact() -> None:
     assert ctx.brief.brief.revision == 0
     assert ctx.brief.brief.facts == ()
     assert ctx.artifacts.artifacts == {}
+
+
+@pytest.mark.parametrize("operation", ["storyline", "outline", "callback"])
+def test_dependency_failures_expose_accepted_and_missing_ids_without_mutation(operation: str) -> None:
+    recorder = _Recorder()
+    ctx = _ctx(recorder=recorder)
+    assert _save_fact(ctx, "fact_accepted")["ok"]
+    failed_fact = _decode(save_fact(
+        ctx, id="fact_missing", claim_text="An unsupported attempted fact.",
+        bindings=[{"ref": "e999_0.r0", "field": "wins", "value": 1}],
+    ))
+    assert not failed_fact["ok"]
+    before = ctx.brief.brief.model_dump()
+    mutations_before = list(recorder.mutations)
+    projection_before = ctx.artifacts.read(RESEARCH_BRIEF_PATH)
+
+    if operation == "storyline":
+        result = _decode(save_storyline(
+            ctx, id="story_pending", headline="Pending evidence", summary="A dependent story.",
+            supporting_fact_ids=["fact_accepted", "fact_missing"],
+        ))
+    elif operation == "outline":
+        result = _decode(set_outline(ctx, sections=[{
+            "title": "Lead", "required_fact_ids": ["fact_accepted", "fact_missing"],
+            "storyline_ids": ["story_missing"],
+        }]))
+    else:
+        result = _decode(save_memory_callback(
+            ctx, id="callback_pending", callback_type="continuity", claim_text="A dependent callback.",
+            old_event_fact_id="fact_accepted", current_event_fact_id="fact_missing", why_now="Current payoff.",
+        ))
+
+    assert not result["ok"]
+    error = result["error"]
+    assert error["code"] == "unknown_fact_ids"
+    assert error["accepted_fact_ids"] == ["fact_accepted"]
+    assert error["missing_fact_ids"] == ["fact_missing"]
+    assert error["accepted_storyline_ids"] == []
+    assert error["missing_storyline_ids"] == (["story_missing"] if operation == "outline" else [])
+    assert error["brief_revision"] == before["revision"]
+    assert error["repair"]["action"] == "save_missing_dependencies"
+    assert error["repair"]["tools"] == (["save_fact", "save_storyline"] if operation == "outline" else ["save_fact"])
+    assert "ok=true" in error["repair"]["instruction"]
+    assert ctx.brief.brief.model_dump() == before
+    assert ctx.artifacts.read(RESEARCH_BRIEF_PATH) == projection_before
+    assert recorder.mutations == mutations_before
+
+
+def test_outline_reports_missing_storylines_when_facts_are_accepted() -> None:
+    ctx = _ctx()
+    assert _save_fact(ctx, "fact_accepted")["ok"]
+    result = _decode(set_outline(ctx, sections=[{
+        "title": "Lead", "required_fact_ids": ["fact_accepted"],
+        "storyline_ids": ["story_missing", "story_missing"],
+    }]))
+    error = result["error"]
+    assert error["code"] == "unknown_storyline_ids"
+    assert error["accepted_fact_ids"] == ["fact_accepted"]
+    assert error["missing_fact_ids"] == []
+    assert error["missing_storyline_ids"] == ["story_missing"]
+    assert error["repair"]["tools"] == ["save_storyline"]
+    assert ctx.brief.brief.revision == 1
+
+
+def test_dependencies_succeed_after_explicit_successful_saves() -> None:
+    ctx = _ctx()
+    _save_fact(ctx, "fact_old")
+    arguments = dict(id="story_both", headline="Two supported facts", summary="A dependent story.", supporting_fact_ids=["fact_old", "fact_new"])
+    assert not _decode(save_storyline(ctx, **arguments))["ok"]
+    assert ctx.brief.brief.get_fact("fact_new") is None
+    assert ctx.brief.brief.get_storyline("story_both") is None
+    assert _save_fact(ctx, "fact_new")["ok"]
+    assert _decode(save_storyline(ctx, **arguments))["ok"]
+    result = _decode(set_outline(ctx, sections=[{
+        "title": "Lead", "required_fact_ids": ["fact_old", "fact_new"],
+        "storyline_ids": ["story_both"],
+    }]))
+    assert result["ok"]
+    assert ctx.brief.brief.outline.sections[0].required_fact_ids == ("fact_old", "fact_new")
+
+
+def test_callback_same_fact_error_gives_precise_repair() -> None:
+    ctx = _ctx()
+    _save_fact(ctx, "fact_only")
+    result = _decode(save_memory_callback(
+        ctx, id="callback_same", callback_type="continuity", claim_text="Same fact twice.",
+        old_event_fact_id="fact_only", current_event_fact_id="fact_only", why_now="Missing second event.",
+    ))
+    error = result["error"]
+    assert error["code"] == "invalid_callback"
+    assert error["accepted_fact_ids"] == ["fact_only"]
+    assert error["missing_fact_ids"] == []
+    assert error["repair"]["action"] == "choose_distinct_facts"
+    assert ctx.brief.brief.revision == 1

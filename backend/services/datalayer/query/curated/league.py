@@ -130,7 +130,7 @@ def get_league_snapshot(
     league = fetch_one(
         conn,
         """
-        SELECT league_id, season, name, sport, playoff_week_start
+        SELECT league_id, season, name, sport, playoff_week_start, league_average_match
         FROM leagues
         WHERE league_id = :league_id AND season = :season
         """,
@@ -138,6 +138,7 @@ def get_league_snapshot(
     )
     if not league:
         return {"found": False}
+    league["league_average_match"] = bool(league["league_average_match"])
 
     effective_week = week
 
@@ -204,6 +205,7 @@ def _fetch_games_rows(
         SELECT
             g.week,
             g.matchup_id,
+            g.matchup_id AS sleeper_matchup_number,
             g.roster_id_a,
             g.roster_id_b,
             g.points_a,

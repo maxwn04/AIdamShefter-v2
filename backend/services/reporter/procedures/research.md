@@ -1,6 +1,8 @@
 # Goal: Establish A Trustworthy Evidence Base
 
-Save exact executed record refs and field bindings, including subject, season, week bounds and perspective. A `found=false` or unavailable result cannot support a factual claim even when the tool call succeeded. Use returned roster drill-down handles from franchise appearances, preserving their explicit season; do not guess old names or UUID lookup forms. Continuity requests warrant league/franchise history discovery, while ordinary narrow recaps need history only when it helps their coverage.
+Save exact executed bindings as `ref`, `field`, and `value`; the runtime derives subject, season, week bounds, perspective, references, and numeric summaries. A `found=false` or unavailable result cannot support a factual claim even when the tool call succeeded. Use returned roster drill-down handles from franchise appearances, preserving their explicit season; do not guess old names or UUID lookup forms. Continuity requests warrant league/franchise history discovery, while ordinary narrow recaps need history only when it helps their coverage.
+
+Wait for `save_fact` to return `ok=true` before using its ID in a callback, storyline or outline. Batch independent facts, then inspect their results. Dependency errors identify accepted and missing IDs with a repair instruction; a rejected fact never becomes available by repeating a dependent mutation.
 
 Use this guide when the article covers several teams or weeks, a featured interpretation needs more than a league summary, historical context may matter, or retrieved data looks incomplete or inconsistent. It may also help repair a specific gap exposed during outlining, drafting, or verification.
 
@@ -19,7 +21,7 @@ Choose the smallest useful view for the current question:
 
 - League-wide orientation: `league_snapshot` and `standings`.
 - Cross-season orientation: `available_seasons`, then `league_history` or `franchise_history`.
-- Complete player-level coverage for every game in one week: `week_games`. Its result is large; use it only when that breadth materially helps.
+- Every head-to-head game score and winner in one week: `week_games`. The overview includes all matchups; player detail remains available through `team_game` or deliberate `read_evidence(view="detail")` retrieval.
 - One featured matchup: `team_game`.
 - Team form, opponents, and season context: `team_dossier` and `team_schedule`.
 - Roster composition or a lineup question: `roster_at_cutoff`, `roster_snapshot`, and `bench_analysis`.
