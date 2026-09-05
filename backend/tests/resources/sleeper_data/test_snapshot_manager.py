@@ -64,6 +64,27 @@ def _artifact(value: str = "b") -> StoredLocalArtifact:
     )
 
 
+def test_claim_reuse_with_generic_prepared_plan(
+    database_engine: Engine,
+    domain: Domain,
+) -> None:
+    engine = sa.create_engine(
+        database_engine.url,
+        connect_args={"prepare_threshold": 0, "options": "-c plan_cache_mode=force_generic_plan"},
+    )
+    manager = DataSnapshotManager(create_session_factory(engine), manager_context(domain))
+    try:
+        command = _command(domain)
+        claimed = manager.begin_or_get(command)
+        assert isinstance(claimed, ClaimedSnapshotBuild)
+        for _ in range(12):
+            existing = manager.begin_or_get(command)
+            assert isinstance(existing, ExistingBuildingSnapshot)
+            assert existing.snapshot.id == claimed.snapshot.id
+    finally:
+        engine.dispose()
+
+
 def _request_membership(
     domain: Domain,
     refresh_manager: RefreshRunManager,

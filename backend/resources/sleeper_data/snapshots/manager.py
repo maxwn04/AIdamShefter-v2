@@ -96,7 +96,10 @@ class DataSnapshotManager:
                 )
                 .on_conflict_do_nothing(
                     index_elements=[StoredDataSnapshot.build_key],
-                    index_where=StoredDataSnapshot.status.in_(_ACTIVE_STATUSES),
+                    # This is the fixed partial-index predicate, not row input.
+                    # Bound values prevent PostgreSQL generic prepared plans from
+                    # proving that the conflict target matches the unique index.
+                    index_where=sa.text("status IN ('building', 'ready')"),
                 )
             )
             inserted_id = session.scalar(
