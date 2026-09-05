@@ -2665,7 +2665,7 @@ export interface components {
              * Code
              * @enum {string}
              */
-            code: "canonical_state_inconsistent" | "context_note_conflict" | "cross_competition_entity" | "cross_competition_reference" | "generation_memory_closed" | "memory_identity_conflict" | "revision_not_found" | "search_projection_inconsistent" | "stale_canonical_revision" | "stale_item_version" | "target_not_found" | "wrong_target_kind";
+            code: "canonical_state_inconsistent" | "context_note_conflict" | "cross_competition_entity" | "cross_competition_reference" | "generation_memory_closed" | "invalid_trigger_origin" | "memory_identity_conflict" | "revision_not_found" | "search_projection_inconsistent" | "stale_canonical_revision" | "stale_item_version" | "target_not_found" | "wrong_target_kind";
             /** Message */
             message: string;
         };
@@ -3297,6 +3297,16 @@ export interface components {
              */
             status: "awaiting_source" | "needs_mapping" | "ready";
         };
+        /** ScheduledReviewCondition */
+        ScheduledReviewCondition: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "scheduled_review";
+            /** Review Question */
+            review_question: string;
+        };
         /**
          * ScopeKey
          * @description Validated stable identity for one complete endpoint response scope.
@@ -3893,7 +3903,7 @@ export interface components {
         /** TriggerContent */
         TriggerContent: {
             /** Condition */
-            condition: components["schemas"]["RematchCondition"] | components["schemas"]["TradeEvaluationCondition"];
+            condition: components["schemas"]["RematchCondition"] | components["schemas"]["TradeEvaluationCondition"] | components["schemas"]["ScheduledReviewCondition"];
             fire_policy: components["schemas"]["FirePolicy"];
             /** Origin Event Item Id */
             origin_event_item_id?: string | null;
@@ -3976,7 +3986,7 @@ export interface components {
          * TriggerType
          * @enum {string}
          */
-        TriggerType: "rematch" | "trade_evaluation";
+        TriggerType: "rematch" | "trade_evaluation" | "scheduled_review";
         /** ValidationError */
         ValidationError: {
             /** Context */
