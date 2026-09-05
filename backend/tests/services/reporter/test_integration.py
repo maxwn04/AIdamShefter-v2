@@ -895,6 +895,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
                             "id": "trigger_closeout_rematch",
                             "storyline_id": "story_closeout_push",
                             "trigger_type": "rematch",
+                            "event_id": "event_closeout_matchup",
                             "target_week": 12,
                             "condition": {
                                 "roster_keys": ["Team Taco", "Waiver Wire"]

@@ -52,7 +52,11 @@ def _trade_evaluation() -> TriggerContent:
     )
 
 
-@pytest.mark.parametrize("content", [_rematch(), _trade_evaluation()])
+@pytest.mark.parametrize("content", [_rematch(), _trade_evaluation(), TriggerContent.model_validate({
+    "trigger_type": "scheduled_review", "status": "open", "fire_policy": "one_shot",
+    "target_storyline_item_id": STORYLINE_ID, "target_competition_season_id": SEASON_ID,
+    "target_week": 2, "condition": {"kind": "scheduled_review", "review_question": "Does the early edge persist?"},
+})])
 def test_trigger_v1_codec_round_trips_each_condition(
     content: TriggerContent,
 ) -> None:

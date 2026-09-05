@@ -66,3 +66,19 @@ def test_trigger_projection_hash_covers_complete_content() -> None:
     )
 
     assert original.content_hash != resolved.content_hash
+
+
+def test_scheduled_review_projection_indexes_question_and_storyline() -> None:
+    from uuid import uuid4
+    from backend.resources.memory.triggers import TriggerContent
+    from backend.resources.memory.search_documents import build_trigger_document
+    storyline_id = uuid4()
+    content = TriggerContent.model_validate({
+        "trigger_type": "scheduled_review", "status": "open", "fire_policy": "one_shot",
+        "target_competition_season_id": uuid4(), "target_storyline_item_id": storyline_id,
+        "target_week": 2, "condition": {"kind": "scheduled_review", "review_question": "Does lineup timing still matter?"},
+    })
+    projection = build_trigger_document(content)
+    assert projection.related_item_ids == (storyline_id,)
+    assert "Does lineup timing still matter?" in projection.document_text
+    assert "trade evaluation" not in projection.document_text

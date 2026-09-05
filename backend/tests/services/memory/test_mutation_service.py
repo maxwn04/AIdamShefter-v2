@@ -275,18 +275,20 @@ def _storyline(
 
 
 def _trigger(
+    domain: Domain,
     event_item_id: UUID,
     storyline_item_id: UUID,
 ) -> TriggerContent:
     return TriggerContent.model_validate(
         {
-            "trigger_type": "trade_evaluation",
+            "trigger_type": "rematch",
             "status": "open",
             "fire_policy": "until_resolved",
             "target_storyline_item_id": storyline_item_id,
             "origin_event_item_id": event_item_id,
             "target_week": 8,
-            "condition": {"kind": "trade_evaluation"},
+            "target_competition_season_id": domain.season_id,
+            "condition": {"kind": "rematch", "franchise_ids": [domain.winner_id, domain.loser_id]},
         }
     )
 
@@ -320,7 +322,7 @@ def _complete_bundle(domain: Domain) -> tuple[MemoryMutationBundle, dict[str, UU
         _storyline(domain, event_ref.version_id, fact_ref.version_id)
     )
     trigger_ref = context.propose_trigger(
-        _trigger(event_ref.item_id, storyline_ref.item_id)
+        _trigger(domain, event_ref.item_id, storyline_ref.item_id)
     )
     note_ref = context.propose_context_note(_note_identity(domain), _note())
     return context.take_completed_bundle(), {

@@ -10,6 +10,7 @@ from backend.resources._contracts import NonBlankStr
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.common.versioning import MemoryContent, VersionedMemory
 from backend.resources.memory.triggers.conditions.rematch import RematchCondition
+from backend.resources.memory.triggers.conditions.scheduled_review import ScheduledReviewCondition
 from backend.resources.memory.triggers.conditions.trade_evaluation import (
     TradeEvaluationCondition,
 )
@@ -18,6 +19,7 @@ from backend.resources.memory.triggers.conditions.trade_evaluation import (
 class TriggerType(StrEnum):
     REMATCH = "rematch"
     TRADE_EVALUATION = "trade_evaluation"
+    SCHEDULED_REVIEW = "scheduled_review"
 
 
 class TriggerStatus(StrEnum):
@@ -35,7 +37,7 @@ class FirePolicy(StrEnum):
 
 
 TriggerCondition = Annotated[
-    RematchCondition | TradeEvaluationCondition,
+    RematchCondition | TradeEvaluationCondition | ScheduledReviewCondition,
     Field(discriminator="kind"),
 ]
 
@@ -62,6 +64,12 @@ class TriggerContent(MemoryContent):
         if isinstance(self.condition, RematchCondition):
             if self.target_competition_season_id is None or self.target_week is None:
                 raise ValueError("rematch triggers require a target season and week")
+        elif isinstance(self.condition, ScheduledReviewCondition):
+            if (self.target_storyline_item_id is None
+                    or self.target_competition_season_id is None or self.target_week is None):
+                raise ValueError("scheduled reviews require a storyline, target season and week")
+            if self.origin_event_item_id is not None:
+                raise ValueError("scheduled reviews use their storyline, not an origin event")
         elif self.origin_event_item_id is None:
             raise ValueError("trade-evaluation triggers require an origin event")
 

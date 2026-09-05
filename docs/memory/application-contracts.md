@@ -384,3 +384,39 @@ savepoint: any failure rolls back all changes from that tool call, including loc
 reference and idempotency caches. Earlier successful tool calls remain buffered.
 Successful tools still produce proposals; generation finalization controls atomic
 persistence and must not be inferred from a save receipt alone.
+
+
+## Scheduled editorial reviews
+
+A `scheduled_review` trigger requests a review of a canonical storyline at an
+explicit target season and week. Its condition carries a `review_question`.
+There is no required event or fabricated matchup participant. The reporter binds
+the target season from its runtime and defaults to `one_shot`.
+
+Being due means that the reporter should examine evidence and decide whether the
+arc changed. It does not prove an event occurred or require mentioning the arc in
+an article. The reporter can mark the same trigger resolved with a review reason,
+or explicitly reopen it with a later week. Omitted fields on a handle update retain
+the existing target and question. Resolved one-shot reviews are not due again.
+
+Tool conditions accept only the fields defined for their trigger kind. Event IDs
+belong at the top level, and generic follow-ups use scheduled reviews instead of
+trade or rematch labels. New trade evaluations require source-backed trade-event
+origins, including events selected earlier in the same generation. A reporter
+rematch callback requires a source-backed prior matchup between the selected
+franchises; its future week is a review date, not a claim that the teams are
+scheduled to meet. Recall presents all callbacks as questions to verify.
+
+This extends the stored v1 trigger JSON union without changing relational columns.
+Legacy trigger content remains readable with its original shape and hash inputs.
+Closing a legacy callback does not assert that its old condition was correct.
+
+
+Each memory item can be selected once per generation; an exact retry is a no-op.
+Save all supporting events before updating their storyline. A second differing
+storyline update in the same run is rejected rather than amending the selected
+proposal, so events saved later cannot be appended to that selection. This remains
+an explicit loop limitation; adding mutable proposal amendments is separate work.
+Active trade origins rejected at the HTTP boundary return `invalid_trigger_origin`
+with status 400. Historical malformed callbacks can still be read and closed;
+closing them does not certify the condition or origin.
