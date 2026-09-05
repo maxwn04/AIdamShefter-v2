@@ -6,7 +6,10 @@ import pytest
 
 from backend.services.datalayer import FrozenLeagueData, ReadyDataSnapshot
 from backend.services.datalayer.query import guarded_sql
-from backend.tests.services.datalayer.test_frozen_query_runtime import ready_snapshot
+from backend.tests.services.datalayer.test_frozen_query_runtime import (
+    ready_snapshot,
+    v3_ready_snapshot,
+)
 
 
 def test_select_cte_named_params_comments_and_quoted_keywords_are_allowed(
@@ -99,3 +102,17 @@ def test_immutable_connection_rejects_writes_even_beyond_parser(
     with FrozenLeagueData.open(ready_snapshot) as data:
         with pytest.raises(ValueError):
             data.run_sql("WITH candidate AS (SELECT 1) UPDATE players SET age = 0")
+
+
+def test_v3_guarded_sql_exposes_validated_season_catalog(
+    v3_ready_snapshot: ReadyDataSnapshot,
+) -> None:
+    with FrozenLeagueData.open(v3_ready_snapshot) as data:
+        assert data.run_sql(
+            "SELECT season_year, role, through_week FROM snapshot_seasons "
+            "ORDER BY sequence_number"
+        ) == {
+            "columns": ["season_year", "role", "through_week"],
+            "rows": [(2025, "history", 18), (2026, "primary", 3)],
+            "row_count": 2,
+        }

@@ -196,9 +196,19 @@ membership, season membership, and completeness information.
 
 ## Runtime and Model Access
 
-Existing curated calls default to the primary season. Version-3 readers add
-`available_seasons`, `league_history`, and `franchise_history`, plus optional
-season selection on season-scoped calls. `player_summary` remains global.
+Artifact open selects one version-specific reader after validating schema
+markers, metadata, membership, season data, and roster identities. The public
+facade and curated query modules do not branch on projection version; the reader
+owns schema differences such as the version-3 league-scoped transaction-move
+join. Existing curated calls default to the primary season, while optional
+season selection resolves an immutable catalog scope before executing SQL.
+`player_summary` remains global.
+
+The runtime exposes a uniform season catalog. A retained version-2 artifact
+synthesizes its single primary membership; a version-3 artifact exposes the
+validated oldest-to-primary `snapshot_seasons` rows. Cross-season history calls
+therefore degrade naturally to one-season results for retained artifacts rather
+than introducing version-capability errors.
 
 `franchise_history` accepts an exact franchise UUID or resolves a roster/team
 reference inside the primary season first. It never performs loose-name matching

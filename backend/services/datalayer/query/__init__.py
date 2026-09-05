@@ -1,5 +1,6 @@
 """Frozen SQLite reporter query runtime."""
 
+from backend.services.datalayer.query.contracts import SnapshotSeason
 from backend.services.datalayer.query.identity import (
     AmbiguousRosterIdentity,
     FrozenRosterIdentity,
@@ -20,4 +21,5 @@ __all__ = [
     "ResolvedRosterIdentity",
     "RosterIdentityNotFound",
     "RosterIdentityResolution",
+    "SnapshotSeason",
 ]

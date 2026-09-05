@@ -90,8 +90,12 @@ request history and does not perform one query per scope.
 
 ## Runtime Contracts
 
-`FrozenLeagueData.open` dispatches once by artifact version. Version-2 readers
-retain their existing contract. Version-3 adds:
+`FrozenLeagueData.open` validates the artifact and dispatches once to a
+version-specific reader. Curated methods receive a resolved season scope and
+contain no artifact-version branches. `SnapshotSeason` is an immutable query
+value containing `competition_id`, `competition_season_id`,
+`sleeper_league_id`, `season_year`, `sequence_number`, `role`, and
+`through_week`. The uniform runtime surface includes:
 
 ```python
 def available_seasons(self) -> tuple[SnapshotSeason, ...]: ...
@@ -101,8 +105,10 @@ def get_franchise_history(self, franchise_or_primary_roster: str | int) -> dict[
 
 Every season-scoped curated method gains keyword-only `season: int | None =
 None`; `None` selects the primary season. `player_summary` stays snapshot-global.
-Reporter tools mirror these contracts. Guarded SQL exposes the version-specific
-allowlist, including `snapshot_seasons` for version 3.
+Version-2 readers synthesize one primary `SnapshotSeason`; version-3 readers
+validate their catalog against sealed membership and revision before any query.
+Reporter tools mirror these contracts. Guarded SQL exposes the
+version-specific allowlist, including `snapshot_seasons` for version 3.
 
 ## Invariants
 

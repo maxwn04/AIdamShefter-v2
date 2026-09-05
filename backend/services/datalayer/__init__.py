@@ -199,6 +199,7 @@ __all__ = [
     "SnapshotMaterializationInput",
     "SnapshotPreparationMode",
     "SnapshotSelectionRole",
+    "SnapshotSeason",
     "SnapshotStatus",
     "SnapshotSeasonSettings",
     "SnapshotUnavailable",
@@ -298,6 +299,7 @@ def __getattr__(name: str) -> Any:
         "ResolvedSnapshotSeason",
         "SnapshotInputResolver",
         "SnapshotPreparationMode",
+        "SnapshotSeason",
         "SnapshotSeasonSettings",
         "canonical_resolved_snapshot_build_key",
     }:
@@ -374,6 +376,7 @@ def __getattr__(name: str) -> Any:
             "ResolvedRosterIdentity",
             "RosterIdentityNotFound",
             "RosterIdentityResolution",
+            "SnapshotSeason",
         }:
             from backend.services.datalayer.query import (
                 AmbiguousRosterIdentity,
@@ -383,6 +386,7 @@ def __getattr__(name: str) -> Any:
                 ResolvedRosterIdentity,
                 RosterIdentityNotFound,
                 RosterIdentityResolution,
+                SnapshotSeason,
             )
 
             return {
@@ -393,6 +397,7 @@ def __getattr__(name: str) -> Any:
                 "ResolvedRosterIdentity": ResolvedRosterIdentity,
                 "RosterIdentityNotFound": RosterIdentityNotFound,
                 "RosterIdentityResolution": RosterIdentityResolution,
+                "SnapshotSeason": SnapshotSeason,
             }[name]
         if name == "SQLiteSnapshotMaterializer":
             from backend.services.datalayer.snapshot_sqlite import (
