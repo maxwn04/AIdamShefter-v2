@@ -75,10 +75,19 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
             _reject("Before/after comparisons require at least two comparable bindings.")
         first = fact.bindings[0]
         source = records[first.ref]
+        if source.temporal_kind == "unknown":
+            _reject("Unknown temporal semantics cannot support a structured before/after comparison; narrow the claim.")
+        observation = source.temporal_kind == "observation"
+        if observation and first.field != "roster_members":
+            _reject("Only listed roster_members observations support point-state comparisons; narrow other observation claims.")
         identity = getattr(source, "subject_id", None) or source.subject
         periods: list[tuple[int, int, int]] = []
         for binding in fact.bindings:
             record = records[binding.ref]
+            if record.temporal_kind != source.temporal_kind:
+                _reject("Before/after comparisons cannot mix interval aggregates and point observations.")
+            if observation and (record.subject_id is None or source.subject_id is None):
+                _reject("Roster observation comparisons require durable source franchise identity.")
             other_identity = getattr(record, "subject_id", None) or record.subject
             if record.season != source.season and (
                 source.subject_id is None or record.subject_id is None
@@ -90,6 +99,13 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
                 _reject("Before/after comparisons require the same field and units.")
             if binding.perspective != first.perspective or binding.season is None:
                 _reject("Before/after comparisons require comparable perspectives and known seasons.")
+            if observation:
+                if record.tool != "roster_at_cutoff" or not isinstance(binding.value, list) or not all(isinstance(member, str) for member in binding.value):
+                    _reject("Roster observation comparisons require source-listed membership from roster_at_cutoff.")
+                if binding.week_to is None:
+                    _reject("Roster observations require explicit cutoff weeks.")
+                periods.append((binding.season, binding.week_to, binding.week_to))
+                continue
             if (binding.week_from is None) != (first.week_from is None) or (binding.week_to is None) != (first.week_to is None):
                 _reject("Before/after comparisons require comparable period specificity.")
             if binding.season != first.season and (binding.week_from, binding.week_to) != (first.week_from, first.week_to):
@@ -97,6 +113,8 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
             periods.append((binding.season, binding.week_from or 0, binding.week_to or 0))
         if len(set(periods)) != len(periods) or periods != sorted(periods):
             _reject("Comparison bindings must identify distinct periods in before/after order.")
+        if observation:
+            diagnostics.add("DIAGNOSTIC: listed roster membership at ordered cutoffs does not establish acquisition timing or method, or completeness beyond the source observations.")
     elif fact.category == "superlative":
         if fact.superlative_direction is None:
             _reject("Superlatives require an explicit min/max direction.")

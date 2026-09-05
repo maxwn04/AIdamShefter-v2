@@ -49,7 +49,10 @@ class FakeCompletion:
             except json.JSONDecodeError:
                 continue
             if isinstance(payload, dict):
-                records.extend(payload.get("records", []))
+                records.extend(
+                    {"tool": payload["tool"], **record}
+                    for record in payload.get("records", [])
+                )
         for call in response.choices[0].message.tool_calls:
             if call.function.name != "save_fact":
                 continue

@@ -148,3 +148,51 @@ def test_cross_season_comparison_rejects_name_only_and_mismatched_windows() -> N
 def test_champion_with_playoff_outcome_is_supported() -> None:
     item = record(tool="playoff_picture", fields={"bracket_type": "winners", "is_champion": True})
     assert validate_fact(fact(item, category="championship", field="is_champion"), catalog(item))
+
+
+def test_roster_observations_compare_different_cutoffs_with_canonical_identity() -> None:
+    before = record(
+        tool="roster_at_cutoff", temporal_kind="observation",
+        subject="FANTASY IS LUCK", subject_id="franchise1", week_to=18,
+        fields={"roster_members": ["DJ Moore", "Kenneth Walker"]},
+        limitations=("Listed snapshot membership is not an earlier roster reconstruction.",),
+    )
+    after = replace(
+        before, ref="e2_0.r1", source="e2_0", subject="OnlyFannins",
+        season=2026, week_to=1, fields={"roster_members": ["DJ Moore"]},
+    )
+    diagnostics = validate_fact(
+        fact(before, after, category="comparison", field="roster_members"),
+        catalog(before, after),
+    )
+    assert any("acquisition timing or method" in message for message in diagnostics)
+    assert any("earlier roster reconstruction" in message for message in diagnostics)
+    with pytest.raises(ResearchBriefError, match="before/after order"):
+        validate_fact(fact(after, before, category="comparison", field="roster_members"), catalog(before, after))
+
+
+@pytest.mark.parametrize("change, message", [
+    ({"temporal_kind": "interval"}, "cannot mix"),
+    ({"temporal_kind": "unknown"}, "cannot mix"),
+    ({"subject_id": None}, "durable"),
+    ({"subject_id": "other"}, "same supported franchise"),
+    ({"week_to": None}, "cutoff weeks"),
+    ({"week_from": 3}, "distinct periods"),
+    ({"tool": "player_summary"}, "source-listed membership"),
+])
+def test_roster_observation_comparison_rejects_unsupported_shapes(change, message) -> None:
+    before = record(
+        tool="roster_at_cutoff", temporal_kind="observation", subject_id="franchise1",
+        fields={"roster_members": ["DJ Moore"]},
+    )
+    after = replace(before, ref="e2_0.r1", source="e2_0", **change)
+    with pytest.raises(ResearchBriefError, match=message):
+        validate_fact(fact(before, after, category="comparison", field="roster_members"), catalog(before, after))
+
+
+@pytest.mark.parametrize("temporal_kind", ["unknown", "observation"])
+def test_non_membership_observations_require_narrower_comparison(temporal_kind) -> None:
+    before = record(temporal_kind=temporal_kind, subject_id="franchise1")
+    after = replace(before, ref="e2_0.r1", source="e2_0", week_to=9)
+    with pytest.raises(ResearchBriefError, match="narrow"):
+        validate_fact(fact(before, after, category="comparison"), catalog(before, after))
