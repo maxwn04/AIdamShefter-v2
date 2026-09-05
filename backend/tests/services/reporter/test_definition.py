@@ -33,7 +33,8 @@ def test_prepared_definition_matches_registered_execution_bundle() -> None:
         register_memory_closeout_tools,
     )
 
-    data = object()
+    from backend.tests.services.reporter.test_datalayer_tools import FakeFrozenLeagueData
+    data = FakeFrozenLeagueData()
     memory = object()
     register_artifact_tools(registry)
     register_brief_tools(registry)

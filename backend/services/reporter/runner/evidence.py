@@ -26,10 +26,12 @@ class EvidenceRecord:
     tool: str
     outcome: EvidenceOutcome
     subject: str | None = None
+    subject_id: str | None = None
     season: int | None = None
     week_from: int | None = None
     week_to: int | None = None
     perspective: str | None = None
+    temporal_kind: Literal["interval", "observation", "unknown"] = "interval"
     fields: dict[str, JsonValue] = field(default_factory=dict)
     field_paths: dict[str, str] = field(default_factory=dict)
     units: dict[str, str] = field(default_factory=dict)

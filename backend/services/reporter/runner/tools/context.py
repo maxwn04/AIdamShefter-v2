@@ -27,6 +27,7 @@ from backend.services.reporter.runner.schemas import ArtifactSnapshot
 from backend.services.reporter.runner.state import ArtifactStore, ProcedureState
 
 if TYPE_CHECKING:
+    from backend.services.reporter.runner.draft_verification import DraftVerification
     from backend.services.reporter.runner.memory_closeout import MemoryCloseoutState
 
 
@@ -40,6 +41,7 @@ class ToolContext:
     artifact_recorder: ArtifactRecorder | None = None
     memory_closeout: MemoryCloseoutState | None = None
     evidence: EvidenceCatalog = field(default_factory=EvidenceCatalog)
+    draft_verifications: dict[str, DraftVerification] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._evidence_invocation: ContextVar[str | None] = ContextVar(

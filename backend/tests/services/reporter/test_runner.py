@@ -19,6 +19,7 @@ from backend.services.reporter.runner.memory_closeout import (
     MemoryCloseoutState,
 )
 from backend.services.reporter.runner.models import ToolCall, ToolExecutionResult
+from backend.services.reporter.runner.evidence import EvidenceRecord
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     GenerationProgress,
@@ -288,7 +289,7 @@ def test_runner_simple_text_response() -> None:
         "stale_storyline_ids": [],
         "outline_stale": False,
         "readiness_warnings": [
-            "no_verified_facts",
+            "no_traceable_facts",
             "no_storylines",
             "no_outline",
         ],
@@ -330,19 +331,26 @@ def test_runner_brief_summary_propagates_stale_dependency_warnings() -> None:
         complete=FakeCompletion([make_response(text="Done.")]),
     )
     ctx = runner.tool_context
+    old = EvidenceRecord("old.r0", "old", "transactions", "found", fields={"week": 3})
+    current = EvidenceRecord("current.r0", "current", "team_game", "found", fields={"touchdowns": 2})
+    ctx.evidence.register("old", (old,))
+    ctx.evidence.register("current", (current,))
+    def selected(record, field):
+        return {"ref": record.ref, "field": field, "value": record.fields[field],
+                "subject": None, "season": None, "week_from": None, "week_to": None}
     ctx.turn = 1
     save_fact(
         ctx,
         id="fact_old",
         claim_text="The Week 3 trade happened.",
-        data_refs=["transactions:week=3"],
+        data_refs=[old.ref], bindings=[selected(old, "week")],
     )
     ctx.turn = 2
     save_fact(
         ctx,
         id="fact_current",
         claim_text="The player decided the Week 8 rematch.",
-        data_refs=["team_game:week=8"],
+        data_refs=[current.ref], bindings=[selected(current, "touchdowns")],
     )
     ctx.turn = 3
     save_memory_callback(
@@ -378,7 +386,7 @@ def test_runner_brief_summary_propagates_stale_dependency_warnings() -> None:
         ctx,
         id="fact_current",
         claim_text="The player scored twice in the Week 8 rematch.",
-        data_refs=["team_game:week=8"],
+        data_refs=[current.ref], bindings=[selected(current, "touchdowns")],
         numbers={"touchdowns": 2},
     )
 

@@ -50,7 +50,7 @@ class FakeCompletion:
                 continue
             if isinstance(payload, dict):
                 records.extend(
-                    {"tool": payload["tool"], **record}
+                    {"tool": payload["tool"], **payload.get("scope", {}), **record}
                     for record in payload.get("records", [])
                 )
         for call in response.choices[0].message.tool_calls:
@@ -635,7 +635,7 @@ def test_generate_article_records_argument_complete_historical_evidence() -> Non
         if record["fields"].get("week") == 18
     )
     assert historical_record["ref"] in brief.content
-    assert historical_record["season"] == 2025
+    assert {**historical_output["scope"], **historical_record}["season"] == 2025
     assert any(
         entry["event_type"] == "tool_call"
         and entry["data"]["tool_name"] == "league_snapshot"
