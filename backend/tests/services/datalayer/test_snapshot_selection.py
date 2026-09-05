@@ -79,11 +79,23 @@ def _candidate(
 
 def test_build_key_has_a_stable_daily_golden_vector() -> None:
     assert canonical_snapshot_build_key(_snapshot(8), "1") == (
-        "ba41c48a9ed2cb6d463dd13ced35326b65a31c4c0afc4dbbd19c6f5c905dd624"
+        "7640533409730a2572249fa3a517e01e00086f61f1ff1a81ef1144814be027f7"
     )
     assert canonical_snapshot_build_key(_snapshot(8), "2") != (
         canonical_snapshot_build_key(_snapshot(8), "1")
     )
+    # Pre-completion-fix artifacts must not satisfy a new daily build lookup.
+    assert canonical_snapshot_build_key(_snapshot(8), "1") != (
+        "ba41c48a9ed2cb6d463dd13ced35326b65a31c4c0afc4dbbd19c6f5c905dd624"
+    )
+
+
+def test_daily_build_key_changes_with_derivation_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = canonical_snapshot_build_key(_snapshot(8), "2")
+    monkeypatch.setattr(
+        "backend.services.datalayer.snapshot_selection.SNAPSHOT_DERIVATION_VERSION", "next"
+    )
+    assert canonical_snapshot_build_key(_snapshot(8), "2") != original
 
 
 def test_requirement_planning_is_explicit_and_stably_ordered() -> None:

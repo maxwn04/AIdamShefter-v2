@@ -135,6 +135,7 @@ def test_v3_catalog_primary_defaults_and_historical_reads_are_isolated(
         assert all(isinstance(season, SnapshotSeason) for season in seasons)
         assert [season.season_year for season in seasons] == [2025, 2026]
         assert [season.role for season in seasons] == ["history", "primary"]
+        assert data.completeness_warnings() == v3_ready_snapshot.completeness_warnings
         assert [season.through_week for season in seasons] == [18, 3]
 
         assert data.get_league_snapshot(week=1) == data.get_league_snapshot(

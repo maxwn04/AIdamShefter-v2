@@ -8,7 +8,7 @@ import sqlite3
 from typing import Any, Self
 from uuid import UUID
 
-from backend.services.datalayer.contracts import ReadyDataSnapshot
+from backend.services.datalayer.contracts import CompletenessWarning, ReadyDataSnapshot
 from backend.services.datalayer.query.contracts import SnapshotSeason
 from backend.services.datalayer.query.curated import (
     get_bench_analysis,
@@ -58,6 +58,7 @@ class FrozenLeagueData:
             raise TypeError("Use FrozenLeagueData.open(ready_snapshot)")
         self._connection: sqlite3.Connection | None = None
         self._reader: FrozenSnapshotReader | None = None
+        self._completeness_warnings: tuple[CompletenessWarning, ...] = ()
 
     @classmethod
     def open(cls, ready_snapshot: ReadyDataSnapshot) -> Self:
@@ -78,6 +79,7 @@ class FrozenLeagueData:
                 schema,
             )
             instance._connection = connection
+            instance._completeness_warnings = ready_snapshot.completeness_warnings
             return instance
         except Exception:
             connection.close()
@@ -91,6 +93,7 @@ class FrozenLeagueData:
         del exc_type, exc_value, traceback
         connection, self._connection = self._connection, None
         self._reader = None
+        self._completeness_warnings = ()
         if connection is not None:
             connection.close()
 
@@ -107,6 +110,11 @@ class FrozenLeagueData:
 
     def available_seasons(self) -> tuple[SnapshotSeason, ...]:
         return self._state()[1].seasons
+
+    def completeness_warnings(self) -> tuple[CompletenessWarning, ...]:
+        """Return verified artifact limitations for evidence presentation."""
+        self._state()
+        return self._completeness_warnings
 
     def get_league_history(self) -> dict[str, Any]:
         connection, reader = self._state()

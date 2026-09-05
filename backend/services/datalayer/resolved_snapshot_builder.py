@@ -61,7 +61,10 @@ from backend.services.datalayer.snapshot_sqlite import (
     SnapshotArtifactInvalid,
     verify_sealed_snapshot_file,
 )
-from backend.services.datalayer.versions import RESOLVED_SNAPSHOT_PROJECTION_VERSION
+from backend.services.datalayer.versions import (
+    RESOLVED_SNAPSHOT_PROJECTION_VERSION,
+    SNAPSHOT_DERIVATION_VERSION,
+)
 
 
 WallClock = Callable[[], datetime]
@@ -139,6 +142,7 @@ def canonical_resolved_snapshot_build_key(
             "competition_season_id": str(primary.competition_season_id),
             "input_revision": inputs.input_revision,
             "snapshot_projection_version": version,
+            "snapshot_derivation_version": SNAPSHOT_DERIVATION_VERSION,
             "through_week": primary.through_week,
         }
     )

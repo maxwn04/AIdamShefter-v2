@@ -309,6 +309,11 @@ def test_frozen_queries_do_not_backfill_unplayed_points_or_invent_ranks(tmp_path
         standings = data.get_standings()["standings"]
         history = data.get_franchise_history("1")
         games = data.get_week_games(1)
+        assert "snapshot.matchup_completion_unknown" in {
+            warning.code for warning in data.completeness_warnings()
+        }
+    with pytest.raises(RuntimeError, match="closed"):
+        data.completeness_warnings()
     assert games == []
     assert all(row["rank"] is None and row["points_for"] == 0 for row in standings)
     assert history["seasons"][0]["standing"]["record"] == "0-0"
