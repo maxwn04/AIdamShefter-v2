@@ -332,7 +332,7 @@ def test_reporter_owns_compatible_frozen_tool_specs() -> None:
         )
 
     assert "roster_current" not in EXPECTED_TOOL_NAMES
-    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "4"
+    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "5"
 
 
 def test_only_season_scoped_tools_expose_optional_season_year() -> None:

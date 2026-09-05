@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-DATALAYER_TOOL_IMPLEMENTATION_VERSION = "4"
+DATALAYER_TOOL_IMPLEMENTATION_VERSION = "5"
 
 
 def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
@@ -119,7 +119,8 @@ DATALAYER_TOOL_SPECS: list[ToolDef] = [
     ),
     _tool(
         "team_game",
-        "Get one team's game for a week with full player-by-player breakdowns.",
+        "Get a team's matchup for a week with full player-by-player breakdowns for BOTH teams. "
+        "Call once per matchup and reuse the opponent's detail from the same result.",
         {
             "roster_key": _roster_property(),
             "week": _week_property("Week number. Omit for snapshot cutoff."),

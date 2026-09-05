@@ -90,7 +90,9 @@ def get_playoff_bracket(
     for row in rows:
         bt = row["bracket_type"]
         if bt not in brackets:
-            brackets[bt] = {"rounds": {}, "champion": None, "placements": []}
+            brackets[bt] = {
+                "bracket_type": bt, "rounds": {}, "champion": None, "placements": []
+            }
 
         rd = row["round"]
         if rd not in brackets[bt]["rounds"]:
@@ -122,6 +124,7 @@ def get_playoff_bracket(
         status = "complete" if row["winner_roster_id"] is not None else "pending"
 
         matchup: dict[str, Any] = {
+            "bracket_type": bt,
             "matchup_id": row["matchup_id"],
             "round": rd,
             "team_1": team_1,
@@ -138,6 +141,7 @@ def get_playoff_bracket(
         if row["placement"] is not None and row["winner_team_name"] is not None:
             brackets[bt]["placements"].append(
                 {
+                    "bracket_type": bt,
                     "placement": row["placement"],
                     "team_name": row["winner_team_name"],
                 }
