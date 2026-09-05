@@ -323,6 +323,15 @@ def test_full_regular_query_contract_matches_legacy_golden(
 
     regular_keys = set(actual)
     expected = {key: expected[key] for key in regular_keys}
+    # Frozen scorecards retain source matchup identity and league scoring format.
+    expected["league_snapshot"]["league"]["league_average_match"] = False
+    for key in ("week_games", "week_games_default", "week_games_with_players"):
+        for game in expected[key]:
+            game["sleeper_matchup_number"] = 1
+    for game in expected["league_snapshot"]["games"]:
+        game["sleeper_matchup_number"] = 1
+    for key in ("team_game", "team_game_with_players"):
+        expected[key]["game"]["sleeper_matchup_number"] = 1
     normalized_actual = _json_round_trip(_without_volatile_player_state(actual))
     normalized_expected = _without_volatile_player_state(expected)
     assert _contract_shape(normalized_actual) == _contract_shape(normalized_expected)

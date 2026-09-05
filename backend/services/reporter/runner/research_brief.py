@@ -78,15 +78,23 @@ class BriefBias(BaseModel):
 class ClaimBinding(BaseModel):
     """A selected value from executed evidence, not a model-written citation."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", frozen=True)
     ref: str = Field(min_length=1)
     field: str = Field(min_length=1)
     value: JsonValue
-    subject: str | None
-    season: int | None
-    week_from: int | None
-    week_to: int | None
+    subject: str | None = None
+    season: int | None = None
+    week_from: int | None = None
+    week_to: int | None = None
     perspective: str | None = None
+
+
+class SuperlativeBinding(BaseModel):
+    """Select the asserted metric independently of supporting context fields."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    ref: str = Field(min_length=1)
+    field: str = Field(min_length=1)
 
 
 class BriefFact(BaseModel):
@@ -100,6 +108,7 @@ class BriefFact(BaseModel):
     support_diagnostics: tuple[str, ...] = ()
     superlative_direction: Literal["min", "max"] | None = None
     superlative_unique: bool = False
+    superlative_binding: SuperlativeBinding | None = None
     revision_at_set: int = Field(ge=1)
 
     @field_validator("id", "claim_text", "category")
@@ -375,6 +384,7 @@ class ResearchBriefStore(BaseModel):
         support_diagnostics: Iterable[str] = (),
         superlative_direction: Literal["min", "max"] | None = None,
         superlative_unique: bool = False,
+        superlative_binding: SuperlativeBinding | dict[str, Any] | None = None,
     ) -> BriefMutation:
         revision = self.brief.revision + 1
         fact = BriefFact(
@@ -388,6 +398,7 @@ class ResearchBriefStore(BaseModel):
             support_diagnostics=tuple(support_diagnostics),
             superlative_direction=superlative_direction,
             superlative_unique=superlative_unique,
+            superlative_binding=superlative_binding,
             revision_at_set=revision,
         )
         existing = self.brief.get_fact(fact.id)
@@ -412,12 +423,23 @@ class ResearchBriefStore(BaseModel):
         memory_refs: Iterable[str] = (),
         tags: Iterable[str] = (),
     ) -> BriefMutation:
+        self._require_fact_ids((old_event_fact_id, current_event_fact_id))
         if old_event_fact_id == current_event_fact_id:
             raise ResearchBriefError(
                 "invalid_callback",
                 "callback fact ids must identify two different facts",
+                accepted_fact_ids=[fact.id for fact in self.brief.facts],
+                missing_fact_ids=[],
+                brief_revision=self.brief.revision,
+                repair={
+                    "action": "choose_distinct_facts",
+                    "tools": ["save_fact"],
+                    "instruction": (
+                        "Choose two distinct accepted fact IDs. If another fact is needed, "
+                        "save its supporting evidence and wait for ok=true before retrying."
+                    ),
+                },
             )
-        self._require_fact_ids((old_event_fact_id, current_event_fact_id))
         revision = self.brief.revision + 1
         callback = BriefMemoryCallback(
             id=id,
@@ -492,13 +514,9 @@ class ResearchBriefStore(BaseModel):
             else BriefOutlineSection.model_validate(item)
             for item in sections
         )
-        self._require_fact_ids(
-            fact_id for section in parsed for fact_id in section.required_fact_ids
-        )
-        self._require_storyline_ids(
-            storyline_id
-            for section in parsed
-            for storyline_id in section.storyline_ids
+        self._require_dependencies(
+            fact_ids=(fact_id for section in parsed for fact_id in section.required_fact_ids),
+            storyline_ids=(storyline_id for section in parsed for storyline_id in section.storyline_ids),
         )
         existing_sections = self.brief.outline.sections
         if existing_sections == parsed:
@@ -575,25 +593,37 @@ class ResearchBriefStore(BaseModel):
         )
 
     def _require_fact_ids(self, fact_ids: Iterable[str]) -> None:
-        known = {item.id for item in self.brief.facts}
-        missing = tuple(dict.fromkeys(item for item in fact_ids if item not in known))
-        if missing:
-            raise ResearchBriefError(
-                "unknown_fact_ids",
-                "brief references unknown fact ids",
-                missing_fact_ids=list(missing),
-            )
+        self._require_dependencies(fact_ids=fact_ids)
 
     def _require_storyline_ids(self, storyline_ids: Iterable[str]) -> None:
-        known = {item.id for item in self.brief.storylines}
-        missing = tuple(
-            dict.fromkeys(item for item in storyline_ids if item not in known)
-        )
-        if missing:
+        self._require_dependencies(storyline_ids=storyline_ids)
+
+    def _require_dependencies(
+        self, *, fact_ids: Iterable[str] = (), storyline_ids: Iterable[str] = (),
+    ) -> None:
+        accepted_facts = [item.id for item in self.brief.facts]
+        accepted_storylines = [item.id for item in self.brief.storylines]
+        known_facts, known_storylines = set(accepted_facts), set(accepted_storylines)
+        missing_facts = list(dict.fromkeys(item for item in fact_ids if item not in known_facts))
+        missing_storylines = list(dict.fromkeys(item for item in storyline_ids if item not in known_storylines))
+        if missing_facts or missing_storylines:
             raise ResearchBriefError(
-                "unknown_storyline_ids",
-                "outline references unknown storyline ids",
-                missing_storyline_ids=list(missing),
+                "unknown_fact_ids" if missing_facts else "unknown_storyline_ids",
+                "Save missing dependencies before retrying; this operation made no changes.",
+                accepted_fact_ids=accepted_facts,
+                missing_fact_ids=missing_facts,
+                accepted_storyline_ids=accepted_storylines,
+                missing_storyline_ids=missing_storylines,
+                brief_revision=self.brief.revision,
+                repair={
+                    "action": "save_missing_dependencies",
+                    "tools": (["save_fact"] if missing_facts else []) + (["save_storyline"] if missing_storylines else []),
+                    "instruction": (
+                        "Save missing facts first, then dependent storylines, and wait for each "
+                        "save to return ok=true before retrying. If support is unavailable, "
+                        "revise the claim and its references together to supported scope."
+                    ),
+                },
             )
 
 
@@ -644,6 +674,7 @@ def render_research_brief(brief: ResearchBrief) -> str:
                     f"- Claim: {fact.claim_text}",
                     f"- Category: {fact.category}",
                     f"- Superlative direction/unique: {fact.superlative_direction or '(none)'}/{fact.superlative_unique}",
+                    f"- Superlative binding: {json.dumps(fact.superlative_binding.model_dump() if fact.superlative_binding else None, sort_keys=True)}",
                     f"- Support: {fact.support_status} (traceability is not prose entailment)",
                     f"- Bindings: {json.dumps([binding.model_dump() for binding in fact.bindings], sort_keys=True)}",
                     f"- Diagnostics: {_list_value(fact.support_diagnostics)}",

@@ -9,6 +9,8 @@ traceability, not entailment of arbitrary prose.
 See [application contracts](application-contracts.md) for the producer/consumer
 boundary, [architecture](architecture.md) for flow and tradeoffs, and
 [behavior evaluation](behavior-evaluation.md) for the prepared paid test plan.
+The [interface followup](interface-followup.md) records measured friction and the
+bounded compact-binding, overview, transaction status, and dependency changes.
 
 Scope excludes legacy implementations, generation policy, memory lifecycle
 redesign, universal claim ontologies and extra model critics.

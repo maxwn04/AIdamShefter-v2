@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-DATALAYER_TOOL_IMPLEMENTATION_VERSION = "3"
+DATALAYER_TOOL_IMPLEMENTATION_VERSION = "4"
 
 
 def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
@@ -67,8 +67,9 @@ def _tool(
 DATALAYER_TOOL_SPECS: list[ToolDef] = [
     _tool(
         "read_evidence",
-        "Read another page of actual executed evidence by source handle. Use returned refs in brief bindings.",
+        "Read executed evidence by source handle. Continue the overview with next_offset; request view=detail deliberately for the full catalog. Use returned refs in brief bindings.",
         {"source": {"type": "string"}, "offset": {"type": "integer", "minimum": 0},
+         "view": {"type": "string", "enum": ["overview", "detail"], "description": "Default overview. Offsets are within the chosen view."},
          "limit": {"type": "integer", "minimum": 1, "maximum": 40}},
         ("source",),
     ),
@@ -101,8 +102,8 @@ DATALAYER_TOOL_SPECS: list[ToolDef] = [
     ),
     _tool(
         "league_snapshot",
-        "Get a comprehensive league snapshot for a week, including standings, "
-        "matchup results, and transactions.",
+        "Get league context, standings and head-to-head matchup results for a week. "
+        "Use transactions for movement detail and team_game for player detail.",
         {
             "week": _week_property("Week number. Omit for snapshot cutoff."),
             "season": _season_property(),
@@ -110,7 +111,7 @@ DATALAYER_TOOL_SPECS: list[ToolDef] = [
     ),
     _tool(
         "week_games",
-        "Get every matchup for a week with full player-by-player breakdowns.",
+        "Get every head-to-head matchup score and winner for a week. Use team_game for player-by-player detail.",
         {
             "week": _week_property("Week number. Omit for snapshot cutoff."),
             "season": _season_property(),
@@ -176,7 +177,7 @@ DATALAYER_TOOL_SPECS: list[ToolDef] = [
     ),
     _tool(
         "transactions",
-        "Get all grouped trades, waivers, and free-agent pickups in a week range.",
+        "Get grouped trades, waivers, and free-agent pickups in a source week range. Check per-record status and occurred_at; week grouping does not establish postgame timing.",
         {
             "week_from": _week_property("Starting week (inclusive)."),
             "week_to": _week_property("Ending week (inclusive)."),
@@ -453,13 +454,13 @@ class _EvidenceAdapter:
         self.direct_catalog = EvidenceCatalog()
         self.direct_sequence = 0
 
-    def read(self, source: str, offset: int = 0, limit: int = 40) -> ToolExecutionResult:
+    def read(self, source: str, offset: int = 0, limit: int = 40, view: str = "overview") -> ToolExecutionResult:
         ctx = self.registry.context
         catalog = ctx.evidence if ctx else self.direct_catalog
         records = catalog.records_for(source)
         if not records:
             return ToolExecutionResult(result={"found": False, "source": source, "error": "Unknown evidence source"})
-        return ToolExecutionResult(result=_json_value(evidence_page(records, offset, limit)))
+        return ToolExecutionResult(result=_json_value(evidence_page(records, offset, limit, view=view)))
 
     def wrap(self, name: str, handler: Callable[..., Any]) -> Callable[..., ToolExecutionResult]:
         def execute(**kwargs: Any) -> ToolExecutionResult:

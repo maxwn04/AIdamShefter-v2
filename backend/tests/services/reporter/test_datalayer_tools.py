@@ -332,7 +332,7 @@ def test_reporter_owns_compatible_frozen_tool_specs() -> None:
         )
 
     assert "roster_current" not in EXPECTED_TOOL_NAMES
-    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "3"
+    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "4"
 
 
 def test_only_season_scoped_tools_expose_optional_season_year() -> None:
@@ -621,6 +621,22 @@ def test_all_tools_execute_against_a_real_frozen_artifact(
     assert set(results) == set(EXPECTED_TOOL_NAMES) - {"read_evidence"}
     stable_results = _without_volatile_player_state(results)
     stable_golden = _without_volatile_player_state(golden)
+    assert results["league_snapshot"]["league"]["league_average_match"] is False
+    for game in (
+        *results["week_games"],
+        results["team_game"]["game"],
+        *results["league_snapshot"]["games"],
+    ):
+        assert game["sleeper_matchup_number"] == 1
+        assert isinstance(game["sleeper_matchup_number"], int)
+    # Compare only the legacy portion; the additive source context is checked above.
+    for game in (
+        *stable_results["week_games"],
+        stable_results["team_game"]["game"],
+        *stable_results["league_snapshot"]["games"],
+    ):
+        game.pop("sleeper_matchup_number")
+    stable_results["league_snapshot"]["league"].pop("league_average_match")
     assert stable_results["week_games"] == stable_golden["week_games_with_players"]
     assert stable_results["team_game"] == stable_golden["team_game_with_players"]
     assert stable_results["team_schedule"] == stable_golden["team_schedule"]

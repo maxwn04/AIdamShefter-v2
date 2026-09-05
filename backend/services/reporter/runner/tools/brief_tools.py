@@ -9,7 +9,9 @@ from typing import Any, Literal
 from pydantic import JsonValue, ValidationError
 
 from backend.services.reporter.runner.models import ToolDef
-from backend.services.reporter.runner.grounding import validate_fact
+from backend.services.reporter.runner.grounding import (
+    binding_numbers, resolve_bindings, validate_fact,
+)
 from backend.services.reporter.runner.research_brief import (
     RESEARCH_BRIEF_PATH,
     ResearchBriefError,
@@ -18,7 +20,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-BRIEF_TOOL_IMPLEMENTATION_VERSION = "2"
+BRIEF_TOOL_IMPLEMENTATION_VERSION = "4"
 
 BRIEF_TOOL_SPECS: list[ToolDef] = [
     {
@@ -27,7 +29,7 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
             "name": "save_fact",
             "description": (
                 "Add or update one evidence-bound fact in the structured research brief. "
-                "Use stable lowercase IDs and include traceable data references. "
+                "Select source ref, field and value; source identity and period are derived automatically. "
                 "Independent facts may be saved together in one tool-call batch."
             ),
             "parameters": {
@@ -42,35 +44,18 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
                         "type": "string",
                         "description": "Precise human-readable factual claim.",
                     },
-                    "data_refs": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "minItems": 1,
-                        "description": (
-                            "Exact record refs returned by executed data tools, such as e2_0.r1."
-                        ),
-                    },
-                    "numbers": {
-                        "type": "object",
-                        "description": "Optional field names and exact values also selected in bindings.",
-                    },
                     "bindings": {
                         "type": "array",
                         "minItems": 1,
-                        "description": "Select executed fields with their exact source subject, period and perspective. A binding proves traceability, not prose entailment.",
+                        "description": "Select exact executed ref, field and value. Source subject, period and perspective are derived automatically; traceability does not prove prose entailment.",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "ref": {"type": "string"},
                                 "field": {"type": "string"},
                                 "value": {},
-                                "subject": {"type": ["string", "null"]},
-                                "season": {"type": ["integer", "null"]},
-                                "week_from": {"type": ["integer", "null"]},
-                                "week_to": {"type": ["integer", "null"]},
-                                "perspective": {"type": ["string", "null"]},
                             },
-                            "required": ["ref", "field", "value", "subject", "season", "week_from", "week_to"],
+                            "required": ["ref", "field", "value"],
                             "additionalProperties": False,
                         },
                     },
@@ -78,14 +63,22 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
                         "type": "string",
                         "description": (
                             "Category such as score, standing, player, transaction, "
-                            "history, comparison (ordered before/after), superlative, or championship. "
-                            "Use specialized categories for those claims; unsupported semantics remain diagnostic."
+                            "history, comparison (same-franchise ordered before/after only), superlative, or championship. "
+                            "Use player or score for different players/teams in one week. "
+                            "Transaction claims must select a sent/received asset identity or net_draft_picks, not just bid/status."
                         ),
+                    },
+                    "superlative_binding": {
+                        "type": "object",
+                        "description": "Select the asserted metric from bindings when other bindings provide context such as rank, team or score.",
+                        "properties": {"ref": {"type": "string"}, "field": {"type": "string"}},
+                        "required": ["ref", "field"],
+                        "additionalProperties": False,
                     },
                     "superlative_direction": {"type": "string", "enum": ["min", "max"], "description": "Required for superlatives: direction of the selected numeric field (rank 1 uses min)."},
                     "superlative_unique": {"type": "boolean", "description": "Set true only when claiming the sole extreme; otherwise tied extremes are allowed."},
                 },
-                "required": ["id", "claim_text", "data_refs", "bindings"],
+                "required": ["id", "claim_text", "bindings"],
             },
         },
     },
@@ -95,7 +88,7 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
             "name": "save_memory_callback",
             "description": (
                 "Add or update a verified callback after both the old event and "
-                "current payoff exist as saved facts."
+                "current payoff exist as saved facts. Use IDs returned by successful save_fact calls."
             ),
             "parameters": {
                 "type": "object",
@@ -133,7 +126,7 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
             "name": "save_storyline",
             "description": (
                 "Add or update a narrative storyline supported by one or more "
-                "saved fact IDs."
+                "fact IDs returned by successful save_fact calls."
             ),
             "parameters": {
                 "type": "object",
@@ -171,7 +164,7 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
             "name": "set_outline",
             "description": (
                 "Replace the working article outline with sections that reference "
-                "saved facts and storylines. The outline is optional and revisable."
+                "facts and storylines from successful saves. The outline is optional and revisable."
             ),
             "parameters": {
                 "type": "object",
@@ -240,33 +233,43 @@ def save_fact(
     *,
     id: str,
     claim_text: str,
-    data_refs: list[str],
+    data_refs: list[str] | None = None,
     numbers: dict[str, JsonValue] | None = None,
     category: str = "general",
     bindings: list[dict[str, Any]] | None = None,
     superlative_direction: Literal["min", "max"] | None = None,
     superlative_unique: bool = False,
+    superlative_binding: dict[str, str] | None = None,
 ) -> str:
+    # Compatibility-only legacy refs and numeric aliases are redundant inputs.
+    # The selected catalog bindings own their canonical replacements.
+    del data_refs, numbers
+
     def prepare() -> Any:
+        resolved = resolve_bindings(bindings or [], ctx.evidence)
+        canonical_refs = tuple(dict.fromkeys(binding.ref for binding in resolved))
+        numeric_summary = binding_numbers(resolved)
         mutation = ctx.brief.prepare_fact(
             id=id,
             claim_text=claim_text,
-            data_refs=data_refs,
-            numbers=numbers,
+            data_refs=canonical_refs,
+            numbers=numeric_summary,
             category=category,
-            bindings=bindings or (),
+            bindings=resolved,
             superlative_direction=superlative_direction,
             superlative_unique=superlative_unique,
+            superlative_binding=superlative_binding,
         )
         fact = mutation.candidate.get_fact(id)
         assert fact is not None
         diagnostics = validate_fact(fact, ctx.evidence)
         return ctx.brief.prepare_fact(
-            id=id, claim_text=claim_text, data_refs=data_refs, numbers=numbers,
-            category=category, bindings=bindings or (), support_status="traceable",
+            id=id, claim_text=claim_text, data_refs=canonical_refs, numbers=numeric_summary,
+            category=category, bindings=resolved, support_status="traceable",
             support_diagnostics=diagnostics,
             superlative_direction=superlative_direction,
             superlative_unique=superlative_unique,
+            superlative_binding=superlative_binding,
         )
 
     return _execute_mutation(
