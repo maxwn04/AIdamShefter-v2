@@ -168,6 +168,34 @@ unique, ordered, has exactly one matching final primary, and gives every
 historical season cutoff 18. Receipts must reference an included season at the
 same cutoff. Existing stored manifests are never rewritten.
 
+## Operator Readiness Contracts
+
+Snapshot readiness is a network-free projection of
+`SnapshotInputResolver.resolve()`. It returns exactly one tagged state:
+
+- `ready` carries the factual `input_revision` and complete ordered
+  oldest-to-primary season coverage;
+- `refresh_required` carries the affected season, cutoff, reason, and missing
+  endpoint scopes;
+- `roster_mapping_required` carries the affected season and exact unmapped
+  Sleeper roster IDs.
+
+`GET .../snapshot-readiness` only inspects those states. It never claims a
+refresh, fetches Sleeper data, builds an artifact, or persists a snapshot.
+`POST .../snapshot-preparations` invokes the existing bounded preparation
+facade with server UTC as both request time and snapshot date. The response
+contains the ready version-3 snapshot and ordered automatic-refresh receipts.
+Both endpoints accept the same explicit cutoff and `LIVE` or
+`READINESS_ONLY` mode, so operator inspection and generation preparation share
+the resolver's requirement and freshness policy.
+
+Snapshot audit summaries expose nullable `input_revision`, ordered sealed
+season membership, artifact digest, and byte length. They never expose storage
+keys or source payload bodies. Mapping requirements and scope conflicts are
+structured conflicts; unresolved inputs and refresh availability are
+structured service-unavailable responses with only safe stable identifiers;
+artifact validation failures are sanitized internal failures.
+
 ## Invariants
 
 - Included seasons are exactly the primary plus all lower-sequence seasons in

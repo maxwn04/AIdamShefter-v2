@@ -1,5 +1,6 @@
 """Sleeper refresh, normalized overview, and snapshot audit routes."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -16,10 +17,19 @@ from backend.api.schemas.data import (
     ManualRefreshResponse,
     RefreshRunPageResponse,
     RefreshRunResponse,
+    SnapshotPreparationBody,
+    SnapshotPreparationResponse,
+    SnapshotReadinessResponse,
 )
 from backend.composition import DataApiDependencies
 from backend.resources.sleeper_data import DataSnapshotQuery, RefreshRunQuery
-from backend.services.datalayer import RefreshRequest, RefreshTrigger
+from backend.services.datalayer import (
+    PrepareSnapshotRequest,
+    RefreshRequest,
+    RefreshTrigger,
+    SnapshotPreparationMode,
+    SnapshotRequest,
+)
 
 
 router = APIRouter(
@@ -48,6 +58,7 @@ router = APIRouter(
 DataApi = Annotated[DataApiDependencies, Depends(get_data_api_dependencies)]
 PageLimit = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]
+SnapshotWeek = Annotated[int, Query(ge=1, le=18)]
 
 
 @router.post(
@@ -123,6 +134,52 @@ def get_league_season_overview(
     )
 
 
+@router.get(
+    "/snapshot-readiness",
+    response_model=SnapshotReadinessResponse,
+)
+def inspect_snapshot_readiness(
+    season_id: UUID,
+    dependencies: DataApi,
+    through_week: SnapshotWeek,
+    mode: SnapshotPreparationMode,
+) -> SnapshotReadinessResponse:
+    checked_at = datetime.now(UTC)
+    request = _snapshot_preparation_request(
+        season_id=season_id,
+        through_week=through_week,
+        mode=mode,
+        requested_at=checked_at,
+    )
+    return SnapshotReadinessResponse.from_service(
+        checked_at=checked_at,
+        mode=mode,
+        through_week=through_week,
+        readiness=dependencies.readiness.inspect(request),
+    )
+
+
+@router.post(
+    "/snapshot-preparations",
+    response_model=SnapshotPreparationResponse,
+)
+def prepare_snapshot(
+    season_id: UUID,
+    dependencies: DataApi,
+    body: SnapshotPreparationBody,
+) -> SnapshotPreparationResponse:
+    requested_at = datetime.now(UTC)
+    prepared = dependencies.preparation.get_or_create(
+        _snapshot_preparation_request(
+            season_id=season_id,
+            through_week=body.through_week,
+            mode=body.mode,
+            requested_at=requested_at,
+        )
+    )
+    return SnapshotPreparationResponse.from_resource(prepared)
+
+
 @router.get("/snapshots", response_model=DataSnapshotPageResponse)
 def list_snapshots(
     season_id: UUID,
@@ -147,6 +204,24 @@ def list_snapshots(
             limit=page.limit,
             offset=page.offset,
         )
+    )
+
+
+def _snapshot_preparation_request(
+    *,
+    season_id: UUID,
+    through_week: int,
+    mode: SnapshotPreparationMode,
+    requested_at: datetime,
+) -> PrepareSnapshotRequest:
+    return PrepareSnapshotRequest(
+        snapshot=SnapshotRequest(
+            competition_season_id=season_id,
+            through_week=through_week,
+            as_of_date=requested_at.date(),
+        ),
+        mode=mode,
+        requested_at=requested_at,
     )
 
 

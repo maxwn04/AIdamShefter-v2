@@ -236,6 +236,22 @@ needed by automatic refresh. API dependency teardown and every worker terminal
 path close that bundle deterministically; service and resource modules do not
 own process lifecycle.
 
+The competition-season data API composes readiness inspection and explicit
+preparation from the same lineage, selection, mapping, refresh, snapshot, file,
+and Sleeper-source dependencies used by generation. The readiness service is a
+thin, network-free projection over `SnapshotInputResolver`; it does not
+duplicate scope, cutoff, mapping, or freshness rules. The preparation endpoint
+delegates to the existing bounded preparation facade, refresh coordinator, and
+resolved-input version-3 builder. The scoped dependency bundle remains the
+single owner of transport cleanup.
+
+Operator responses form a narrow audit boundary: readiness returns a tagged
+state, preparation returns a sealed snapshot plus ordered receipts, and
+snapshot listings reveal factual revision and ordered season coverage without
+revealing storage keys or source payloads. HTTP translation owns safe external
+error shapes; domain services keep using their existing typed outcomes and
+exceptions.
+
 ## Failure Model
 
 Expected preparation outcomes are values, not exceptions:

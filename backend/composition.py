@@ -52,6 +52,7 @@ from backend.resources.sleeper_data import (
 from backend.services.datalayer import (
     DatalayerResolvedSnapshotBuilder,
     DatalayerSnapshotPreparationService,
+    DatalayerSnapshotReadinessService,
     DatalayerSnapshotService,
     LocalDatalayerFileStore,
     RefreshCoordinator,
@@ -211,6 +212,8 @@ class DataApiDependencies:
     refreshes: RefreshRunManager
     league_seasons: LeagueSeasonManager
     snapshots: DataSnapshotManager
+    readiness: DatalayerSnapshotReadinessService
+    preparation: DatalayerSnapshotPreparationService
     source: SleeperSourceClient
 
     def close(self) -> None:
@@ -383,8 +386,10 @@ def build_data_api_dependencies(
     scopes = NormalizedScopeManager(session_factory, context)
     league_seasons = LeagueSeasonManager(session_factory, context)
     files = LocalDatalayerFileStore(resolved.data_root)
+    snapshots = DataSnapshotManager(session_factory, context)
+    mappings = RosterMappingManager(session_factory, context)
     roster_mappings = RosterMappingService(
-        mappings=RosterMappingManager(session_factory, context),
+        mappings=mappings,
         requests=attempts,
         scopes=scopes,
         files=files,
@@ -402,11 +407,36 @@ def build_data_api_dependencies(
         inline_payload_max_bytes=resolved.inline_payload_max_bytes,
         roster_mappings=roster_mappings,
     )
+    resolver = SnapshotInputResolver(
+        lineage=league_seasons,
+        requests=attempts,
+        mappings=mappings,
+        files=files,
+        live_max_age_seconds=resolved.generation_refresh_max_age_seconds,
+    )
+    preparation = DatalayerSnapshotPreparationService(
+        resolver=resolver,
+        refreshes=RefreshCoordinator(
+            claims=AutomaticRefreshClaimManager(session_factory, context),
+            refreshes=refresh,
+        ),
+        builder=DatalayerResolvedSnapshotBuilder(
+            requests=attempts,
+            snapshots=snapshots,
+            materializer=SQLiteSnapshotMaterializer(
+                files.root / ".staging" / "snapshots"
+            ),
+            files=files,
+            code_version=resolved.code_version,
+        ),
+    )
     return DataApiDependencies(
         refresh=refresh,
         refreshes=refreshes,
         league_seasons=league_seasons,
-        snapshots=DataSnapshotManager(session_factory, context),
+        snapshots=snapshots,
+        readiness=DatalayerSnapshotReadinessService(resolver),
+        preparation=preparation,
         source=source,
     )
 
