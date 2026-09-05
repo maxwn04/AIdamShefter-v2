@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backend.services.reporter.runner.evidence import EvidenceRecord
+
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecordingError,
@@ -50,10 +52,13 @@ def make_ctx(
         artifact_recorder=recorder,
         memory_closeout=memory_closeout,
     )
+    ctx.evidence.register("e1_0", (EvidenceRecord(ref="e1_0.r1", source="e1_0", tool="test", outcome="found", fields={"wins": 1}),))
     mutation = ctx.brief.prepare_fact(
         id="fact_submission_fixture",
         claim_text="A verified fixture fact.",
-        data_refs=["test_fixture"],
+        data_refs=["e1_0.r1"],
+        bindings=[dict(ref="e1_0.r1", field="wins", value=1, subject=None, season=None, week_from=None, week_to=None)],
+        support_status="traceable",
     )
     ctx.brief.commit(mutation, lambda _: None)
     return ctx
@@ -65,6 +70,7 @@ def decode(result: str) -> dict:
 
 def test_tool_surface_is_generic() -> None:
     assert [spec["function"]["name"] for spec in ARTIFACT_TOOL_SPECS] == [
+        "verify_artifact",
         "list_artifacts",
         "read_artifact",
         "create_artifact",

@@ -18,11 +18,15 @@ Use this guide when a publishable draft exists and the remaining question is whe
 - Reuse the current draft and brief state when available. Use `read_artifact` or `read_brief` when state is unknown or a complete review will add value.
 - Use the smallest targeted datalayer view to resolve a missing, suspicious, or conflicting claim, then save the corrected evidence.
 - Use `edit_artifact` for a real correction or meaningful improvement, carrying forward the returned revision.
+- Use `verify_artifact` with the actual draft path and revision. Its bounded checks tie a receipt to the article hash/revision and brief revision. Edits to either invalidate the receipt. Review its DIAGNOSTIC findings against the source; they are advisory pattern matches, not proof of prose entailment. Submission refreshes stale checks and rejects unresolved evidence references.
 - Use `submit_artifact` only after the actual draft meets the publication goal. Submission pins that revision. When its result supplies the mandatory `memory_closeout` procedure, the same conversation continues for memory review and ends only through `complete_memory_review`.
 
 ## Audit Judgment
 
 - Check the article itself, not merely whether the workflow produced facts, storylines, or an outline.
+- Check each trade asset from the named team's perspective: sent stays sent and received stays received. A net gain in draft-pick count cannot alone justify “spent future flexibility”; count also does not prove value. Confirm that a quoted record belongs to the named team and stated period.
+- Generic bindings prove selected field traceability only. Superlatives need a complete supported population and the claimed min/max direction; sole-record wording also requires uniqueness. A standings lead or memory of a title cannot establish a championship: select the actual winners-bracket championship outcome. Narrow claims when comparison populations or historical windows are unavailable.
+- Retain meaningful caveats in the draft itself. A hidden diagnostic about failed historical roster recovery does not disclose that limitation to readers. Do not copy private source payloads, durable IDs, or audit receipts into prose.
 - Treat the brief as structured evidence, not infallible truth. Confirm that source references match calls actually made and that saved claims faithfully represent their results.
 - Pay special attention to high-impact numbers, names, winners, transactions, comparative claims, and words such as “highest,” “first,” “best,” “worst,” or “season high.”
 - A flavor claim may be interpretive, but it must not smuggle in an unsupported factual premise.

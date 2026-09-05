@@ -8,15 +8,28 @@ from collections.abc import Callable
 from typing import Any
 
 from backend.services.reporter.runner.models import ToolDef
+from backend.services.reporter.runner.draft_verification import verify_draft
 from backend.services.reporter.runner.state import ArtifactStoreError
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "5"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "6"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "verify_artifact",
+            "description": "Check executed brief bindings and bounded patterns in the actual draft. Returns advisory DIAGNOSTIC findings, not proof of prose truth. Receipt expires after article or brief edits.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}, "expected_revision": {"type": "integer", "minimum": 1}},
+                "required": ["path", "expected_revision"],
+            },
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -126,6 +139,7 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
 def register_artifact_tools(registry: ToolRegistry) -> None:
     """Register the generic artifact workspace tools."""
     handlers: dict[str, Callable[..., str]] = {
+        "verify_artifact": verify_artifact,
         "list_artifacts": list_artifacts,
         "read_artifact": read_artifact,
         "create_artifact": create_artifact,
@@ -244,13 +258,21 @@ def submit_artifact(
                     "error": {
                         "code": "brief_not_ready",
                         "message": (
-                            "Save at least one verified fact before submitting "
-                            "an article."
+                            "Save evidence-bound facts before submitting; legacy unchecked facts must be rebound to executed evidence."
                         ),
                         "readiness": readiness.model_dump(mode="json"),
                     },
                 }
             )
+        snapshot = ctx.artifacts.read(path)
+        if snapshot.revision != expected_revision:
+            return _json({"ok": False, "error": {"code": "revision_conflict", "message": "Read the current artifact revision before submission."}})
+        receipt = ctx.draft_verifications.get(path)
+        if receipt is None or not receipt.is_current(snapshot, ctx.brief.brief):
+            receipt = verify_draft(snapshot, ctx.brief.brief, ctx.evidence)
+            ctx.draft_verifications[path] = receipt
+        if receipt.traceability_errors:
+            return _json({"ok": False, "error": {"code": "evidence_not_ready", "message": "Repair unresolved evidence before submission.", "verification": receipt.as_dict()}})
         artifact = ctx.artifacts.submit(
             path,
             expected_revision=expected_revision,
@@ -279,6 +301,7 @@ def submit_artifact(
             "finalized_revision": artifact.revision,
             "stats": stats,
             "brief_readiness": readiness.model_dump(mode="json"),
+            "draft_verification": receipt.as_dict(),
         }
         if ctx.memory_closeout is not None:
             result["next_action"] = {
@@ -291,6 +314,18 @@ def submit_artifact(
                 ),
             }
         return _success(result)
+
+    return _execute(operation)
+
+
+def verify_artifact(ctx: ToolContext, *, path: str, expected_revision: int) -> str:
+    def operation() -> str:
+        artifact = ctx.artifacts.read(path)
+        if artifact.revision != expected_revision:
+            return _json({"ok": False, "error": {"code": "revision_conflict", "message": "Read the current artifact revision before verification."}})
+        receipt = verify_draft(artifact, ctx.brief.brief, ctx.evidence)
+        ctx.draft_verifications[path] = receipt
+        return _success({"verification": receipt.as_dict()})
 
     return _execute(operation)
 
