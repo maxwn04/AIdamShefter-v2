@@ -78,7 +78,7 @@ class ScriptedSleeperSource:
 
     def execute(self, request):
         payloads = {
-            EndpointKind.LEAGUE: {"league_id": "123", "name": "Scripted season", "season": "2025", "sport": "nfl", "status": "complete", "settings": {"playoff_week_start": 15, "playoff_teams": 2, "draft_rounds": 0}, "scoring_settings": {}, "roster_positions": ["QB"]},
+            EndpointKind.LEAGUE: {"league_id": "123", "name": "Scripted season", "season": "2025", "sport": "nfl", "status": "complete", "settings": {"playoff_week_start": 15, "playoff_teams": 2, "draft_rounds": 0, "last_scored_leg": 3}, "scoring_settings": {}, "roster_positions": ["QB"]},
             EndpointKind.LEAGUE_USERS: [{"user_id": "u1", "display_name": "One"}, {"user_id": "u2", "display_name": "Two"}],
             EndpointKind.NFL_STATE: {"season": "2026", "week": 1},
             EndpointKind.PLAYER_CATALOG: {"p1": {"player_id": "p1", "full_name": "Test Player", "position": "QB"}},

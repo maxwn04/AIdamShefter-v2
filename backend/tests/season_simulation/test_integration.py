@@ -22,7 +22,7 @@ from backend.season_simulation.store import campaign_hash, load_campaign, save_p
 from backend.services.reporter.generator import generate_article
 from backend.tests.database.conftest import _alembic_config, database_url
 from backend.tests.season_simulation.test_bootstrap import ScriptedSleeperSource
-from backend.tests.services.reporter.test_integration import FakeCompletion, make_response, tool_call
+from backend.tests.services.reporter.test_integration import make_response, tool_call
 
 
 def fake_dump(target, destination):
@@ -41,8 +41,13 @@ def scripted_completion(week: int, *, save_memory: bool = False):
     if save_memory:
         calls.append(("save_league_note", {"key": "opening", "value": "One opened with 10 points."}))
     calls.append(("complete_memory_review", {}))
-    class BoundedCompletion(FakeCompletion):
+    class BoundedCompletion:
+        def __init__(self, responses):
+            self.responses = responses
+            self.requests = []
+
         async def __call__(self, **kwargs):
+            self.requests.append(kwargs)
             if not self.responses:
                 raise AssertionError("scripted responses exhausted: " + json.dumps(kwargs["messages"][-2:], default=str))
             response = self.responses[0]
@@ -73,7 +78,7 @@ def scripted_completion(week: int, *, save_memory: bool = False):
                 args = json.loads(current.arguments)
                 args.update(data_refs=[record["ref"]], bindings=[binding], numbers={field: 10})
                 current.arguments = json.dumps(args)
-            return await super().__call__(**kwargs)
+            return self.responses.pop(0)
     return BoundedCompletion([make_response(tool_calls=[tool_call(name, args, f"w{week}-{i}")]) for i, (name, args) in enumerate(calls)])
 
 

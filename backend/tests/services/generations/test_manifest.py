@@ -70,6 +70,35 @@ def _lookup_tool() -> ToolInput:
     )
 
 
+def _golden_submit_tool() -> ToolInput:
+    """Fixed serialization vector; live reporter revisions have separate tests."""
+    return ToolInput(
+        name="submit_artifact",
+        implementation_version="5",
+        definition={
+            "type": "function",
+            "function": {
+                "name": "submit_artifact",
+                "description": (
+                    "Submit a Markdown artifact as the final reporter output. Submission "
+                    "pins the existing revision and makes that artifact immutable."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "Relative POSIX path of the publishable artifact.",
+                        },
+                        "expected_revision": {"type": "integer", "minimum": 1},
+                    },
+                    "required": ["path", "expected_revision"],
+                },
+            },
+        },
+    )
+
+
 def _inputs(
     *,
     memory_input: CanonicalMemoryInput | EvaluationArtifactMemoryInput | None = None,
@@ -141,7 +170,8 @@ def test_canonical_json_has_a_locked_utf8_vector() -> None:
 
 
 def test_manifest_has_a_locked_schema_and_hash() -> None:
-    built = build_generation_manifest(_inputs())
+    inputs = _inputs().model_copy(update={"tools": (_golden_submit_tool(), _lookup_tool())})
+    built = build_generation_manifest(inputs)
 
     assert built.schema_version == 2
     assert built.manifest["schema_version"] == 2
