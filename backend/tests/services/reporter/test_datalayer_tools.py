@@ -30,9 +30,11 @@ from backend.services.reporter.runner.tools.datalayer_tools import (
     register_datalayer_tools,
 )
 from backend.services.reporter.runner.tools.registry import ToolRegistry
+from backend.services.reporter.runner.models import ToolExecutionResult
 
 
 EXPECTED_TOOL_NAMES = [
+    "read_evidence",
     "available_seasons",
     "league_history",
     "franchise_history",
@@ -58,6 +60,9 @@ EXPECTED_TOOL_NAMES = [
 
 
 class FakeFrozenLeagueData:
+    def completeness_warnings(self) -> tuple:
+        return ()
+
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[Any, ...], dict[str, Any]]] = []
 
@@ -297,11 +302,14 @@ def registered_registry() -> tuple[ToolRegistry, FakeFrozenLeagueData]:
     registry = ToolRegistry()
     data = FakeFrozenLeagueData()
     register_datalayer_tools(registry, data)  # type: ignore[arg-type]
+    data.calls.clear()
     return registry, data
 
 
-def decode(result: str) -> Any:
-    return json.loads(result)
+def decode(result: ToolExecutionResult) -> Any:
+    """Existing routing assertions inspect full private raw evidence."""
+    assert isinstance(result, ToolExecutionResult)
+    return result.metadata["raw_result"]
 
 
 def test_reporter_owns_compatible_frozen_tool_specs() -> None:
@@ -324,11 +332,12 @@ def test_reporter_owns_compatible_frozen_tool_specs() -> None:
         )
 
     assert "roster_current" not in EXPECTED_TOOL_NAMES
-    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "2"
+    assert DATALAYER_TOOL_IMPLEMENTATION_VERSION == "3"
 
 
 def test_only_season_scoped_tools_expose_optional_season_year() -> None:
     global_tools = {
+        "read_evidence",
         "available_seasons",
         "league_history",
         "franchise_history",
@@ -609,7 +618,7 @@ def test_all_tools_execute_against_a_real_frozen_artifact(
         / "legacy_query_outputs.json"
     )
     golden = json.loads(golden_path.read_text(encoding="utf-8"))
-    assert set(results) == set(EXPECTED_TOOL_NAMES)
+    assert set(results) == set(EXPECTED_TOOL_NAMES) - {"read_evidence"}
     stable_results = _without_volatile_player_state(results)
     stable_golden = _without_volatile_player_state(golden)
     assert stable_results["week_games"] == stable_golden["week_games_with_players"]

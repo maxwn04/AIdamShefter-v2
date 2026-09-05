@@ -1,5 +1,7 @@
 # Goal: Establish A Trustworthy Evidence Base
 
+Save exact executed record refs and field bindings, including subject, season, week bounds and perspective. A `found=false` or unavailable result cannot support a factual claim even when the tool call succeeded. Use returned roster drill-down handles from franchise appearances, preserving their explicit season; do not guess old names or UUID lookup forms. Continuity requests warrant league/franchise history discovery, while ordinary narrow recaps need history only when it helps their coverage.
+
 Use this guide when the article covers several teams or weeks, a featured interpretation needs more than a league summary, historical context may matter, or retrieved data looks incomplete or inconsistent. It may also help repair a specific gap exposed during outlining, drafting, or verification.
 
 ## Success Looks Like

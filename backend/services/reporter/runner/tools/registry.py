@@ -21,6 +21,10 @@ class ToolRegistry:
     def set_context(self, context: ToolContext) -> None:
         self._context = context
 
+    @property
+    def context(self) -> ToolContext | None:
+        return self._context
+
     def register(
         self,
         name: str,

@@ -29,6 +29,8 @@ from backend.services.reporter.runner.recording import ArtifactMutation
 
 
 class FakeCompletion:
+    """Resolve explicit fixture selectors using only previously executed tool output."""
+
     def __init__(self, responses: list[Any]) -> None:
         self.responses = responses
         self.requests: list[dict[str, Any]] = []
@@ -37,7 +39,46 @@ class FakeCompletion:
         self.requests.append(kwargs)
         if not self.responses:
             return make_response(text="Done.")
-        return self.responses.pop(0)
+        response = self.responses.pop(0)
+        records = []
+        for message in kwargs["messages"]:
+            if message.get("role") != "tool":
+                continue
+            try:
+                payload = json.loads(message["content"])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                records.extend(
+                    {"tool": payload["tool"], **payload.get("scope", {}), **record}
+                    for record in payload.get("records", [])
+                )
+        for call in response.choices[0].message.tool_calls:
+            if call.function.name != "save_fact":
+                continue
+            arguments = json.loads(call.function.arguments)
+            bindings = []
+            for selector in arguments.pop("_evidence"):
+                matches = [
+                    record for record in records
+                    if record["tool"] == selector["tool"]
+                    and all(record["fields"].get(key) == value for key, value in selector["where"].items())
+                    and all(field in record["fields"] for field in selector["fields"])
+                ]
+                assert len(matches) == 1, (selector, matches)
+                record = matches[0]
+                bindings.extend(
+                    {
+                        "ref": record["ref"], "field": field,
+                        "value": record["fields"][field],
+                        **{key: record[key] for key in ("subject", "season", "week_from", "week_to", "perspective")},
+                    }
+                    for field in selector["fields"]
+                )
+            arguments["bindings"] = bindings
+            arguments["data_refs"] = list(dict.fromkeys(binding["ref"] for binding in bindings))
+            call.function.arguments = json.dumps(arguments)
+        return response
 
 
 class ExecutionRecordingProbe:
@@ -84,6 +125,9 @@ class ExecutionRecordingProbe:
 
 
 class FakeFrozenLeagueData:
+    def completeness_warnings(self) -> tuple[Any, ...]:
+        return ()
+
     def available_seasons(self) -> tuple[SnapshotSeason, ...]:
         return (
             SnapshotSeason(
@@ -150,7 +194,9 @@ class FakeFrozenLeagueData:
             }
         return {"columns": [], "rows": [], "row_count": 0}
 
-    def resolve_roster_identity(self, roster_key: str) -> ResolvedRosterIdentity:
+    def resolve_roster_identity(
+        self, roster_key: str, *, season: int | None = None,
+    ) -> ResolvedRosterIdentity:
         is_waiver_wire = roster_key == "Waiver Wire"
         return ResolvedRosterIdentity(
             roster_key=roster_key,
@@ -270,7 +316,10 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                             "claim_text": (
                                 "Team Taco beat Waiver Wire 142.3-98.7 in week 8."
                             ),
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [
+                                {"tool": "league_snapshot", "where": {"team_name": "Team Taco"}, "fields": ["winner_points"]},
+                                {"tool": "league_snapshot", "where": {"team_name": "Waiver Wire"}, "fields": ["loser_points"]},
+                            ],
                             "numbers": {
                                 "winner_points": 142.3,
                                 "loser_points": 98.7,
@@ -284,7 +333,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                         {
                             "id": "fact_taco_record",
                             "claim_text": "Team Taco improved to 7-1 after week 8.",
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [{"tool": "league_snapshot", "where": {"team_name": "Team Taco"}, "fields": ["wins", "losses"]}],
                             "numbers": {"wins": 7, "losses": 1},
                             "category": "standing",
                         },
@@ -295,7 +344,7 @@ def test_generate_article_end_to_end_tool_loop() -> None:
                         {
                             "id": "fact_waiver_record",
                             "claim_text": "Waiver Wire fell to 2-6 after week 8.",
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [{"tool": "league_snapshot", "where": {"team_name": "Waiver Wire"}, "fields": ["wins", "losses"]}],
                             "numbers": {"wins": 2, "losses": 6},
                             "category": "standing",
                         },
@@ -521,10 +570,10 @@ def test_generate_article_records_argument_complete_historical_evidence() -> Non
                                 "The Taco franchise appeared as Old Taco in 2025 "
                                 "and Team Taco in 2026."
                             ),
-                            "data_refs": [
-                                "franchise_history("
-                                "franchise_or_primary_roster=Team Taco)",
-                                "league_snapshot(week=18, season=2025)",
+                            "_evidence": [
+                                {"tool": "franchise_history", "where": {"team_name": "Old Taco"}, "fields": ["team_name", "season"]},
+                                {"tool": "franchise_history", "where": {"team_name": "Team Taco"}, "fields": ["team_name", "season"]},
+                                {"tool": "league_snapshot", "where": {"week": 18}, "fields": ["week", "season"]},
                             ],
                             "category": "history",
                         },
@@ -575,7 +624,18 @@ def test_generate_article_records_argument_complete_historical_evidence() -> Non
         if artifact.path == "research_brief.md"
     )
     assert output.submitted_path == "article.md"
-    assert "league_snapshot(week=18, season=2025)" in brief.content
+    assert '"season": 2025' in brief.content
+    historical_output = next(
+        json.loads(message["content"])
+        for message in complete.requests[-1]["messages"]
+        if message.get("tool_call_id") == "s3"
+    )
+    historical_record = next(
+        record for record in historical_output["records"]
+        if record["fields"].get("week") == 18
+    )
+    assert historical_record["ref"] in brief.content
+    assert {**historical_output["scope"], **historical_record}["season"] == 2025
     assert any(
         entry["event_type"] == "tool_call"
         and entry["data"]["tool_name"] == "league_snapshot"
@@ -602,6 +662,7 @@ def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> N
     )
     complete = FakeCompletion(
         [
+            make_response(tool_calls=[tool_call("league_snapshot", {"week": 8}, "evidence-call")]),
             make_response(
                 tool_calls=[
                     tool_call(
@@ -609,7 +670,7 @@ def test_generate_article_keeps_final_brief_facts_out_of_canonical_memory() -> N
                         {
                             "id": "fact_taco_win",
                             "claim_text": "Team Taco won in Week 8.",
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [{"tool": "league_snapshot", "where": {"week": 8}, "fields": ["week"]}],
                             "numbers": {"week": 8},
                             "category": "score",
                         },
@@ -718,6 +779,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
     )
     complete = FakeCompletion(
         [
+            make_response(tool_calls=[tool_call("league_snapshot", {"week": 8}, "evidence-call")]),
             make_response(
                 tool_calls=[
                     tool_call(
@@ -725,7 +787,7 @@ def test_generation_closeout_buffers_all_live_kinds_and_backtest_noop(
                         {
                             "id": "fact_closeout_fixture",
                             "claim_text": "Week 8 supplied a verified fact.",
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [{"tool": "league_snapshot", "where": {"winner_team_name": "Team Taco"}, "fields": ["winner_team_name"]}],
                         },
                         "fact-call",
                     )
@@ -927,6 +989,11 @@ def test_generation_starts_with_exact_recorded_automatic_recall_context() -> Non
     )
     complete = FakeCompletion(
         [
+            make_response(tool_calls=[tool_call("league_snapshot", {"week": 8}, "evidence-call")]),
+            make_response(tool_calls=[tool_call("save_fact", {
+                "id": "fact_taco_win", "claim_text": "Team Taco won in week 8.",
+                "_evidence": [{"tool": "league_snapshot", "where": {"winner_team_name": "Team Taco"}, "fields": ["winner_team_name"]}],
+            }, "fact-call")]),
             make_response(
                 tool_calls=[
                     tool_call(
@@ -945,6 +1012,7 @@ def test_generation_starts_with_exact_recorded_automatic_recall_context() -> Non
                     )
                 ]
             ),
+            make_response(tool_calls=[tool_call("complete_memory_review", {}, "closeout-call")]),
         ]
     )
 
@@ -1007,6 +1075,11 @@ def test_generation_can_disable_automatic_recall_without_removing_memory_tools()
     )
     complete = FakeCompletion(
         [
+            make_response(tool_calls=[tool_call("league_snapshot", {"week": 8}, "evidence-call")]),
+            make_response(tool_calls=[tool_call("save_fact", {
+                "id": "fact_taco_win", "claim_text": "Team Taco won in week 8.",
+                "_evidence": [{"tool": "league_snapshot", "where": {"winner_team_name": "Team Taco"}, "fields": ["winner_team_name"]}],
+            }, "fact-call")]),
             make_response(
                 tool_calls=[
                     tool_call(
@@ -1025,6 +1098,7 @@ def test_generation_can_disable_automatic_recall_without_removing_memory_tools()
                     )
                 ]
             ),
+            make_response(tool_calls=[tool_call("complete_memory_review", {}, "closeout-call")]),
         ]
     )
 
@@ -1090,7 +1164,7 @@ def test_generate_article_allows_backtracking_from_drafting_to_research() -> Non
                         {
                             "id": "fact_taco_record",
                             "claim_text": "Team Taco was 7-1 after week 8.",
-                            "data_refs": ["league_snapshot:week=8"],
+                            "_evidence": [{"tool": "league_snapshot", "where": {"team_name": "Team Taco"}, "fields": ["wins", "losses"]}],
                             "numbers": {"wins": 7, "losses": 1},
                             "category": "standing",
                         },

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import JsonValue, ValidationError
 
 from backend.services.reporter.runner.models import ToolDef
+from backend.services.reporter.runner.grounding import validate_fact
 from backend.services.reporter.runner.research_brief import (
     RESEARCH_BRIEF_PATH,
     ResearchBriefError,
@@ -17,7 +18,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-BRIEF_TOOL_IMPLEMENTATION_VERSION = "1"
+BRIEF_TOOL_IMPLEMENTATION_VERSION = "2"
 
 BRIEF_TOOL_SPECS: list[ToolDef] = [
     {
@@ -25,7 +26,7 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
         "function": {
             "name": "save_fact",
             "description": (
-                "Add or update one verified fact in the structured research brief. "
+                "Add or update one evidence-bound fact in the structured research brief. "
                 "Use stable lowercase IDs and include traceable data references. "
                 "Independent facts may be saved together in one tool-call batch."
             ),
@@ -46,23 +47,45 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
                         "items": {"type": "string"},
                         "minItems": 1,
                         "description": (
-                            "Tool/data traces such as league_snapshot:week=8 or "
-                            "team_game:roster_4:week=8."
+                            "Exact record refs returned by executed data tools, such as e2_0.r1."
                         ),
                     },
                     "numbers": {
                         "type": "object",
-                        "description": "Important exact numeric values in the claim.",
+                        "description": "Optional field names and exact values also selected in bindings.",
+                    },
+                    "bindings": {
+                        "type": "array",
+                        "minItems": 1,
+                        "description": "Select executed fields with their exact source subject, period and perspective. A binding proves traceability, not prose entailment.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "ref": {"type": "string"},
+                                "field": {"type": "string"},
+                                "value": {},
+                                "subject": {"type": ["string", "null"]},
+                                "season": {"type": ["integer", "null"]},
+                                "week_from": {"type": ["integer", "null"]},
+                                "week_to": {"type": ["integer", "null"]},
+                                "perspective": {"type": ["string", "null"]},
+                            },
+                            "required": ["ref", "field", "value", "subject", "season", "week_from", "week_to"],
+                            "additionalProperties": False,
+                        },
                     },
                     "category": {
                         "type": "string",
                         "description": (
                             "Category such as score, standing, player, transaction, "
-                            "playoff, or history."
+                            "history, comparison (ordered before/after), superlative, or championship. "
+                            "Use specialized categories for those claims; unsupported semantics remain diagnostic."
                         ),
                     },
+                    "superlative_direction": {"type": "string", "enum": ["min", "max"], "description": "Required for superlatives: direction of the selected numeric field (rank 1 uses min)."},
+                    "superlative_unique": {"type": "boolean", "description": "Set true only when claiming the sole extreme; otherwise tied extremes are allowed."},
                 },
-                "required": ["id", "claim_text", "data_refs"],
+                "required": ["id", "claim_text", "data_refs", "bindings"],
             },
         },
     },
@@ -220,16 +243,35 @@ def save_fact(
     data_refs: list[str],
     numbers: dict[str, JsonValue] | None = None,
     category: str = "general",
+    bindings: list[dict[str, Any]] | None = None,
+    superlative_direction: Literal["min", "max"] | None = None,
+    superlative_unique: bool = False,
 ) -> str:
-    return _execute_mutation(
-        ctx,
-        lambda: ctx.brief.prepare_fact(
+    def prepare() -> Any:
+        mutation = ctx.brief.prepare_fact(
             id=id,
             claim_text=claim_text,
             data_refs=data_refs,
             numbers=numbers,
             category=category,
-        ),
+            bindings=bindings or (),
+            superlative_direction=superlative_direction,
+            superlative_unique=superlative_unique,
+        )
+        fact = mutation.candidate.get_fact(id)
+        assert fact is not None
+        diagnostics = validate_fact(fact, ctx.evidence)
+        return ctx.brief.prepare_fact(
+            id=id, claim_text=claim_text, data_refs=data_refs, numbers=numbers,
+            category=category, bindings=bindings or (), support_status="traceable",
+            support_diagnostics=diagnostics,
+            superlative_direction=superlative_direction,
+            superlative_unique=superlative_unique,
+        )
+
+    return _execute_mutation(
+        ctx,
+        prepare,
         result_key="fact_id",
     )
 

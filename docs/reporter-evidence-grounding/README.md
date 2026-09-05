@@ -7,7 +7,8 @@ Research facts bind selected fields to those records. A source receipt establish
 traceability, not entailment of arbitrary prose.
 
 See [application contracts](application-contracts.md) for the producer/consumer
-boundary and [behavior evaluation](behavior-evaluation.md) for the unpaid test plan.
+boundary, [architecture](architecture.md) for flow and tradeoffs, and
+[behavior evaluation](behavior-evaluation.md) for the prepared paid test plan.
 
 Scope excludes legacy implementations, generation policy, memory lifecycle
 redesign, universal claim ontologies and extra model critics.

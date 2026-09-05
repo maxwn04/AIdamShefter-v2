@@ -1,5 +1,7 @@
 # Goal: Turn Verified Material Into A Compelling Article
 
+Draft from the selected source values and their subject, period, completeness and perspective. Traceable brief bindings do not certify your prose. Preserve sent/received trade direction, compare equivalent windows, and attach each record to its actual team. Keep meaningful missing-history or partial-coverage limitations visible to the reader. Never turn an unplayed game into a tie or standings result; explicit completed 0-0 ties remain legitimate. Keep private audit payloads and diagnostic receipts out of the article.
+
 Use this guide when enough evidence exists to compose or substantially revise the publishable article, or when existing prose needs stronger focus, structure, voice, or proportional coverage.
 
 ## Success Looks Like

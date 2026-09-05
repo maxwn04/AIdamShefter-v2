@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
 import json
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from backend.services.reporter.runner.models import ToolDef
+from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
+from backend.services.reporter.runner.evidence import EvidenceCatalog
+from backend.services.reporter.runner.tools.evidence_presentation import (
+    evidence_page, public_subject_id, selected_records,
+)
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-DATALAYER_TOOL_IMPLEMENTATION_VERSION = "2"
+DATALAYER_TOOL_IMPLEMENTATION_VERSION = "3"
 
 
 def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
@@ -23,7 +28,7 @@ def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
 def _roster_property() -> dict[str, str]:
     return {
         "type": "string",
-        "description": "Team name, manager name, or roster_id as a string.",
+        "description": "Exact selected-season team/manager name, roster ID, or season_roster_id. Prefer returned roster_lookup arguments.",
     }
 
 
@@ -60,6 +65,13 @@ def _tool(
 
 
 DATALAYER_TOOL_SPECS: list[ToolDef] = [
+    _tool(
+        "read_evidence",
+        "Read another page of actual executed evidence by source handle. Use returned refs in brief bindings.",
+        {"source": {"type": "string"}, "offset": {"type": "integer", "minimum": 0},
+         "limit": {"type": "integer", "minimum": 1, "maximum": 40}},
+        ("source",),
+    ),
     _tool(
         "available_seasons",
         "List every season available in this frozen snapshot, ordered from the "
@@ -323,11 +335,12 @@ def register_datalayer_tools(
 ) -> None:
     """Register reporter data tools over an already-open frozen snapshot."""
     handlers = _create_tool_handlers(data)
+    adapter = _EvidenceAdapter(data, registry)
     for spec in DATALAYER_TOOL_SPECS:
         name = spec["function"]["name"]
         registry.register(
             name,
-            _json_handler(handlers[name]),
+            adapter.read if name == "read_evidence" else adapter.wrap(name, handlers[name]),
             spec,
             DATALAYER_TOOL_IMPLEMENTATION_VERSION,
         )
@@ -432,8 +445,69 @@ def _create_tool_handlers(
     }
 
 
-def _json_handler(handler: Callable[..., Any]) -> Callable[..., str]:
-    def wrapped_handler(**kwargs: Any) -> str:
-        return json.dumps(handler(**kwargs), default=str)
+class _EvidenceAdapter:
+    def __init__(self, data: FrozenLeagueData, registry: ToolRegistry) -> None:
+        self.data = data
+        self.registry = registry
+        self.seasons = [item.model_dump(mode="json") for item in data.available_seasons()]
+        self.direct_catalog = EvidenceCatalog()
+        self.direct_sequence = 0
 
-    return wrapped_handler
+    def read(self, source: str, offset: int = 0, limit: int = 40) -> ToolExecutionResult:
+        ctx = self.registry.context
+        catalog = ctx.evidence if ctx else self.direct_catalog
+        records = catalog.records_for(source)
+        if not records:
+            return ToolExecutionResult(result={"found": False, "source": source, "error": "Unknown evidence source"})
+        return ToolExecutionResult(result=_json_value(evidence_page(records, offset, limit)))
+
+    def wrap(self, name: str, handler: Callable[..., Any]) -> Callable[..., ToolExecutionResult]:
+        def execute(**kwargs: Any) -> ToolExecutionResult:
+            ctx = self.registry.context
+            if ctx:
+                source = ctx.evidence_source()
+                catalog = ctx.evidence
+            else:
+                self.direct_sequence += 1
+                source = f"direct{self.direct_sequence}"
+                catalog = self.direct_catalog
+            raw = handler(**kwargs)
+            seasons = self.seasons
+            identities: dict[tuple[str, int | None], tuple[str | None, str | None]] = {}
+            identity_audit: list[dict[str, Any]] = []
+
+            def identity(subject: str, season: int | None) -> tuple[str | None, str | None]:
+                key = (subject, season)
+                if key not in identities:
+                    # Legacy projection 2 deliberately has no durable identity map.
+                    from backend.services.datalayer.query.identity import ResolvedRosterIdentity
+                    resolution = self.data.resolve_roster_identity(subject, season=season)
+                    if isinstance(resolution, ResolvedRosterIdentity):
+                        identities[key] = (public_subject_id(str(resolution.identity.franchise_id)), resolution.identity.sleeper_roster_id)
+                        identity_audit.append(resolution.model_dump(mode="json"))
+                    else:
+                        identities[key] = (None, None)
+                return identities[key]
+
+            warnings = self.data.completeness_warnings()
+            records = selected_records(
+                source, name, raw, kwargs, seasons, identity,
+                snapshot_warnings=tuple(warning.model_dump(mode="json") for warning in warnings),
+            )
+            catalog.register(source, records)
+            return ToolExecutionResult(
+                result=_json_value(evidence_page(records)),
+                metadata=_json_value({
+                    "evidence_version": "1", "source": source, "raw_result": raw,
+                    "records": [asdict(record) for record in records],
+                    "snapshot_seasons": seasons, "identity_bindings": identity_audit,
+                    "completeness_warnings": [warning.model_dump(mode="json") for warning in warnings],
+                    "tool_call_id": str(ctx.current_tool_call_id) if ctx and ctx.current_tool_call_id else None,
+                }),
+            )
+        return execute
+
+
+def _json_value(value: Any) -> Any:
+    """The durable recorder accepts JSON values, not dataclass tuples or UUIDs."""
+    return json.loads(json.dumps(value, default=str))

@@ -5,6 +5,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backend.services.reporter.runner.evidence import EvidenceRecord
+
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecordingError,
@@ -39,12 +41,15 @@ def _ctx(*, recorder: object | None = None) -> ToolContext:
 
 
 def _save_fact(ctx: ToolContext, fact_id: str, claim: str = "Taco won.") -> dict:
+    if ctx.evidence.resolve("e1_0.r1") is None:
+        ctx.evidence.register("e1_0", (EvidenceRecord(ref="e1_0.r1", source="e1_0", tool="test", outcome="found", fields={"week": 8}),))
     return _decode(
         save_fact(
             ctx,
             id=fact_id,
             claim_text=claim,
-            data_refs=["league_snapshot:week=8"],
+            data_refs=["e1_0.r1"],
+            bindings=[dict(ref="e1_0.r1", field="week", value=8, subject=None, season=None, week_from=None, week_to=None)],
             numbers={"week": 8},
             category="score",
         )

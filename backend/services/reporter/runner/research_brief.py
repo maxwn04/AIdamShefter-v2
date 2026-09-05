@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -75,12 +75,31 @@ class BriefBias(BaseModel):
     intensity: int = Field(default=0, ge=0, le=3)
 
 
+class ClaimBinding(BaseModel):
+    """A selected value from executed evidence, not a model-written citation."""
+
+    model_config = ConfigDict(extra="forbid")
+    ref: str = Field(min_length=1)
+    field: str = Field(min_length=1)
+    value: JsonValue
+    subject: str | None
+    season: int | None
+    week_from: int | None
+    week_to: int | None
+    perspective: str | None = None
+
+
 class BriefFact(BaseModel):
     id: str = Field(pattern=BRIEF_ID_PATTERN)
     claim_text: str
     data_refs: tuple[str, ...]
     numbers: dict[str, JsonValue] = Field(default_factory=dict)
     category: str = "general"
+    bindings: tuple[ClaimBinding, ...] = ()
+    support_status: Literal["legacy_unchecked", "traceable"] = "legacy_unchecked"
+    support_diagnostics: tuple[str, ...] = ()
+    superlative_direction: Literal["min", "max"] | None = None
+    superlative_unique: bool = False
     revision_at_set: int = Field(ge=1)
 
     @field_validator("id", "claim_text", "category")
@@ -300,8 +319,10 @@ class ResearchBrief(BaseModel):
             )
         )
         warnings: list[str] = []
-        if not self.facts:
-            warnings.append("no_verified_facts")
+        if not any(fact.support_status == "traceable" for fact in self.facts):
+            warnings.append("no_traceable_facts")
+        if any(fact.support_status == "legacy_unchecked" for fact in self.facts):
+            warnings.append("legacy_facts_unchecked")
         if not self.storylines:
             warnings.append("no_storylines")
         if not self.outline.sections:
@@ -313,7 +334,9 @@ class ResearchBrief(BaseModel):
         if outline_stale:
             warnings.append("stale_outline")
         return BriefReadiness(
-            submission_allowed=bool(self.facts),
+            submission_allowed=bool(self.facts) and all(
+                fact.support_status == "traceable" for fact in self.facts
+            ),
             fact_count=len(self.facts),
             callback_count=len(self.memory_callbacks),
             storyline_count=len(self.storylines),
@@ -347,6 +370,11 @@ class ResearchBriefStore(BaseModel):
         data_refs: Iterable[str],
         numbers: dict[str, JsonValue] | None = None,
         category: str = "general",
+        bindings: Iterable[ClaimBinding | dict[str, Any]] = (),
+        support_status: Literal["legacy_unchecked", "traceable"] = "legacy_unchecked",
+        support_diagnostics: Iterable[str] = (),
+        superlative_direction: Literal["min", "max"] | None = None,
+        superlative_unique: bool = False,
     ) -> BriefMutation:
         revision = self.brief.revision + 1
         fact = BriefFact(
@@ -355,6 +383,11 @@ class ResearchBriefStore(BaseModel):
             data_refs=tuple(data_refs),
             numbers=numbers or {},
             category=category,
+            bindings=tuple(bindings),
+            support_status=support_status,
+            support_diagnostics=tuple(support_diagnostics),
+            superlative_direction=superlative_direction,
+            superlative_unique=superlative_unique,
             revision_at_set=revision,
         )
         existing = self.brief.get_fact(fact.id)
@@ -599,7 +632,7 @@ def render_research_brief(brief: ResearchBrief) -> str:
         f"- Bias intensity: {bias.intensity}",
         "- Bias rule: framing only; never change facts.",
         "",
-        "## Verified Facts",
+        "## Evidence-bound Facts",
         "",
     ]
     if brief.facts:
@@ -610,6 +643,10 @@ def render_research_brief(brief: ResearchBrief) -> str:
                     "",
                     f"- Claim: {fact.claim_text}",
                     f"- Category: {fact.category}",
+                    f"- Superlative direction/unique: {fact.superlative_direction or '(none)'}/{fact.superlative_unique}",
+                    f"- Support: {fact.support_status} (traceability is not prose entailment)",
+                    f"- Bindings: {json.dumps([binding.model_dump() for binding in fact.bindings], sort_keys=True)}",
+                    f"- Diagnostics: {_list_value(fact.support_diagnostics)}",
                     f"- Data refs: {_list_value(fact.data_refs)}",
                     f"- Numbers: {json.dumps(fact.numbers, sort_keys=True)}",
                     f"- Set at revision: {fact.revision_at_set}",
