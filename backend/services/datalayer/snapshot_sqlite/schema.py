@@ -16,11 +16,13 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     Table,
     Text,
+    UniqueConstraint,
 )
 
 
 SQLITE_APPLICATION_ID = 0x41494441
 SQLITE_USER_VERSION = 2
+SQLITE_USER_VERSION_V3 = 3
 
 
 SNAPSHOT_TABLE_ORDER = (
@@ -43,17 +45,46 @@ SNAPSHOT_TABLE_ORDER = (
     "snapshot_metadata",
 )
 
+SNAPSHOT_TABLE_ORDER_V3 = (
+    "snapshot_seasons",
+    *SNAPSHOT_TABLE_ORDER,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class SnapshotSchema:
     projection_version: str
+    user_version: int
     metadata: MetaData
     tables: Mapping[str, Table]
     table_order: tuple[str, ...]
 
 
-def _build_v2() -> SnapshotSchema:
+def _build(projection_version: str) -> SnapshotSchema:
+    is_v3 = projection_version == "3"
     metadata = MetaData()
+
+    if is_v3:
+        Table(
+            "snapshot_seasons",
+            metadata,
+            Column("competition_id", Text, nullable=False),
+            Column("competition_season_id", Text, primary_key=True),
+            Column("league_id", Text, nullable=False, unique=True),
+            Column("season_year", Integer, nullable=False, unique=True),
+            Column("sequence_number", Integer, nullable=False, unique=True),
+            Column("role", Text, nullable=False),
+            Column("through_week", Integer, nullable=False),
+            CheckConstraint(
+                "role IN ('primary', 'history')",
+                name="ck_snapshot_seasons_role",
+            ),
+            CheckConstraint(
+                "through_week BETWEEN 1 AND 18",
+                name="ck_snapshot_seasons_through_week",
+            ),
+            Index("idx_snapshot_seasons_role", "role"),
+        )
 
     Table(
         "leagues",
@@ -77,14 +108,16 @@ def _build_v2() -> SnapshotSchema:
         Column("effective_week", Integer, nullable=False),
         Column("generated_at", Text),
     )
-    Table(
-        "users",
-        metadata,
-        Column("user_id", Text, primary_key=True),
+    user_columns = [
+        Column("user_id", Text, primary_key=not is_v3),
         Column("display_name", Text, nullable=False),
         Column("avatar", Text),
         Column("metadata_json", Text),
-    )
+    ]
+    if is_v3:
+        user_columns.insert(0, Column("league_id", Text, nullable=False))
+        user_columns.append(PrimaryKeyConstraint("league_id", "user_id"))
+    Table("users", metadata, *user_columns)
     Table(
         "rosters",
         metadata,
@@ -105,8 +138,19 @@ def _build_v2() -> SnapshotSchema:
         Column("competition_id", Text, nullable=False),
         Column("competition_season_id", Text, nullable=False),
         Column("season_roster_id", Text, nullable=False, unique=True),
-        Column("franchise_id", Text, nullable=False, unique=True),
+        Column("franchise_id", Text, nullable=False, unique=not is_v3),
         PrimaryKeyConstraint("league_id", "roster_id"),
+        *(
+            (
+                UniqueConstraint(
+                "competition_season_id",
+                "franchise_id",
+                name="uq_roster_identities_season_franchise",
+                ),
+            )
+            if is_v3
+            else ()
+        ),
         Index("idx_roster_identities_franchise", "franchise_id"),
     )
     Table(
@@ -213,17 +257,23 @@ def _build_v2() -> SnapshotSchema:
         Column("league_id", Text, nullable=False),
         Column("season", Text, nullable=False),
         Column("week", Integer, nullable=False),
-        Column("transaction_id", Text, primary_key=True),
+        Column("transaction_id", Text, primary_key=not is_v3),
         Column("type", Text, nullable=False),
         Column("status", Text),
         Column("created_ts", Integer),
         Column("settings_json", Text),
         Column("metadata_json", Text),
+        *(
+            (PrimaryKeyConstraint("league_id", "transaction_id"),)
+            if is_v3
+            else ()
+        ),
         Index("idx_transactions_league_season_week", "league_id", "season", "week"),
     )
     Table(
         "transaction_moves",
         metadata,
+        *((Column("league_id", Text, nullable=False),) if is_v3 else ()),
         Column("transaction_id", Text, nullable=False),
         Column("move_index", Integer, nullable=False),
         Column("roster_id", Integer),
@@ -237,9 +287,21 @@ def _build_v2() -> SnapshotSchema:
         Column("pick_round", Integer),
         Column("pick_original_roster_id", Integer),
         Column("pick_id", Text),
-        PrimaryKeyConstraint("transaction_id", "move_index", "direction"),
-        Index("idx_transaction_moves_tx", "transaction_id"),
-        Index("idx_transaction_moves_roster", "roster_id"),
+        PrimaryKeyConstraint(
+            *(
+                ("league_id", "transaction_id", "move_index", "direction")
+                if is_v3
+                else ("transaction_id", "move_index", "direction")
+            )
+        ),
+        Index(
+            "idx_transaction_moves_tx",
+            *(("league_id", "transaction_id") if is_v3 else ("transaction_id",)),
+        ),
+        Index(
+            "idx_transaction_moves_roster",
+            *(("league_id", "roster_id") if is_v3 else ("roster_id",)),
+        ),
     )
     Table(
         "playoff_matchups",
@@ -298,22 +360,32 @@ def _build_v2() -> SnapshotSchema:
         Column("through_week", Integer, nullable=False),
         Column("as_of_date", Text, nullable=False),
         Column("snapshot_projection_version", Text, nullable=False),
+        *((Column("input_revision", Text, nullable=False),) if is_v3 else ()),
         Column("selected_requests_json", Text, nullable=False),
         Column("completeness_warnings_json", Text, nullable=False),
         CheckConstraint("singleton_id = 1", name="ck_snapshot_metadata_singleton"),
     )
     tables = MappingProxyType(dict(metadata.tables))
-    return SnapshotSchema("2", metadata, tables, SNAPSHOT_TABLE_ORDER)
+    return SnapshotSchema(
+        projection_version,
+        SQLITE_USER_VERSION_V3 if is_v3 else SQLITE_USER_VERSION,
+        metadata,
+        tables,
+        SNAPSHOT_TABLE_ORDER_V3 if is_v3 else SNAPSHOT_TABLE_ORDER,
+    )
 
 
-_V2 = _build_v2()
+_V2 = _build("2")
+_V3 = _build("3")
 
 
 def get_snapshot_schema(projection_version: str) -> SnapshotSchema:
     """Return the exact schema owned by a supported projection version."""
 
-    if projection_version != "2":
-        raise ValueError(
-            f"unsupported snapshot projection version: {projection_version!r}"
-        )
-    return _V2
+    if projection_version == "2":
+        return _V2
+    if projection_version == "3":
+        return _V3
+    raise ValueError(
+        f"unsupported snapshot projection version: {projection_version!r}"
+    )

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from enum import StrEnum
+from typing import Annotated, Literal, TypeAlias
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, StrictBool, model_validator
@@ -15,6 +16,7 @@ from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 
 PageLimit = Annotated[int, Field(strict=True, ge=1, le=200)]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
+Sha256 = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 
 
 class PlannedEndpointScope(ContractModel):
@@ -94,3 +96,66 @@ class RefreshRunPage(ContractModel):
     total: NonNegativeInt
     limit: PageLimit
     offset: NonNegativeInt
+
+
+class RefreshNeedReason(StrEnum):
+    MISSING = "missing"
+    STALE = "stale"
+
+
+class AutomaticRefreshClaimStatus(StrEnum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class ClaimAutomaticRefresh(ContractModel):
+    competition_season_id: UUID
+    active_key: Sha256
+    requested_through_week: int = Field(strict=True, ge=1, le=18)
+    policy_version: NonBlankStr
+    reason: RefreshNeedReason
+    coverage_fingerprint: Sha256
+
+
+class AutomaticRefreshFailure(ContractModel):
+    code: NonBlankStr
+    summary: NonBlankStr
+
+
+class AutomaticRefreshClaim(ContractModel):
+    id: UUID
+    competition_id: UUID
+    competition_season_id: UUID
+    active_key: Sha256
+    requested_through_week: int = Field(strict=True, ge=1, le=18)
+    policy_version: str
+    reason: RefreshNeedReason
+    coverage_fingerprint: Sha256
+    status: AutomaticRefreshClaimStatus
+    refresh_run_id: UUID | None
+    refresh_status: RefreshStatus | None
+    failure: AutomaticRefreshFailure | None
+    started_at: AwareDatetime
+    completed_at: AwareDatetime | None
+
+
+class CompleteAutomaticRefresh(ContractModel):
+    refresh_run_id: UUID
+    refresh_status: RefreshStatus
+
+
+class ClaimedAutomaticRefresh(ContractModel):
+    kind: Literal["claimed"] = "claimed"
+    claim: AutomaticRefreshClaim
+
+
+class ExistingAutomaticRefresh(ContractModel):
+    kind: Literal["existing"] = "existing"
+    claim: AutomaticRefreshClaim
+
+
+AutomaticRefreshClaimState: TypeAlias = Annotated[
+    ClaimedAutomaticRefresh | ExistingAutomaticRefresh,
+    Field(discriminator="kind"),
+]

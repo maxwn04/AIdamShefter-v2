@@ -15,14 +15,22 @@ from .normalized import (
     TransactionMove,
     User,
 )
-from .requests import ApiPayload, ApiRequest, NormalizedScope, RefreshRun
-from .snapshots import DataSnapshot, DataSnapshotRequest
+from .requests import (
+    ApiPayload,
+    ApiRequest,
+    AutomaticRefreshClaim,
+    NormalizedScope,
+    RefreshRun,
+)
+from .snapshots import DataSnapshot, DataSnapshotRequest, DataSnapshotSeason
 
 __all__ = [
     "ApiPayload",
     "ApiRequest",
+    "AutomaticRefreshClaim",
     "DataSnapshot",
     "DataSnapshotRequest",
+    "DataSnapshotSeason",
     "DraftPick",
     "League",
     "LeagueUser",

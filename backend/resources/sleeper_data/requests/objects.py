@@ -109,6 +109,18 @@ class SnapshotCandidateQuery(ContractModel):
         return self
 
 
+class LatestCompleteCandidatesQuery(ContractModel):
+    scope_keys: tuple[ScopeKey, ...]
+
+    @model_validator(mode="after")
+    def validate_scopes(self) -> "LatestCompleteCandidatesQuery":
+        if not self.scope_keys:
+            raise ValueError("latest candidate query requires at least one scope")
+        if len(set(self.scope_keys)) != len(self.scope_keys):
+            raise ValueError("latest candidate scopes must be unique")
+        return self
+
+
 class ApiRequestCandidate(ContractModel):
     request_id: UUID
     competition_season_id: UUID | None

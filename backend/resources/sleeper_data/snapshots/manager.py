@@ -16,6 +16,7 @@ from backend.database.models.sleeper import DataSnapshot as StoredDataSnapshot
 from backend.database.models.sleeper import (
     DataSnapshotRequest as StoredSnapshotRequest,
 )
+from backend.database.models.sleeper import DataSnapshotSeason as StoredSnapshotSeason
 from backend.database.models.sleeper import RefreshRun as StoredRefreshRun
 from backend.database.sessions import (
     SessionFactory,
@@ -33,9 +34,12 @@ from backend.resources.sleeper_data.snapshots.objects import (
     ExistingBuildingSnapshot,
     ExistingReadySnapshot,
     SealSnapshot,
+    SealSnapshotSeason,
     SnapshotBuildState,
     SnapshotFailure,
     SnapshotRequestMembership,
+    SnapshotSeasonMembership,
+    SnapshotSeasonRole,
 )
 from backend.services.datalayer.contracts import (
     CompletenessWarning,
@@ -77,6 +81,7 @@ class DataSnapshotManager:
                     competition_id=self._competition_id,
                     primary_competition_season_id=season.id,
                     build_key=command.build_key,
+                    input_revision=command.input_revision,
                     domain_cutoff_week=command.through_week,
                     domain_cutoff_at=None,
                     as_of_date=command.as_of_date,
@@ -106,7 +111,12 @@ class DataSnapshotManager:
             if stored is None:
                 raise RuntimeError("snapshot claim did not produce an active row")
             self._validate_identity(stored, command)
-            snapshot = _decode_snapshot(stored)
+            memberships = (
+                self._load_season_memberships(session, [stored.id]).get(stored.id, ())
+                if stored.status == SnapshotStatus.READY.value
+                else ()
+            )
+            snapshot = _decode_snapshot(stored, memberships)
             if inserted_id == snapshot_id and stored.id == snapshot_id:
                 return ClaimedSnapshotBuild(snapshot=snapshot)
             if snapshot.status is SnapshotStatus.BUILDING:
@@ -120,7 +130,30 @@ class DataSnapshotManager:
                 raise DatalayerScopeConflict(
                     "only the current building snapshot can be sealed"
                 )
-            self._validate_membership(session, stored, command.requests)
+            season_rows = self._resolve_seal_seasons(session, stored, command.seasons)
+            allowed_seasons = {season.id for season, _ in season_rows}
+            self._validate_membership(
+                session,
+                stored,
+                command.requests,
+                allowed_seasons=allowed_seasons,
+            )
+            session.execute(
+                sa.insert(StoredSnapshotSeason),
+                [
+                    {
+                        "data_snapshot_id": stored.id,
+                        "competition_id": self._competition_id,
+                        "primary_competition_season_id": (
+                            stored.primary_competition_season_id
+                        ),
+                        "competition_season_id": season.id,
+                        "role": membership.role.value,
+                        "through_week": membership.through_week,
+                    }
+                    for season, membership in season_rows
+                ],
+            )
             session.execute(
                 sa.insert(StoredSnapshotRequest),
                 [
@@ -144,7 +177,8 @@ class DataSnapshotManager:
             stored.sqlite_artifact_storage_key = command.artifact.storage_key
             stored.completed_at = sa.func.now()
             session.flush()
-            return _decode_snapshot(stored)
+            memberships = self._load_season_memberships(session, [stored.id])[stored.id]
+            return _decode_snapshot(stored, memberships)
 
     def mark_failed(
         self,
@@ -197,18 +231,28 @@ class DataSnapshotManager:
         with transaction_session(self._session_factory) as session:
             stored = self._load(session, snapshot_id, lock=True)
             if stored.status == SnapshotStatus.EXPIRED.value:
-                return _decode_snapshot(stored)
+                memberships = self._load_season_memberships(session, [stored.id]).get(
+                    stored.id, ()
+                )
+                return _decode_snapshot(stored, memberships)
             if stored.status != SnapshotStatus.READY.value:
                 raise DatalayerScopeConflict(
                     "only a ready snapshot can be expired as unusable"
                 )
             stored.status = SnapshotStatus.EXPIRED.value
             session.flush()
-            return _decode_snapshot(stored)
+            memberships = self._load_season_memberships(session, [stored.id]).get(
+                stored.id, ()
+            )
+            return _decode_snapshot(stored, memberships)
 
     def get(self, snapshot_id: UUID) -> DataSnapshot:
         with read_only_session(self._session_factory) as session:
-            return _decode_snapshot(self._load(session, snapshot_id))
+            stored = self._load(session, snapshot_id)
+            memberships = self._load_season_memberships(session, [stored.id]).get(
+                stored.id, ()
+            )
+            return _decode_snapshot(stored, memberships)
 
     def list_snapshots(self, query: DataSnapshotQuery) -> DataSnapshotPage:
         with read_only_session(self._session_factory) as session:
@@ -236,8 +280,13 @@ class DataSnapshotManager:
                 .limit(query.limit)
                 .offset(query.offset)
             ).all()
+            memberships = self._load_season_memberships(
+                session, [snapshot.id for snapshot in rows]
+            )
             return DataSnapshotPage(
-                items=tuple(_decode_snapshot(row) for row in rows),
+                items=tuple(
+                    _decode_snapshot(row, memberships.get(row.id, ())) for row in rows
+                ),
                 total=total,
                 limit=query.limit,
                 offset=query.offset,
@@ -314,6 +363,7 @@ class DataSnapshotManager:
             or stored.as_of_date != command.as_of_date
             or stored.snapshot_projection_version
             != command.snapshot_projection_version
+            or stored.input_revision != command.input_revision
         ):
             raise DatalayerScopeConflict(
                 "active snapshot build key conflicts with its canonical identity"
@@ -324,6 +374,8 @@ class DataSnapshotManager:
         session: Session,
         snapshot: StoredDataSnapshot,
         memberships: tuple[SnapshotRequestMembership, ...],
+        *,
+        allowed_seasons: set[UUID],
     ) -> None:
         request_ids = [membership.request_id for membership in memberships]
         rows = session.execute(
@@ -363,16 +415,127 @@ class DataSnapshotManager:
                         "global snapshot membership unexpectedly belongs to a season"
                     )
             elif (
-                request.competition_season_id
-                != snapshot.primary_competition_season_id
+                request.competition_season_id not in allowed_seasons
                 or request_competition_id != self._competition_id
             ):
                 raise DatalayerScopeConflict(
                     "snapshot membership belongs to another competition scope"
                 )
 
+    def _resolve_seal_seasons(
+        self,
+        session: Session,
+        snapshot: StoredDataSnapshot,
+        requested: tuple[SealSnapshotSeason, ...],
+    ) -> tuple[tuple[CompetitionSeason, SealSnapshotSeason], ...]:
+        explicit = bool(requested)
+        memberships = requested or (
+            SealSnapshotSeason(
+                competition_season_id=snapshot.primary_competition_season_id,
+                role=SnapshotSeasonRole.PRIMARY,
+                through_week=cast(int, snapshot.domain_cutoff_week),
+            ),
+        )
+        season_ids = [membership.competition_season_id for membership in memberships]
+        seasons = session.scalars(
+            sa.select(CompetitionSeason).where(
+                CompetitionSeason.competition_id == self._competition_id,
+                CompetitionSeason.id.in_(season_ids),
+            )
+        ).all()
+        by_id = {season.id: season for season in seasons}
+        if set(by_id) != set(season_ids):
+            raise DatalayerScopeConflict(
+                "snapshot season membership belongs to another competition"
+            )
+        primary_membership = next(
+            (
+                membership
+                for membership in memberships
+                if membership.role is SnapshotSeasonRole.PRIMARY
+            ),
+            None,
+        )
+        if (
+            primary_membership is None
+            or primary_membership.competition_season_id
+            != snapshot.primary_competition_season_id
+            or primary_membership.through_week != snapshot.domain_cutoff_week
+        ):
+            raise DatalayerScopeConflict(
+                "snapshot primary season membership conflicts with its identity"
+            )
+        primary = by_id[snapshot.primary_competition_season_id]
+        for membership in memberships:
+            season = by_id[membership.competition_season_id]
+            if membership.role is SnapshotSeasonRole.HISTORY and (
+                season.sequence_number >= primary.sequence_number
+                or membership.through_week != 18
+            ):
+                raise DatalayerScopeConflict(
+                    "snapshot historical season membership is invalid"
+                )
+        if explicit:
+            expected = set(
+                session.scalars(
+                    sa.select(CompetitionSeason.id).where(
+                        CompetitionSeason.competition_id == self._competition_id,
+                        CompetitionSeason.sequence_number <= primary.sequence_number,
+                    )
+                )
+            )
+            if set(season_ids) != expected:
+                raise DatalayerScopeConflict(
+                    "snapshot season membership must contain every predecessor"
+                )
+        return tuple(
+            sorted(
+                ((by_id[item.competition_season_id], item) for item in memberships),
+                key=lambda pair: pair[0].sequence_number,
+            )
+        )
 
-def _decode_snapshot(stored: StoredDataSnapshot) -> DataSnapshot:
+    def _load_season_memberships(
+        self,
+        session: Session,
+        snapshot_ids: list[UUID],
+    ) -> dict[UUID, tuple[SnapshotSeasonMembership, ...]]:
+        if not snapshot_ids:
+            return {}
+        rows = session.execute(
+            sa.select(StoredSnapshotSeason, CompetitionSeason)
+            .join(
+                CompetitionSeason,
+                CompetitionSeason.id == StoredSnapshotSeason.competition_season_id,
+            )
+            .where(StoredSnapshotSeason.data_snapshot_id.in_(snapshot_ids))
+            .order_by(
+                StoredSnapshotSeason.data_snapshot_id,
+                CompetitionSeason.sequence_number,
+            )
+        ).all()
+        grouped: dict[UUID, list[SnapshotSeasonMembership]] = {
+            snapshot_id: [] for snapshot_id in snapshot_ids
+        }
+        for stored, season in rows:
+            grouped[stored.data_snapshot_id].append(
+                SnapshotSeasonMembership(
+                    competition_id=stored.competition_id,
+                    competition_season_id=season.id,
+                    sleeper_league_id=season.sleeper_league_id,
+                    season_year=season.season_year,
+                    sequence_number=season.sequence_number,
+                    role=SnapshotSeasonRole(stored.role),
+                    through_week=stored.through_week,
+                )
+            )
+        return {key: tuple(value) for key, value in grouped.items()}
+
+
+def _decode_snapshot(
+    stored: StoredDataSnapshot,
+    included_seasons: tuple[SnapshotSeasonMembership, ...] = (),
+) -> DataSnapshot:
     artifact_values = (
         stored.sqlite_artifact_storage_key,
         stored.sqlite_artifact_sha256,
@@ -399,6 +562,7 @@ def _decode_snapshot(stored: StoredDataSnapshot) -> DataSnapshot:
         competition_id=stored.competition_id,
         primary_competition_season_id=stored.primary_competition_season_id,
         build_key=stored.build_key,
+        input_revision=stored.input_revision,
         through_week=cast(int, stored.domain_cutoff_week),
         as_of_date=stored.as_of_date,
         status=SnapshotStatus(stored.status),
@@ -409,6 +573,7 @@ def _decode_snapshot(stored: StoredDataSnapshot) -> DataSnapshot:
         ),
         failure=failure,
         artifact=artifact,
+        included_seasons=included_seasons,
         created_at=stored.created_at,
         completed_at=stored.completed_at,
     )

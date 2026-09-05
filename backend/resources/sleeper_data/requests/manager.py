@@ -30,6 +30,7 @@ from backend.resources.sleeper_data.requests.objects import (
     ApiRequest,
     ApiRequestCandidate,
     InlineVerifiedPayload,
+    LatestCompleteCandidatesQuery,
     NormalizationRejection,
     ObjectVerifiedPayload,
     Page,
@@ -230,6 +231,45 @@ class ApiRequestManager:
                 )
                 for row in rows
             )
+
+    def list_latest_complete_candidates(
+        self,
+        query: LatestCompleteCandidatesQuery,
+    ) -> tuple[ApiRequestCandidate, ...]:
+        """Return at most one deterministic eligible observation per scope."""
+
+        with read_only_session(self._session_factory) as session:
+            scope_values = [scope.value for scope in query.scope_keys]
+            rank = sa.func.row_number().over(
+                partition_by=StoredApiRequest.scope_key,
+                order_by=(
+                    StoredApiRequest.requested_at.desc(),
+                    StoredApiRequest.id.desc(),
+                ),
+            ).label("candidate_rank")
+            ranked = (
+                sa.select(StoredApiRequest.id.label("request_id"), rank)
+                .join(
+                    StoredRefreshRun,
+                    StoredRefreshRun.id == StoredApiRequest.refresh_run_id,
+                )
+                .where(
+                    StoredRefreshRun.competition_id == self._competition_id,
+                    StoredApiRequest.scope_key.in_(scope_values),
+                    StoredApiRequest.status == RequestStatus.SUCCEEDED.value,
+                    StoredApiRequest.is_complete.is_(True),
+                    StoredApiRequest.payload_id.is_not(None),
+                    StoredApiRequest.response_sha256.is_not(None),
+                )
+                .subquery()
+            )
+            rows = session.scalars(
+                sa.select(StoredApiRequest)
+                .join(ranked, ranked.c.request_id == StoredApiRequest.id)
+                .where(ranked.c.candidate_rank == 1)
+                .order_by(StoredApiRequest.scope_key)
+            ).all()
+            return tuple(_candidate(row) for row in rows)
 
     def get_latest_complete_season_request(
         self,
@@ -491,3 +531,18 @@ def _require_eligible_request(request: StoredApiRequest) -> None:
         or request.response_sha256 is None
     ):
         raise DatalayerScopeConflict("request is not eligible for normalization")
+
+
+def _candidate(row: StoredApiRequest) -> ApiRequestCandidate:
+    return ApiRequestCandidate(
+        request_id=row.id,
+        competition_season_id=row.competition_season_id,
+        endpoint_kind=EndpointKind(row.endpoint_kind),
+        scope_key=ScopeKey.parse(row.scope_key),
+        week=row.week,
+        bracket_kind=cast(Any, row.bracket_kind),
+        requested_at=row.requested_at,
+        completed_at=row.completed_at,
+        payload_id=cast(UUID, row.payload_id),
+        response_sha256=cast(str, row.response_sha256),
+    )

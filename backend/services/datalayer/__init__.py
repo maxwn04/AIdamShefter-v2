@@ -16,6 +16,7 @@ from backend.services.datalayer.contracts import (
     SnapshotStatus,
     SnapshotRequest,
     ReadyDataSnapshot,
+    ReadySnapshotSeason,
     WarningCode,
 )
 from backend.services.datalayer.errors import (
@@ -25,7 +26,9 @@ from backend.services.datalayer.errors import (
     EndpointPayloadRejected,
     InternalDatalayerFailure,
     InvalidDatalayerRequest,
+    RefreshUnavailable,
     RosterIdentityMappingRequired,
+    SnapshotInputsUnavailable,
     SnapshotUnavailable,
 )
 from backend.services.datalayer.local_files import (
@@ -107,6 +110,7 @@ from backend.services.datalayer.sleeper.responses import (
 from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
 from backend.services.datalayer.versions import (
     INGESTION_NORMALIZER_VERSION,
+    RESOLVED_SNAPSHOT_PROJECTION_VERSION,
     SNAPSHOT_PROJECTION_VERSION,
 )
 
@@ -119,9 +123,11 @@ __all__ = [
     "EndpointApplyMetadata",
     "DatalayerError",
     "DatalayerRefreshService",
+    "DatalayerResolvedSnapshotBuilder",
     "DatalayerSnapshotService",
     "DatalayerResourceNotFound",
     "DatalayerScopeConflict",
+    "DatalayerSnapshotPreparationService",
     "EndpointKind",
     "EndpointRecords",
     "EndpointRequest",
@@ -137,6 +143,7 @@ __all__ = [
     "LocalArtifactVerificationError",
     "LocalDatalayerFileStore",
     "MaterializedSnapshot",
+    "MapSeasonRosters",
     "LeagueEndpointRecords",
     "LeagueRecord",
     "LeagueRostersEndpointRecords",
@@ -152,10 +159,21 @@ __all__ = [
     "PlayerPerformanceRecord",
     "PlayerRecord",
     "PlannedRefresh",
+    "PreparedSnapshot",
+    "PrepareSnapshotRequest",
+    "RefreshCoordinator",
     "RefreshOutcome",
+    "RefreshReceipt",
+    "RefreshReceiptDisposition",
     "RefreshRequest",
+    "RefreshSeason",
     "RefreshStatus",
     "RefreshTrigger",
+    "RefreshUnavailable",
+    "ResolvedRosterMapping",
+    "ResolvedSnapshotMaterializationInput",
+    "ResolvedSnapshotInputs",
+    "ResolvedSnapshotSeason",
     "ResolvedRosterIdentity",
     "RosterIdentityNotFound",
     "RosterIdentityResolution",
@@ -166,6 +184,7 @@ __all__ = [
     "RequestStatus",
     "RosterIdentityMappingRequired",
     "SNAPSHOT_PROJECTION_VERSION",
+    "RESOLVED_SNAPSHOT_PROJECTION_VERSION",
     "ScopeKey",
     "ScopeRefreshResult",
     "SQLiteSnapshotMaterializer",
@@ -175,11 +194,16 @@ __all__ = [
     "SnapshotRequirements",
     "SnapshotRequest",
     "SnapshotEndpointRecords",
+    "SnapshotInputResolver",
+    "SnapshotInputsUnavailable",
     "SnapshotMaterializationInput",
+    "SnapshotPreparationMode",
     "SnapshotSelectionRole",
     "SnapshotStatus",
+    "SnapshotSeasonSettings",
     "SnapshotUnavailable",
     "ReadyDataSnapshot",
+    "ReadySnapshotSeason",
     "SleeperSourceClient",
     "SourceAttempt",
     "StoredLocalArtifact",
@@ -202,6 +226,7 @@ __all__ = [
     "build_player_catalog_request",
     "build_standard_refresh_plan",
     "canonical_snapshot_build_key",
+    "canonical_resolved_snapshot_build_key",
     "build_traded_picks_request",
     "build_transactions_request",
     "build_winners_bracket_request",
@@ -240,6 +265,7 @@ def __getattr__(name: str) -> Any:
         "PlannedRefresh",
         "build_standard_refresh_plan",
         "DatalayerSnapshotService",
+        "DatalayerResolvedSnapshotBuilder",
         "MaterializedSnapshot",
         "SnapshotEndpointRecords",
         "SnapshotMaterializationInput",
@@ -251,6 +277,7 @@ def __getattr__(name: str) -> Any:
         "plan_snapshot_requirements",
         "select_snapshot_requests",
         "SQLiteSnapshotMaterializer",
+        "ResolvedSnapshotMaterializationInput",
         "FrozenLeagueData",
         "FrozenRosterIdentity",
         "FrozenSnapshotInvalid",
@@ -258,7 +285,87 @@ def __getattr__(name: str) -> Any:
         "ResolvedRosterIdentity",
         "RosterIdentityNotFound",
         "RosterIdentityResolution",
+        "DatalayerSnapshotPreparationService",
+        "PreparedSnapshot",
+        "RefreshCoordinator",
+        "RefreshReceipt",
+        "RefreshReceiptDisposition",
+        "MapSeasonRosters",
+        "PrepareSnapshotRequest",
+        "RefreshSeason",
+        "ResolvedRosterMapping",
+        "ResolvedSnapshotInputs",
+        "ResolvedSnapshotSeason",
+        "SnapshotInputResolver",
+        "SnapshotPreparationMode",
+        "SnapshotSeasonSettings",
+        "canonical_resolved_snapshot_build_key",
     }:
+        if name in {
+            "DatalayerSnapshotPreparationService",
+            "PreparedSnapshot",
+        }:
+            from backend.services.datalayer.preparation_service import (
+                DatalayerSnapshotPreparationService,
+                PreparedSnapshot,
+            )
+
+            return {
+                "DatalayerSnapshotPreparationService": (
+                    DatalayerSnapshotPreparationService
+                ),
+                "PreparedSnapshot": PreparedSnapshot,
+            }[name]
+        if name in {
+            "RefreshCoordinator",
+            "RefreshReceipt",
+            "RefreshReceiptDisposition",
+        }:
+            from backend.services.datalayer.refresh_coordination import (
+                RefreshCoordinator,
+                RefreshReceipt,
+                RefreshReceiptDisposition,
+            )
+
+            return {
+                "RefreshCoordinator": RefreshCoordinator,
+                "RefreshReceipt": RefreshReceipt,
+                "RefreshReceiptDisposition": RefreshReceiptDisposition,
+            }[name]
+        if name in {
+            "MapSeasonRosters",
+            "PrepareSnapshotRequest",
+            "RefreshSeason",
+            "ResolvedRosterMapping",
+            "ResolvedSnapshotInputs",
+            "ResolvedSnapshotSeason",
+            "SnapshotInputResolver",
+            "SnapshotPreparationMode",
+            "SnapshotSeasonSettings",
+        }:
+            from backend.services.datalayer.snapshot_inputs import (
+                MapSeasonRosters,
+                PrepareSnapshotRequest,
+                RefreshSeason,
+                ResolvedRosterMapping,
+                ResolvedSnapshotInputs,
+                ResolvedSnapshotSeason,
+                SnapshotInputResolver,
+                SnapshotPreparationMode,
+                SnapshotSeasonSettings,
+            )
+
+            return {
+                "MapSeasonRosters": MapSeasonRosters,
+                "PrepareSnapshotRequest": PrepareSnapshotRequest,
+                "RefreshSeason": RefreshSeason,
+                "ResolvedRosterMapping": ResolvedRosterMapping,
+                "ResolvedSnapshotInputs": ResolvedSnapshotInputs,
+                "ResolvedSnapshotSeason": ResolvedSnapshotSeason,
+                "SnapshotInputResolver": SnapshotInputResolver,
+                "SnapshotPreparationMode": SnapshotPreparationMode,
+                "SnapshotSeasonSettings": SnapshotSeasonSettings,
+            }[name]
         if name in {
             "AmbiguousRosterIdentity",
             "FrozenLeagueData",
@@ -293,6 +400,27 @@ def __getattr__(name: str) -> Any:
             )
 
             return SQLiteSnapshotMaterializer
+        if name == "ResolvedSnapshotMaterializationInput":
+            from backend.services.datalayer.snapshot_sqlite import (
+                ResolvedSnapshotMaterializationInput,
+            )
+
+            return ResolvedSnapshotMaterializationInput
+        if name in {
+            "DatalayerResolvedSnapshotBuilder",
+            "canonical_resolved_snapshot_build_key",
+        }:
+            from backend.services.datalayer.resolved_snapshot_builder import (
+                DatalayerResolvedSnapshotBuilder,
+                canonical_resolved_snapshot_build_key,
+            )
+
+            return {
+                "DatalayerResolvedSnapshotBuilder": DatalayerResolvedSnapshotBuilder,
+                "canonical_resolved_snapshot_build_key": (
+                    canonical_resolved_snapshot_build_key
+                ),
+            }[name]
         if name in {
             "DatalayerSnapshotService",
             "MaterializedSnapshot",

@@ -21,8 +21,10 @@ from backend.resources.sleeper_data import (
     ExistingReadySnapshot,
     RefreshRunManager,
     SealSnapshot,
+    SealSnapshotSeason,
     SnapshotFailure,
     SnapshotRequestMembership,
+    SnapshotSeasonRole,
 )
 from backend.services.datalayer import (
     DatalayerResourceNotFound,
@@ -109,6 +111,82 @@ def test_claim_seal_and_reuse_preserve_exact_membership(
     ready = snapshot_manager.begin_or_get(command)
     assert isinstance(ready, ExistingReadySnapshot)
     assert ready.snapshot == sealed
+
+
+def test_multi_season_seal_accepts_historical_request_membership(
+    database_engine: Engine,
+    domain: Domain,
+    snapshot_manager: DataSnapshotManager,
+    refresh_manager: RefreshRunManager,
+    request_manager: ApiRequestManager,
+) -> None:
+    primary_season_id = uuid4()
+    primary_league_id = f"league-{primary_season_id}"
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(CompetitionSeason),
+            {
+                "id": primary_season_id,
+                "competition_id": domain.competition_id,
+                "season_year": 2027,
+                "sequence_number": 2,
+                "sleeper_league_id": primary_league_id,
+            },
+        )
+    primary = Domain(
+        competition_id=domain.competition_id,
+        season_id=primary_season_id,
+        sleeper_league_id=primary_league_id,
+        franchise_ids=domain.franchise_ids,
+        roster_ids=domain.roster_ids,
+    )
+    claimed = snapshot_manager.begin_or_get(
+        _command(primary, build_key="9" * 64)
+    )
+    assert isinstance(claimed, ClaimedSnapshotBuild)
+    historical_request = _request_membership(
+        domain,
+        refresh_manager,
+        request_manager,
+    )
+    primary_request = _request_membership(
+        primary,
+        refresh_manager,
+        request_manager,
+    )
+
+    sealed = snapshot_manager.seal_ready(
+        claimed.snapshot.id,
+        SealSnapshot(
+            requests=(historical_request, primary_request),
+            seasons=(
+                SealSnapshotSeason(
+                    competition_season_id=domain.season_id,
+                    role=SnapshotSeasonRole.HISTORY,
+                    through_week=18,
+                ),
+                SealSnapshotSeason(
+                    competition_season_id=primary.season_id,
+                    role=SnapshotSeasonRole.PRIMARY,
+                    through_week=8,
+                ),
+            ),
+            artifact=_artifact("9"),
+        ),
+    )
+
+    assert [season.competition_season_id for season in sealed.included_seasons] == [
+        domain.season_id,
+        primary.season_id,
+    ]
+    assert [season.role for season in sealed.included_seasons] == [
+        SnapshotSeasonRole.HISTORY,
+        SnapshotSeasonRole.PRIMARY,
+    ]
+    assert set(snapshot_manager.list_requests(sealed.id)) == {
+        historical_request,
+        primary_request,
+    }
 
 
 def test_concurrent_claims_converge_on_one_active_snapshot(

@@ -17,8 +17,10 @@ from backend.database.models.core import (
 from backend.database.models.sleeper import (
     ApiPayload,
     ApiRequest,
+    AutomaticRefreshClaim,
     DataSnapshot,
     DataSnapshotRequest,
+    DataSnapshotSeason,
     Matchup,
     NormalizedScope,
     RefreshRun,
@@ -78,6 +80,25 @@ def _insert_competition_scope(engine: Engine) -> dict[str, UUID]:
             },
         )
     return ids
+
+
+def _insert_successor_season(
+    engine: Engine,
+    scope: dict[str, UUID],
+) -> dict[str, UUID]:
+    successor = {**scope, "season": uuid4()}
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(CompetitionSeason),
+            {
+                "id": successor["season"],
+                "competition_id": scope["competition"],
+                "season_year": 2027,
+                "sequence_number": 2,
+                "sleeper_league_id": f"league-{uuid4()}",
+            },
+        )
+    return successor
 
 
 def _insert_request(
@@ -147,7 +168,7 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
     sleeper_tables = {
         name for name in Base.metadata.tables if name.startswith("sleeper.")
     }
-    assert len(sleeper_tables) == 19
+    assert len(sleeper_tables) == 21
 
     checks = [
         (table_name, constraint.name)
@@ -155,9 +176,34 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
         for constraint in Base.metadata.tables[table_name].constraints
         if isinstance(constraint, CheckConstraint)
     ]
-    assert checks == [
-        ("sleeper.api_payloads", "ck_api_payloads_exactly_one_location")
-    ]
+    assert set(checks) == {
+        ("sleeper.api_payloads", "ck_api_payloads_exactly_one_location"),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_reason",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_status",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_terminal_shape",
+        ),
+        (
+            "sleeper.automatic_refresh_claims",
+            "ck_automatic_refresh_claims_through_week",
+        ),
+        ("sleeper.data_snapshot_seasons", "ck_data_snapshot_seasons_role"),
+        (
+            "sleeper.data_snapshot_seasons",
+            "ck_data_snapshot_seasons_primary_matches",
+        ),
+        (
+            "sleeper.data_snapshot_seasons",
+            "ck_data_snapshot_seasons_through_week",
+        ),
+    }
 
     for table_name, column_name in (
         ("sleeper.matchups", "points"),
@@ -173,12 +219,15 @@ def test_sleeper_model_contract_is_structural_and_uses_exact_scores() -> None:
 def test_snapshot_orm_matches_the_daily_persistence_contract() -> None:
     snapshot = DataSnapshot.__table__
     membership = DataSnapshotRequest.__table__
+    season_membership = DataSnapshotSeason.__table__
+    refresh_claim = AutomaticRefreshClaim.__table__
 
     assert {column.name for column in snapshot.c} == {
         "id",
         "competition_id",
         "primary_competition_season_id",
         "build_key",
+        "input_revision",
         "domain_cutoff_week",
         "domain_cutoff_at",
         "as_of_date",
@@ -199,6 +248,30 @@ def test_snapshot_orm_matches_the_daily_persistence_contract() -> None:
         "scope_key",
         "response_sha256",
         "selection_role",
+    }
+    assert {column.name for column in season_membership.c} == {
+        "data_snapshot_id",
+        "competition_id",
+        "primary_competition_season_id",
+        "competition_season_id",
+        "role",
+        "through_week",
+    }
+    assert {column.name for column in refresh_claim.c} == {
+        "id",
+        "competition_id",
+        "competition_season_id",
+        "active_key",
+        "requested_through_week",
+        "policy_version",
+        "reason",
+        "coverage_fingerprint",
+        "status",
+        "refresh_run_id",
+        "refresh_status",
+        "failure_summary",
+        "started_at",
+        "completed_at",
     }
     active_build_index = next(
         index
@@ -416,6 +489,17 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
             },
         )
         connection.execute(
+            sa.insert(DataSnapshotSeason),
+            {
+                "data_snapshot_id": snapshot_id,
+                "competition_id": first_scope["competition"],
+                "primary_competition_season_id": first_scope["season"],
+                "competition_season_id": first_scope["season"],
+                "role": "primary",
+                "through_week": 8,
+            },
+        )
+        connection.execute(
             sa.insert(DataSnapshotRequest),
             {
                 "data_snapshot_id": snapshot_id,
@@ -456,6 +540,18 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
         .where(DataSnapshot.id == snapshot_id)
         .values(snapshot_projection_version="rewritten"),
     )
+    _assert_database_error(
+        database_engine,
+        sa.update(DataSnapshot)
+        .where(DataSnapshot.id == snapshot_id)
+        .values(input_revision="f" * 64),
+    )
+    _assert_database_error(
+        database_engine,
+        sa.delete(DataSnapshotSeason).where(
+            DataSnapshotSeason.data_snapshot_id == snapshot_id
+        ),
+    )
     with database_engine.begin() as connection:
         connection.execute(
             sa.update(DataSnapshot)
@@ -472,6 +568,98 @@ def test_sealed_snapshot_and_membership_are_immutable_and_scope_safe(
         database_engine,
         sa.delete(DataSnapshot).where(DataSnapshot.id == snapshot_id),
     )
+
+
+def test_snapshot_membership_accepts_included_historical_seasons(
+    database_engine: Engine,
+) -> None:
+    historical = _insert_competition_scope(database_engine)
+    primary = _insert_successor_season(database_engine, historical)
+    historical_request = _insert_request(
+        database_engine,
+        historical,
+        scope_key=f"league:{historical['season']}",
+    )
+    primary_request = _insert_request(
+        database_engine,
+        primary,
+        scope_key=f"league:{primary['season']}",
+    )
+    snapshot_id = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(
+            sa.insert(DataSnapshot),
+            {
+                "id": snapshot_id,
+                "competition_id": historical["competition"],
+                "primary_competition_season_id": primary["season"],
+                "build_key": f"test:{snapshot_id}",
+                "input_revision": "a" * 64,
+                "domain_cutoff_week": 8,
+                "as_of_date": date(2027, 10, 27),
+                "status": "building",
+                "snapshot_projection_version": "3",
+                "code_version": "test",
+                "completeness_warnings": [],
+            },
+        )
+        connection.execute(
+            sa.insert(DataSnapshotSeason),
+            (
+                {
+                    "data_snapshot_id": snapshot_id,
+                    "competition_id": historical["competition"],
+                    "primary_competition_season_id": primary["season"],
+                    "competition_season_id": historical["season"],
+                    "role": "history",
+                    "through_week": 18,
+                },
+                {
+                    "data_snapshot_id": snapshot_id,
+                    "competition_id": historical["competition"],
+                    "primary_competition_season_id": primary["season"],
+                    "competition_season_id": primary["season"],
+                    "role": "primary",
+                    "through_week": 8,
+                },
+            ),
+        )
+        connection.execute(
+            sa.insert(DataSnapshotRequest),
+            (
+                {
+                    "data_snapshot_id": snapshot_id,
+                    "api_request_id": historical_request["request"],
+                    "scope_key": historical_request["scope_key"],
+                    "response_sha256": historical_request["hash"],
+                    "selection_role": "league",
+                },
+                {
+                    "data_snapshot_id": snapshot_id,
+                    "api_request_id": primary_request["request"],
+                    "scope_key": primary_request["scope_key"],
+                    "response_sha256": primary_request["hash"],
+                    "selection_role": "league",
+                },
+            ),
+        )
+        connection.execute(
+            sa.update(DataSnapshot)
+            .where(DataSnapshot.id == snapshot_id)
+            .values(status="ready")
+        )
+
+    with database_engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(DataSnapshotSeason)
+            .where(DataSnapshotSeason.data_snapshot_id == snapshot_id)
+        ) == 2
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(DataSnapshotRequest)
+            .where(DataSnapshotRequest.data_snapshot_id == snapshot_id)
+        ) == 2
 
 
 def test_only_active_snapshots_reserve_a_build_key(database_engine: Engine) -> None:
@@ -541,6 +729,17 @@ def test_snapshot_membership_pins_the_request_response_hash(
                 "snapshot_projection_version": "test",
                 "code_version": "test",
                 "completeness_warnings": [],
+            },
+        )
+        connection.execute(
+            sa.insert(DataSnapshotSeason),
+            {
+                "data_snapshot_id": snapshot_id,
+                "competition_id": scope["competition"],
+                "primary_competition_season_id": scope["season"],
+                "competition_season_id": scope["season"],
+                "role": "primary",
+                "through_week": 8,
             },
         )
 
