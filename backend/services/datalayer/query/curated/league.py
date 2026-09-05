@@ -772,34 +772,9 @@ def get_standings(
     if not rows:
         return {"found": False, "as_of_week": effective_week}
 
-    # Check if points_for needs backfilling (record_string-derived rows have 0)
-    needs_backfill = any(
-        (row.get("points_for") or 0) == 0 and row.get("rank") is None
-        for row in rows
-    )
-
-    points_lookup: dict[int, float] = {}
-    if needs_backfill:
-        points_rows = fetch_all(
-            conn,
-            """
-            SELECT roster_id, ROUND(SUM(points), 2) AS total_points
-            FROM matchups
-            WHERE league_id = :league_id AND season = :season AND week <= :week
-            GROUP BY roster_id
-            """,
-            {"league_id": league_id, "season": season, "week": effective_week},
-        )
-        points_lookup = {
-            int(r["roster_id"]): r["total_points"] or 0.0 for r in points_rows
-        }
-
     standings = []
     for row in rows:
-        roster_id = row.get("roster_id")
         points_for = row.get("points_for") or 0.0
-        if needs_backfill and points_for == 0 and roster_id is not None:
-            points_for = points_lookup.get(int(roster_id), 0.0)
 
         standings.append({
             "team_name": row.get("team_name"),
@@ -815,12 +790,6 @@ def get_standings(
             "streak_type": row.get("streak_type"),
             "streak_len": row.get("streak_len"),
         })
-
-    # Compute rank dynamically if any are None
-    if any(s["rank"] is None for s in standings):
-        standings.sort(key=lambda s: (-s["wins"], -s["points_for"]))
-        for i, s in enumerate(standings, start=1):
-            s["rank"] = i
 
     return {
         "found": True,

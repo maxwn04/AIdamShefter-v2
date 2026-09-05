@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from uuid import UUID
 
 from ._helpers import fetch_all, fetch_one, normalize_lookup_key
 
@@ -79,6 +80,29 @@ def resolve_roster_id(conn, league_id: str, roster_key: Any) -> dict[str, Any]:
     key = normalize_lookup_key(roster_key)
     if not key:
         return {"found": False, "roster_key": roster_key}
+
+    try:
+        season_roster_id = str(UUID(key))
+    except ValueError:
+        season_roster_id = None
+    if season_roster_id is not None:
+        # History publishes this exact season-specific handle. Never resolve it
+        # in another league or reinterpret a historical name in the current one.
+        roster = fetch_one(
+            conn,
+            """
+            SELECT ri.roster_id, tp.team_name
+            FROM roster_identities ri
+            LEFT JOIN team_profiles tp
+              ON tp.league_id = ri.league_id AND tp.roster_id = ri.roster_id
+            WHERE ri.league_id = :league_id
+              AND ri.season_roster_id = :season_roster_id
+            """,
+            {"league_id": league_id, "season_roster_id": season_roster_id},
+        )
+        return {"found": True, **roster} if roster else {
+            "found": False, "roster_key": roster_key
+        }
 
     if key.isdigit():
         roster_id = int(key)

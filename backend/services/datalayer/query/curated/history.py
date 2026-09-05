@@ -155,6 +155,10 @@ def get_franchise_history(
                 "through_week": season.through_week,
                 "season_roster_id": row["season_roster_id"],
                 "sleeper_roster_id": str(row["roster_id"]),
+                "roster_lookup": {
+                    "roster_key": row["season_roster_id"],
+                    "season": season.season_year,
+                },
                 "team_name": row["team_name"],
                 "manager_name": row["manager_name"],
                 "standing": _standing(standing),

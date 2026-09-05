@@ -142,7 +142,7 @@ def get_playoff_bracket(
                     "team_name": row["winner_team_name"],
                 }
             )
-            if row["placement"] == 1:
+            if row["placement"] == 1 and bt == "winners":
                 brackets[bt]["champion"] = row["winner_team_name"]
 
     # Sort placements by placement number
@@ -250,6 +250,7 @@ def get_team_playoff_path(
             result = "pending"
 
         entry: dict[str, Any] = {
+            "bracket_type": row["bracket_type"],
             "round": row["round"],
             "matchup_id": row["matchup_id"],
             "opponent": opponent_name,
@@ -260,7 +261,7 @@ def get_team_playoff_path(
             entry["placement"] = row["placement"]
             if row["winner_roster_id"] == roster_id:
                 final_placement = row["placement"]
-                if row["placement"] == 1:
+                if row["placement"] == 1 and row["bracket_type"] == "winners":
                     is_champion = True
 
         matchups.append(entry)

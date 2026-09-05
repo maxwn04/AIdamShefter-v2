@@ -14,6 +14,7 @@ from backend.services.datalayer.snapshot_sqlite.projection import (
     SnapshotProjection,
 )
 from backend.services.datalayer.sleeper.endpoints import (
+    LeagueEndpointRecords,
     LeagueRostersEndpointRecords,
     LeagueUsersEndpointRecords,
     MatchupsEndpointRecords,
@@ -124,6 +125,18 @@ def _derive_games(
             )
             continue
         first, second = sorted(members, key=lambda row: row["roster_id"])
+        if not _game_completed(materialization, source, week, members):
+            warnings.append(
+                CompletenessWarning(
+                    code="snapshot.matchup_completion_unknown",
+                    summary=(
+                        "Matchups without completion evidence remain source rows "
+                        "but are omitted from game results, standings and streaks"
+                    ),
+                    scope_key=scope_by_week[week],
+                )
+            )
+            continue
         winner = None
         if first["points"] > second["points"]:
             winner = first["roster_id"]
@@ -144,6 +157,39 @@ def _derive_games(
             }
         )
     return games, warnings
+
+
+def _game_completed(
+    materialization: SnapshotMaterializationInput,
+    source: SnapshotProjection,
+    week: int,
+    members: list[Row],
+) -> bool:
+    """Require selected provider completion evidence, never infer it from scores.
+
+    Sleeper's last_scored_leg covers playoff games too. A regular-season result
+    prefix is a per-roster fallback. Season age or completed league status alone
+    cannot distinguish completed games from post-final schedule placeholders.
+    """
+    context = materialization.planning_context
+    for endpoint in materialization.endpoint_records:
+        records = endpoint.records
+        if isinstance(records, LeagueEndpointRecords):
+            league = records.league
+            if league.status in {"pre_draft", "drafting"}:
+                return False
+            last_scored = league.provider_settings.get("last_scored_leg")
+            if type(last_scored) is int and last_scored >= 0:
+                return last_scored >= week
+    if context.playoff_start_week is not None and week >= context.playoff_start_week:
+        return False
+    rosters = {row["roster_id"]: row for row in source.rows_for("rosters")}
+    required = week * (2 if context.league_average_match == 1 else 1)
+    return all(
+        len(record := (rosters[member["roster_id"]]["record_string"] or "")) >= required
+        and all(outcome in "WLT" for outcome in record[:required])
+        for member in members
+    )
 
 
 def _derive_standings(
@@ -194,10 +240,11 @@ def _derive_standings(
             record_outcomes = outcomes
             if context.league_average_match == 1:
                 record = roster["record_string"] or ""
-                required = effective * 2
-                if len(record) >= required:
+                completed_through = max((game["week"] for game in relevant), default=0)
+                required = completed_through * 2
+                if required and len(record) >= required:
                     record_outcomes = list(record[:required])
-                elif not warned_lam:
+                elif required and not warned_lam:
                     warned_lam = True
                     warnings.append(
                         CompletenessWarning(
@@ -230,8 +277,9 @@ def _derive_standings(
             facts,
             key=lambda row: (-row["wins"], -row["points_for"], row["roster_id"]),
         )
-        for rank, fact in enumerate(ranked, start=1):
-            fact["rank"] = rank
+        if any(row["wins"] + row["losses"] + row["ties"] for row in facts):
+            for rank, fact in enumerate(ranked, start=1):
+                fact["rank"] = rank
         rows.extend(sorted(facts, key=lambda row: row["roster_id"]))
     return rows, warnings
 

@@ -101,6 +101,9 @@ def _fixture_input() -> SnapshotMaterializationInput:
         elif endpoint.endpoint_kind is EndpointKind.TRANSACTIONS:
             filename = f"transactions_week{endpoint.week}.json"
         payload = parse_json_bytes((FIXTURES / filename).read_bytes())
+        if endpoint.endpoint_kind is EndpointKind.LEAGUE:
+            # The frozen score fixtures are final through week two.
+            payload["settings"]["last_scored_leg"] = 2
         entry = SelectedRequestManifestEntry(
             request_id=UUID(int=index),
             endpoint_kind=endpoint.endpoint_kind,

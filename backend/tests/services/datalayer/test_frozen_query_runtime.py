@@ -362,6 +362,9 @@ def test_playoff_query_contract_matches_legacy_golden(tmp_path: Path) -> None:
                 "team_playoff_path": data.get_team_playoff_path("Alice"),
             }
         expected = json.loads(GOLDEN.read_text(encoding="utf-8"))
+        # The frozen query now retains each matchup's bracket perspective.
+        for matchup in expected["team_playoff_path"]["matchups"]:
+            matchup["bracket_type"] = expected["team_playoff_path"]["bracket_type"]
         assert _json_round_trip(actual) == {key: expected[key] for key in actual}
     finally:
         artifact.path.unlink(missing_ok=True)
