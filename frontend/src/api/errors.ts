@@ -6,6 +6,8 @@ export interface ApiErrorOptions {
   summary: string;
   fieldErrors?: FieldErrors;
   correlationId?: string;
+  competitionSeasonId?: string;
+  sleeperRosterIds?: readonly string[];
 }
 
 export class ApiError extends Error {
@@ -13,6 +15,8 @@ export class ApiError extends Error {
   readonly code: string;
   readonly fieldErrors: FieldErrors;
   readonly correlationId?: string;
+  readonly competitionSeasonId?: string;
+  readonly sleeperRosterIds: readonly string[];
 
   constructor(options: ApiErrorOptions) {
     super(options.summary);
@@ -21,6 +25,8 @@ export class ApiError extends Error {
     this.code = options.code;
     this.fieldErrors = options.fieldErrors ?? {};
     this.correlationId = options.correlationId;
+    this.competitionSeasonId = options.competitionSeasonId;
+    this.sleeperRosterIds = options.sleeperRosterIds ?? [];
   }
 }
 
@@ -32,6 +38,12 @@ function isRecord(value: unknown): value is UnknownRecord {
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function asStringList(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 function parseFieldErrors(value: unknown): FieldErrors {
@@ -79,6 +91,8 @@ export function normalizeApiError(
       fieldErrors: parseFieldErrors(error.field_errors),
       correlationId:
         asString(error.correlation_id) ?? responseCorrelationId ?? undefined,
+      competitionSeasonId: asString(error.competition_season_id),
+      sleeperRosterIds: asStringList(error.sleeper_roster_ids),
     });
   }
 

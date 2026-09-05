@@ -334,11 +334,15 @@ The component is ready for platform use when:
   escape hatch;
 - generation manifests pin the data snapshot ID and all relevant build/cutoff
   versions.
+- retained version-2 artifacts open through the explicit compatibility reader,
+  while new policy-version-2 generations seal projection-version-3 artifacts,
+  manifest version 2, factual revision, and complete season coverage;
+- operator readiness inspection is network-free and explicit preparation uses
+  the same resolver, refresh coordinator, and builder as generation.
 
 ## Deliberately Deferred
 
 - provider registries and generic provider-normalized facts;
-- multi-season reporter SQL in one snapshot;
 - persistent games/standings projection builds in PostgreSQL;
 - exact taxi/IR and intra-week roster ownership history;
 - a generalized scheduler, leases, resumable snapshot builds, or event stream;
