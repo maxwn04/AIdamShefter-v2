@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -123,6 +123,42 @@ def test_real_database_bootstrap_composes_refresh_mapping_and_frozen_snapshots(d
         assert connection.execute(text("SELECT count(*) FROM core.season_rosters")).scalar_one() == 2
         assert connection.execute(text("SELECT count(*) FROM reporting.generations")).scalar_one() == 0
         assert connection.execute(text("SELECT count(*) FROM memory.memory_revisions")).scalar_one() == 0
+        source_count = connection.execute(text("SELECT count(*) FROM sleeper.api_requests")).scalar_one()
+    # Rebuild different editorial dates from exactly those persisted observations.
+    # No transport can be called after initial source acquisition.
+    monkeypatch.setattr(ScriptedSleeperSource, "execute", lambda *args: pytest.fail("rebuild fetched source data"))
+    monkeypatch.setattr(bootstrap, "read_target", lambda path: target)
+    rebuilt_plan = {**prepared, "steps": [dict(step) for step in prepared["steps"]]}
+    for step in rebuilt_plan["steps"]:
+        cutoff = datetime.fromisoformat(step["editorial_cutoff_at"])
+        step["editorial_cutoff_at"] = (cutoff + timedelta(days=3)).isoformat()
+    rebuild_input = tmp_path / "friday-plan.json"
+    rebuild_input.write_text(json.dumps(rebuilt_plan))
+    rebuilt_path = bootstrap.rebuild_target(target, prepared_path=rebuild_input,
+        output_path=tmp_path / "rebuilt.json", require_new_snapshots=True)
+    rebuilt = json.loads(rebuilt_path.read_text())
+    assert all(old["snapshot_id"] != new["snapshot_id"] for old, new in zip(prepared["steps"], rebuilt["steps"]))
+    assert len(json.loads(rebuilt_path.with_suffix(".audit.json").read_text())["steps"]) == 2
+    with create_engine(database_url).connect() as connection:
+        assert connection.execute(text("SELECT count(*) FROM sleeper.api_requests")).scalar_one() == source_count
+    with pytest.raises(ValueError, match="new output file"):
+        bootstrap.rebuild_target(target, prepared_path=rebuild_input, output_path=rebuilt_path)
+    with pytest.raises(ValueError, match="reused a source snapshot"):
+        bootstrap.rebuild_target(target, prepared_path=rebuilt_path,
+            output_path=tmp_path / "reused.json", require_new_snapshots=True)
+    assert not (tmp_path / "reused.json").exists()
+    with monkeypatch.context() as changed:
+        changed.setattr(bootstrap.DataSnapshotManager, "list_requests", lambda *args: ())
+        with pytest.raises(ValueError, match="different source observations"):
+            bootstrap.rebuild_target(target, prepared_path=rebuild_input,
+                output_path=tmp_path / "mismatched.json")
+    assert not (tmp_path / "mismatched.json").exists()
+    with monkeypatch.context() as missing:
+        missing.setattr(bootstrap.SnapshotInputResolver, "resolve", lambda *args: None)
+        with pytest.raises(ValueError, match="no-fetch snapshot resolution"):
+            bootstrap.rebuild_target(target, prepared_path=rebuild_input,
+                output_path=tmp_path / "missing.json")
+    assert not (tmp_path / "missing.json").exists()
     prepared_path.unlink()
     with pytest.raises(ValueError, match="empty initialized database"):
         bootstrap.prepare_target(target, league_id="123", season_year=2025, first_week=1, last_week=2, first_cutoff=datetime(2025, 9, 9, 12, tzinfo=UTC), model="scripted")

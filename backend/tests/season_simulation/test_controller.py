@@ -164,14 +164,40 @@ async def test_wrong_persisted_intent_or_unrelated_memory_fails_closed(setup):
     with pytest.raises(ValueError, match="unrelated"): controller.preflight()
 
 
-def test_config_tampering_and_nonconsecutive_weeks_rejected(setup):
+def test_config_tampering_and_reversed_weeks_rejected(setup):
     campaign, _, _, controller = setup
     value = campaign.model_dump(mode="json")
     value["inputs"]["model"] = "changed-model"
     write_json(controller.directory / "campaign.json", value)
     with pytest.raises(ValueError, match="freeze changed"): load_campaign(controller.directory)
     value["inputs"]["steps"][1]["week"] = 18
-    with pytest.raises(ValueError, match="consecutive"): Campaign.model_validate(value)
+    with pytest.raises(ValueError, match="increasing"): Campaign.model_validate(value)
+
+
+@pytest.mark.parametrize("weeks", [(1, 1, 3), (2, 1, 3)])
+def test_duplicate_or_reversed_selected_weeks_rejected(setup, weeks):
+    campaign, _, _, _ = setup
+    value = campaign.model_dump(mode="json")
+    for step, week in zip(value["inputs"]["steps"], weeks):
+        step["week"] = week
+    with pytest.raises(ValueError, match="increasing"):
+        Campaign.model_validate(value)
+
+
+@pytest.mark.asyncio
+async def test_sparse_chronological_steps_only_commit_selected_weeks(setup):
+    campaign, progress, backend, controller = setup
+    value = campaign.model_dump(mode="json")
+    for step, week in zip(value["inputs"]["steps"], (1, 2, 15)):
+        step["week"] = week
+        step["editorial_cutoff_at"] = (datetime(2025, 9, 9, tzinfo=UTC) + timedelta(weeks=week - 1)).isoformat()
+    sparse = Campaign.model_validate(value)
+    write_json(controller.directory / "campaign.json", sparse.model_dump(mode="json"))
+    save_progress(controller.directory, progress.model_copy(update={"campaign_hash": campaign_hash(sparse)}))
+    assert (await controller.run(RunLimits(max_steps=3))).state == "complete"
+    assert [backend.rows[gid].week_end for gid in backend.calls] == [1, 2, 15]
+    assert [revision.week for revision in backend.history[1:]] == [1, 2, 15]
+    assert backend.rows[backend.calls[2]].input_memory_revision_id == backend.history[2].revision_id
 
 
 @pytest.mark.asyncio

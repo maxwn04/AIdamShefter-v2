@@ -27,6 +27,9 @@ dry-run, execution, inspection and recovery. Campaign commands are available wit
   running generation stops resume for operator investigation.
 - Each successful step consumes exactly the previous successful head. Extra
   generations or unrelated canonical writes invalidate the campaign target.
+- Selected weeks and editorial cutoffs must increase strictly. Sparse comparisons
+  may skip weeks; skipped weeks produce no simulated articles or memory updates.
+  A full-season campaign includes every intended week explicitly.
 - A stop file and execution limits apply between generations. They cannot enforce
   a hard budget during an in-flight provider call.
 - Export writes a new complete directory and publishes its index last. It
