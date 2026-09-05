@@ -371,6 +371,8 @@ def test_context_scope_and_likely_relevance_are_bounded_and_private() -> None:
     relevant_request = retrieval.requests[-1]
     assert retrieval.requests[1].query.competition_season_id is None
     assert relevant_request.query.limit == 6
+    assert relevant_request.query.text == "playoff race"
+    assert relevant_request.query.week_to == 8
     assert relevant_request.query.statuses == ("active", "dormant")
     assert relevant_request.expand_exact_references is True
     assert relevant_request.expand_stable_references is True
@@ -447,5 +449,23 @@ def test_empty_and_fully_failed_recall_remain_explicit_model_context() -> None:
     assert set(failed.metadata["errors"]) == {
         "due_callbacks",
         "standing_context",
-        "likely_relevant_memories",
+        "storyline_review_pool",
     }
+
+
+def test_review_lead_clipping_and_bindings_describe_only_delivered_projection() -> None:
+    match = _storyline(30)
+    content = match.memory.content.model_copy(update={
+        "headline": "H" * 200, "summary": "S" * 550, "callback_condition": "C" * 350,
+    })
+    match = match.model_copy(update={"memory": match.memory.model_copy(update={"content": content})})
+    result = _plan(Retrieval(relevant=(match,)))
+    lead = result.result["storyline_review_pool"][0]
+    assert (len(lead["headline"]), len(lead["summary"]), len(lead["callback_condition"])) == (180, 500, 300)
+    assert lead["truncated"] is True
+    assert result.metadata["groups"]["storyline_review_pool"]["truncated"] is True
+    binding, = result.metadata["bindings"]
+    assert binding["result_path"] == ["storyline_review_pool", 0]
+    assert binding["clipped_fields"] == ["headline", "summary", "callback_condition"]
+    assert "subjects" in binding["omitted_fields"]
+    assert not any("." in field for field in binding["omitted_fields"])
