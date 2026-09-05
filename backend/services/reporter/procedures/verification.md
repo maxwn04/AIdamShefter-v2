@@ -7,6 +7,7 @@ Use this guide when a publishable draft exists and the remaining question is whe
 - Every material factual claim in the article maps to an accurate saved fact.
 - Scores, winners, records, ranks, player totals, transactions, margins, streaks, week ranges, playoff claims, and superlatives are correct and sufficiently supported.
 - Callbacks contain reverified evidence for both the older event and current payoff.
+- Historical comparisons, records, and superlatives have saved evidence for every season involved, including explicit season arguments on season-scoped calls.
 - Suspicious or conflicting evidence has been independently checked rather than copied from the brief by default.
 - The article's framing is proportional to its evidence, matches the request, and does not imply unsupported causality or certainty.
 - The selected artifact is readable, coherent, close to the requested length, and at the current known revision.
@@ -26,6 +27,7 @@ Use this guide when a publishable draft exists and the remaining question is whe
 - Pay special attention to high-impact numbers, names, winners, transactions, comparative claims, and words such as “highest,” “first,” “best,” “worst,” or “season high.”
 - A flavor claim may be interpretive, but it must not smuggle in an unsupported factual premise.
 - For callbacks, confirm what happened then, what happened now, and why the meaning changed. Reject or soften a connection whose current payoff is weak or incidental.
+- Confirm that historical team identity came from `franchise_history` or a durable franchise UUID, never an independent match on an old team or manager name.
 - Honor stale-dependency warnings. Refresh or remove stale callbacks, storylines, and outline references before relying on them.
 - Correct the smallest passage that resolves an issue unless the surrounding section depends on the same bad premise.
 - Replace unsupported specificity with verified specificity or appropriately qualified language.
