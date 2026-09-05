@@ -409,6 +409,19 @@ class TypedMemoryAdapter:
             )
         except EventEvidenceError as error:
             raise MemoryToolInputError("insufficient_event_evidence", str(error)) from error
+        candidate = self._agent_candidate(MemoryKind.EVENT, arguments.id)
+        if (
+            candidate is not None
+            and candidate.version.competition_season_id is not None
+            and candidate.version.competition_season_id
+            != self._memory_context.competition_season_id
+        ):
+            raise MemoryToolInputError(
+                "cross_season_update_unsupported",
+                "This event key belongs to another season. Use a new event key "
+                "for the current-season source facts; historical events cannot "
+                "be replaced with current-season details.",
+            )
         canonical = EventContent.model_validate({
             "event_type": arguments.event_type, "headline": arguments.headline,
             "summary": arguments.summary, "salience": max(1, min(5, arguments.importance)),
@@ -424,6 +437,7 @@ class TypedMemoryAdapter:
             context=context,
             week=resolved.week,
             occurred_at=resolved.occurred_at,
+            candidate=candidate,
             create=self._memory_context.propose_event,
             replace=self._memory_context.replace_event,
         )
@@ -464,8 +478,15 @@ class TypedMemoryAdapter:
         sleeper_team_ids: list[int | str] = []
         team_keys = list(arguments.team_keys)
         for entity in arguments.entities:
-            if entity.get("entity_type", entity.get("type")) == "team":
-                team_keys.append(str(entity.get("roster_key") or entity.get("id") or entity.get("name") or ""))
+            if entity.get("entity_type", entity.get("type")) != "team":
+                raise MemoryToolInputError(
+                    "unsupported_storyline_entity",
+                    "Each entities entry must explicitly identify type='team' "
+                    "(or entity_type='team') and a roster_key, id, or name. "
+                    "Use team_keys for team names, omit entities to preserve "
+                    "existing subjects, or supply an empty list to clear them.",
+                )
+            team_keys.append(str(entity.get("roster_key") or entity.get("id") or entity.get("name") or ""))
         for roster_key in dict.fromkeys(team_keys):
             roster = self._resolve_roster(roster_key)
             subjects.append(
@@ -489,9 +510,19 @@ class TypedMemoryAdapter:
                     }
                 )
         if missing_events:
+            successful_events = sorted(
+                key for (kind, key) in self._local_agent_refs
+                if kind is MemoryKind.EVENT
+            )[:5]
+            repair = (
+                "Save or repair those events successfully first, then retry "
+                "the storyline using their returned IDs; do not invent IDs."
+            )
+            if successful_events:
+                repair += " Successful event keys this run: " + ", ".join(successful_events)
             raise MemoryToolInputError(
                 "unknown_evidence_events",
-                f"Could not resolve evidence events: {', '.join(missing_events)}",
+                f"Could not resolve evidence events: {', '.join(missing_events)}. {repair}",
             )
         status = candidate.content.status.value if candidate else "active"
         if arguments.status is not None:

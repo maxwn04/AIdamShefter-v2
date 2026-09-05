@@ -197,6 +197,8 @@ def test_failed_event_is_actionable_and_cannot_produce_dependent_card():
     dependent = _call(registry, "upsert_storyline_memory_card", id="bad_arc", headline="Trade", summary="Unverified.",
         status="active", evidence_event_ids=["bad_event"])
     assert dependent["saved"] is False
+    assert "Save or repair those events successfully first" in dependent["error"]["message"]
+    assert "do not invent IDs" in dependent["error"]["message"]
     assert not memory.proposal_snapshot()
 
 
@@ -316,3 +318,62 @@ def test_event_handle_after_replacement_links_new_version():
     assert linked["saved"] is True
     assert memory.proposal_snapshot()[1].content.evidence[0].version_id == selected.version_id
     assert selected.version_id != match.memory.version.version_id
+
+
+def test_current_season_fact_cannot_replace_prior_season_event_key():
+    match = _event_match()
+    prior_season_id = UUID(int=2024)
+    match = match.model_copy(update={"memory": match.memory.model_copy(update={
+        "version": match.memory.version.model_copy(update={
+            "competition_season_id": prior_season_id,
+        }),
+    })})
+    registry, context, memory, _, _, _ = setup((match,))
+    source = saved_source_fact(registry, context, week=3)
+    assert source.season == 2025
+    result = _call(registry, "save_memory_event", id=match.memory.item.agent_key,
+        event_type="matchup", source_fact_ids=["fact_event"],
+        headline="Current result", summary="Current-season source evidence.")
+    assert result["saved"] is False
+    assert result["error"]["code"] == "cross_season_update_unsupported"
+    assert "Use a new event key" in result["error"]["message"]
+    assert memory.proposal_snapshot() == ()
+
+    repaired = _call(registry, "save_memory_event", id="matchup_2025_week3",
+        event_type="matchup", source_fact_ids=["fact_event"],
+        headline="Current result", summary="Current-season source evidence.")
+    assert repaired["saved"] is True
+    assert memory.proposal_snapshot()[0].operation == "create"
+    assert memory.proposal_snapshot()[0].item_id != match.memory.item.item_id
+
+
+@pytest.mark.parametrize("entity", [
+    {"name": "Team Taco", "role": "leader"},
+    {"type": "player", "name": "Jahmyr Gibbs"},
+    {"type": "unknown", "name": "Team Taco"},
+])
+def test_unsupported_entities_fail_without_clearing_existing_subjects(entity):
+    match = storyline_match()
+    registry, _, memory, _, adapter, _ = setup((match,))
+    handle = adapter._presentation.handle_for(match.memory)
+    failed = _call(registry, "upsert_storyline_memory_card", update_handle=handle,
+        headline="Updated", summary="Updated.", entities=[entity])
+    assert failed["saved"] is False
+    assert failed["error"]["code"] == "unsupported_storyline_entity"
+    assert "omit entities to preserve" in failed["error"]["message"]
+    assert memory.proposal_snapshot() == ()
+
+    repaired = _call(registry, "upsert_storyline_memory_card", update_handle=handle,
+        headline="Updated", summary="Updated.")
+    assert repaired["saved"] is True
+    assert memory.proposal_snapshot()[0].content.subjects == match.memory.content.subjects
+
+
+def test_explicit_empty_entities_can_clear_storyline_subjects():
+    match = storyline_match()
+    registry, _, memory, _, adapter, _ = setup((match,))
+    result = _call(registry, "upsert_storyline_memory_card",
+        update_handle=adapter._presentation.handle_for(match.memory),
+        headline="League-wide arc", summary="The arc now concerns the league.", entities=[])
+    assert result["saved"] is True
+    assert memory.proposal_snapshot()[0].content.subjects == []
