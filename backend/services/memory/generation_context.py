@@ -54,6 +54,7 @@ class GenerationMemoryContext:
         competition_season_id: UUID | None = None,
         week: int | None = None,
         knowledge_cutoff_at: datetime | None = None,
+        editorial_cutoff_at: datetime | None = None,
     ) -> None:
         self.competition_id = competition_id
         self.generation_id = generation_id
@@ -62,6 +63,7 @@ class GenerationMemoryContext:
         self._competition_season_id = competition_season_id
         self._week = week
         self._knowledge_cutoff_at = knowledge_cutoff_at
+        self._editorial_cutoff_at = editorial_cutoff_at
         self._proposals: list[MemoryProposal] = []
         self._closed = False
 
@@ -76,6 +78,11 @@ class GenerationMemoryContext:
     @property
     def knowledge_cutoff_at(self) -> datetime | None:
         return self._knowledge_cutoff_at
+
+    @property
+    def editorial_cutoff_at(self) -> datetime | None:
+        """Date eligibility boundary; observation knowledge keeps its real clock."""
+        return self._editorial_cutoff_at or self._knowledge_cutoff_at
 
     def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""

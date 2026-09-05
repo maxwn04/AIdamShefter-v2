@@ -61,7 +61,11 @@ from backend.services.datalayer import (
     SnapshotInputResolver,
 )
 from backend.services.datalayer.refresh_service import DatalayerRefreshService
-from backend.services.generations import GenerationFinalizer, GenerationService
+from backend.services.generations import (
+    GenerationFinalizer,
+    GenerationService,
+    PreparedSnapshotResolver,
+)
 from backend.services.league import RosterMappingService
 from backend.services.memory import MemoryMutationService, MemoryRetrievalService
 from backend.services.model_usage import (
@@ -572,6 +576,12 @@ def build_generation_dependencies(
         generations=generations,
         legacy_snapshots=snapshots.legacy,
         snapshot_preparation=snapshots.preparation,
+        prepared_snapshots=PreparedSnapshotResolver(
+            snapshots=DataSnapshotManager(session_factory, context),
+            files=LocalDatalayerFileStore(
+                (datalayer_settings or DatalayerSettings.from_environment()).data_root
+            ),
+        ),
         revisions=memory.revisions,
         retrieval=memory.retrieval,
         ai_calls=ai_calls,

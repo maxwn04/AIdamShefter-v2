@@ -2378,6 +2378,7 @@ export interface components {
         GenerationSettings: {
             memory?: components["schemas"]["GenerationMemorySettings"];
             model?: components["schemas"]["GenerationModelSettings"];
+            prepared_execution?: components["schemas"]["PreparedGenerationExecution"] | null;
             report?: components["schemas"]["GenerationReportSettings"];
             runner?: components["schemas"]["GenerationRunnerSettings"];
         };
@@ -2950,6 +2951,31 @@ export interface components {
             kind: "player";
             /** Player Id */
             player_id: string;
+        };
+        /**
+         * PreparedGenerationExecution
+         * @description Exact prebuilt facts and editorial boundary for a rolling simulation.
+         */
+        PreparedGenerationExecution: {
+            /** Artifact Sha256 */
+            artifact_sha256: string;
+            /**
+             * Data Snapshot Id
+             * Format: uuid
+             */
+            data_snapshot_id: string;
+            /**
+             * Editorial Cutoff At
+             * Format: date-time
+             */
+            editorial_cutoff_at: string;
+            /**
+             * Expected Memory Revision Id
+             * Format: uuid
+             */
+            expected_memory_revision_id: string;
+            /** Input Revision */
+            input_revision: string;
         };
         /** PreparedSnapshotSummary */
         PreparedSnapshotSummary: {

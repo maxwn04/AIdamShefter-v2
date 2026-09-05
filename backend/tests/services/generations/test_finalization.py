@@ -13,6 +13,7 @@ from backend.database.models.memory import CurrentRevision, MemoryRevision
 from backend.database.models.reporting import Artifact, Generation as StoredGeneration
 from backend.database.sessions import create_session_factory
 from backend.resources.memory.common import MemoryKind
+from backend.resources.memory.common.errors import StaleCanonicalRevisionError
 from backend.resources.memory.context_notes import (
     ContextNoteContent,
     ContextNoteIdentity,
@@ -48,7 +49,7 @@ ARTICLE = "# Final article\n"
 ARTICLE_HASH = hashlib.sha256(ARTICLE.encode()).hexdigest()
 
 
-def _running_generation(engine: Engine, *, kind: str = "live"):
+def _running_generation(engine: Engine, *, kind: str = "live", prepared: bool = False):
     domain = seed_generation_domain(engine, label=f"Finalization {kind}")
     factory = create_session_factory(engine)
     context = generation_context(domain)
@@ -62,7 +63,7 @@ def _running_generation(engine: Engine, *, kind: str = "live"):
             week_start=8,
             week_end=8,
             requested_primary_model="test-model",
-            settings={},
+            settings={"prepared_execution": {"test": True}} if prepared else {},
         )
     )
     running = generations.start(
@@ -191,6 +192,47 @@ def test_live_bundle_commits_one_generation_owned_canonical_revision(
     assert result.memory_result.revision.producing_generation_id == running.id
     assert result.memory_result.changes == (proposal.proposed_ref(),)
     assert generations.get(running.id).status.value == "succeeded"
+
+
+@pytest.mark.parametrize("changed_head", [False, True])
+def test_prepared_noop_success_requires_current_pinned_head(
+    database_engine: Engine, changed_head: bool,
+) -> None:
+    domain, factory, context, generations, running, artifact, _, output = (
+        _running_generation(database_engine, prepared=True)
+    )
+    head = uuid4() if changed_head else domain.memory_revision_id
+    with database_engine.begin() as connection:
+        if changed_head:
+            connection.execute(sa.insert(MemoryRevision), {
+                "id": head,
+                "competition_id": domain.competition_id,
+                "sequence_number": 1,
+                "previous_revision_id": domain.memory_revision_id,
+                "state_content_hash": "unrelated-writer-state",
+            })
+        connection.execute(sa.insert(CurrentRevision), {
+            "competition_id": domain.competition_id,
+            "current_revision_id": head,
+            "lock_version": int(changed_head),
+        })
+    finalizer = GenerationFinalizer(factory, context)
+    if changed_head:
+        with pytest.raises(StaleCanonicalRevisionError):
+            finalizer.finalize(running.id, output, _bundle(domain, running.id))
+        assert generations.get(running.id).status.value == "running"
+        assert ArtifactManager(factory, context).get(artifact.id).finalized_version_id is None
+    else:
+        result = finalizer.finalize(running.id, output, _bundle(domain, running.id))
+        assert result.generation.status.value == "succeeded"
+        assert result.memory_result.revision is None
+    with database_engine.connect() as connection:
+        assert connection.execute(sa.select(CurrentRevision.current_revision_id).where(
+            CurrentRevision.competition_id == domain.competition_id
+        )).scalar_one() == head
+        assert connection.execute(sa.select(sa.func.count()).select_from(MemoryRevision).where(
+            MemoryRevision.producing_generation_id == running.id
+        )).scalar_one() == 0
 
 
 def test_live_memory_and_reporting_commit_roll_back_together_on_late_failure(

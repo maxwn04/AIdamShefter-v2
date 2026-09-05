@@ -111,6 +111,7 @@ class MemoryRecallPlanner:
         season_id = self._memory_context.competition_season_id
         current_week = self._memory_context.week
         knowledge_cutoff_at = self._memory_context.knowledge_cutoff_at
+        editorial_cutoff_at = self._memory_context.editorial_cutoff_at
         if season_id is None or current_week is None or knowledge_cutoff_at is None:
             return self._failed_plan(
                 RuntimeError("automatic recall requires season, week, and cutoff scope")
@@ -124,7 +125,7 @@ class MemoryRecallPlanner:
             lambda: self._due_callbacks(
                 season_id=season_id,
                 current_week=current_week,
-                knowledge_cutoff_at=knowledge_cutoff_at,
+                editorial_cutoff_at=editorial_cutoff_at or knowledge_cutoff_at,
             ),
         )
         standing = self._capture_group(
@@ -200,6 +201,9 @@ class MemoryRecallPlanner:
                 "competition_season_id": str(season_id),
                 "week": current_week,
                 "knowledge_cutoff_at": knowledge_cutoff_at.isoformat(),
+                "editorial_cutoff_at": (
+                    editorial_cutoff_at or knowledge_cutoff_at
+                ).isoformat(),
             },
             "team_resolution_diagnostics": cast(
                 JsonValue,
@@ -232,7 +236,7 @@ class MemoryRecallPlanner:
         *,
         season_id: UUID,
         current_week: int,
-        knowledge_cutoff_at: datetime,
+        editorial_cutoff_at: datetime,
     ) -> _GroupResult:
         query = SearchDocumentQuery(
             kinds=(MemoryKind.TRIGGER,),
@@ -254,7 +258,7 @@ class MemoryRecallPlanner:
                         match,
                         season_id=season_id,
                         current_week=current_week,
-                        knowledge_cutoff_at=knowledge_cutoff_at,
+                        editorial_cutoff_at=editorial_cutoff_at,
                     )
                 ),
                 key=self._due_sort_key,
@@ -466,7 +470,7 @@ class MemoryRecallPlanner:
         *,
         season_id: UUID,
         current_week: int,
-        knowledge_cutoff_at: datetime,
+        editorial_cutoff_at: datetime,
     ) -> bool:
         trigger = cast(Trigger, match.memory)
         content = trigger.content
@@ -484,7 +488,7 @@ class MemoryRecallPlanner:
             return False
         if content.target_week is not None and content.target_week > current_week:
             return False
-        if content.target_at is not None and content.target_at > knowledge_cutoff_at:
+        if content.target_at is not None and content.target_at > editorial_cutoff_at:
             return False
         return True
 
