@@ -23,6 +23,7 @@ from backend.resources.memory.facts import FactContent
 from backend.resources.memory.storylines import StorylineContent
 from backend.resources.memory.triggers import TriggerContent
 from backend.resources.memory.triggers.conditions.rematch import RematchCondition
+from backend.resources.memory.triggers.conditions.scheduled_review import ScheduledReviewCondition
 from backend.services.memory import (
     ExactReferenceExpansion,
     HydratedMemory,
@@ -43,8 +44,8 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_PRESENTATION_SCHEMA_VERSION = 2
-MEMORY_PRESENTATION_BUILDER_VERSION = 2
+MEMORY_PRESENTATION_SCHEMA_VERSION = 3
+MEMORY_PRESENTATION_BUILDER_VERSION = 3
 MAX_PRESENTED_REFERENCES = 3
 
 
@@ -113,6 +114,9 @@ class EventMemoryContext(_PresentationModel):
 
 
 class TriggerMemoryContext(_PresentationModel):
+    memory_handle: str | None = None
+    review_notice: str = "Review requested. Verify the condition from source evidence; an article mention is optional."
+    resolution_reason: str | None = None
     kind: Literal[MemoryKind.TRIGGER] = MemoryKind.TRIGGER
     trigger_type: str
     status: str
@@ -343,6 +347,8 @@ class MemoryPresentationAdapter:
             )
         if isinstance(content, TriggerContent):
             return TriggerMemoryContext(
+                memory_handle=self.handle_for(match.memory),
+                resolution_reason=content.resolution_reason,
                 trigger_type=content.trigger_type.value,
                 status=content.status.value,
                 fire_policy=content.fire_policy.value,
@@ -446,7 +452,7 @@ class MemoryPresentationAdapter:
     ) -> str:
         if isinstance(content.condition, RematchCondition):
             first, second = content.condition.franchise_ids
-            return "Rematch between " + " and ".join(
+            return "Check whether there is a rematch between " + " and ".join(
                 (
                     self._roster_label(
                         franchise_id=first,
@@ -460,7 +466,9 @@ class MemoryPresentationAdapter:
                     ),
                 )
             )
-        return "Re-evaluate the linked trade"
+        if isinstance(content.condition, ScheduledReviewCondition):
+            return content.condition.review_question
+        return "Review the linked trade against current source evidence"
 
     def _summaries(
         self,

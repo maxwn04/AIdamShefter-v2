@@ -24,12 +24,15 @@ from backend.resources.memory.common import (
     WrongTargetKindError,
 )
 
+from backend.resources.memory.triggers.validation import InvalidTradeOriginError
+
 MemoryErrorCode = Literal[
     "canonical_state_inconsistent",
     "context_note_conflict",
     "cross_competition_entity",
     "cross_competition_reference",
     "generation_memory_closed",
+    "invalid_trigger_origin",
     "memory_identity_conflict",
     "revision_not_found",
     "search_projection_inconsistent",
@@ -68,6 +71,8 @@ async def memory_application_error_handler(
 
 
 def _http_error(error: MemoryApplicationError) -> tuple[int, MemoryErrorCode, str]:
+    if isinstance(error, InvalidTradeOriginError):
+        return status.HTTP_400_BAD_REQUEST, "invalid_trigger_origin", str(error)
     if isinstance(error, RevisionNotFoundError):
         return status.HTTP_404_NOT_FOUND, "revision_not_found", str(error)
     if isinstance(error, (TargetNotFoundError, EntityReferenceNotFoundError)):

@@ -10,10 +10,11 @@ from backend.resources.memory.search_documents.objects import (
     SearchDocumentProjection,
 )
 from backend.resources.memory.triggers.conditions.rematch import RematchCondition
+from backend.resources.memory.triggers.conditions.scheduled_review import ScheduledReviewCondition
 from backend.resources.memory.triggers.objects import TriggerContent
 
 
-TRIGGER_DOCUMENT_BUILDER_VERSION: Final = 1
+TRIGGER_DOCUMENT_BUILDER_VERSION: Final = 2
 
 
 def build_trigger_document(content: TriggerContent) -> SearchDocumentProjection:
@@ -84,6 +85,8 @@ def _condition_text(content: TriggerContent) -> list[str]:
     if isinstance(content.condition, RematchCondition):
         franchises = sorted(str(value) for value in content.condition.franchise_ids)
         return [f"rematch franchises: {' '.join(franchises)}"]
+    if isinstance(content.condition, ScheduledReviewCondition):
+        return [f"review question: {content.condition.review_question}"]
     return ["condition: trade evaluation"]
 
 

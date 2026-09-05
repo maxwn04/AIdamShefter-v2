@@ -289,7 +289,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "6"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "7"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
@@ -398,6 +398,7 @@ def test_semantic_writes_buffer_every_supported_kind_with_provenance() -> None:
             id="trigger_rematch",
             storyline_id="story_taco",
             trigger_type="rematch",
+            event_id="event_week8",
             target_week=12,
             condition={"roster_keys": ["Team Taco", "Waiver Wire"]},
         )
@@ -490,9 +491,9 @@ def test_repeated_semantic_writes_are_noops_and_conflicts_do_not_duplicate() -> 
     trigger_args = {
         "id": "trigger_rematch",
         "storyline_id": "story_taco",
-        "trigger_type": "rematch",
+        "trigger_type": "scheduled_review",
         "target_week": 12,
-        "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+        "condition": {"review_question": "Does the playoff push hold?"},
     }
     team_args = _note()
     league_args = {
@@ -571,9 +572,9 @@ def test_storyline_metadata_includes_embedded_trigger_write_outcomes() -> None:
         trigger_specs=[
             {
                 "id": "trigger_rematch",
-                "trigger_type": "rematch",
+                "trigger_type": "scheduled_review",
                 "target_week": 12,
-                "condition": {"roster_keys": ["Team Taco", "Waiver Wire"]},
+                "condition": {"review_question": "Does the playoff push hold?"},
             }
         ],
     )

@@ -9,8 +9,9 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from backend.database.models.core import CompetitionSeason, Franchise
-from backend.database.models.memory import MemoryItem
+from backend.database.models.memory import EventVersion, MemoryItem, MemoryVersion
 from backend.resources.memory.common.errors import (
+    MemoryApplicationError,
     CrossCompetitionEntityReferenceError,
     CrossCompetitionReferenceError,
     EntityReferenceNotFoundError,
@@ -19,7 +20,7 @@ from backend.resources.memory.common.errors import (
 )
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.triggers.conditions.rematch import RematchCondition
-from backend.resources.memory.triggers.objects import TriggerContent
+from backend.resources.memory.triggers.objects import TriggerContent, TriggerType, TriggerStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +50,9 @@ def validate_trigger_content(
         content.origin_event_item_id,
         MemoryKind.EVENT,
     )
+    if (content.trigger_type is TriggerType.TRADE_EVALUATION
+            and content.status in {TriggerStatus.OPEN, TriggerStatus.FIRED}):
+        _validate_trade_origin(session, competition_id, content.origin_event_item_id)
     return ValidatedTriggerContent(
         competition_id=competition_id,
         content=content,
@@ -125,4 +129,24 @@ def _validate_stable_target(
             item_id,
             (expected_kind,),
             MemoryKind(item.kind),
+        )
+
+
+class InvalidTradeOriginError(MemoryApplicationError):
+    """An active trade review must originate in an actual source-backed trade."""
+
+
+def _validate_trade_origin(session: Session, competition_id: UUID, item_id: UUID) -> None:
+    # Event writes precede trigger writes in the same atomic bundle; query sees
+    # both newly selected events and replacements after the normal ORM flush.
+    event = session.scalar(
+        sa.select(EventVersion)
+        .join(MemoryVersion, MemoryVersion.id == EventVersion.version_id)
+        .where(MemoryVersion.item_id == item_id,
+               MemoryVersion.competition_id == competition_id,
+               MemoryVersion.retired_revision_id.is_(None))
+    )
+    if event is None or event.event_type != "trade" or event.confidence != "source_backed":
+        raise InvalidTradeOriginError(
+            "Active trade evaluations require a source-backed trade event; use a scheduled review for general follow-ups."
         )

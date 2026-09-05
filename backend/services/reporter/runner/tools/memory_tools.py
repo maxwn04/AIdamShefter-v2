@@ -6,7 +6,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Annotated, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import (
@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "6"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "7"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -66,32 +66,16 @@ class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class ReporterRematchCondition(_StrictModel):
-    kind: Literal["rematch"]
+class RematchTriggerInput(_StrictModel):
     roster_keys: tuple[str, str]
 
 
-class ReporterTradeEvaluationCondition(_StrictModel):
-    kind: Literal["trade_evaluation"]
+class TradeEvaluationTriggerInput(_StrictModel):
+    pass
 
 
-ReporterTriggerCondition = Annotated[
-    ReporterRematchCondition | ReporterTradeEvaluationCondition,
-    Field(discriminator="kind"),
-]
-
-
-class ReporterTriggerContent(_StrictModel):
-    trigger_type: Literal["rematch", "trade_evaluation"]
-    status: Literal["open", "fired", "satisfied", "expired", "archived"] = "open"
-    fire_policy: Literal["one_shot", "recurring", "until_resolved"]
-    target_competition_season_id: UUID | None = None
-    target_storyline_item_id: UUID | None = None
-    origin_event_item_id: UUID | None = None
-    target_week: int | None = Field(default=None, ge=0)
-    target_at: datetime | None = None
-    condition: ReporterTriggerCondition
-    resolution_reason: str | None = None
+class ScheduledReviewTriggerInput(_StrictModel):
+    review_question: str = Field(min_length=1)
 
 
 class SearchMemoryArgs(_StrictModel):
@@ -212,14 +196,30 @@ class UpsertStorylineMemoryCardArgs(_StrictModel):
 
 
 class SaveStorylineTriggerArgs(_StrictModel):
-    trigger_type: Literal["rematch", "trade_evaluation"]
-    id: str | None = None
-    storyline_id: str | None = None
-    event_id: str | None = None
+    trigger_type: Literal["rematch", "trade_evaluation", "scheduled_review"] | None = None
+    id: str | None = Field(default=None, min_length=1)
+    update_handle: str | None = Field(default=None, min_length=1)
+    storyline_id: str | None = Field(default=None, min_length=1)
+    event_id: str | None = Field(default=None, min_length=1)
     target_week: int | None = Field(default=None, ge=0)
-    condition: dict[str, JsonValue] = Field(default_factory=dict)
+    condition: RematchTriggerInput | ScheduledReviewTriggerInput | TradeEvaluationTriggerInput | None = None
     fire_policy: Literal["one_shot", "recurring", "until_resolved"] = "one_shot"
     status: Literal["open", "fired", "expired", "resolved"] = "open"
+    resolution_reason: str | None = Field(default=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_selector(self) -> SaveStorylineTriggerArgs:
+        if self.id is not None and self.update_handle is not None:
+            raise ValueError("Use id or a recalled trigger update_handle, not both")
+        return self
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_misplaced_event(cls, value: Any) -> Any:
+        if isinstance(value, dict) and isinstance(value.get("condition"), dict):
+            if "event_id" in value["condition"]:
+                raise ValueError("event_id belongs at the top level; use scheduled_review with review_question for general follow-ups")
+        return value
 
 
 class SaveTeamContextArgs(_StrictModel):
@@ -271,14 +271,23 @@ MEMORY_TOOL_SPECS: list[ToolDef] = [
         "upsert_storyline_memory_card",
         "Create a new storyline with id, or update a recalled card with its memory_handle "
         "as update_handle. Updates preserve origin, existing evidence and omitted state; "
-        "evidence_event_ids add successfully saved events. Do not invent a new key for a recalled arc.",
+        "Save all supporting events first, then update each storyline once with their "
+        "evidence_event_ids. Only exact retries are allowed after selection in this run. "
+        "Do not invent a new key for a recalled arc.",
         UpsertStorylineMemoryCardArgs,
     ),
     _tool(
         "save_storyline_trigger",
-        "Save or update a dormant callback trigger by stable id. A rematch needs "
-        "target_week and two condition.roster_keys; a trade evaluation needs its "
-        "event_id and a target week.",
+        "Schedule an editorial review with trigger_type=scheduled_review, storyline_id, "
+        "target_week and condition.review_question. Due means review requested, not an "
+        "event occurred or an article mention is required. Default one_shot. Resolve a "
+        "recalled trigger using update_handle, status=resolved and resolution_reason; "
+        "reschedule the same handle with status=open and a new target_week. "
+        "Omitted update fields are preserved. Trade evaluations require a source-backed "
+        "trade event_id at the top level and empty condition. A rematch requires a "
+        "source-backed prior matchup event_id and matching condition.roster_keys; its "
+        "target_week is a review date, not proof of a scheduled meeting. Use "
+        "scheduled_review whenever the event condition is unsupported.",
         SaveStorylineTriggerArgs,
     ),
     _tool(
@@ -592,67 +601,89 @@ class TypedMemoryAdapter:
         context: ToolContext,
         arguments: SaveStorylineTriggerArgs,
     ) -> dict[str, Any]:
-        trigger_id = arguments.id or f"trigger_{uuid4().hex[:12]}"
-        storyline = (
-            self._agent_reference(MemoryKind.STORYLINE, arguments.storyline_id)
-            if arguments.storyline_id
-            else None
-        )
-        event = (
-            self._agent_reference(MemoryKind.EVENT, arguments.event_id)
-            if arguments.event_id
-            else None
-        )
-        if arguments.storyline_id and storyline is None:
-            raise MemoryToolInputError(
-                "unknown_storyline", "Could not resolve storyline"
-            )
-        if arguments.event_id and event is None:
-            raise MemoryToolInputError("unknown_event", "Could not resolve event")
-        condition: dict[str, Any]
-        if arguments.trigger_type == "rematch":
-            roster_keys = arguments.condition.get("roster_keys")
-            if not isinstance(roster_keys, list) or len(roster_keys) != 2:
-                raise MemoryToolInputError(
-                    "invalid_trigger_condition",
-                    "rematch condition requires two roster_keys",
-                )
-            condition = {"kind": "rematch", "roster_keys": roster_keys}
-        else:
-            condition = {"kind": "trade_evaluation"}
-        canonical = self._trigger(
-            ReporterTriggerContent.model_validate(
-                {
-                    "trigger_type": arguments.trigger_type,
-                    "status": (
-                        "satisfied"
-                        if arguments.status == "resolved"
-                        else arguments.status
-                    ),
-                    "fire_policy": arguments.fire_policy,
-                    "target_storyline_item_id": (
-                        storyline.item_id if storyline else None
-                    ),
-                    "origin_event_item_id": event.item_id if event else None,
-                    "target_week": arguments.target_week,
-                    "condition": condition,
-                }
-            )
-        )
+        candidate = None
+        if arguments.update_handle:
+            candidate = self._presentation.resolve_handle(arguments.update_handle)
+            if candidate is None or candidate.item.kind is not MemoryKind.TRIGGER:
+                raise MemoryToolInputError("unknown_memory_handle", "Use the memory_handle returned on the existing trigger.")
+        elif arguments.id:
+            candidate = self._agent_candidate(MemoryKind.TRIGGER, arguments.id)
+        trigger_id = (candidate.item.agent_key or arguments.update_handle) if candidate else arguments.id or f"trigger_{uuid4().hex[:12]}"
+        values = candidate.content.model_dump(mode="python") if candidate else {}
+        trigger_type = arguments.trigger_type or values.get("trigger_type")
+        if trigger_type is None:
+            raise MemoryToolInputError("missing_trigger_type", "Use scheduled_review for a general storyline follow-up.")
+        season_id = self._memory_context.competition_season_id
+        if candidate and values.get("target_competition_season_id") not in (None, season_id):
+            raise MemoryToolInputError("cross_season_update_unsupported", "This trigger targets another season; cross-season rescheduling is not supported.")
+        fields = arguments.model_fields_set
+        values["trigger_type"] = trigger_type
+        for argument_field, content_field in (
+            ("target_week", "target_week"), ("fire_policy", "fire_policy"),
+            ("resolution_reason", "resolution_reason"),
+        ):
+            if candidate is None or argument_field in fields:
+                values[content_field] = getattr(arguments, argument_field)
+        if candidate is None or "status" in fields:
+            values["status"] = "satisfied" if arguments.status == "resolved" else arguments.status
+        if candidate is None:
+            values["target_competition_season_id"] = season_id
+        if arguments.storyline_id:
+            storyline = self._agent_reference(MemoryKind.STORYLINE, arguments.storyline_id)
+            if storyline is None:
+                raise MemoryToolInputError("unknown_storyline", "Save the storyline successfully first, then use its returned id or recalled handle.")
+            values["target_storyline_item_id"] = storyline.item_id
+        if arguments.event_id:
+            event = self._agent_reference(MemoryKind.EVENT, arguments.event_id)
+            if event is None:
+                raise MemoryToolInputError("unknown_event", "Save the source-backed event first; use scheduled_review if this is a general follow-up.")
+            values["origin_event_item_id"] = event.item_id
+        if "condition" in fields or candidate is None:
+            condition = arguments.condition or TradeEvaluationTriggerInput()
+            if trigger_type == "scheduled_review" and isinstance(condition, ScheduledReviewTriggerInput):
+                values["condition"] = {"kind": "scheduled_review", "review_question": condition.review_question}
+            elif trigger_type == "rematch" and isinstance(condition, RematchTriggerInput):
+                rosters = [self._resolve_roster(key) for key in condition.roster_keys]
+                values["condition"] = {"kind": "rematch", "franchise_ids": [r.franchise_id for r in rosters]}
+            elif trigger_type == "trade_evaluation" and isinstance(condition, TradeEvaluationTriggerInput):
+                values["condition"] = {"kind": "trade_evaluation"}
+            else:
+                raise MemoryToolInputError("invalid_trigger_condition", "Condition does not match trigger_type. General follow-ups use scheduled_review with condition.review_question.")
+        if trigger_type == "scheduled_review":
+            if arguments.event_id:
+                raise MemoryToolInputError("unexpected_review_event", "Scheduled reviews link a storyline, not an event; omit event_id.")
+            values["origin_event_item_id"] = None
+            values["target_competition_season_id"] = season_id
+        elif values["status"] in {"open", "fired"}:
+            if not arguments.event_id:
+                raise MemoryToolInputError("missing_trigger_origin", "Provide a source-backed event_id to create or reschedule this event callback. Use scheduled_review for a general follow-up.")
+            source = self._selected_event_content(arguments.event_id)
+            expected = "trade" if trigger_type == "trade_evaluation" else "matchup"
+            if source is None or source.event_type.value != expected or source.confidence.value != "source_backed":
+                raise MemoryToolInputError("invalid_trigger_origin", f"This callback requires a source-backed {expected} event. Use scheduled_review for an unsupported or general follow-up.")
+            if trigger_type == "rematch":
+                participants = {source.details.winner_franchise_id, source.details.loser_franchise_id}
+                if set(values["condition"]["franchise_ids"]) != participants:
+                    raise MemoryToolInputError("invalid_trigger_origin", "Rematch teams must match the source matchup participants. Use scheduled_review for other follow-ups.")
+        canonical = TriggerContent.model_validate(values)
         result = self._upsert(
-            MemoryKind.TRIGGER,
-            trigger_id,
-            canonical,
-            context=context,
+            MemoryKind.TRIGGER, trigger_id, canonical, context=context, candidate=candidate,
             create=self._memory_context.propose_trigger,
             replace=self._memory_context.replace_trigger,
         )
-        return {
-            **result,
-            "id": trigger_id,
-            "trigger_type": arguments.trigger_type,
-            "status": arguments.status,
-        }
+        return {**result, "id": trigger_id, "update_handle": arguments.update_handle,
+                "trigger_type": canonical.trigger_type.value, "status": canonical.status.value,
+                "review_notice": "Review requested; verify evidence. An article mention is optional."}
+
+    def _selected_event_content(self, event_key: str) -> EventContent | None:
+        reference = self._agent_reference(MemoryKind.EVENT, event_key)
+        if reference is None:
+            return None
+        for proposal in self._memory_context.proposal_snapshot():
+            if proposal.version_id == reference.version_id and isinstance(proposal.content, EventContent):
+                return proposal.content
+        candidate = self._presentation.resolve_handle(event_key) or self._agent_candidate(MemoryKind.EVENT, event_key)
+        return candidate.content if candidate is not None else None
 
     def save_team_context(
         self,
@@ -716,7 +747,9 @@ class TypedMemoryAdapter:
             if previous[0] != signature:
                 raise MemoryToolInputError(
                     "memory_already_selected",
-                    f"{kind.value}:{agent_key} already changed in this run",
+                    f"{kind.value}:{agent_key} already changed in this run. "
+                    "Only exact retries are allowed. Save all supporting events first, "
+                    "then update the storyline once with their returned IDs.",
                 )
             return {
                 **previous[1],
@@ -796,29 +829,6 @@ class TypedMemoryAdapter:
             create=self._memory_context.propose_context_note,
             replace=self._memory_context.replace_context_note,
         )
-
-    def _trigger(self, content: ReporterTriggerContent) -> TriggerContent:
-        condition = content.condition.model_dump(mode="python")
-        values = content.model_dump(mode="python", exclude={"condition"})
-        if isinstance(content.condition, ReporterRematchCondition):
-            first = self._resolve_roster(content.condition.roster_keys[0])
-            second = self._resolve_roster(content.condition.roster_keys[1])
-            condition.pop("roster_keys")
-            condition["franchise_ids"] = (
-                first.franchise_id,
-                second.franchise_id,
-            )
-            supplied_season = content.target_competition_season_id
-            if (
-                supplied_season is not None
-                and supplied_season != first.competition_season_id
-            ):
-                raise MemoryToolInputError(
-                    "competition_season_mismatch",
-                    "Target season does not match the frozen roster identity",
-                )
-            values["target_competition_season_id"] = first.competition_season_id
-        return TriggerContent.model_validate({**values, "condition": condition})
 
     def _resolve_roster(self, roster_key: str) -> Any:
         resolution = self._data.resolve_roster_identity(roster_key)

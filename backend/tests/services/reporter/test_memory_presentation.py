@@ -397,7 +397,7 @@ def test_projects_every_memory_kind_without_canonical_fields() -> None:
         {"label": "17 FAAB", "direction": "sender_to_receiver"},
     ]
     assert trigger_result["condition_summary"] == (
-        "Rematch between Team Taco and Waiver Wire"
+        "Check whether there is a rematch between Team Taco and Waiver Wire"
     )
     assert trigger_result["linked_memories"][0]["headline"] == (
         storyline.content.headline

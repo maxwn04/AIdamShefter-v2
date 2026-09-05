@@ -268,28 +268,14 @@ def _version(
     }
 
 
-def _trade_trigger(
-    domain: TriggerDomain,
-    *,
-    resolved: bool = False,
-) -> TriggerContent:
-    return TriggerContent.model_validate(
-        {
-            "trigger_type": "trade_evaluation",
-            "status": "satisfied" if resolved else "open",
-            "fire_policy": "until_resolved",
-            "target_storyline_item_id": domain.storyline_item_id,
-            "origin_event_item_id": domain.event_item_id,
-            "target_week": None if resolved else 5,
-            "target_at": (
-                datetime(2026, 11, 3, 18, 30, tzinfo=UTC) if resolved else None
-            ),
-            "condition": {"kind": "trade_evaluation"},
-            "resolution_reason": (
-                "Trade reviewed after the deadline." if resolved else None
-            ),
-        }
-    )
+def _scheduled_review(domain: TriggerDomain, *, resolved: bool = False) -> TriggerContent:
+    return TriggerContent.model_validate({
+        "trigger_type": "scheduled_review", "status": "satisfied" if resolved else "open",
+        "fire_policy": "one_shot", "target_storyline_item_id": domain.storyline_item_id,
+        "target_competition_season_id": domain.season_id, "target_week": 5,
+        "condition": {"kind": "scheduled_review", "review_question": "Does the lineup edge persist?"},
+        "resolution_reason": "Reviewed; no material development." if resolved else None,
+    })
 
 
 def _manager(database_engine: Engine, competition_id: UUID) -> TriggerManager:
@@ -351,7 +337,7 @@ def test_trigger_lifecycle_hydrates_history_and_projects_replacements(
             prepare_trigger_write(
                 session,
                 domain.competition_id,
-                _trade_trigger(domain),
+                _scheduled_review(domain),
             ),
         )
         session.execute(
@@ -366,7 +352,7 @@ def test_trigger_lifecycle_hydrates_history_and_projects_replacements(
             domain.competition_id,
             item_id,
             1,
-            _trade_trigger(domain, resolved=True),
+            _scheduled_review(domain, resolved=True),
         )
         revision = MemoryRevision(
             **_revision(
@@ -404,7 +390,7 @@ def test_trigger_lifecycle_hydrates_history_and_projects_replacements(
     assert current.version.version_id == second_version_id
     assert previous.version.version_id == first_version_id
     assert current.content.status == "satisfied"
-    assert current.content.target_week is None
+    assert current.content.target_week == 5
 
     with session_factory() as session:
         projections = session.scalars(
@@ -446,7 +432,7 @@ def test_trigger_reference_validation_enforces_kind_and_scope(
             prepare_trigger_write(
                 session,
                 domain.competition_id,
-                _trade_trigger(domain).model_copy(
+                _scheduled_review(domain).model_copy(
                     update={"target_storyline_item_id": domain.event_item_id}
                 ),
             )
@@ -516,7 +502,7 @@ def test_trigger_write_rolls_back_typed_content_and_projection(
                 prepare_trigger_write(
                     session,
                     domain.competition_id,
-                    _trade_trigger(domain),
+                    _scheduled_review(domain),
                 ),
             )
             session.flush()
