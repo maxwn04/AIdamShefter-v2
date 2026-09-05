@@ -420,3 +420,27 @@ an explicit loop limitation; adding mutable proposal amendments is separate work
 Active trade origins rejected at the HTTP boundary return `invalid_trigger_origin`
 with status 400. Historical malformed callbacks can still be read and closed;
 closing them does not certify the condition or origin.
+
+
+## Automatic recall for broad and focused reports
+
+Automatic lexical discovery uses explicit `focus_hints` as independent OR anchors,
+plus resolved focus-team and bias-team identities. The full writing request,
+custom instructions and operational/time notices never become mandatory search
+terms. A focused request that matches nothing stays narrow; an unresolved team
+name does not silently enable broad recall.
+
+Without explicit focus inputs, generation-start recall supplies a separate
+`storyline_review_pool`: at most three active storylines from the current season,
+with memory weeks no later than the report week, at the exact pinned revision.
+The existing deterministic salience ranking selects the pool. Each lead includes
+its update handle, a bounded headline/summary/callback and relevant week. Text
+truncation is explicit. Evidence and related-memory expansion are omitted here;
+focused search and due callbacks retain their normal paths. Arcs already presented
+through due callbacks do not consume the pool budget.
+
+These are prior editorial hypotheses for optional review, not verified current
+facts or requirements to mention every arc. Selecting a lead neither updates it
+nor resolves it. Scheduled reviews and explicit search remain the mechanisms for
+following quiet arcs; this small pool is not a comprehensive lifecycle scheduler
+or a guarantee that every active arc is revisited.

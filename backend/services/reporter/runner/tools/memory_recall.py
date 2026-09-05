@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 import re
 from typing import TYPE_CHECKING, Literal, cast
@@ -43,12 +43,13 @@ if TYPE_CHECKING:
     from backend.services.memory import GenerationMemoryContext
 
 
-MEMORY_RECALL_SCHEMA_VERSION = 1
-MEMORY_RECALL_PLANNER_VERSION = 1
+MEMORY_RECALL_SCHEMA_VERSION = 2
+MEMORY_RECALL_PLANNER_VERSION = 2
 MAX_RECALL_CANDIDATES = 100
 MAX_DUE_CALLBACKS = 8
 MAX_STANDING_CONTEXT = 8
 MAX_LIKELY_RELEVANT = 5
+MAX_STORYLINE_REVIEW_POOL = 3
 MAX_INTENT_TEXT_LENGTH = 500
 
 RecallStatus = Literal["complete", "partial", "failed"]
@@ -56,6 +57,15 @@ RecallStatus = Literal["complete", "partial", "failed"]
 
 class _RecallModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class StorylineReviewLead(_RecallModel):
+    memory_handle: str
+    headline: str
+    summary: str
+    callback_condition: str | None = None
+    relevant_week: int | None = None
+    truncated: bool = False
 
 
 class MemoryRecallPrelude(_RecallModel):
@@ -67,6 +77,8 @@ class MemoryRecallPrelude(_RecallModel):
     likely_relevant_memories: list[
         StorylineMemoryContext | FactMemoryContext | EventMemoryContext
     ]
+    storyline_review_pool: list[StorylineReviewLead]
+    review_pool_notice: str | None = None
     notice: str | None = None
     partial: bool = False
 
@@ -83,7 +95,7 @@ class MemoryRecallPlan:
 @dataclass(frozen=True, slots=True)
 class _GroupResult:
     root: str
-    memories: tuple[MemoryContext, ...]
+    memories: tuple[MemoryContext | StorylineReviewLead, ...]
     candidates: tuple[HydratedMemoryMatch, ...]
     bindings: tuple[dict[str, JsonValue], ...]
     query: SearchDocumentQuery | None
@@ -92,6 +104,7 @@ class _GroupResult:
     omitted_count: int
     truncated: bool
     error: dict[str, JsonValue] | None = None
+    excluded_presented_item_ids: tuple[UUID, ...] = ()
 
 
 class MemoryRecallPlanner:
@@ -140,10 +153,22 @@ class MemoryRecallPlanner:
             lambda: self._likely_relevant(
                 config=config,
                 season_id=season_id,
+                current_week=current_week,
                 entity_keys=entity_keys,
             ),
         )
-        groups = (due, standing, likely)
+        presented_storylines = tuple(sorted({
+            UUID(str(binding["item_id"])) for binding in due.bindings
+            if binding.get("kind") == MemoryKind.STORYLINE.value
+        }, key=str))
+        review_pool = self._capture_group(
+            "storyline_review_pool",
+            lambda: self._storyline_review_pool(
+                config=config, season_id=season_id, current_week=current_week,
+                excluded_item_ids=presented_storylines,
+            ),
+        )
+        groups = (due, standing, likely, review_pool)
         errors = {
             group.root: group.error
             for group in groups
@@ -175,6 +200,13 @@ class MemoryRecallPlanner:
                 )
                 for memory in likely.memories
             ],
+            storyline_review_pool=[cast(StorylineReviewLead, memory) for memory in review_pool.memories],
+            review_pool_notice=(
+                "Prior storyline hypotheses for optional review, not verified current facts. "
+                "Check source evidence before updating or mentioning an arc; an article mention is not required. "
+                "Use its memory_handle to update the same storyline when a material development is supported."
+                if review_pool.memories else None
+            ),
             notice=notice,
             partial=bool(errors),
         )
@@ -182,8 +214,9 @@ class MemoryRecallPlanner:
             JsonValue,
             prelude.model_dump(mode="json", exclude_none=True),
         )
+        attempted_groups = sum(group.query is not None or group.error is not None for group in groups)
         status: RecallStatus = (
-            "failed" if len(errors) == len(groups) else "partial" if errors else "complete"
+            "failed" if errors and len(errors) == attempted_groups else "partial" if errors else "complete"
         )
         bindings = [
             binding
@@ -311,6 +344,7 @@ class MemoryRecallPlanner:
         *,
         config: ReportConfig,
         season_id: UUID,
+        current_week: int,
         entity_keys: tuple[str, ...],
     ) -> _GroupResult:
         text = self._intent_text(config)
@@ -332,6 +366,7 @@ class MemoryRecallPlanner:
             kinds=(MemoryKind.STORYLINE, MemoryKind.FACT, MemoryKind.EVENT),
             statuses=("active", "dormant"),
             competition_season_id=season_id,
+            week_to=current_week,
             limit=MAX_LIKELY_RELEVANT + 1,
         )
         retrieval = self._memory_context.search(
@@ -348,6 +383,70 @@ class MemoryRecallPlanner:
             selected=retrieval.matches,
             limit=MAX_LIKELY_RELEVANT,
         )
+
+    def _storyline_review_pool(
+        self, *, config: ReportConfig, season_id: UUID, current_week: int,
+        excluded_item_ids: tuple[UUID, ...],
+    ) -> _GroupResult:
+        if self._has_explicit_focus(config):
+            return _GroupResult(
+                root="storyline_review_pool", memories=(), candidates=(), bindings=(),
+                query=None, candidate_count=0, selected_count=0, omitted_count=0, truncated=False,
+            )
+        query = SearchDocumentQuery(
+            kinds=(MemoryKind.STORYLINE,), statuses=("active",),
+            competition_season_id=season_id, week_to=current_week,
+            # Skip any arc already delivered by a due callback without spending
+            # the three-card pool budget on it. One extra row signals truncation.
+            limit=MAX_STORYLINE_REVIEW_POOL + len(excluded_item_ids) + 1,
+        )
+        retrieval = self._memory_context.search(MemoryRetrievalRequest(query=query))
+        selected = tuple(match for match in retrieval.matches
+                         if match.memory.item.item_id not in excluded_item_ids)
+        group = self._present_group(
+            root="storyline_review_pool", query=query, candidates=retrieval.matches,
+            selected=selected, limit=MAX_STORYLINE_REVIEW_POOL,
+        )
+        leads = []
+        for memory in group.memories:
+            card = cast(StorylineMemoryContext, memory)
+            assert card.memory_handle is not None
+            callback = card.callback_condition
+            leads.append(StorylineReviewLead(
+                memory_handle=card.memory_handle, headline=card.headline[:180],
+                summary=card.summary[:500], callback_condition=callback[:300] if callback else None,
+                relevant_week=card.relevant_week,
+                truncated=(len(card.headline) > 180 or len(card.summary) > 500
+                           or callback is not None and len(callback) > 300),
+            ))
+        bindings = []
+        for binding in group.bindings:
+            path = binding["result_path"]
+            if not isinstance(path, list) or len(path) != 2:
+                continue  # Compact leads do not deliver nested reference cards.
+            index = cast(int, path[1])
+            card = cast(StorylineMemoryContext, group.memories[index])
+            compact_binding = {key: value for key, value in binding.items() if key != "omitted_fields"}
+            compact_binding["omitted_fields"] = sorted(set(type(card).model_fields) - set(StorylineReviewLead.model_fields))
+            compact_binding["clipped_fields"] = [
+                field for field, budget in (("headline", 180), ("summary", 500), ("callback_condition", 300))
+                if (value := getattr(card, field)) is not None and len(value) > budget
+            ]
+            bindings.append(compact_binding)
+        return replace(
+            group, memories=tuple(leads), bindings=tuple(bindings),
+            truncated=group.truncated or any(lead.truncated for lead in leads),
+            excluded_presented_item_ids=excluded_item_ids,
+        )
+
+    @staticmethod
+    def _has_explicit_focus(config: ReportConfig) -> bool:
+        bias = config.bias_profile
+        return any(value.strip() for value in (
+            *config.focus_teams, *config.focus_hints,
+            *(bias.favored_teams if bias else ()),
+            *(bias.disfavored_teams if bias else ()),
+        ))
 
     def _present_group(
         self,
@@ -456,13 +555,12 @@ class MemoryRecallPlanner:
 
     @staticmethod
     def _intent_text(config: ReportConfig) -> str | None:
-        value = " ".join(
-            part.strip()
-            for part in (config.custom_instructions, *config.focus_hints)
-            if part.strip()
-        )
-        normalized = re.sub(r"\s+", " ", value).strip()
-        return normalized[:MAX_INTENT_TEXT_LENGTH] or None
+        # Writing instructions and operational time wrappers are not search
+        # predicates. Each explicit topic hint is an independent discovery anchor.
+        hints = tuple(dict.fromkeys(
+            re.sub(r"\s+", " ", hint).strip() for hint in config.focus_hints if hint.strip()
+        ))
+        return " OR ".join(hints)[:MAX_INTENT_TEXT_LENGTH] or None
 
     @staticmethod
     def _is_due(
@@ -537,6 +635,8 @@ class MemoryRecallPlanner:
             "omitted_count": group.omitted_count,
             "truncated": group.truncated,
         }
+        if group.excluded_presented_item_ids:
+            value["excluded_presented_item_ids"] = [str(item_id) for item_id in group.excluded_presented_item_ids]
         if group.query is not None:
             value["resolved_query"] = cast(
                 JsonValue,
@@ -551,6 +651,7 @@ class MemoryRecallPlanner:
             due_callbacks=[],
             standing_context=[],
             likely_relevant_memories=[],
+            storyline_review_pool=[],
             notice="Automatic reporter memory was unavailable for this generation.",
             partial=True,
         )
