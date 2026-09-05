@@ -88,6 +88,9 @@ def selected_records(
                 field_paths={"value": path}, limitations=inherited_limits,
             ))
             return
+        # Curated bracket rounds use integer keys. JSON object member names and
+        # the catalog's field paths are strings; normalize this presentation copy.
+        node = {str(key): value for key, value in node.items()}
         # A draft asset's year is its maturity, not the observation season.
         if not any(segment in path.split("/") for segment in ("picks", "draft_picks", "assets_sent", "assets_received")):
             node_season = _integer(node.get("season", node.get("season_year"))) or node_season

@@ -14,7 +14,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "7"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "8"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -22,7 +22,7 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
         "type": "function",
         "function": {
             "name": "verify_artifact",
-            "description": "Check executed brief bindings and bounded patterns in the actual draft. All findings, including traceability errors, are advisory and never block submission. Receipt expires after article or brief edits; it is not proof of prose truth.",
+            "description": "Check executed brief bindings and bounded patterns in the actual draft. Compare source-derived directional review cards with their draft paragraphs, including pronouns and counterparties, and correct who sends/receives each asset before finalizing. Cards list selected source movements, not prose mismatch verdicts. All findings, including traceability errors, are advisory and never block submission. Receipt expires after article or brief edits; it is not proof of prose truth.",
             "parameters": {
                 "type": "object",
                 "properties": {"path": {"type": "string"}, "expected_revision": {"type": "integer", "minimum": 1}},
