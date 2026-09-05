@@ -43,9 +43,9 @@ class PreparedInputs(ContractModel):
                 if not (step.editorial_cutoff_at.year == self.season_year + 1
                         and step.editorial_cutoff_at.month == 1):
                     raise ValueError("editorial cutoff must belong to the season")
-            if index and (step.week != self.steps[index - 1].week + 1
+            if index and (step.week <= self.steps[index - 1].week
                           or step.editorial_cutoff_at <= self.steps[index - 1].editorial_cutoff_at):
-                raise ValueError("steps require consecutive weeks and increasing editorial cutoffs")
+                raise ValueError("steps require strictly increasing weeks and editorial cutoffs")
         if len({step.snapshot_id for step in self.steps}) != len(self.steps):
             raise ValueError("each step requires a distinct snapshot")
         return self

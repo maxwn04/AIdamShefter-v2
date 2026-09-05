@@ -25,13 +25,20 @@ from backend.database.sessions import create_session_factory
 from backend.resources.context import (
     CompetitionScope, GlobalScope, ManagerContext, SystemProcessActor,
 )
-from backend.resources.core import CreateCompetition, CreateCompetitionSeason
+from backend.resources.core import CreateCompetition, CreateCompetitionSeason, RosterMappingManager
+from backend.resources.sleeper_data import ApiRequestManager, DataSnapshotManager, LeagueSeasonManager
+from backend.season_simulation.contracts import PreparedInputs, PreparedStep
 from backend.season_simulation.docker import (
-    DockerTarget, create_target, dump_database, restore_database, target_environment,
+    DockerTarget, create_target, dump_database, read_target, restore_database, target_environment,
     verify_target,
 )
 from backend.services.datalayer.contracts import RefreshRequest, RefreshTrigger, SnapshotRequest
-from backend.services.datalayer.snapshot_inputs import PrepareSnapshotRequest, SnapshotPreparationMode
+from backend.services.datalayer import LocalDatalayerFileStore, SQLiteSnapshotMaterializer
+from backend.services.datalayer.resolved_snapshot_builder import DatalayerResolvedSnapshotBuilder
+from backend.services.datalayer.snapshot_inputs import (
+    PrepareSnapshotRequest, ResolvedSnapshotInputs, SnapshotInputResolver, SnapshotPreparationMode,
+)
+from backend.season_simulation.store import write_json
 
 
 def migrate_target(target: DockerTarget) -> None:
@@ -215,6 +222,73 @@ def restore_source_baseline(*, source: Path, name: str, output_root: Path, port:
     return destination
 
 
+def rebuild_target(
+    target: DockerTarget, *, prepared_path: Path, output_path: Path,
+    require_new_snapshots: bool = False,
+) -> Path:
+    """Rebuild a source-only prepared plan without composing any refresh transport.
+
+    Exact selected request IDs, hashes, scopes and selection roles must match each
+    previously pinned snapshot. Code may derive different facts from those inputs.
+    A new output file is published only after all selected weeks succeed.
+    """
+    verify_target(target)
+    environment = target_environment(target)
+    root = Path(target.output_root).resolve()
+    output_path = output_path.resolve()
+    audit_path = output_path.with_suffix(".audit.json")
+    if not output_path.is_relative_to(root) or output_path.exists() or audit_path.exists():
+        raise ValueError("rebuilt plan requires a new output file inside the target directory")
+    plan = PreparedInputs.model_validate_json(prepared_path.read_text(encoding="utf-8"))
+    if plan.data_root.resolve() != (root / "data") or read_target(plan.target_file) != target:
+        raise ValueError("prepared plan differs from the isolated target")
+    engine = create_engine(environment["AIDAM_MIGRATION_DATABASE_URL"])
+    try:
+        with engine.connect() as connection:
+            if connection.scalar(text("SELECT EXISTS(SELECT 1 FROM reporting.generations) OR EXISTS(SELECT 1 FROM memory.memory_revisions)")):
+                raise ValueError("snapshot rebuild requires source-only state with empty reporter memory")
+        factory = create_session_factory(engine)
+        context = ManagerContext(actor=SystemProcessActor(process_name="season-source-rebuild"),
+            scope=CompetitionScope(competition_id=plan.competition_id), correlation_id=uuid4())
+        requests = ApiRequestManager(factory, context)
+        snapshots = DataSnapshotManager(factory, context)
+        files = LocalDatalayerFileStore(plan.data_root)
+        resolver = SnapshotInputResolver(lineage=LeagueSeasonManager(factory, context),
+            requests=requests, mappings=RosterMappingManager(factory, context), files=files)
+        builder = DatalayerResolvedSnapshotBuilder(requests=requests, snapshots=snapshots,
+            materializer=SQLiteSnapshotMaterializer(files.root / ".staging" / "snapshots"),
+            files=files, code_version=DatalayerSettings.from_environment().code_version)
+        steps: list[PreparedStep] = []
+        audit: list[dict[str, object]] = []
+        for step in plan.steps:
+            state = resolver.resolve(PrepareSnapshotRequest(
+                snapshot=SnapshotRequest(competition_season_id=plan.competition_season_id,
+                    through_week=step.week, as_of_date=step.editorial_cutoff_at.date()),
+                mode=SnapshotPreparationMode.READINESS_ONLY, requested_at=datetime.now(UTC)))
+            if not isinstance(state, ResolvedSnapshotInputs):
+                raise ValueError(f"no-fetch snapshot resolution requires {type(state).__name__}")
+            selected = sorted((entry.model_dump(mode="json") for entry in state.manifest.entries), key=lambda entry: entry["request_id"])
+            original = sorted((entry.model_dump(mode="json") for entry in snapshots.list_requests(step.snapshot_id)), key=lambda entry: entry["request_id"])
+            previous = snapshots.get(step.snapshot_id)
+            if previous.primary_competition_season_id != plan.competition_season_id or previous.through_week != step.week or previous.artifact is None or previous.artifact.sha256 != step.artifact_sha256 or previous.input_revision != step.input_revision:
+                raise ValueError("source snapshot differs from prepared plan identity")
+            if selected != original:
+                raise ValueError("rebuild selected different source observations")
+            snapshot = builder.get_or_create(state)
+            if require_new_snapshots and snapshot.id == step.snapshot_id:
+                raise ValueError("rebuild reused a source snapshot; verify the candidate derivation version or changed cutoff")
+            steps.append(step.model_copy(update={"snapshot_id": snapshot.id,
+                "artifact_sha256": snapshot.artifact.sha256, "input_revision": snapshot.input_revision}))
+            audit.append({"week": step.week, "previous_snapshot_id": str(step.snapshot_id),
+                "snapshot_id": str(snapshot.id), "selected_requests": selected})
+        result = plan.model_copy(update={"steps": tuple(steps)})
+        write_json(audit_path, {"source_observations_unchanged": True, "steps": audit})
+        write_json(output_path, result.model_dump(mode="json"))
+        return output_path
+    finally:
+        engine.dispose()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -234,7 +308,16 @@ def main() -> None:
     restore.add_argument("--name", required=True)
     restore.add_argument("--output-root", required=True, type=Path)
     restore.add_argument("--port", type=int, default=55441)
+    rebuild = commands.add_parser("rebuild", help="Rebuild prepared source-only snapshots without fetching")
+    rebuild.add_argument("--target", required=True, type=Path)
+    rebuild.add_argument("--prepared", required=True, type=Path)
+    rebuild.add_argument("--output", required=True, type=Path)
+    rebuild.add_argument("--require-new-snapshots", action="store_true")
     args = parser.parse_args()
+    if args.command == "rebuild":
+        print(rebuild_target(read_target(args.target), prepared_path=args.prepared,
+            output_path=args.output, require_new_snapshots=args.require_new_snapshots))
+        return
     if args.command == "restore":
         print(restore_source_baseline(source=args.source, name=args.name, output_root=args.output_root, port=args.port))
         return

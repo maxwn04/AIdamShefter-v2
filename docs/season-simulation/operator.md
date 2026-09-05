@@ -64,6 +64,18 @@ accepts the normal generation settings; for example `{"runner":{"max_turns":60}}
 Finalize model, fallback, voice, request template and runner limits before `init`.
 Do not edit the sealed campaign afterward.
 
+A short comparison may select nonadjacent weeks from the prepared plan, for
+example weeks 1, 2 and 15. Selected weeks and editorial timestamps must increase
+strictly. Skipped weeks produce no articles or memory updates; a later selected
+week sees the last successful selected week's memory. Label this a sparse
+comparison, not a simulated full season. A full-season plan retains all 17 weeks.
+
+Sleeper may assign a transaction to a week but finish its trade-review window
+several days later. Inspect raw transaction `created` and `status_updated` values
+before choosing editorial cutoffs. For a delayed retrospective recap, move the
+boundary after the included completion times while preserving the domain-week
+cutoff; do not claim those transactions were complete at an earlier Tuesday.
+
 ```powershell
 uv run python -m backend.season_simulation init `
   --prepared .context/season-simulation/baseline-2025-01-target/prepared-inputs.json `
@@ -191,6 +203,28 @@ Restore validates the dump and asset hashes and refuses any populated destinatio
 The fresh target receives its own credentials and receipt, while source identities
 and frozen snapshot bytes remain unchanged. Later canonical memories may diverge
 because reporter behavior is part of the result.
+
+To exercise changed snapshot derivations against the same observations, restore
+the source seed into a new candidate target, then use the no-fetch rebuild command
+from that candidate's checkout. The plan can also specify different editorial
+dates before rebuilding; each new snapshot uses that date and the same domain week.
+
+```powershell
+$env:AIDAM_CODE_VERSION = git rev-parse HEAD
+uv run python -m backend.season_simulation.bootstrap rebuild `
+  --target .context/season-simulation/baseline-2025-02-target/target.json `
+  --prepared .context/season-simulation/baseline-2025-02-target/prepared-inputs.json `
+  --output .context/season-simulation/baseline-2025-02-target/candidate-inputs.json `
+  --require-new-snapshots
+```
+
+Rebuild composes the read-only input resolver and snapshot builder directly. It
+does not create a refresh client or coordinator. Missing inputs or different
+selected request IDs/hashes/scopes fail without fetching. It requires empty
+reporter state, preserves the original plan and publishes a new plan only after
+every selected snapshot succeeds. The accompanying audit lists exact source
+membership. `--require-new-snapshots` catches accidental reuse of baseline
+derivations; omit it only when reuse is intended.
 
 To recover a complete campaign export for offline/UI inspection after container
 loss, use this executable composition. It verifies the bundle, creates a new
