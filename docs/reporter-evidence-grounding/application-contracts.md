@@ -91,6 +91,31 @@ Draft checks inspect actual content with bounded targeted diagnostics and retain
 article hash/revision plus brief revision. Editing either invalidates the receipt.
 Uncertain semantic matches are DIAGNOSTIC and do not prove or block all prose.
 
+Directional review cards replace the nearest-verb trade-direction guess. Each
+card identifies a saved fact and source team/season, then lists selected sent and
+received assets from validated bindings and the executed evidence catalog, never
+from `claim_text`. Assets retain their source reference, available completion
+status, occurrence timestamp and local limitations. These are selected movements,
+not necessarily the complete assets of one transaction. Missing or invalid support
+produces no invented source card; unknown status establishes no completed move.
+
+Literal player-name matches retrieve entire draft paragraphs without requiring the
+source team to appear, preserving pronoun and counterparty context. Cards reference
+a shared, deduplicated passage pool. Matching names do not prove entailment, and
+unmatched abbreviations or pick wording do not produce mismatch verdicts. The
+reporter must compare who sends and receives each asset before finalizing, using
+the full draft/source for unmatched or truncated context. Generic transaction
+wording diagnostics are omitted only where a delivered passage already provides
+this review context. All cards remain advisory, including when a saved claim is
+itself reversed despite valid bindings.
+
+The additional payload is capped at 12 cards, 12 selected assets and two passage
+references per card, and eight distinct passages of at most 2,400 characters each
+with a 12,000-character total passage budget. Per-card/per-passage truncation and
+the overall truncation flag disclose omitted cards, assets or context; clipped
+passage text is an exact prefix, not a generated summary. Passage lookup shares
+the 30,000-character draft window. Cards add no model call or submission gate.
+
 Verification inspects up to 30,000 characters, 160 sentence segments and 100
 referenced records, returning at most 40 diagnostics and an explicit truncation
 flag. Visible source references are checked across the whole article. Submission

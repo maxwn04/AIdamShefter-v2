@@ -144,7 +144,13 @@ def test_actual_trade_direction_and_draft_diagnostics(v3_ready_snapshot, tmp_pat
         create_artifact(ctx, path="article.md", content=draft)
         checked = json.loads(verify_artifact(ctx, path="article.md", expected_revision=1))
         codes = {d["code"] for d in checked["verification"]["diagnostics"]}
-        assert {"trade_direction", "draft_capital_framing"} <= codes
+        assert "draft_capital_framing" in codes
+        assert "trade_direction" not in codes and "transaction_wording" not in codes
+        cards = checked["verification"]["directional_review_cards"]
+        assert cards[0]["source_team"] == "Lebron James"
+        assert cards[0]["sent"][0]["identity"] == {"player_name": "Kenneth Walker"}
+        assert cards[1]["received"][0]["identity"] == {"player_name": "DJ Moore"}
+        assert checked["verification"]["directional_review_passages"][0]["text"] == draft
         receipt = ctx.draft_verifications["article.md"]
         edit_artifact(ctx, path="article.md", old_text=draft, new_text="Lebron James sent Kenneth Walker and received DJ Moore plus a first-round pick.", expected_revision=1)
         assert not receipt.is_current(ctx.artifacts.read("article.md"), ctx.brief.brief)
@@ -152,6 +158,8 @@ def test_actual_trade_direction_and_draft_diagnostics(v3_ready_snapshot, tmp_pat
         assert submitted["ok"]
         assert submitted["draft_verification"]["status"] == "DIAGNOSTIC"
         assert not any(d["code"] == "trade_direction" for d in submitted["draft_verification"]["diagnostics"])
+        assert submitted["draft_verification"]["directional_review_cards"] == cards
+        assert submitted["draft_verification"]["directional_review_passages"][0]["text"] == "Lebron James sent Kenneth Walker and received DJ Moore plus a first-round pick."
 
 
 def test_runner_real_evidence_records_private_audit_and_completes(ready_snapshot):

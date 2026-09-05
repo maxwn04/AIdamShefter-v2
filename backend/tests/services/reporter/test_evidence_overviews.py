@@ -14,6 +14,25 @@ def select(tool, raw):
     return selected_records("source", tool, raw, {}, SEASONS, lambda *_: (None, None))
 
 
+def test_playoff_round_integer_keys_preserve_matchups_and_exact_json_paths():
+    raw = {"winners": {"rounds": {
+        1: [{"matchup_id": 1, "round": 1, "team_1": "Alpha", "team_2": "Beta",
+             "winner": "Alpha", "loser": "Beta", "status": "complete"}],
+        2: [{"matchup_id": 2, "round": 2, "team_1": "Alpha", "team_2": "Gamma",
+             "winner": None, "loser": None, "status": "pending"}],
+    }, "champion": None, "placements": []}}
+    records = select("playoff_bracket", raw)
+    games = [record for record in records if "round" in record.fields]
+    assert [record.fields["round"] for record in games] == [1, 2]
+    assert [record.fields["status"] for record in games] == ["complete", "pending"]
+    assert games[0].fields["winner"] == "Alpha"
+    assert games[1].fields["winner"] is None
+    assert games[0].field_paths["winner"] == "/winners/rounds/1/0/winner"
+    assert games[1].field_paths["winner"] == "/winners/rounds/2/0/winner"
+    assert set(raw["winners"]["rounds"]) == {1, 2}  # Private raw audit is unchanged.
+    assert evidence_page(records)["records"]
+
+
 def test_all_six_game_scores_precede_optional_player_details():
     games = [{
         "week": 1, "sleeper_matchup_number": index + 1,
