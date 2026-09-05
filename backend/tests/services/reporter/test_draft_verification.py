@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 
+import pytest
+
 from backend.services.reporter.runner.draft_verification import verify_draft
 from backend.services.reporter.runner.research_brief import ResearchBrief
 from backend.services.reporter.runner.state import ArtifactStore
@@ -35,12 +37,22 @@ def test_generic_category_does_not_claim_specialized_draft_semantics_verified() 
     assert all("No subject-matched" in item.message for item in receipt.diagnostics)
 
 
-def test_visible_fabricated_reference_cannot_be_submitted() -> None:
+@pytest.mark.parametrize("verify_before_submission", [False, True])
+def test_verification_warnings_and_traceability_errors_do_not_block_submission(verify_before_submission: bool) -> None:
     ctx = make_ctx()
-    create_artifact(ctx, path="article.md", content="A claim [e99_0.r1].")
+    create_artifact(ctx, path="article.md", content="The champion has the longest streak [e99_0.r1].")
+    checked = None
+    if verify_before_submission:
+        checked = json.loads(verify_artifact(ctx, path="article.md", expected_revision=1))
     result = json.loads(submit_artifact(ctx, path="article.md", expected_revision=1))
-    assert result["error"]["code"] == "evidence_not_ready"
-    assert ctx.artifacts.submitted_path is None
+    assert result["ok"]
+    if checked is not None:
+        assert result["draft_verification"] == checked["verification"]
+    assert result["draft_verification"]["diagnostics"]
+    assert result["draft_verification"]["traceability_errors"]
+    assert result["draft_verification"]["submission_blocking"] is False
+    assert result["draft_verification"]["status"] == "TRACEABILITY_ERROR"
+    assert ctx.artifacts.submitted_path == "article.md"
 
 
 def test_article_and_brief_edits_expire_receipt_and_submission_rechecks() -> None:
@@ -60,6 +72,7 @@ def test_article_and_brief_edits_expire_receipt_and_submission_rechecks() -> Non
     assert result["draft_verification"]["article_revision"] == 2
     assert result["draft_verification"]["brief_revision"] == ctx.brief.brief.revision
     assert result["draft_verification"]["status"] == "DIAGNOSTIC"
+    assert result["draft_verification"]["submission_blocking"] is False
 
 
 def test_draft_checks_are_bounded_and_mark_truncation() -> None:

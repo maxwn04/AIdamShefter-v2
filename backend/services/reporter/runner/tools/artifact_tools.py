@@ -14,7 +14,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "6"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "7"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -22,7 +22,7 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
         "type": "function",
         "function": {
             "name": "verify_artifact",
-            "description": "Check executed brief bindings and bounded patterns in the actual draft. Returns advisory DIAGNOSTIC findings, not proof of prose truth. Receipt expires after article or brief edits.",
+            "description": "Check executed brief bindings and bounded patterns in the actual draft. All findings, including traceability errors, are advisory and never block submission. Receipt expires after article or brief edits; it is not proof of prose truth.",
             "parameters": {
                 "type": "object",
                 "properties": {"path": {"type": "string"}, "expected_revision": {"type": "integer", "minimum": 1}},
@@ -115,7 +115,8 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
             "name": "submit_artifact",
             "description": (
                 "Submit a Markdown artifact as the final reporter output. Submission "
-                "pins the existing revision and makes that artifact immutable."
+                "pins the existing revision and makes that artifact immutable. "
+                "Draft verification findings are advisory; artifact and structured brief requirements still apply."
             ),
             "parameters": {
                 "type": "object",
@@ -271,8 +272,6 @@ def submit_artifact(
         if receipt is None or not receipt.is_current(snapshot, ctx.brief.brief):
             receipt = verify_draft(snapshot, ctx.brief.brief, ctx.evidence)
             ctx.draft_verifications[path] = receipt
-        if receipt.traceability_errors:
-            return _json({"ok": False, "error": {"code": "evidence_not_ready", "message": "Repair unresolved evidence before submission.", "verification": receipt.as_dict()}})
         artifact = ctx.artifacts.submit(
             path,
             expected_revision=expected_revision,

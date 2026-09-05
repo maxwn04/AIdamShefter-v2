@@ -68,8 +68,11 @@ Uncertain semantic matches are DIAGNOSTIC and do not prove or block all prose.
 Verification inspects up to 30,000 characters, 160 sentence segments and 100
 referenced records, returning at most 40 diagnostics and an explicit truncation
 flag. Visible source references are checked across the whole article. Submission
-refreshes stale checks and blocks unresolved traceability; uncertain trade,
-attribution, comparison, superlative, playoff and caveat wording stays advisory.
+refreshes stale checks as guidance. All verification findings, including unresolved
+traceability and visible source-reference errors, are advisory and never gate
+submission. Receipts explicitly report `submission_blocking=false`. `save_fact`
+still validates structured binding inputs at mutation time; artifact revision,
+content, immutability and structured brief readiness requirements remain in force.
 
 ## Snapshot completion and compatibility
 

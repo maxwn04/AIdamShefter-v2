@@ -17,8 +17,10 @@ The brief consumer resolves immutable records through `EvidenceReader`; it does
 not query the database or infer tool results from strings. The brief store retains
 the existing atomic structured-state/projection mutation seam. Draft diagnostics
 are pure bounded local checks keyed to article hash/revision and brief revision.
-Submission refreshes stale diagnostics and enforces traceability, preserving the
-existing mandatory same-agent memory closeout. No extra completion call is added.
+Submission refreshes stale diagnostics as advisory guidance, including any
+traceability errors; it does not require a clean verification receipt. Structured
+binding validation remains in `save_fact`. Existing artifact/brief requirements
+and mandatory same-agent memory closeout remain. No extra completion call is added.
 
 Presentation favors explicit attribution and repairable references over minimal
 bytes for every small query. Small standings and trade fixtures grow because each

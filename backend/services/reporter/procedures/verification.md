@@ -18,7 +18,7 @@ Use this guide when a publishable draft exists and the remaining question is whe
 - Reuse the current draft and brief state when available. Use `read_artifact` or `read_brief` when state is unknown or a complete review will add value.
 - Use the smallest targeted datalayer view to resolve a missing, suspicious, or conflicting claim, then save the corrected evidence.
 - Use `edit_artifact` for a real correction or meaningful improvement, carrying forward the returned revision.
-- Use `verify_artifact` with the actual draft path and revision. Its bounded checks tie a receipt to the article hash/revision and brief revision. Edits to either invalidate the receipt. Review its DIAGNOSTIC findings against the source; they are advisory pattern matches, not proof of prose entailment. Submission refreshes stale checks and rejects unresolved evidence references.
+- Use `verify_artifact` with the actual draft path and revision when its guidance helps review. Its bounded checks tie a receipt to the article hash/revision and brief revision. Edits to either invalidate the receipt. Review findings against the source; all diagnostics and traceability errors are advisory, not proof of prose entailment or submission gates. Submission refreshes stale guidance without requiring a clean receipt. `save_fact` independently validates structured bindings when facts are saved; existing brief and artifact requirements still apply.
 - Use `submit_artifact` only after the actual draft meets the publication goal. Submission pins that revision. When its result supplies the mandatory `memory_closeout` procedure, the same conversation continues for memory review and ends only through `complete_memory_review`.
 
 ## Audit Judgment

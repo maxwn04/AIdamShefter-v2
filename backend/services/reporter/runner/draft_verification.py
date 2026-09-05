@@ -41,6 +41,7 @@ class DraftVerification:
         return {
             **asdict(self),
             "status": "TRACEABILITY_ERROR" if self.traceability_errors else "DIAGNOSTIC",
+            "submission_blocking": False,
             "scope": "Selected field traceability and bounded draft patterns; not proof of prose entailment.",
         }
 
