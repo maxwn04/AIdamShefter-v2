@@ -155,7 +155,8 @@ def test_projection_is_deterministic_and_contains_readiness() -> None:
     assert first == second
     assert "League ID: league_123" in first
     assert "### fact_taco_win" in first
-    assert "Submission allowed: yes" in first
+    assert "Submission allowed: no" in first
+    assert "legacy_facts_unchecked" in first
 
 
 def test_brief_commit_is_atomic_when_projection_fails() -> None:
