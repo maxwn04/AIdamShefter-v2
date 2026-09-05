@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from backend.services.datalayer import (
     FrozenLeagueData,
     ReadyDataSnapshot,
@@ -99,6 +101,43 @@ def test_franchise_history_preserves_primary_ambiguity(
     assert len(result["matches"]) == 2
 
 
+def test_history_handles_reach_exact_historical_and_current_rosters(
+    v3_ready_snapshot: ReadyDataSnapshot,
+    tmp_path: Path,
+) -> None:
+    changed = _changed_franchise_artifact(v3_ready_snapshot, tmp_path)
+    populated = _mutated_copy_many(
+        changed.path,
+        tmp_path / "evidence-history-rosters.sqlite",
+        (
+            ("INSERT INTO roster_players VALUES ('league-2025', 7, 'p1', 'starter')", ()),
+            ("INSERT INTO roster_players VALUES ('league-2026', 1, 'p2', 'starter')", ()),
+        ),
+    )
+    with FrozenLeagueData.open(
+        v3_ready_snapshot.model_copy(update={"artifact": populated})
+    ) as data:
+        history = data.get_franchise_history("Current Guard")
+        historical, current = history["seasons"]
+        old_roster = data.get_roster_at_cutoff(**historical["roster_lookup"])
+        new_roster = data.get_roster_at_cutoff(**current["roster_lookup"])
+        identity = data.resolve_roster_identity(**historical["roster_lookup"])
+        wrong_season = data.get_roster_at_cutoff(
+            historical["season_roster_id"], season=2026
+        )
+        guessed_name = data.get_roster_at_cutoff("Current Guard", season=2025)
+
+    assert old_roster["found"] is new_roster["found"] is True
+    assert old_roster["team"]["team_name"] == "Old Guard"
+    assert new_roster["team"]["team_name"] == "Current Guard"
+    assert old_roster["roster"] != new_roster["roster"]
+    assert any(old_roster["roster"]["starters"].values())
+    assert any(new_roster["roster"]["starters"].values())
+    assert str(identity.identity.season_roster_id) == historical["season_roster_id"]
+    assert identity.identity.sleeper_roster_id == "7"
+    assert wrong_season["found"] is guessed_name["found"] is False
+
+
 def test_franchise_history_omits_seasons_without_an_appearance(
     v3_ready_snapshot: ReadyDataSnapshot,
     tmp_path: Path,
@@ -143,6 +182,29 @@ def test_v2_history_contracts_degrade_to_one_primary_season(
     assert franchise["found"] is True
     assert len(franchise["seasons"]) == 1
     assert franchise["seasons"][0]["role"] == "primary"
+
+
+@pytest.mark.parametrize("bracket_type,is_champion", [("winners", True), ("losers", False)])
+def test_championship_requires_winners_bracket_final(
+    ready_snapshot: ReadyDataSnapshot, tmp_path: Path,
+    bracket_type: str, is_champion: bool,
+) -> None:
+    changed = _mutated_copy_many(
+        ready_snapshot.artifact.path,
+        tmp_path / f"evidence-{bracket_type}-final.sqlite",
+        ((
+            "INSERT INTO playoff_matchups (league_id, season, bracket_type, node_key, "
+            "round, matchup_id, t1_roster_id, t2_roster_id, winner_roster_id, "
+            "loser_roster_id, placement) VALUES ('123', '2024', ?, 'final', 1, 1, 1, 2, 1, 2, 1)",
+            (bracket_type,),
+        ),),
+    )
+    with FrozenLeagueData.open(ready_snapshot.model_copy(update={"artifact": changed})) as data:
+        path = data.get_team_playoff_path("Alpha")
+        bracket = data.get_playoff_bracket(bracket_type)["brackets"][bracket_type]
+    assert path["is_champion"] is is_champion
+    assert path["matchups"][0]["bracket_type"] == bracket_type
+    assert bracket["champion"] == ("Alpha" if is_champion else None)
 
 
 def _changed_franchise_artifact(

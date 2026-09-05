@@ -57,13 +57,20 @@ def resolve_roster_identity(
     if not key:
         return RosterIdentityNotFound(roster_key=key)
 
-    params: dict[str, Any] = {"league_id": league_id}
+    params: dict[str, Any] = {
+        "league_id": league_id,
+        "competition_id": str(competition_id),
+        "competition_season_id": str(competition_season_id),
+    }
     if key.isdigit():
         roster_id = int(key)
         if roster_id < 1 or str(roster_id) != key:
             return RosterIdentityNotFound(roster_key=key)
         predicate = "ri.roster_id = :roster_id"
         params["roster_id"] = roster_id
+    elif _season_roster_uuid(key) is not None:
+        predicate = "ri.season_roster_id = :season_roster_id"
+        params["season_roster_id"] = _season_roster_uuid(key)
     else:
         predicate = """
             (tp.team_name IS NOT NULL AND lower(tp.team_name) = lower(:roster_key))
@@ -87,6 +94,8 @@ def resolve_roster_identity(
           ON tp.league_id = ri.league_id
          AND tp.roster_id = ri.roster_id
         WHERE ri.league_id = :league_id
+          AND ri.competition_id = :competition_id
+          AND ri.competition_season_id = :competition_season_id
           AND ({predicate})
         ORDER BY ri.roster_id
         """,
@@ -109,6 +118,13 @@ def resolve_roster_identity(
     if len(matches) > 1:
         return AmbiguousRosterIdentity(roster_key=key, matches=matches)
     return ResolvedRosterIdentity(roster_key=key, identity=matches[0])
+
+
+def _season_roster_uuid(key: str) -> str | None:
+    try:
+        return str(UUID(key))
+    except ValueError:
+        return None
 
 
 def get_roster_identity_by_canonical_id(

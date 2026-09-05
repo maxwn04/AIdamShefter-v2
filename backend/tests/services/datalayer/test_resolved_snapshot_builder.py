@@ -21,7 +21,8 @@ from backend.resources.sleeper_data.snapshots import (
     SnapshotSeasonMembership,
 )
 from backend.services.datalayer.contracts import SnapshotStatus
-from backend.services.datalayer.canonical_json import parse_json_bytes
+from backend.services.datalayer.canonical_json import canonical_json_sha256, parse_json_bytes
+from backend.services.datalayer import FrozenLeagueData
 from backend.services.datalayer.errors import (
     DatalayerScopeConflict,
     InternalDatalayerFailure,
@@ -311,6 +312,36 @@ def test_build_key_uses_factual_revision_not_request_receipts() -> None:
     assert canonical_resolved_snapshot_build_key(inputs) != (
         canonical_resolved_snapshot_build_key(changed)
     )
+
+
+def test_new_derivation_does_not_reuse_old_ready_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    inputs, candidates = _inputs()
+    old_key = canonical_json_sha256({
+        "as_of_date": inputs.primary.as_of_date.isoformat(),
+        "competition_season_id": str(inputs.primary.competition_season_id),
+        "input_revision": inputs.input_revision,
+        "snapshot_projection_version": "3",
+        "through_week": inputs.primary.through_week,
+    })
+    builder, snapshots, requests = _builder(tmp_path, inputs, candidates)
+    with monkeypatch.context() as legacy:
+        legacy.setattr(
+            "backend.services.datalayer.resolved_snapshot_builder.canonical_resolved_snapshot_build_key",
+            lambda *_: old_key,
+        )
+        old_ready = builder.get_or_create(inputs)
+    new_ready = builder.get_or_create(inputs)
+
+    assert len(requests.calls) == 2
+    assert new_ready.build_key != old_ready.build_key == old_key
+    assert new_ready.input_revision == old_ready.input_revision == inputs.input_revision
+    assert new_ready.snapshot_projection_version == old_ready.snapshot_projection_version == "3"
+    assert snapshots.commands[-1].build_key == canonical_resolved_snapshot_build_key(inputs)
+    # Explicitly pinned older artifacts remain readable without rewriting them.
+    with FrozenLeagueData.open(old_ready) as data:
+        assert len(data.available_seasons()) == 2
 
 
 def test_joiner_waits_for_and_verifies_the_sealed_result(tmp_path: Path) -> None:

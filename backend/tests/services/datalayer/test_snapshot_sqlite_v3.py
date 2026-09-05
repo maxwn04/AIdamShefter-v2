@@ -91,6 +91,7 @@ def _materialization() -> ResolvedSnapshotMaterializationInput:
                     "league_average_match": 0,
                     "playoff_teams": 6,
                     "playoff_week_start": 15,
+                    "last_scored_leg": season.through_week,
                 },
                 "scoring_settings": {},
                 "roster_positions": ["QB"],

@@ -34,6 +34,7 @@ from backend.services.datalayer.sleeper.endpoints import (
 )
 from backend.services.datalayer.sleeper.responses import EndpointRequest
 from backend.services.datalayer.sleeper.scope import EndpointKind, ScopeKey
+from backend.services.datalayer.versions import SNAPSHOT_DERIVATION_VERSION
 
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
@@ -100,6 +101,7 @@ def canonical_snapshot_build_key(
             "as_of_date": request.as_of_date.isoformat(),
             "competition_season_id": str(request.competition_season_id),
             "snapshot_projection_version": version,
+            "snapshot_derivation_version": SNAPSHOT_DERIVATION_VERSION,
             "through_week": request.through_week,
         }
     )

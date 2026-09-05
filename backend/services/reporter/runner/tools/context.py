@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from backend.services.reporter.runner.evidence import EvidenceCatalog
+
 from backend.services.reporter.runner.recording import (
     ArtifactMutation,
     ArtifactRecorder,
@@ -37,8 +39,13 @@ class ToolContext:
     turn: int = 0
     artifact_recorder: ArtifactRecorder | None = None
     memory_closeout: MemoryCloseoutState | None = None
+    evidence: EvidenceCatalog = field(default_factory=EvidenceCatalog)
 
     def __post_init__(self) -> None:
+        self._evidence_invocation: ContextVar[str | None] = ContextVar(
+            f"reporter_evidence_invocation_{id(self)}", default=None
+        )
+        self._direct_evidence_sequence = 0
         self._source_tool_call_id: ContextVar[UUID | None] = ContextVar(
             f"reporter_source_tool_call_id_{id(self)}",
             default=None,
@@ -48,12 +55,24 @@ class ToolContext:
     def bind_tool_execution(
         self,
         tool_call_id: UUID | None,
+        *,
+        invocation: str | None = None,
     ) -> Iterator[None]:
         token: Token[UUID | None] = self._source_tool_call_id.set(tool_call_id)
+        invocation_token = self._evidence_invocation.set(invocation)
         try:
             yield
         finally:
             self._source_tool_call_id.reset(token)
+            self._evidence_invocation.reset(invocation_token)
+
+    def evidence_source(self) -> str:
+        """Allocate before invoking data; never derive IDs from completion order."""
+        source = self._evidence_invocation.get()
+        if source is not None:
+            return source
+        self._direct_evidence_sequence += 1
+        return f"direct{self._direct_evidence_sequence}"
 
     def record_artifact_mutation(self, snapshot: ArtifactSnapshot) -> None:
         if self.artifact_recorder is None:
