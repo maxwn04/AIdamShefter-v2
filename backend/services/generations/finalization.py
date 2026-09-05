@@ -12,6 +12,7 @@ from backend.resources.context import CompetitionScope, ManagerContext
 from backend.resources.memory.revisions.manager import (
     _commit_canonical_bundle_in_session,
 )
+from backend.resources.memory.revisions.writers import lock_current_revision
 from backend.resources.reporting.artifacts import FinalizeArtifact
 from backend.resources.reporting.artifacts.manager import (
     _finalize_artifact_in_session,
@@ -103,6 +104,17 @@ class GenerationFinalizer:
             memory_result: MemoryMutationResult | None = None
             if stored.kind == GenerationKind.LIVE.value:
                 prepared = prepare_canonical_bundle(memory_bundle)
+                if (
+                    not prepared.writes
+                    and stored.settings_jsonb.get("prepared_execution") is not None
+                ):
+                    # Quiet simulation weeks still require the promised input head
+                    # to remain current until article success commits atomically.
+                    lock_current_revision(
+                        session,
+                        self._competition_id,
+                        memory_bundle.expected_revision_id,
+                    )
                 revision = _commit_canonical_bundle_in_session(
                     session,
                     self._competition_id,

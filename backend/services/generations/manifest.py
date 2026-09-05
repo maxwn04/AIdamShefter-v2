@@ -16,6 +16,7 @@ from backend.resources.reporting.generations import GenerationKind
 
 
 MANIFEST_SCHEMA_VERSION = 2
+PREPARED_MANIFEST_SCHEMA_VERSION = 3
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
@@ -57,7 +58,7 @@ class SnapshotRefreshReceiptInput(ContractModel):
 
 
 class SnapshotPreparationInput(ContractModel):
-    mode: Literal["legacy_never", "live", "readiness_only"]
+    mode: Literal["legacy_never", "live", "readiness_only", "prepared_only"]
     refresh_receipts: tuple[SnapshotRefreshReceiptInput, ...] = ()
 
 
@@ -100,6 +101,8 @@ class DataSnapshotInput(ContractModel):
             raise ValueError("historical included seasons require cutoff week 18")
 
         receipts = self.preparation.refresh_receipts
+        if self.preparation.mode == "prepared_only" and receipts:
+            raise ValueError("prepared-only execution cannot contain refresh receipts")
         if self.preparation.mode == "legacy_never" and receipts:
             raise ValueError("legacy preparation cannot contain refresh receipts")
         if self.preparation.mode != "legacy_never" and self.input_revision is None:
@@ -148,6 +151,7 @@ class ManifestCutoffs(ContractModel):
     domain_cutoff_week: PositiveWeek
     domain_cutoff_at: AwareDatetime | None = None
     knowledge_cutoff_at: AwareDatetime
+    editorial_cutoff_at: AwareDatetime | None = None
 
 
 class RetryPolicyInput(ContractModel):
@@ -220,6 +224,13 @@ class GenerationManifestInput(ContractModel):
 
     @model_validator(mode="after")
     def validate_named_inputs(self) -> "GenerationManifestInput":
+        if self.data_snapshot.preparation.mode == "prepared_only":
+            if self.generation.kind is not GenerationKind.LIVE:
+                raise ValueError("prepared-only manifests require live generations")
+            if self.cutoffs.editorial_cutoff_at is None:
+                raise ValueError("prepared-only manifests require an editorial cutoff")
+            if self.cutoffs.editorial_cutoff_at > self.cutoffs.knowledge_cutoff_at:
+                raise ValueError("editorial cutoff cannot exceed actual knowledge time")
         procedure_names = [procedure.name for procedure in self.procedures]
         if not procedure_names:
             raise ValueError("generation manifest requires at least one procedure")
@@ -247,14 +258,22 @@ def build_generation_manifest(
     """Build the complete immutable input seal for one generation."""
     procedures = sorted(inputs.procedures, key=lambda procedure: procedure.name)
     tool_definitions = [tool.definition for tool in inputs.tools]
+    schema_version = (
+        PREPARED_MANIFEST_SCHEMA_VERSION
+        if inputs.data_snapshot.preparation.mode == "prepared_only"
+        else MANIFEST_SCHEMA_VERSION
+    )
+    cutoffs = inputs.cutoffs.model_dump(mode="json")
+    if inputs.cutoffs.editorial_cutoff_at is None:
+        cutoffs.pop("editorial_cutoff_at")
     manifest = cast(
         dict[str, JsonValue],
         {
-            "schema_version": MANIFEST_SCHEMA_VERSION,
+            "schema_version": schema_version,
             "generation": inputs.generation.model_dump(mode="json"),
             "data_snapshot": inputs.data_snapshot.model_dump(mode="json"),
             "memory_input": inputs.memory_input.model_dump(mode="json"),
-            "cutoffs": inputs.cutoffs.model_dump(mode="json"),
+            "cutoffs": cutoffs,
             "model": inputs.model.model_dump(mode="json"),
             "runner": inputs.runner.model_dump(mode="json"),
             "assets": {
@@ -279,7 +298,7 @@ def build_generation_manifest(
     encoded = canonical_json_bytes(manifest)
     return BuiltGenerationManifest(
         manifest=manifest,
-        schema_version=MANIFEST_SCHEMA_VERSION,
+        schema_version=schema_version,
         canonical_bytes=encoded,
         manifest_hash=hashlib.sha256(encoded).hexdigest(),
     )

@@ -11,6 +11,7 @@ from backend.services.generations.contracts import (
     GenerationRunnerSettings,
     GenerationSettings,
     GenerationToneSettings,
+    PreparedGenerationExecution,
     ReconcileResult,
     RerunGenerationRequest,
     StaleGenerationPolicy,
@@ -43,7 +44,7 @@ from backend.services.generations.manifest import (
     canonical_json_sha256,
 )
 from backend.services.generations.recorder import GenerationExecutionRecorder
-from backend.services.generations.service import GenerationService
+from backend.services.generations.service import GenerationService, PreparedSnapshotResolver
 
 __all__ = [
     "MANIFEST_SCHEMA_VERSION",
@@ -70,6 +71,8 @@ __all__ = [
     "GenerationService",
     "GenerationSettings",
     "GenerationToneSettings",
+    "PreparedGenerationExecution",
+    "PreparedSnapshotResolver",
     "ManifestCutoffs",
     "ModelExecutionInput",
     "ProcedureInput",

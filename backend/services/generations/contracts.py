@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, StringConstraints, model_validator
 
 from backend.resources._contracts import ContractModel, NonBlankStr
 from backend.resources.reporting.generations import (
@@ -79,11 +79,22 @@ class GenerationMemorySettings(ContractModel):
     automatic_recall: bool = True
 
 
+class PreparedGenerationExecution(ContractModel):
+    """Exact prebuilt facts and editorial boundary for a rolling simulation."""
+
+    data_snapshot_id: UUID
+    artifact_sha256: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    input_revision: Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
+    expected_memory_revision_id: UUID
+    editorial_cutoff_at: AwareDatetime
+
+
 class GenerationSettings(ContractModel):
     report: GenerationReportSettings = Field(default_factory=GenerationReportSettings)
     model: GenerationModelSettings = Field(default_factory=GenerationModelSettings)
     runner: GenerationRunnerSettings = Field(default_factory=GenerationRunnerSettings)
     memory: GenerationMemorySettings = Field(default_factory=GenerationMemorySettings)
+    prepared_execution: PreparedGenerationExecution | None = None
 
 
 class GenerationRequest(ContractModel):
@@ -100,6 +111,11 @@ class GenerationRequest(ContractModel):
 
     @model_validator(mode="after")
     def validate_week_range(self) -> "GenerationRequest":
+        if (
+            self.settings.prepared_execution is not None
+            and self.kind is not GenerationKind.LIVE
+        ):
+            raise ValueError("prepared execution requires a memory-writing live generation")
         if self.week_start > self.week_end:
             raise ValueError("week_start cannot be after week_end")
         chain = (
@@ -168,5 +184,6 @@ __all__ = [
     "GenerationRunnerSettings",
     "GenerationSettings",
     "GenerationToneSettings",
+    "PreparedGenerationExecution",
     "StaleGenerationPolicy",
 ]

@@ -227,6 +227,7 @@ def _plan(
     *,
     config: ReportConfig | None = None,
     week: int = 8,
+    editorial_cutoff_at: datetime | None = None,
 ) -> Any:
     context = GenerationMemoryContext(
         competition_id=COMPETITION_ID,
@@ -236,6 +237,7 @@ def _plan(
         competition_season_id=SEASON_ID,
         week=week,
         knowledge_cutoff_at=CUTOFF,
+        editorial_cutoff_at=editorial_cutoff_at,
     )
     data = FrozenData()
     return MemoryRecallPlanner(
@@ -288,6 +290,18 @@ def test_trigger_targets_are_inclusive_and_all_constraints_must_be_due() -> None
     assert result.metadata["groups"]["due_callbacks"]["resolved_query"].get(
         "competition_season_id"
     ) is None
+
+
+def test_simulated_editorial_time_prevents_premature_date_callbacks() -> None:
+    editorial = CUTOFF - timedelta(days=365)
+    due = _trigger(10, target_at=editorial)
+    future = _trigger(11, target_at=editorial + timedelta(seconds=1))
+    result = _plan(Retrieval(triggers=(due, future)), editorial_cutoff_at=editorial)
+    assert len(result.result["due_callbacks"]) == 1
+    scope = result.metadata["resolved_scope"]
+    assert scope["editorial_cutoff_at"] == editorial.isoformat()
+    assert scope["knowledge_cutoff_at"] == CUTOFF.isoformat()
+    assert len(_plan(Retrieval(triggers=(due, future))).result["due_callbacks"]) == 2
 
 
 def test_context_scope_and_likely_relevance_are_bounded_and_private() -> None:
