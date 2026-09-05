@@ -371,7 +371,9 @@ class Runner:
 
         artifact_recording_error: ArtifactRecordingError | None = None
         try:
-            with self.tool_context.bind_tool_execution(execution_id):
+            with self.tool_context.bind_tool_execution(
+                execution_id, invocation=f"e{turn}_{ordinal}"
+            ):
                 handler_result = handler(**call.arguments)
                 if asyncio.iscoroutine(handler_result):
                     handler_result = await handler_result
