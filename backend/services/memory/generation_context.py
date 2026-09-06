@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
 from backend.resources.memory.common.errors import (
@@ -17,6 +17,7 @@ from backend.resources.memory.context_notes.objects import (
 from backend.resources.memory.events.objects import EventContent
 from backend.resources.memory.facts.objects import FactContent
 from backend.resources.memory.storylines.objects import StorylineContent
+from backend.resources.memory.search_documents import SearchDocumentQuery
 from backend.resources.memory.triggers.objects import TriggerContent
 from backend.services.memory.proposals import (
     MemoryMutationBundle,
@@ -26,6 +27,8 @@ from backend.services.memory.proposals import (
     ProposedMemoryRef,
 )
 from backend.services.memory.retrieval_service import (
+    HydratedMemory,
+    MemoryInspectionResult,
     MemoryRetrievalRequest,
     MemoryRetrievalResult,
 )
@@ -41,6 +44,18 @@ class PinnedMemoryRetrieval(Protocol):
         revision_id: UUID,
         request: MemoryRetrievalRequest,
     ) -> MemoryRetrievalResult: ...
+
+    def inspect(
+        self,
+        *,
+        competition_id: UUID,
+        revision_id: UUID,
+        memory: HydratedMemory,
+        view: Literal["detail", "history", "evidence"],
+        offset: int,
+        limit: int,
+        scope: SearchDocumentQuery,
+    ) -> MemoryInspectionResult: ...
 
 
 class GenerationMemoryContext:
@@ -93,8 +108,41 @@ class GenerationMemoryContext:
         return self._retrieval.search(
             competition_id=self.competition_id,
             revision_id=self.pinned_revision_id,
-            request=request,
+            request=request.model_copy(
+                update={"query": self._retrieval_scope(request.query)}
+            ),
         )
+
+    def inspect(
+        self,
+        memory: HydratedMemory,
+        *,
+        view: Literal["detail", "history", "evidence"] = "detail",
+        offset: int = 0,
+        limit: int = 20,
+        allowed_season_weeks: dict[UUID, int] | None = None,
+    ) -> MemoryInspectionResult:
+        """Expand only a selected handle within this generation's input boundary."""
+        self._require_open()
+        return self._retrieval.inspect(
+            competition_id=self.competition_id,
+            revision_id=self.pinned_revision_id,
+            memory=memory, view=view, offset=offset, limit=limit,
+            scope=self._retrieval_scope(SearchDocumentQuery(
+                allowed_season_weeks=allowed_season_weeks,
+            )),
+        )
+
+    def _retrieval_scope(self, query: SearchDocumentQuery) -> SearchDocumentQuery:
+        updates: dict[str, object] = {}
+        if self._competition_season_id is not None:
+            updates["through_competition_season_id"] = self._competition_season_id
+            updates["through_week"] = self._week
+        # The canonical revision is narrative memory's knowledge boundary. A
+        # generation's observation cutoff predates its own output memory rows;
+        # applying that clock here would erase committed prior-run narratives.
+        # An explicit query.recorded_through remains an opt-in narrower filter.
+        return query.model_copy(update=updates)
 
     def propose_fact(
         self,

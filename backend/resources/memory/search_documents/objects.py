@@ -4,7 +4,7 @@ from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import Field, StringConstraints, field_validator, model_validator
+from pydantic import AwareDatetime, Field, StringConstraints, field_validator, model_validator
 from pydantic.json_schema import SkipJsonSchema
 
 from backend.resources._contracts import ContractModel, NonBlankStr
@@ -45,6 +45,7 @@ class SearchDocumentQuery(ContractModel):
     """Revision-grounded discovery signals and structured result filters."""
 
     entity_keys: tuple[NonBlankStr, ...] = ()
+    required_entity_keys: tuple[NonBlankStr, ...] = ()
     evidence_version_ids: tuple[UUID, ...] = ()
     related_item_ids: tuple[UUID, ...] = ()
     tags: tuple[NonBlankStr, ...] = ()
@@ -53,6 +54,18 @@ class SearchDocumentQuery(ContractModel):
     statuses: tuple[NonBlankStr, ...] = ()
     agent_key: NonBlankStr | None = None
     competition_season_id: UUID | None = None
+    season: int | None = Field(default=None, ge=1900, le=9999, strict=True)
+    through_competition_season_id: SkipJsonSchema[UUID | None] = None
+    through_week: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
+    recorded_through: SkipJsonSchema[AwareDatetime | None] = None
+    allowed_season_weeks: SkipJsonSchema[
+        dict[UUID, Annotated[int, Field(ge=0, strict=True)]] | None
+    ] = None
+    due_in_season: SkipJsonSchema[UUID | None] = None
+    due_week: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
+    due_at: SkipJsonSchema[AwareDatetime | None] = None
+    context_for_season: SkipJsonSchema[UUID | None] = None
+    context_franchise_ids: SkipJsonSchema[tuple[UUID, ...]] = ()
     week: int | None = Field(default=None, ge=0, strict=True)
     week_from: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
     week_to: SkipJsonSchema[int | None] = Field(default=None, ge=0, strict=True)
@@ -74,6 +87,8 @@ class SearchDocumentQuery(ContractModel):
 
     @field_validator(
         "entity_keys",
+        "required_entity_keys",
+        "context_franchise_ids",
         "evidence_version_ids",
         "related_item_ids",
         "kinds",
