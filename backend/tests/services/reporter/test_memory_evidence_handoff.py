@@ -335,7 +335,7 @@ def test_entities_only_update_changes_subjects_and_bad_entity_is_actionable():
     success = _call(registry, "upsert_storyline_memory_card", update_handle=handle,
         headline="Updated", summary="Updated.", entities=[{"type": "team", "name": "Waiver Wire"}])
     assert success["saved"] is True
-    assert [s.id for s in memory.proposal_snapshot()[0].content.subjects] == [WIRE_FRANCHISE_ID]
+    assert [s.id for s in memory.proposal_snapshot()[0].content.subjects] == [TACO_FRANCHISE_ID, WIRE_FRANCHISE_ID]
 
 
 def test_cross_season_update_cannot_relabel_origin_week():
@@ -420,6 +420,6 @@ def test_explicit_empty_entities_can_clear_storyline_subjects():
     registry, _, memory, _, adapter, _ = setup((match,))
     result = _call(registry, "upsert_storyline_memory_card",
         update_handle=adapter._presentation.handle_for(match.memory),
-        headline="League-wide arc", summary="The arc now concerns the league.", entities=[])
+        headline="League-wide arc", summary="The arc now concerns the league.", entities=[], subjects_mode="replace")
     assert result["saved"] is True
     assert memory.proposal_snapshot()[0].content.subjects == []

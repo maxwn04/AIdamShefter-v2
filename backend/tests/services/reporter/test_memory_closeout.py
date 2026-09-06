@@ -100,6 +100,7 @@ def test_completion_derives_delta_counts_and_is_idempotent() -> None:
         "already_completed": False,
         "outcome": "proposals_saved",
         "proposal_counts": expected_counts,
+        "callback_dispositions": [],
     }
     assert repeated == {
         **completed,
@@ -131,9 +132,69 @@ def test_completion_records_explicit_noop_for_write_disabled_run() -> None:
             "event": "memory_review_completed",
             "outcome": "no_op",
             "proposal_counts": result["proposal_counts"],
+            "callback_dispositions": [],
         },
         {
             "event": "memory_review_noop",
             "memory_writes_enabled": False,
         },
     ]
+
+
+def test_callback_dispositions_report_successful_actions_without_duplicate_receipts() -> None:
+    state = MemoryCloseoutState(
+        procedure="# Closeout",
+        memory_writes_enabled=True,
+        proposal_snapshot=lambda: (),
+    )
+    state.activate(turn=2)
+    state.record_callback_disposition(
+        handle="memory_1", action="resolve", reason="The final result answers the question."
+    )
+    state.record_callback_disposition(
+        handle="memory_2", action="reschedule", reason="Review after the next matchup."
+    )
+    state.record_callback_disposition(
+        handle="memory_3", action="defer", reason="The trade contribution was not investigated."
+    )
+    state.record_callback_disposition(
+        handle="memory_1", action="resolve", reason="The final result answers the question."
+    )
+
+    ctx = _context(state)
+    result = complete_memory_review(ctx)
+
+    assert [entry["outcome"] for entry in result["callback_dispositions"]] == [
+        "resolved", "rescheduled", "uninvestigated"
+    ]
+    assert state.summary()["callback_dispositions"] == result["callback_dispositions"]
+    assert ctx.log.entries[0].data["callback_dispositions"] == result["callback_dispositions"]
+    assert complete_memory_review(ctx)["callback_dispositions"] == result["callback_dispositions"]
+    result["callback_dispositions"][0]["reason"] = "Changed receipt"
+    assert state.callback_dispositions[0]["reason"] == "The final result answers the question."
+
+
+def test_defer_does_not_create_a_proposal_or_require_other_callback_dispositions() -> None:
+    state = MemoryCloseoutState(
+        procedure="# Closeout",
+        memory_writes_enabled=True,
+        proposal_snapshot=lambda: (),
+    )
+    state.activate(turn=2)
+    state.record_callback_disposition(
+        handle="memory_1", action="defer", reason="Not investigated."
+    )
+    for _ in range(6):
+        state.begin_turn()
+
+    result = complete_memory_review(_context(state))
+
+    assert result["ok"] is True and result["outcome"] == "no_op"
+    assert result["proposal_counts"]["total"] == 0
+    assert result["callback_dispositions"] == [{
+        "memory_handle": "memory_1",
+        "action": "defer",
+        "reason": "Not investigated.",
+        "outcome": "uninvestigated",
+    }]
+    assert state.summary()["turn_allowance"] == 6
