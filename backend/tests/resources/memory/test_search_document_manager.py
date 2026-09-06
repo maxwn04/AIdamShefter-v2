@@ -515,3 +515,139 @@ def test_standing_context_filters_identity_before_candidate_limit(database_engin
         query.model_copy(update={"context_franchise_ids": ()}))} == {
         global_note.version_id, season_note.version_id,
     }
+
+
+def _linked_team_callbacks(engine: Engine) -> tuple[Domain, dict[str, UUID], UUID]:
+    from backend.database.models.reporting import AICall, ToolCall
+    from backend.resources.memory.events.objects import EventContent
+    from backend.resources.memory.triggers.objects import TriggerContent
+    from backend.services.memory import GenerationMemoryContext
+    from backend.tests.services.memory.test_mutation_service import (
+        EmptyRetrieval, _generation_context, _storyline,
+    )
+
+    domain = _seed_domain(engine)
+    ai_call_id, receipt_id = uuid4(), uuid4()
+    with engine.begin() as connection:
+        connection.execute(sa.insert(AICall), {
+            "id": ai_call_id, "generation_id": domain.generation_id,
+            "turn_number": 1, "attempt_number": 1, "requested_model": "test-model",
+            "input_messages": [], "tool_definitions": [], "request_parameters": {},
+            "status": "succeeded",
+        })
+        connection.execute(sa.insert(ToolCall), {
+            "id": receipt_id, "generation_id": domain.generation_id, "ai_call_id": ai_call_id,
+            "tool_ordinal": 0, "tool_name": "get_transactions", "implementation_version": "test",
+            "arguments_jsonb": {}, "status": "succeeded",
+        })
+    context = _generation_context(domain)
+    trade = context.propose_event(EventContent.model_validate({
+        "event_type": "trade", "headline": "Owls bought future flexibility",
+        "summary": "The Owls sent the Foxes ten budget dollars.",
+        "salience": 4, "confidence": "source_backed", "status": "active",
+        "primary_tool_call_id": receipt_id,
+        "details": {"kind": "trade", "sender_franchise_id": domain.winner_id,
+            "receiver_franchise_id": domain.loser_id,
+            "assets": [{"kind": "budget", "direction": "sender_to_receiver", "amount": 10}]},
+    }))
+    fact = context.propose_fact(_fact(domain, trade.version_id))
+    storyline_content = _storyline(domain, trade.version_id, fact.version_id)
+    storyline = context.propose_storyline(storyline_content)
+    committed = _service(engine, domain).apply(context.take_completed_bundle())
+    assert committed.revision is not None
+    # Callback origin week deliberately precedes the parent metadata week, so
+    # tests can show the parent's frozen boundary applies independently.
+    callbacks = GenerationMemoryContext(
+        competition_id=domain.competition_id, generation_id=_add_generation(engine, domain),
+        pinned_revision_id=committed.revision.revision_id, retrieval=EmptyRetrieval(),
+        competition_season_id=domain.season_id, week=6,
+    )
+    scheduled = callbacks.propose_trigger(TriggerContent.model_validate({
+        "trigger_type": "scheduled_review", "status": "open", "fire_policy": "until_resolved",
+        "target_storyline_item_id": storyline.item_id,
+        "target_competition_season_id": domain.season_id, "target_week": 8,
+        "condition": {"kind": "scheduled_review", "review_question": "Did the strategy pay off?"},
+    }))
+    trade_review = callbacks.propose_trigger(TriggerContent.model_validate({
+        "trigger_type": "trade_evaluation", "status": "open", "fire_policy": "until_resolved",
+        "origin_event_item_id": trade.item_id,
+        "target_competition_season_id": domain.season_id, "target_week": 8,
+        "condition": {"kind": "trade_evaluation"},
+    }))
+    result = _service(engine, domain).apply(callbacks.take_completed_bundle())
+    assert result.revision is not None
+    return domain, {
+        "storyline_item": storyline.item_id, "storyline_version": storyline.version_id,
+        "event_version": trade.version_id, "fact_version": fact.version_id,
+        "scheduled_version": scheduled.version_id, "trade_review_version": trade_review.version_id,
+    }, result.revision.revision_id
+
+
+def test_trigger_required_team_inherits_one_pinned_storyline_or_trade_parent(
+    database_engine: Engine,
+) -> None:
+    from backend.tests.services.memory.test_mutation_service import _storyline
+
+    domain, ids, first_revision = _linked_team_callbacks(database_engine)
+    manager = _manager(database_engine, domain)
+    query = SearchDocumentQuery(kinds=(MemoryKind.TRIGGER,),
+        required_entity_keys=(f"franchise:{domain.winner_id}",),
+        allowed_season_weeks={domain.season_id: 7})
+    expected = {ids["scheduled_version"], ids["trade_review_version"]}
+    with database_engine.connect() as connection:
+        own_keys = connection.execute(sa.select(MemorySearchDocument.entity_keys).where(
+            MemorySearchDocument.version_id.in_(expected),
+        )).scalars().all()
+    assert all(f"franchise:{domain.winner_id}" not in keys for keys in own_keys)
+    assert {candidate.version_id for candidate in manager.search(first_revision, query)} == expected
+    assert manager.search(first_revision, query.model_copy(update={
+        "required_entity_keys": (f"franchise:{uuid4()}",),
+    })) == ()
+    assert len(manager.search(first_revision, query.model_copy(update={"limit": 1}))) == 1
+    # This also exercises the inheritance EXISTS alongside the independent due join.
+    assert {candidate.version_id for candidate in manager.search(first_revision, query.model_copy(update={
+        "due_in_season": domain.season_id, "due_week": 8, "due_at": datetime.now(UTC),
+    }))} == expected
+    replaced = _service(database_engine, domain).replace_storyline(MemoryMutationOrigin(
+        generation_id=_add_generation(database_engine, domain), expected_revision_id=first_revision,
+        competition_season_id=domain.season_id, week=7,
+    ), ids["storyline_item"], 1,
+        _storyline(domain, ids["event_version"], ids["fact_version"]).model_copy(update={"subjects": []}))
+    assert replaced.revision is not None
+    assert {candidate.version_id for candidate in manager.search(first_revision, query)} == expected
+    # The storyline's evidence still links to the franchise-bearing trade, but
+    # the callback must not inherit through that second hop.
+    assert {candidate.version_id for candidate in manager.search(replaced.revision.revision_id, query)} == {
+        ids["trade_review_version"],
+    }
+
+
+def test_trigger_team_inheritance_cannot_use_temporally_excluded_parent(
+    database_engine: Engine,
+) -> None:
+    from backend.tests.services.memory.test_mutation_service import _storyline
+
+    domain, ids, revision_id = _linked_team_callbacks(database_engine)
+    manager = _manager(database_engine, domain)
+    query = SearchDocumentQuery(kinds=(MemoryKind.TRIGGER,),
+        required_entity_keys=(f"franchise:{domain.winner_id}",))
+    assert len(manager.search(revision_id, query)) == 2
+    # Root callbacks are eligible at week 6; their parents were recorded at week 7.
+    for bounds in (
+        {"allowed_season_weeks": {domain.season_id: 6}},
+        {"through_competition_season_id": domain.season_id, "through_week": 6},
+    ):
+        assert len(manager.search(revision_id, SearchDocumentQuery(
+            kinds=(MemoryKind.TRIGGER,), **bounds,
+        ))) == 2
+        assert manager.search(revision_id, query.model_copy(update=bounds)) == ()
+    cutoff = datetime.now(UTC)
+    replacement = _service(database_engine, domain).replace_storyline(MemoryMutationOrigin(
+        generation_id=_add_generation(database_engine, domain), expected_revision_id=revision_id,
+        competition_season_id=domain.season_id, week=7,
+    ), ids["storyline_item"], 1,
+        _storyline(domain, ids["event_version"], ids["fact_version"])
+            .model_copy(update={"headline": "The strategy remains unproven"}))
+    assert replacement.revision is not None
+    assert {candidate.version_id for candidate in manager.search(replacement.revision.revision_id,
+        query.model_copy(update={"recorded_through": cutoff}))} == {ids["trade_review_version"]}
