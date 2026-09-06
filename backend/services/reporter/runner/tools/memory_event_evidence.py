@@ -124,8 +124,8 @@ def resolve_event(
         sender.franchise_id AS sender_franchise_id, receiver.franchise_id AS receiver_franchise_id
         FROM transactions t JOIN transaction_moves tm ON tm.league_id=t.league_id AND tm.transaction_id=t.transaction_id
         LEFT JOIN players p ON p.player_id=tm.player_id
-        JOIN roster_identities ri ON ri.league_id=tm.league_id AND ri.roster_id=tm.roster_id
-        JOIN team_profiles tp ON tp.league_id=tm.league_id AND tp.roster_id=tm.roster_id
+        LEFT JOIN roster_identities ri ON ri.league_id=tm.league_id AND ri.roster_id=tm.roster_id
+        LEFT JOIN team_profiles tp ON tp.league_id=tm.league_id AND tp.roster_id=tm.roster_id
         LEFT JOIN roster_identities origin ON origin.league_id=tm.league_id AND origin.roster_id=tm.pick_original_roster_id
         LEFT JOIN team_profiles original_team ON original_team.league_id=tm.league_id AND original_team.roster_id=tm.pick_original_roster_id
         LEFT JOIN roster_identities sender ON sender.league_id=tm.league_id AND sender.roster_id=tm.from_roster_id
@@ -140,21 +140,26 @@ def resolve_event(
     if len(matches) != 1:
         raise EventEvidenceError("The directional asset facts do not identify exactly one completed trade. Add a distinguishing asset/participant fact; keep each trade separate.")
     matched = matches[0]
-    participants = {r["franchise_id"] for r in matched}
-    if len(participants) != 2:
-        raise EventEvidenceError("Durable trade events currently support exactly two franchises; this trade needs a different representation.")
-    sender, receiver = sorted(participants)
     assets: dict[tuple[Any, ...], dict[str, Any]] = {}
+    perspectives: dict[tuple[Any, ...], list[str]] = defaultdict(list)
     for row in matched:
         if row["direction"] not in {"add", "drop", "pick_in", "pick_out"}:
             raise EventEvidenceError("The frozen trade includes an unsupported transfer direction; no partial event was saved.")
-        if {row["sender_franchise_id"], row["receiver_franchise_id"]} != participants:
+        sender, receiver = row["sender_franchise_id"], row["receiver_franchise_id"]
+        if sender is None or receiver is None or sender == receiver or row["franchise_id"] is None:
             raise EventEvidenceError("The frozen trade is missing an exact asset transfer identity; no partial event was saved.")
-        direction = "sender_to_receiver" if row["sender_franchise_id"] == sender else "receiver_to_sender"
+        outgoing = row["direction"] in {"drop", "pick_out"}
+        if row["franchise_id"] != (sender if outgoing else receiver):
+            raise EventEvidenceError("The frozen trade asset perspective conflicts with its transfer identities; no partial event was saved.")
+        endpoints = {"from_franchise_id": sender, "to_franchise_id": receiver}
         if row["asset_type"] == "player" and row["player_id"]:
+            if row["direction"] not in {"add", "drop"}:
+                raise EventEvidenceError("The frozen player has an incompatible transfer direction; no partial event was saved.")
             key = ("player", row["player_id"])
-            asset = {"kind": "player", "direction": direction, "player_id": row["player_id"]}
+            asset = {"kind": "player", **endpoints, "player_id": row["player_id"]}
         elif row["asset_type"] == "pick" and row["original_franchise_id"]:
+            if row["direction"] not in {"pick_in", "pick_out"}:
+                raise EventEvidenceError("The frozen pick has an incompatible transfer direction; no partial event was saved.")
             try:
                 draft_year = int(row["pick_season"])
                 draft_round = int(row["pick_round"])
@@ -162,14 +167,19 @@ def resolve_event(
                 raise EventEvidenceError(
                     "The frozen pick lacks a draft year or round; no partial event was saved."
                 ) from error
-            key = ("draft_pick", row["pick_season"], row["pick_round"], row["original_franchise_id"])
-            asset = {"kind": "draft_pick", "direction": direction, "season": draft_year,
+            key = ("draft_pick", draft_year, draft_round, row["original_franchise_id"])
+            asset = {"kind": "draft_pick", **endpoints, "season": draft_year,
                      "round": draft_round, "original_franchise_id": row["original_franchise_id"]}
         else:
             raise EventEvidenceError("An asset cannot be represented with its frozen identity; no assets were silently dropped.")
         if key in assets and assets[key] != asset:
             raise EventEvidenceError("Duplicate asset transfers prevent an unambiguous trade event.")
         assets[key] = asset
+        perspectives[key].append(row["direction"])
+    for key, directions in perspectives.items():
+        expected = ["add", "drop"] if key[0] == "player" else ["pick_in", "pick_out"]
+        if sorted(directions) != expected:
+            raise EventEvidenceError("The frozen trade has duplicate or incomplete asset perspectives; no partial event was saved.")
     if not assets:
         raise EventEvidenceError("No complete transferable assets were present; no event was saved.")
     audit["transaction_id"] = matched[0]["transaction_id"]
@@ -178,8 +188,7 @@ def resolve_event(
     audit["source_week"] = start
     audit["occurred_at"] = occurred_at.isoformat() if occurred_at else None
     audit["temporal_note"] = "source_week is the provider grouping; occurred_at is the actual source timestamp when available"
-    return ResolvedEvent({"kind": "trade", "sender_franchise_id": sender,
-        "receiver_franchise_id": receiver, "assets": list(assets.values())}, start, audit, occurred_at)
+    return ResolvedEvent({"kind": "trade", "assets": list(assets.values())}, start, audit, occurred_at)
 
 
 def _same_number(left: Any, right: Any) -> bool:
@@ -199,6 +208,8 @@ def _matches_game(record: EvidenceRecord, game: dict[str, Any]) -> bool:
 
 
 def _matches_move(record: EvidenceRecord, row: dict[str, Any]) -> bool:
+    if row["franchise_id"] is None:
+        return False
     identity_matches = record.subject_id == public_subject_id(row["franchise_id"]) if record.subject_id else record.subject == row["team_name"]
     direction = "received" if row["direction"] in {"add", "pick_in"} else "sent"
     if not identity_matches or record.perspective != direction:

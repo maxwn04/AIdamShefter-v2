@@ -129,6 +129,8 @@ claims must be assessed before trusting the output.
 
 ## Documents
 
+- [Evidence representations](evidence-representations.md): source relationships,
+  standings periods, multi-party trades and retained payload compatibility.
 - [Coordination](coordination.md): implementation ownership and cross-stream contracts.
 - [Workstreams](workstreams.md): current parallel delivery plan and integration contract.
 - [Architecture](architecture.md): ownership, experiment isolation, continuity,

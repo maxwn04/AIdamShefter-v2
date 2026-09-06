@@ -25,6 +25,7 @@ from backend.resources.memory.events.payloads.trade import (
     DraftPickTradeAsset,
     PlayerTradeAsset,
     TradeEventPayload,
+    resolve_trade_transfers,
 )
 
 
@@ -67,7 +68,8 @@ def _validate_details(
             "franchise",
             Franchise.id,
             Franchise.competition_id,
-            [details.sender_franchise_id, details.receiver_franchise_id],
+            [franchise_id for transfer in resolve_trade_transfers(details)
+             for franchise_id in (transfer.from_franchise_id, transfer.to_franchise_id)],
         )
         player_ids = [
             asset.player_id

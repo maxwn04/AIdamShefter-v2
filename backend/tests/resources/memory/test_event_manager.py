@@ -331,6 +331,35 @@ def _manager(database_engine: Engine, competition_id: UUID) -> EventManager:
     return EventManager(create_session_factory(database_engine), context)
 
 
+def test_explicit_trade_validates_every_endpoint_and_original_pick_franchise(database_engine: Engine) -> None:
+    domain = _seed_domain(database_engine)
+    session_factory = create_session_factory(database_engine)
+    third = uuid4()
+    with database_engine.begin() as connection:
+        connection.execute(sa.insert(Franchise), {"id": third,
+            "competition_id": domain.competition_id, "display_name": "Third Franchise"})
+    details = {"kind": "trade", "assets": [
+        {"kind": "player", "player_id": domain.player_id,
+         "from_franchise_id": domain.sender_id, "to_franchise_id": domain.receiver_id},
+        {"kind": "draft_pick", "season": 2027, "round": 1, "original_franchise_id": domain.sender_id,
+         "from_franchise_id": domain.receiver_id, "to_franchise_id": third},
+    ]}
+
+    def content_with_pick(**changes: object) -> EventContent:
+        changed = {**details, "assets": [details["assets"][0], {**details["assets"][1], **changes}]}
+        return EventContent.model_validate({**_trade(domain).model_dump(), "details": changed})
+
+    with session_factory() as session:
+        prepare_event_write(session, domain.competition_id, content_with_pick())
+        for field in ("from_franchise_id", "to_franchise_id", "original_franchise_id"):
+            with pytest.raises(CrossCompetitionEntityReferenceError):
+                prepare_event_write(session, domain.competition_id,
+                    content_with_pick(**{field: domain.other_franchise_id}))
+            with pytest.raises(EntityReferenceNotFoundError):
+                prepare_event_write(session, domain.competition_id,
+                    content_with_pick(**{field: uuid4()}))
+
+
 def test_complete_event_create_replace_exact_history_and_projection(
     database_engine: Engine,
 ) -> None:

@@ -73,11 +73,13 @@ def selected_records(
         inherited_limits: tuple[str, ...], inherited_outcome: EvidenceOutcome = "found",
         inherited_complete: bool = True,
         transaction_context: tuple[dict[str, Any], dict[str, str]] | None = None,
+        team_context: tuple[str, str, str | None] | None = None,
+        standings_metadata: dict[str, Any] | None = None,
     ) -> None:
         if isinstance(node, (list, tuple)):
             for i, child in enumerate(node):
                 visit(child, f"{path}/{i}", subject, subject_id, node_season, start,
-                      end, perspective, f"{source}:{path}", inherited_limits, inherited_outcome, inherited_complete, transaction_context)
+                      end, perspective, f"{source}:{path}", inherited_limits, inherited_outcome, inherited_complete, transaction_context, team_context, standings_metadata)
             return
         if not isinstance(node, dict):
             # Scalar list results still have an exact source field binding.
@@ -104,6 +106,10 @@ def selected_records(
         end = _integer(node.get("week_to")) or end
         team = node.get("team") if isinstance(node.get("team"), dict) else {}
         own_subject = node.get("team_name") or team.get("team_name")
+        if own_subject:
+            identity_key = str(node.get("roster_key") or own_subject)
+            owner_id, owner_key = identity(identity_key, node_season)
+            team_context = (str(own_subject), f"{path}/team_name" if node.get("team_name") else f"{path}/team/team_name", owner_key)
         player_name = node.get("player_name") or node.get("full_name")
         player_metric = (tool not in {"transactions", "team_transactions"}
                          and player_name and (tool in {"player_summary", "player_weekly_log", "season_leaders", "week_player_leaderboard"}
@@ -117,7 +123,7 @@ def selected_records(
         # Player-only results use player names, while roster assets keep team perspective.
         elif own_subject:
             subject = str(own_subject)
-            subject_id, _ = identity(subject, node_season)
+            subject_id = owner_id
         elif subject is None and (node.get("player_name") or node.get("full_name")):
             subject = str(node.get("player_name") or node.get("full_name"))
         local_limits = list(inherited_limits)
@@ -155,6 +161,9 @@ def selected_records(
         if is_transaction and node.get("status") != "complete":
             outcome = "unavailable"
             local_limits.append("Transaction is not confirmed complete; listed assets are not evidence of completed movement.")
+        if transaction_context and perspective == "unknown":
+            outcome = "unavailable"
+            local_limits.append("Source movement direction is unsupported; do not interpret this asset as received or sent.")
         record_limits = tuple(dict.fromkeys(local_limits + scoped_limits))
         fields: dict[str, Any] = {}
         paths: dict[str, str] = {}
@@ -178,9 +187,32 @@ def selected_records(
             fields.pop("week", None)
             paths.pop("week", None)
             start = end = None
+        if standings_metadata and any(key in fields for key in ("wins", "losses", "record", "streak_len")):
+            for key, value in standings_metadata.items():
+                fields[key] = value
+                paths[key] = f"/{key}"
+            end = standings_metadata.get("standings_through_week")
+            for key in ("wins", "losses", "ties", "record", "streak_len"):
+                if key in fields:
+                    units[key] = standings_metadata["record_unit"]
+        if team_context and (player_metric or "asset_type" in fields):
+            owner_name, owner_path, owner_key = team_context
+            fields["team_name"] = owner_name
+            paths["team_name"] = owner_path
+            if owner_key is not None and node_season is not None:
+                fields["roster_lookup"] = {"roster_key": str(owner_key), "season": node_season}
+                paths["roster_lookup"] = owner_path
+        if transaction_context and "asset_type" in fields:
+            # Bindable relation fields retain the raw endpoint and roster scope;
+            # neither a player name nor completed status establishes direction.
+            for endpoint in ("from", "to"):
+                roster_key = fields.pop(f"{endpoint}_roster_key", None)
+                endpoint_path = paths.pop(f"{endpoint}_roster_key", None)
+                if roster_key is not None and node_season is not None:
+                    fields[f"{endpoint}_roster_lookup"] = {"roster_key": str(roster_key), "season": node_season}
+                    paths[f"{endpoint}_roster_lookup"] = endpoint_path
         if own_subject and not player_metric and tool != "player_weekly_log":
-            _, roster_key = identity(str(own_subject), node_season)
-            roster_key = node.get("sleeper_roster_id") or roster_key
+            roster_key = node.get("sleeper_roster_id") or owner_key
             if roster_key is not None and node_season is not None:
                 fields["roster_lookup"] = {"roster_key": str(roster_key), "season": node_season}
                 paths["roster_lookup"] = f"{path}/team_name"
@@ -232,13 +264,20 @@ def selected_records(
             if not child or (isinstance(child, (list, tuple)) and not any(isinstance(x, (dict, list, tuple)) for x in child)):
                 continue
             child_subject, child_id = subject, subject_id
+            child_team_context = team_context
             if key in {"team_a_players", "team_b_players"}:
                 child_subject = node.get("team_a" if key == "team_a_players" else "team_b")
-                child_id, _ = identity(child_subject, node_season) if child_subject else (None, None)
-            child_perspective = {"assets_sent": "sent", "assets_received": "received"}.get(key, perspective)
+                child_id, child_roster_key = identity(child_subject, node_season) if child_subject else (None, None)
+                child_team_context = (child_subject, f"{path}/{'team_a' if key == 'team_a_players' else 'team_b'}", child_roster_key) if child_subject else None
+            child_perspective = {"assets_sent": "sent", "assets_received": "received", "assets_unknown": "unknown"}.get(key, perspective)
             child_start = 1 if key in {"standings", "standing"} else start
+            child_standings_metadata = standings_metadata
+            if key in {"standings", "standing"} and "standings_through_week" in node:
+                child_standings_metadata = {name: node[name] for name in (
+                    "standings_through_week", "standings_basis", "competition_phase", "record_unit", "streak_basis",
+                ) if name in node}
             visit(child, f"{path}/{_escape(key)}", child_subject, child_id, node_season,
-                  child_start, end, child_perspective, population, tuple(local_limits), outcome, node_complete, transaction_context)
+                  child_start, end, child_perspective, population, tuple(local_limits), outcome, node_complete, transaction_context, child_team_context, child_standings_metadata)
 
     root_subject = None
     if isinstance(raw, dict):
@@ -331,7 +370,7 @@ def _overview_records(records: tuple[EvidenceRecord, ...]) -> tuple[EvidenceReco
         ))
     if tool in {"transactions", "team_transactions"}:
         cards = tuple(record for record in records if (
-            record.perspective in {"sent", "received"}
+            record.perspective in {"sent", "received", "unknown"}
             or record.fields.get("net_draft_picks")
             or record.outcome == "not_found"
         ))
@@ -345,7 +384,26 @@ def _overview_records(records: tuple[EvidenceRecord, ...]) -> tuple[EvidenceReco
             )
         ))
         chosen = {record.ref for record in (*cards, *empty_transactions)}
-        return tuple(record for record in records if record.ref in chosen) or records
+        visible = tuple(record for record in records if record.ref in chosen) or records
+        # Explicit endpoints make the two perspectives of one transfer redundant
+        # in the overview. Keep both immutable catalog records for inspection.
+        mirrored: dict[str, list[EvidenceRecord]] = {}
+        for record in visible:
+            if not all(key in record.fields for key in ("from_roster_lookup", "to_roster_lookup", "asset_type")):
+                continue
+            if record.fields.get("type") != "trade":
+                continue
+            signature = json.dumps({
+                "transaction_path": record.field_paths.get("type"),
+                "fields": {key: value for key, value in record.fields.items()
+                           if key not in {"team_name", "roster_lookup", "movement"}},
+            }, sort_keys=True, default=str)
+            mirrored.setdefault(signature, []).append(record)
+        redundant = set()
+        for pair in mirrored.values():
+            if len(pair) == 2 and {record.perspective for record in pair} == {"sent", "received"}:
+                redundant.add(pair[1].ref)
+        return tuple(record for record in visible if record.ref not in redundant)
     return records
 
 
@@ -359,6 +417,11 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
             guidance.append("Use transactions for movement detail in the selected week range.")
     if any("source_week" in record.fields for record in records):
         guidance.append("source_week is provider grouping, not postgame timing. occurred_at is the provider created timestamp in UTC; it does not establish a response to a game or a causal motive. status=complete supports completed movement; other statuses do not.")
+        guidance.append("Movement claims need movement and team/endpoint fields: add/pick_in means received; drop/pick_out means sent. A player name and complete status alone do not establish a pickup.")
+    if any(record.fields.get("competition_phase") == "postseason" for record in records):
+        guidance.append("Standings and their streaks stop at standings_through_week in the regular season. Requested postseason weeks do not update those records or establish live seeding stakes; use the bracket for advancement.")
+    if any(record.tool == "team_game" and record.subject != record.fields.get("team_name") and "roster_lookup" in record.fields for record in records):
+        guidance.append("Player scores belong to the team_name/roster_lookup on each player card. team_game includes both teams; the requested roster does not own every returned player.")
     if any(
         record.fields.get("league_average_match")
         or record.fields.get("streak_basis") == "head_to_head_and_league_average"

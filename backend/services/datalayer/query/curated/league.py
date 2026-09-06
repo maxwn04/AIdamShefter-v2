@@ -16,6 +16,21 @@ from ._helpers import (
 from ._resolvers import resolve_roster_id
 
 
+def standings_context(league: dict[str, Any], week: int | None) -> dict[str, Any]:
+    """Describe the regular-season derivation independently of query cutoff."""
+    playoff_start = league.get("playoff_week_start")
+    postseason = week is not None and playoff_start is not None and week >= playoff_start
+    return {
+        "competition_phase": "postseason" if postseason else (
+            "regular_season" if playoff_start is not None else "unknown"
+        ),
+        "standings_through_week": min(week, playoff_start - 1) if week is not None and playoff_start is not None else week,
+        "standings_basis": "regular_season",
+        "record_unit": "standings_decisions" if league.get("league_average_match") else "head_to_head_games",
+        "streak_basis": "head_to_head_and_league_average" if league.get("league_average_match") else "head_to_head",
+    }
+
+
 def _build_matchup_player_lookup(
     conn, league_id: str, season: str, week: int, matchup_ids: list[int]
 ) -> dict[tuple[int, int], dict[str, dict[str, list[dict[str, Any]]]]]:
@@ -175,6 +190,7 @@ def get_league_snapshot(
         "found": True,
         "as_of_week": effective_week,
         "league": strip_id_fields(league),
+        **standings_context(league, effective_week),
         "standings": strip_id_fields_list(standings),
         "games": strip_id_fields_list(games),
         "transactions": strip_id_fields_list(transactions),
@@ -748,7 +764,7 @@ def get_standings(
     league_row = fetch_one(
         conn,
         """
-        SELECT league_average_match FROM leagues
+        SELECT league_average_match, playoff_week_start FROM leagues
         WHERE league_id = :league_id AND season = :season
         """,
         {"league_id": league_id, "season": season},
@@ -802,5 +818,6 @@ def get_standings(
         "found": True,
         "as_of_week": effective_week,
         "league_average_match": league_average_match,
+        **standings_context(league_row or {}, effective_week),
         "standings": standings,
     }
