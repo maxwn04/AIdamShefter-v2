@@ -242,3 +242,27 @@ def test_direct_callback_parent_inheritance_obeys_rewrite_reporting_week(databas
         allowed_season_weeks={domain.season_id: 8}, due_in_season=domain.season_id, due_week=8,
     ))
     assert {match.version_id for match in due} == {ids["trade_review_version"]}
+
+
+def test_precision_floor_keeps_relevant_callback_and_independent_lexical_match() -> None:
+    from backend.resources.memory.search_documents.objects import SearchDocumentCandidate, SearchScoreComponents
+    from backend.resources.memory.search_documents.ranking import rank_candidates
+
+    callback_id, basketball_id, lexical_id = uuid4(), uuid4(), uuid4()
+    candidates = tuple(
+        SearchDocumentCandidate(
+            version_id=version_id, item_id=uuid4(), kind=MemoryKind.TRIGGER,
+            score=lexical_rank, score_components=SearchScoreComponents(lexical_rank=lexical_rank),
+            match_reasons=(SearchMatchReason.LEXICAL_MATCH,) if lexical_rank else (),
+        )
+        for version_id, lexical_rank in ((callback_id, 0.0), (basketball_id, 0.0), (lexical_id, 0.4))
+    )
+    # Actual retained-review scores straddle the provisional floor. These test
+    # the chosen policy, not a claim that similarity robustly classifies truth.
+    ranked = rank_candidates(candidates, SearchDocumentQuery(text="receiver contender follow-up"), {
+        callback_id: .353472, basketball_id: .349877, lexical_id: .10,
+    })
+    assert {candidate.version_id for candidate in ranked} == {callback_id, lexical_id}
+    by_id = {candidate.version_id: candidate for candidate in ranked}
+    assert by_id[callback_id].match_reasons == (SearchMatchReason.SEMANTIC_MATCH,)
+    assert by_id[lexical_id].match_reasons == (SearchMatchReason.LEXICAL_MATCH,)
