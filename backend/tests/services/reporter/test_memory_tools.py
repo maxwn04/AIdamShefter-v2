@@ -268,9 +268,11 @@ def test_registers_semantic_memory_surface() -> None:
     registry, _, _, _, _ = _registered()
     assert registry.tool_names == [
         "search_memory",
+        "inspect_memory",
         "save_memory_event",
         "upsert_storyline_memory_card",
         "save_storyline_trigger",
+        "update_memory_callback",
         "save_team_context",
         "save_league_note",
     ]
@@ -289,11 +291,12 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "7"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "8"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
         "text",
+        "season",
         "team_keys",
         "tags",
         "kinds",
@@ -306,8 +309,8 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     }
     assert properties["limit"]["default"] == 8
     assert properties["limit"]["maximum"] == 25
-    assert properties["include_evidence"]["default"] is True
-    assert properties["include_related"]["default"] is True
+    assert properties["include_evidence"]["default"] is False
+    assert properties["include_related"]["default"] is False
 
 
 def test_search_remains_pinned_and_resolves_team_keys() -> None:
@@ -320,20 +323,22 @@ def test_search_remains_pinned_and_resolves_team_keys() -> None:
     assert isinstance(execution, ToolExecutionResult)
     assert execution.result == {
         "memories": [],
-        "notice": "No relevant memory matched these editorial selectors.",
+        "notice": "No relevant memory matched these editorial selectors."
+        " Text matching is lexical. Try a short name or concept, or omit text "
+        "and browse with team, kind, or status filters; then inspect selected matches.",
         "truncated": False,
     }
     assert execution.metadata["pinned_revision_id"] == str(
         memory.pinned_revision_id
     )
-    assert retrieval.calls[0].query.entity_keys == (
+    assert retrieval.calls[0].query.required_entity_keys == (
         f"franchise:{TACO_FRANCHISE_ID}",
-        f"season_roster:{TACO_ROSTER_ID}",
+        f"roster:{TACO_ROSTER_ID}",
     )
-    assert retrieval.calls[0].query.competition_season_id == SEASON_ID
+    assert retrieval.calls[0].query.competition_season_id is None
     assert retrieval.calls[0].query.limit == 9
-    assert retrieval.calls[0].expand_exact_references is True
-    assert retrieval.calls[0].expand_stable_references is True
+    assert retrieval.calls[0].expand_exact_references is False
+    assert retrieval.calls[0].expand_stable_references is False
 
 
 def test_search_rejects_identifier_inputs_and_reversed_ranges() -> None:

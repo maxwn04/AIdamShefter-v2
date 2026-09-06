@@ -17,6 +17,12 @@ Use the finalized article and verified brief as your evidence boundary. Brief fa
 
 If memory writes are disabled, do not retry blocked writes or invent substitute bookkeeping. Complete the review as an intentional no-op.
 
+## Callback Updates
+
+Use `update_memory_callback` with the recalled callback's `update_handle` and a concise reason. Resolve a question when the available evidence supports an answer or a deliberate end to that question. Reschedule an open question with a future `target_week` when a later review will be useful. Defer a question you did not investigate; it stays open and its existing review date is unchanged.
+
+Successful updates record their own disposition. Do not reconstruct a separate completion receipt. An article mention is optional. Resolving a storyline does not resolve its callbacks, and callbacks you did not inspect remain unchanged. Review useful callbacks within the available closeout turns; accounting for every due callback is not a completion requirement.
+
 ## Required Finish
 
 When useful durable items have been saved—or when you have determined that none are warranted—call `complete_memory_review`. Do not return a normal assistant message and do not attempt to revise the submitted article.

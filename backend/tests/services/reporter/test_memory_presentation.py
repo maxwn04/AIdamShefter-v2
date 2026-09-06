@@ -380,7 +380,7 @@ def test_projects_every_memory_kind_without_canonical_fields() -> None:
         result["memories"]
     )
     assert storyline_result["subjects"] == [
-        {"label": "Team Taco", "role": "focus"}
+        {"label": "Team Taco", "role": "focus", "team_key": f"franchise:{TACO_FRANCHISE_ID}"}
     ]
     assert storyline_result["evidence"][0]["summary"] == fact.content.claim
     assert storyline_result["related_memories"][0]["headline"] == (
@@ -388,8 +388,8 @@ def test_projects_every_memory_kind_without_canonical_fields() -> None:
     )
     assert fact_result["numbers"] == {"wins": 3}
     assert event_result["participants"] == [
-        {"label": "Team Taco", "role": "sender"},
-        {"label": "Waiver Wire", "role": "receiver"},
+        {"label": "Team Taco", "role": "sender", "team_key": f"franchise:{TACO_FRANCHISE_ID}"},
+        {"label": "Waiver Wire", "role": "receiver", "team_key": f"franchise:{WIRE_FRANCHISE_ID}"},
     ]
     assert event_result["assets"] == [
         {"label": "Breece Hall", "direction": "receiver_to_sender"},

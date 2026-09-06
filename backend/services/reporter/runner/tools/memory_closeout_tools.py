@@ -9,7 +9,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-MEMORY_CLOSEOUT_TOOL_IMPLEMENTATION_VERSION = "1"
+MEMORY_CLOSEOUT_TOOL_IMPLEMENTATION_VERSION = "2"
 
 MEMORY_CLOSEOUT_TOOL_SPECS: list[ToolDef] = [
     {
@@ -57,6 +57,7 @@ def complete_memory_review(ctx: ToolContext) -> dict[str, Any]:
             turn=ctx.turn,
             outcome=result["outcome"],
             proposal_counts=result["proposal_counts"],
+            callback_dispositions=result["callback_dispositions"],
         )
         if result["outcome"] == "no_op":
             ctx.log.add_memory_closeout(

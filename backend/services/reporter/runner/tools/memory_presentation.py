@@ -15,6 +15,7 @@ from backend.resources.memory.events import EventContent
 from backend.resources.memory.events.payloads.matchup import MatchupEventPayload
 from backend.resources.memory.events.payloads.trade import (
     TradeEventPayload,
+    resolve_trade_transfers,
 )
 from backend.resources.memory.facts import FactContent
 from backend.resources.memory.storylines import StorylineContent
@@ -23,6 +24,7 @@ from backend.resources.memory.triggers.conditions.rematch import RematchConditio
 from backend.resources.memory.triggers.conditions.scheduled_review import ScheduledReviewCondition
 from backend.services.memory import (
     ExactReferenceExpansion,
+    FactOriginatingEventExpansion,
     HydratedMemory,
     HydratedMemoryMatch,
     MemoryKind,
@@ -42,8 +44,8 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_PRESENTATION_SCHEMA_VERSION = 3
-MEMORY_PRESENTATION_BUILDER_VERSION = 3
+MEMORY_PRESENTATION_SCHEMA_VERSION = 4
+MEMORY_PRESENTATION_BUILDER_VERSION = 4
 MAX_PRESENTED_REFERENCES = 3
 
 
@@ -54,6 +56,7 @@ class _PresentationModel(BaseModel):
 class SemanticEntity(_PresentationModel):
     label: str
     role: str
+    team_key: str | None = None
 
 
 class SemanticAsset(_PresentationModel):
@@ -61,7 +64,16 @@ class SemanticAsset(_PresentationModel):
     direction: str
 
 
-class SemanticMemorySummary(_PresentationModel):
+class MemoryProvenance(_PresentationModel):
+    season: int | None = None
+    version: int | None = None
+    historical: bool = False
+    read_only: bool = False
+    provenance: str = "Prior reporter memory; verify material claims against source evidence."
+    clipped: bool = False
+
+
+class SemanticMemorySummary(MemoryProvenance):
     memory_handle: str | None = None
     kind: MemoryKind
     role: str
@@ -70,7 +82,7 @@ class SemanticMemorySummary(_PresentationModel):
     status: str | None = None
 
 
-class StorylineMemoryContext(_PresentationModel):
+class StorylineMemoryContext(MemoryProvenance):
     memory_handle: str | None = None
     kind: Literal[MemoryKind.STORYLINE] = MemoryKind.STORYLINE
     headline: str
@@ -86,7 +98,8 @@ class StorylineMemoryContext(_PresentationModel):
     relevant_week: int | None = None
 
 
-class FactMemoryContext(_PresentationModel):
+class FactMemoryContext(MemoryProvenance):
+    memory_handle: str | None = None
     kind: Literal[MemoryKind.FACT] = MemoryKind.FACT
     claim: str
     category: str
@@ -97,7 +110,7 @@ class FactMemoryContext(_PresentationModel):
     relevant_week: int | None = None
 
 
-class EventMemoryContext(_PresentationModel):
+class EventMemoryContext(MemoryProvenance):
     memory_handle: str | None = None
     kind: Literal[MemoryKind.EVENT] = MemoryKind.EVENT
     event_type: str
@@ -111,7 +124,7 @@ class EventMemoryContext(_PresentationModel):
     relevant_week: int | None = None
 
 
-class TriggerMemoryContext(_PresentationModel):
+class TriggerMemoryContext(MemoryProvenance):
     memory_handle: str | None = None
     review_notice: str = "Review requested. Verify the condition from source evidence; an article mention is optional."
     resolution_reason: str | None = None
@@ -125,7 +138,8 @@ class TriggerMemoryContext(_PresentationModel):
     linked_memories: list[SemanticMemorySummary]
 
 
-class ContextNoteMemoryContext(_PresentationModel):
+class ContextNoteMemoryContext(MemoryProvenance):
+    memory_handle: str | None = None
     kind: Literal[MemoryKind.CONTEXT_NOTE] = MemoryKind.CONTEXT_NOTE
     scope_label: str
     narrative: str
@@ -154,6 +168,7 @@ class MemorySearchContext(_PresentationModel):
 class _PresentationState:
     bindings: list[dict[str, JsonValue]]
     omitted_count: int = 0
+    read_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -169,17 +184,24 @@ class MemoryPresentationAdapter:
     def __init__(self, data: FrozenLeagueData) -> None:
         self._data = data
         self._handles: dict[str, HydratedMemory] = {}
-        self._item_handles: dict[tuple[UUID, UUID], str] = {}
+        self._item_handles: dict[tuple[UUID, UUID, bool], str] = {}
+        self._read_only_handles: set[str] = set()
+        self._seasons = tuple(data.available_seasons()) if hasattr(data, "available_seasons") else ()
 
-    def handle_for(self, memory: HydratedMemory) -> str:
+    def handle_for(self, memory: HydratedMemory, *, read_only: bool = False) -> str:
         """Bind an editorial selector to exactly the presented pinned version."""
-        key = (memory.item.item_id, memory.version.version_id)
+        key = (memory.item.item_id, memory.version.version_id, read_only)
         handle = self._item_handles.get(key)
         if handle is None:
             handle = f"memory_{len(self._handles) + 1}"
             self._item_handles[key] = handle
             self._handles[handle] = memory
+            if read_only:
+                self._read_only_handles.add(handle)
         return handle
+
+    def is_read_only(self, handle: str) -> bool:
+        return handle in self._read_only_handles
 
     def resolve_handle(self, handle: str) -> HydratedMemory | None:
         return self._handles.get(handle)
@@ -190,11 +212,13 @@ class MemoryPresentationAdapter:
         *,
         query: SearchDocumentQuery,
         limit: int,
+        compact: bool = False,
+        read_only: bool = False,
     ) -> ToolExecutionResult:
         group = self.present_group(
             retrieval.matches,
             root="memories",
-            limit=limit,
+            limit=limit, compact=compact, read_only=read_only,
         )
         memories = list(group.memories)
         truncated = len(retrieval.matches) > limit
@@ -204,6 +228,9 @@ class MemoryPresentationAdapter:
                 None
                 if memories
                 else "No relevant memory matched these editorial selectors."
+                + (" Text matching is lexical. Try a short name or concept, or omit text "
+                   "and browse with team, kind, or status filters; then inspect selected matches."
+                   if query.text else "")
             ),
             truncated=truncated,
         )
@@ -235,21 +262,29 @@ class MemoryPresentationAdapter:
         *,
         root: str,
         limit: int,
+        compact: bool = False,
+        read_only: bool = False,
     ) -> PresentedMemoryGroup:
         """Present one bounded group with paths rooted in its public field."""
 
-        state = _PresentationState(bindings=[])
+        state = _PresentationState(bindings=[], read_only=read_only)
         memories: list[MemoryContext] = []
         for ordinal, match in enumerate(matches[:limit]):
             omissions: list[str] = []
             binding_index = len(state.bindings)
             state.bindings.append({})
+            rendered_match = match
+            if compact and isinstance(match.memory.content, StorylineContent):
+                rendered_match = match.model_copy(update={"exact_references": (), "stable_references": ()})
             presented = self._present_match(
-                match,
+                rendered_match,
                 path=[root, ordinal],
                 state=state,
                 omissions=omissions,
             )
+            provenance = self._provenance(match.memory, read_only=read_only)
+            updates = dict(provenance)
+            presented = presented.model_copy(update=updates)
             memories.append(presented)
             state.bindings[binding_index] = self._binding(
                 match.memory,
@@ -286,7 +321,7 @@ class MemoryPresentationAdapter:
                 state=state,
             )
             return StorylineMemoryContext(
-                memory_handle=self.handle_for(match.memory),
+                memory_handle=self.handle_for(match.memory, read_only=state.read_only),
                 headline=content.headline,
                 summary=content.summary,
                 status=content.status.value,
@@ -298,8 +333,10 @@ class MemoryPresentationAdapter:
                             subject,
                             omissions,
                             f"subjects.{index}.label",
+                            season=self._season_year(match.memory),
                         ),
                         role=subject.role.value,
+                        team_key=self._team_key(subject, match.memory),
                     )
                     for index, subject in enumerate(content.subjects)
                 ],
@@ -311,6 +348,7 @@ class MemoryPresentationAdapter:
             )
         if isinstance(content, FactContent):
             return FactMemoryContext(
+                memory_handle=self.handle_for(match.memory, read_only=state.read_only),
                 claim=content.claim,
                 category=content.category,
                 numbers=content.numbers,
@@ -322,17 +360,19 @@ class MemoryPresentationAdapter:
                             subject,
                             omissions,
                             f"subjects.{index}.label",
+                            season=self._season_year(match.memory),
                         ),
                         role=subject.role.value,
+                        team_key=self._team_key(subject, match.memory),
                     )
                     for index, subject in enumerate(content.subjects)
                 ],
                 relevant_week=match.week,
             )
         if isinstance(content, EventContent):
-            participants, assets = self._event_details(content, omissions)
+            participants, assets = self._event_details(content, omissions, season=self._season_year(match.memory))
             return EventMemoryContext(
-                memory_handle=self.handle_for(match.memory),
+                memory_handle=self.handle_for(match.memory, read_only=state.read_only),
                 event_type=content.event_type.value,
                 headline=content.headline,
                 summary=content.summary,
@@ -345,7 +385,7 @@ class MemoryPresentationAdapter:
             )
         if isinstance(content, TriggerContent):
             return TriggerMemoryContext(
-                memory_handle=self.handle_for(match.memory),
+                memory_handle=self.handle_for(match.memory, read_only=state.read_only),
                 resolution_reason=content.resolution_reason,
                 trigger_type=content.trigger_type.value,
                 status=content.status.value,
@@ -362,6 +402,7 @@ class MemoryPresentationAdapter:
         if isinstance(content, ContextNoteContent):
             note = cast(ContextNote, match.memory)
             return ContextNoteMemoryContext(
+                memory_handle=self.handle_for(match.memory, read_only=state.read_only),
                 scope_label=self._scope_label(note, omissions),
                 narrative=content.narrative,
                 outlook=content.outlook,
@@ -374,6 +415,7 @@ class MemoryPresentationAdapter:
         self,
         content: EventContent,
         omissions: list[str],
+        *, season: int | None = None,
     ) -> tuple[list[SemanticEntity], list[SemanticAsset]]:
         details = content.details
         if isinstance(details, MatchupEventPayload):
@@ -383,17 +425,19 @@ class MemoryPresentationAdapter:
                         label=self._roster_label(
                             franchise_id=details.winner_franchise_id,
                             omissions=omissions,
-                            field="participants.0.label",
+                            field="participants.0.label", season=season,
                         ),
                         role="winner",
+                    team_key=f"franchise:{details.winner_franchise_id}",
                     ),
                     SemanticEntity(
                         label=self._roster_label(
                             franchise_id=details.loser_franchise_id,
                             omissions=omissions,
-                            field="participants.1.label",
+                            field="participants.1.label", season=season,
                         ),
                         role="loser",
+                    team_key=f"franchise:{details.loser_franchise_id}",
                     ),
                 ],
                 [],
@@ -403,14 +447,19 @@ class MemoryPresentationAdapter:
         participants, assets = present_trade(
             details,
             roster_label=lambda franchise_id, field: self._roster_label(
-                franchise_id=franchise_id, omissions=omissions, field=field,
+                franchise_id=franchise_id, omissions=omissions, field=field, season=season,
             ),
             player_label=lambda player_id, field: self._player_label(
                 player_id, omissions, field,
             ),
             omissions=omissions,
         )
-        return ([SemanticEntity(**item) for item in participants],
+        participant_ids = ([details.sender_franchise_id, details.receiver_franchise_id]
+            if details.sender_franchise_id is not None else sorted(
+                {endpoint for transfer in resolve_trade_transfers(details)
+                 for endpoint in (transfer.from_franchise_id, transfer.to_franchise_id)}, key=str))
+        return ([SemanticEntity(**{**item, "team_key": f"franchise:{franchise_id}"})
+                 for item, franchise_id in zip(participants, participant_ids, strict=True)],
                 [SemanticAsset(**item) for item in assets])
 
     def _condition_summary(
@@ -448,6 +497,9 @@ class MemoryPresentationAdapter:
         summaries: list[SemanticMemorySummary] = []
         for expansion in expansions[:MAX_PRESENTED_REFERENCES]:
             memory = expansion.memory
+            read_only = state.read_only or isinstance(
+                expansion, (StorylineEvidenceExpansion, FactOriginatingEventExpansion)
+            )
             role = self._expansion_role(expansion)
             content = memory.content
             headline = getattr(content, "headline", None)
@@ -459,7 +511,8 @@ class MemoryPresentationAdapter:
             result_path = path + [len(summaries)]
             summaries.append(
                 SemanticMemorySummary(
-                    memory_handle=self.handle_for(memory),
+                    memory_handle=self.handle_for(memory, read_only=read_only),
+                    **self._provenance(memory, read_only=read_only),
                     kind=memory.item.kind,
                     role=role,
                     headline=headline,
@@ -493,6 +546,7 @@ class MemoryPresentationAdapter:
         subject: EntityReference[Any],
         omissions: list[str],
         field: str,
+        *, season: int | None = None,
     ) -> str:
         if subject.display_name:
             return subject.display_name
@@ -501,13 +555,13 @@ class MemoryPresentationAdapter:
             return self._roster_label(
                 franchise_id=subject.id,
                 omissions=omissions,
-                field=field,
+                field=field, season=season,
             )
         if kind == "season_roster":
             return self._roster_label(
                 season_roster_id=subject.id,
                 omissions=omissions,
-                field=field,
+                field=field, season=season,
             )
         if kind == "player":
             return self._player_label(subject.id, omissions, field)
@@ -522,15 +576,39 @@ class MemoryPresentationAdapter:
         field: str,
         franchise_id: UUID | None = None,
         season_roster_id: UUID | None = None,
+        season: int | None = None,
     ) -> str:
         identity = self._data.get_roster_identity_by_canonical_id(
             franchise_id=franchise_id,
             season_roster_id=season_roster_id,
+            **({"season": season} if season is not None else {}),
         )
         if identity is not None:
             return identity.team_name or identity.manager_name or "Team"
         omissions.append(field)
         return "Team"
+
+    def _season_year(self, memory: HydratedMemory) -> int | None:
+        return next((season.season_year for season in self._seasons
+                     if season.competition_season_id == memory.version.competition_season_id), None)
+
+    def _provenance(self, memory: HydratedMemory, *, read_only: bool) -> dict[str, Any]:
+        year = self._season_year(memory)
+        primary = next((season for season in self._seasons if season.role == "primary"), None)
+        historical = bool(primary and memory.version.competition_season_id not in
+                          (None, primary.competition_season_id))
+        return {"season": year, "version": memory.version.revision_number,
+                "historical": historical, "read_only": read_only or historical}
+
+    def _team_key(self, subject: EntityReference[Any], memory: HydratedMemory) -> str | None:
+        if subject.kind == "franchise":
+            return f"franchise:{subject.id}"
+        if subject.kind == "season_roster":
+            season = self._season_year(memory)
+            identity = self._data.get_roster_identity_by_canonical_id(
+                season_roster_id=subject.id, **({"season": season} if season is not None else {}))
+            return f"franchise:{identity.franchise_id}" if identity else None
+        return None
 
     def _player_label(
         self,
