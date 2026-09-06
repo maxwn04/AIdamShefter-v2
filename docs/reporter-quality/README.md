@@ -1,8 +1,10 @@
 
 # Reporter Quality and Season Continuity
 
-**Status:** Parallel implementation direction accepted for season simulation and
-combined evidence/grounding; broader experiments and memory lifecycle work deferred.
+**Current delivery:** [Memory discovery, callbacks, and evidence contracts](query-representation-contracts.md)
+define the accepted follow-up over the retained season baseline. The earlier
+simulation/evidence workstream descriptions below are historical design context.
+Broader experiments, new paid evaluations and merging are outside this delivery.
 
 ## Objective and scope
 
@@ -131,6 +133,8 @@ claims must be assessed before trusting the output.
 
 - [Evidence representations](evidence-representations.md): source relationships,
   standings periods, multi-party trades and retained payload compatibility.
+- [Memory discovery, callbacks, and evidence](query-representation-contracts.md): current ownership, shared interfaces and acceptance.
+
 - [Coordination](coordination.md): implementation ownership and cross-stream contracts.
 - [Workstreams](workstreams.md): current parallel delivery plan and integration contract.
 - [Architecture](architecture.md): ownership, experiment isolation, continuity,
