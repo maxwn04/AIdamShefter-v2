@@ -190,6 +190,7 @@ class SearchDocumentManager:
                     MemoryRevision.sequence_number <= pinned_sequence,
                     *temporal_conditions(
                         self._competition_id, scope or SearchDocumentQuery(),
+                        introduced_revision_id=MemoryVersion.introduced_revision_id,
                         season_id=MemoryVersion.competition_season_id,
                         week=MemoryVersion.week,
                         recorded_at=MemoryVersion.recorded_at,

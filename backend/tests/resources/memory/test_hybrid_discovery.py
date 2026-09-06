@@ -155,3 +155,90 @@ def test_rank_fusion_collapses_versions_without_pushing_other_items_down() -> No
     assert [candidate.version_id for candidate in ranked] == [current_id, other_id]
     assert ranked[0].score == 1 / 61
     assert ranked[1].score == 1 / 62
+
+
+def test_reporting_bounds_exclude_later_rewrites_with_preserved_origin_week(database_engine: Engine) -> None:
+    import pytest
+    from backend.resources.memory.common.errors import TargetNotFoundError
+    from backend.services.memory import MemoryMutationMetadata
+    from backend.tests.services.memory.test_retrieval_service import _retrieval_service
+
+    domain, ids, first = _committed_bundle(database_engine)
+    replacement = _service(database_engine, domain).replace_storyline(MemoryMutationOrigin(
+        generation_id=_add_generation(database_engine, domain), expected_revision_id=first,
+        competition_season_id=domain.season_id, week=17,
+    ), ids["storyline_item"], 1,
+        _storyline(domain, ids["event_version"], ids["fact_version"]).model_copy(update={
+            "headline": "Owls won the championship", "summary": "The final bracket game settled the title.",
+        }), metadata=MemoryMutationMetadata(competition_season_id=domain.season_id, week=7))
+    assert replacement.revision is not None
+    latest = replacement.changes[0].version_id
+    scorer = Scores({ids["storyline_version"]: .7, latest: .99})
+    manager = manager_with_scores(database_engine, domain.competition_id, scorer)
+    pin = replacement.revision.revision_id
+    for bounds in (
+        {"allowed_season_weeks": {domain.season_id: 8}},
+        {"through_competition_season_id": domain.season_id, "through_week": 8},
+    ):
+        query = SearchDocumentQuery(text="receiver acquisition payoff", include_history=True,
+            kinds=(MemoryKind.STORYLINE,), **bounds)
+        matches = manager.search(pin, query)
+        assert [match.version_id for match in matches] == [ids["storyline_version"]]
+        assert matches[0].current_at_pin is False
+        assert {document.version_id for document in scorer.seen[-1]} == {ids["storyline_version"]}
+        assert manager.search(pin, query.model_copy(update={"text": None})) == ()
+        lexical_only = SearchDocumentManager(manager._session_factory,
+            ManagerContext[CompetitionScope].model_validate({
+                "actor": {"kind": "system_process", "process_name": "lexical-boundary"},
+                "scope": {"kind": "competition", "competition_id": domain.competition_id},
+                "correlation_id": uuid4(),
+            }))
+        assert lexical_only.search(pin, query.model_copy(update={"text": "championship"})) == ()
+        with pytest.raises(TargetNotFoundError):
+            manager.inspect_versions(pin, latest, scope=query)
+    # All canonical values remain unchanged; safe older matches are not promoted.
+    service, _ = _retrieval_service(database_engine, domain)
+    from backend.services.memory import MemoryRetrievalRequest
+    current = service.search(competition_id=domain.competition_id, revision_id=pin,
+        request=MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.STORYLINE,)))).matches[0]
+    assert current.week == 7
+    assert current.current_at_pin is True
+
+
+def test_direct_callback_parent_inheritance_obeys_rewrite_reporting_week(database_engine: Engine) -> None:
+    from backend.services.memory import MemoryMutationMetadata
+    from backend.tests.resources.memory.test_search_document_manager import _linked_team_callbacks
+
+    domain, ids, first = _linked_team_callbacks(database_engine)
+    replacement = _service(database_engine, domain).replace_storyline(MemoryMutationOrigin(
+        generation_id=_add_generation(database_engine, domain), expected_revision_id=first,
+        competition_season_id=domain.season_id, week=17,
+    ), ids["storyline_item"], 1,
+        _storyline(domain, ids["event_version"], ids["fact_version"]),
+        metadata=MemoryMutationMetadata(competition_season_id=domain.season_id, week=7))
+    assert replacement.revision is not None
+    scorer = Scores({ids["trade_review_version"]: .8, ids["scheduled_version"]: .9})
+    manager = manager_with_scores(database_engine, domain.competition_id, scorer)
+    result = manager.search(replacement.revision.revision_id, SearchDocumentQuery(
+        kinds=(MemoryKind.TRIGGER,), required_entity_keys=(f"franchise:{domain.winner_id}",),
+        allowed_season_weeks={domain.season_id: 8},
+    ))
+    assert {match.version_id for match in result} == {ids["trade_review_version"]}
+
+    from backend.services.memory import MemoryRetrievalRequest
+    from backend.tests.services.memory.test_retrieval_service import _retrieval_service
+    service, _ = _retrieval_service(database_engine, domain)
+    recalled = service.search(competition_id=domain.competition_id,
+        revision_id=replacement.revision.revision_id,
+        request=MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.TRIGGER,),
+            allowed_season_weeks={domain.season_id: 8}), expand_stable_references=True))
+    scheduled = next(match for match in recalled.matches if match.memory.version.version_id == ids["scheduled_version"])
+    assert scheduled.stable_references == ()
+    assert service.inspect(competition_id=domain.competition_id,
+        revision_id=replacement.revision.revision_id, memory=scheduled.memory,
+        view="evidence", scope=SearchDocumentQuery(allowed_season_weeks={domain.season_id: 8})).matches == ()
+    due = manager.search(replacement.revision.revision_id, SearchDocumentQuery(
+        kinds=(MemoryKind.TRIGGER,), required_entity_keys=(f"franchise:{domain.winner_id}",),
+        allowed_season_weeks={domain.season_id: 8}, due_in_season=domain.season_id, due_week=8,
+    ))
+    assert {match.version_id for match in due} == {ids["trade_review_version"]}
