@@ -1,8 +1,18 @@
 
 # Reporter Quality and Season Continuity
 
-**Status:** Parallel implementation direction accepted for season simulation and
-combined evidence/grounding; broader experiments and memory lifecycle work deferred.
+Use `aida-reporter-evaluation` for selected-week backend comparisons and
+`aida-season-simulation` for sequential campaigns. Their shared
+[evaluation procedure](evaluation-procedure.md) covers source/article/memory
+assessment and the sample gate; [campaign operations](campaign-operations.md)
+covers frozen preparation, semantic indexing, bounded execution and safe resume.
+Current run identities, progress, authorizations and evidence links belong in
+ignored `.context/reporter-quality/`, not these durable instructions.
+
+**Historical implementation direction:** Parallel implementation accepted for
+season simulation and combined evidence/grounding; the assessment below predates
+the later memory/retrieval candidates. Verify current code and PR state before
+using candidate-only procedures.
 
 ## Objective and scope
 
