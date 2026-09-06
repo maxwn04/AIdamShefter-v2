@@ -254,4 +254,3 @@ def test_late_arc_history_paging_and_read_only_handles_never_gain_writes(databas
         "evidence_page": links, "automatic_8_of_11_callbacks": recall.result}.items()}
     (tmp_path / "late-arc-bytes.json").write_text(json.dumps(sizes, indent=2), encoding="utf-8")
     print("LATE_ARC_BYTES " + json.dumps(sizes))
-
