@@ -22,6 +22,8 @@ from backend.resources.memory.search_documents.builders.trigger import (
 )
 from backend.resources.memory.search_documents.manager import SearchDocumentManager
 from backend.resources.memory.search_documents.objects import (
+    SearchDiscoveryResult,
+    SearchDiscoveryStatus,
     SearchDocumentCandidate,
     SearchDocumentProjection,
     SearchDocumentQuery,
@@ -34,6 +36,8 @@ __all__ = [
     "CONTEXT_NOTE_DOCUMENT_BUILDER_VERSION",
     "EVENT_DOCUMENT_BUILDER_VERSION",
     "FACT_DOCUMENT_BUILDER_VERSION",
+    "SearchDiscoveryResult",
+    "SearchDiscoveryStatus",
     "SearchDocumentCandidate",
     "SearchDocumentManager",
     "SearchDocumentProjection",

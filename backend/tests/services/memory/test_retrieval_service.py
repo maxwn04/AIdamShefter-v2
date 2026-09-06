@@ -493,8 +493,12 @@ def test_selected_history_is_paginated_and_cannot_cross_pin_or_selected_version(
         memory=current, view="history", offset=1, limit=1)
     assert [match.memory.version.version_id for match in first.matches] == [current.version.version_id]
     assert first.has_more
+    assert first.matches[0].current_at_pin is True
+    assert first.matches[0].revision_number == 2
     assert [match.memory.version.version_id for match in second.matches] == [original.version.version_id]
     assert not second.has_more
+    assert second.matches[0].current_at_pin is False
+    assert second.matches[0].revision_number == 1
     selected_old = service.inspect(competition_id=domain.competition_id, revision_id=latest_revision,
         memory=original, view="history")
     assert [match.memory.version.version_id for match in selected_old.matches] == [original.version.version_id]

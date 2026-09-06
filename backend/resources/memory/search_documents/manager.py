@@ -41,6 +41,8 @@ from backend.resources.memory.search_documents.builders import (
     build_trigger_document,
 )
 from backend.resources.memory.search_documents.objects import (
+    SearchDiscoveryResult,
+    SearchDiscoveryStatus,
     SearchDocumentCandidate,
     SearchDocumentProjection,
     SearchDocumentQuery,
@@ -53,6 +55,8 @@ from backend.resources.memory.search_documents.query import (
     temporal_conditions,
 )
 from backend.resources.memory.search_documents.shared import insert_search_document
+from backend.resources.memory.search_documents.ranking import rank_candidates
+from backend.resources.memory.search_documents.semantic import EmbeddingDocument, SemanticScorer
 from backend.resources.memory.storylines.codec import (
     decode_storyline,
     storyline_rows_statement,
@@ -70,9 +74,12 @@ class SearchDocumentManager:
         self,
         session_factory: SessionFactory,
         context: ManagerContext[CompetitionScope],
+        *,
+        semantic_index: SemanticScorer | None = None,
     ) -> None:
         self._session_factory: SessionFactory = session_factory
         self._competition_id: UUID = context.scope.competition_id
+        self._semantic_index = semantic_index
 
     @property
     def competition_id(self) -> UUID:
@@ -83,26 +90,51 @@ class SearchDocumentManager:
         revision_id: UUID,
         query: SearchDocumentQuery,
     ) -> tuple[SearchDocumentCandidate, ...]:
-        """Return compact candidates visible at one exact canonical revision."""
+        """Compatibility API for callers needing only candidates."""
+        return self.discover(revision_id, query).candidates
 
+    def discover(
+        self, revision_id: UUID, query: SearchDocumentQuery,
+    ) -> SearchDiscoveryResult:
+        """Discover scoped canonical units and report semantic index coverage."""
         with read_only_session(self._session_factory) as session:
             self._require_revision(session, revision_id)
             rows = query_search_documents(
-                session,
-                self._competition_id,
-                revision_id,
-                query,
+                session, self._competition_id, revision_id, query,
             )
-        candidates = tuple(self._candidate(row, rank, query) for row, rank in rows)
-        ordered = sorted(
-            candidates,
-            key=lambda candidate: (
-                -candidate.score,
-                candidate.kind.value,
-                str(candidate.version_id),
-            ),
+        candidates = tuple(
+            self._candidate(row.document, row.lexical_rank, query).model_copy(update={
+                "current_at_pin": row.current_at_pin,
+                "revision_number": row.revision_number,
+            }) for row in rows
         )
-        return tuple(ordered[: query.limit])
+        scores: dict[UUID, float] = {}
+        status = SearchDiscoveryStatus(
+            total_count=len(rows), reason="Semantic discovery is not configured.",
+        )
+        if query.text and self._semantic_index is not None:
+            semantic = self._semantic_index.score(query.text, tuple(
+                EmbeddingDocument(
+                    version_id=row.document.version_id,
+                    document_text=row.document.document_text,
+                    content_hash=row.document.content_hash,
+                    builder_version=row.document.builder_version,
+                ) for row in rows
+            ))
+            scores = semantic.scores
+            status = SearchDiscoveryStatus(
+                status=semantic.status, total_count=semantic.total_count,
+                available_count=semantic.available_count,
+                missing_count=semantic.missing_count, stale_count=semantic.stale_count,
+                reason=semantic.reason,
+            )
+        elif not query.text:
+            status = SearchDiscoveryStatus(
+                total_count=len(rows), reason="Structured discovery does not require embeddings.",
+            )
+        return SearchDiscoveryResult(
+            candidates=rank_candidates(candidates, query, scores), semantic_status=status,
+        )
 
     def visible_reference_version(
         self, revision_id: UUID, item_id: UUID,

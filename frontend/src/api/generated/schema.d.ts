@@ -2521,6 +2521,11 @@ export interface components {
         /** HydratedMemoryMatch */
         HydratedMemoryMatch: {
             /**
+             * Current At Pin
+             * @default true
+             */
+            current_at_pin: boolean;
+            /**
              * Exact References
              * @default []
              */
@@ -2549,6 +2554,11 @@ export interface components {
             matched_tags: string[];
             /** Memory */
             memory: components["schemas"]["VersionedMemory_FactContent_"] | components["schemas"]["VersionedMemory_EventContent_"] | components["schemas"]["VersionedMemory_StorylineContent_"] | components["schemas"]["VersionedMemory_TriggerContent_"] | components["schemas"]["ContextNote"];
+            /**
+             * Revision Number
+             * @default 1
+             */
+            revision_number: number;
             /** Score */
             score: number;
             score_components: components["schemas"]["SearchScoreComponents"];
@@ -2779,6 +2789,7 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+            semantic_status?: components["schemas"]["SearchDiscoveryStatus"];
         };
         /** MemorySearchRequest */
         MemorySearchRequest: {
@@ -3346,6 +3357,40 @@ export interface components {
             warning_codes: string[];
         };
         /**
+         * SearchDiscoveryStatus
+         * @description Semantic coverage is separate from whether lexical discovery found a lead.
+         */
+        SearchDiscoveryStatus: {
+            /**
+             * Available Count
+             * @default 0
+             */
+            available_count: number;
+            /**
+             * Missing Count
+             * @default 0
+             */
+            missing_count: number;
+            /** Reason */
+            reason?: string | null;
+            /**
+             * Stale Count
+             * @default 0
+             */
+            stale_count: number;
+            /**
+             * Status
+             * @default disabled
+             * @enum {string}
+             */
+            status: "ready" | "disabled" | "unavailable" | "partial" | "stale";
+            /**
+             * Total Count
+             * @default 0
+             */
+            total_count: number;
+        };
+        /**
          * SearchDocumentQuery
          * @description Revision-grounded discovery signals and structured result filters.
          */
@@ -3405,7 +3450,7 @@ export interface components {
          * SearchMatchReason
          * @enum {string}
          */
-        SearchMatchReason: "entity_overlap" | "evidence_overlap" | "related_item_overlap" | "tag_overlap" | "lexical_match" | "browse_match";
+        SearchMatchReason: "entity_overlap" | "evidence_overlap" | "related_item_overlap" | "tag_overlap" | "lexical_match" | "browse_match" | "semantic_match";
         /** SearchScoreComponents */
         SearchScoreComponents: {
             /**
@@ -3424,6 +3469,11 @@ export interface components {
              */
             lexical_rank: number;
             /**
+             * Reciprocal Rank
+             * @default 0
+             */
+            reciprocal_rank: number;
+            /**
              * Related Item Overlap
              * @default 0
              */
@@ -3433,6 +3483,11 @@ export interface components {
              * @default 0
              */
             salience: number;
+            /**
+             * Semantic Similarity
+             * @default 0
+             */
+            semantic_similarity: number;
             /**
              * Tag Overlap
              * @default 0

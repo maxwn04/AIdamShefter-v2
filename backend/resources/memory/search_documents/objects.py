@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import AwareDatetime, Field, StringConstraints, field_validator, model_validator
@@ -39,6 +39,7 @@ class SearchMatchReason(StrEnum):
     TAG_OVERLAP = "tag_overlap"
     LEXICAL_MATCH = "lexical_match"
     BROWSE_MATCH = "browse_match"
+    SEMANTIC_MATCH = "semantic_match"
 
 
 class SearchDocumentQuery(ContractModel):
@@ -50,6 +51,7 @@ class SearchDocumentQuery(ContractModel):
     related_item_ids: tuple[UUID, ...] = ()
     tags: tuple[NonBlankStr, ...] = ()
     text: NonBlankStr | None = None
+    include_history: SkipJsonSchema[bool] = False
     kinds: tuple[MemoryKind, ...] = ()
     statuses: tuple[NonBlankStr, ...] = ()
     agent_key: NonBlankStr | None = None
@@ -122,9 +124,13 @@ class SearchScoreComponents(ContractModel):
     tag_overlap: float = Field(default=0.0, ge=0)
     lexical_rank: float = Field(default=0.0, ge=0)
     salience: float = Field(default=0.0, ge=0)
+    semantic_similarity: float = Field(default=0.0, ge=0, le=1)
+    reciprocal_rank: float = Field(default=0.0, ge=0)
 
     @property
     def total(self) -> float:
+        if self.reciprocal_rank:
+            return self.reciprocal_rank
         return (
             self.entity_overlap
             + self.evidence_overlap
@@ -140,6 +146,8 @@ class SearchDocumentCandidate(ContractModel):
 
     version_id: UUID
     item_id: UUID
+    current_at_pin: bool = True
+    revision_number: int = Field(default=1, ge=1)
     kind: MemoryKind
     status: NonBlankStr | None = None
     salience: int | None = Field(default=None, ge=1, le=5, strict=True)
@@ -158,3 +166,19 @@ class SearchProjectionRebuildResult(ContractModel):
     competition_id: UUID
     canonical_revision_id: UUID
     documents_rebuilt: int = Field(ge=0, strict=True)
+
+
+class SearchDiscoveryStatus(ContractModel):
+    """Semantic coverage is separate from whether lexical discovery found a lead."""
+
+    status: Literal["ready", "disabled", "unavailable", "partial", "stale"] = "disabled"
+    total_count: int = Field(default=0, ge=0)
+    available_count: int = Field(default=0, ge=0)
+    missing_count: int = Field(default=0, ge=0)
+    stale_count: int = Field(default=0, ge=0)
+    reason: str | None = None
+
+
+class SearchDiscoveryResult(ContractModel):
+    candidates: tuple[SearchDocumentCandidate, ...]
+    semantic_status: SearchDiscoveryStatus = Field(default_factory=SearchDiscoveryStatus)
