@@ -162,6 +162,7 @@ def query_search_documents(
     statement = statement.where(
         *temporal_conditions(
             competition_id, query,
+            introduced_revision_id=MemoryVersion.introduced_revision_id,
             season_id=MemoryVersion.competition_season_id,
             week=MemoryVersion.week,
             recorded_at=MemoryVersion.recorded_at,
@@ -227,6 +228,7 @@ def _trigger_reference_entity_match(
             ),
             *temporal_conditions(
                 competition_id, query,
+                introduced_revision_id=target_version.c.introduced_revision_id,
                 season_id=target_version.c.competition_season_id,
                 week=target_version.c.week,
                 recorded_at=target_version.c.recorded_at,
@@ -239,6 +241,41 @@ def _trigger_reference_entity_match(
 
 
 def temporal_conditions(
+    competition_id: UUID,
+    query: SearchDocumentQuery,
+    *,
+    introduced_revision_id: sa.ColumnElement[UUID],
+    season_id: sa.ColumnElement[UUID | None],
+    week: sa.ColumnElement[int | None],
+    recorded_at: sa.ColumnElement[datetime],
+) -> tuple[sa.ColumnElement[bool], ...]:
+    """Bound both a memory's origin and when its narrative version was produced.
+
+    Replacing a storyline preserves its origin week. Its introduction revision
+    carries the reporting week of the new narrative, which must independently
+    fit the frozen coverage even when the selected pin is later than that week.
+    """
+    origin_conditions = _temporal_scope_conditions(
+        competition_id, query, season_id=season_id, week=week,
+        recorded_at=recorded_at,
+    )
+    introduced = aliased(MemoryRevision)
+    introduction_conditions = _temporal_scope_conditions(
+        competition_id, query.model_copy(update={"recorded_through": None}),
+        season_id=introduced.competition_season_id, week=introduced.week,
+        recorded_at=introduced.created_at,
+    )
+    if not introduction_conditions:
+        return origin_conditions
+    introduction_eligible = sa.select(sa.literal(1)).where(
+        introduced.id == introduced_revision_id,
+        introduced.competition_id == competition_id,
+        *introduction_conditions,
+    ).exists()
+    return (*origin_conditions, introduction_eligible)
+
+
+def _temporal_scope_conditions(
     competition_id: UUID,
     query: SearchDocumentQuery,
     *,
