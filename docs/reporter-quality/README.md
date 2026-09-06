@@ -13,6 +13,12 @@ ignored `.context/reporter-quality/`, not these durable instructions.
 season simulation and combined evidence/grounding; the assessment below predates
 the later memory/retrieval candidates. Verify current code and PR state before
 using candidate-only procedures.
+
+[Hybrid memory discovery](semantic-discovery.md) extends the discovery contract
+with eligible historical narratives, rebuildable semantic indexing and explicit
+degraded search status. Quality remains primary; retrieval-only comparisons do
+not establish improved article quality.
+
 **Current delivery:** [Memory discovery, callbacks, and evidence contracts](query-representation-contracts.md)
 define the accepted follow-up over the retained season baseline. The earlier
 simulation/evidence workstream descriptions below are historical design context.

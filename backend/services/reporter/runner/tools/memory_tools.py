@@ -51,7 +51,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "8"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "9"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -85,8 +85,8 @@ class SearchMemoryArgs(_StrictModel):
         default=None,
         description=(
             "Optional focused editorial concept, name, or phrase. Search uses "
-            "lexical matching internally, so keep each call centered on one "
-            "continuity question; use OR only for explicit alternatives."
+            "structured, lexical and available semantic matching, including older "
+            "narrative versions. Keep each call centered on one continuity question."
         ),
     )
     team_keys: list[str] = Field(
@@ -413,6 +413,7 @@ class TypedMemoryAdapter:
             statuses=tuple(arguments.statuses), season=arguments.season,
             week_from=arguments.week_from, week_to=arguments.week_to,
             allowed_season_weeks=self._season_bounds(), limit=arguments.limit + 1,
+            include_history=bool(arguments.text),
         )
         result = self._memory_context.search(MemoryRetrievalRequest(
             query=query, expand_exact_references=arguments.include_evidence,
@@ -471,7 +472,7 @@ class TypedMemoryAdapter:
         self._pinned_agent_candidates.update(
             ((match.memory.item.kind, match.memory.item.agent_key), match.memory)
             for match in matches
-            if match.memory.item.agent_key is not None
+            if match.memory.item.agent_key is not None and match.current_at_pin
         )
 
     def save_memory_event(
