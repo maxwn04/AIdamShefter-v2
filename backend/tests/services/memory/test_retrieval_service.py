@@ -11,6 +11,7 @@ from backend.database.models.memory import MemorySearchDocument
 from backend.database.sessions import create_session_factory
 from backend.resources.context import CompetitionScope, ManagerContext
 from backend.resources.memory.common import SearchProjectionHydrationError
+from backend.resources.memory.common.errors import TargetNotFoundError
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.context_notes import ContextNoteManager
 from backend.resources.memory.events import Event, EventManager, MatchupEventPayload
@@ -463,3 +464,102 @@ def test_expansion_defaults_off_and_scope_mismatch_is_rejected(
             revision_id=revision_id,
             request=request,
         )
+
+
+def test_selected_history_is_paginated_and_cannot_cross_pin_or_selected_version(
+    database_engine: Engine,
+) -> None:
+    domain, ids, first_revision = _committed_bundle(database_engine)
+    service, _ = _retrieval_service(database_engine, domain)
+    original = service.search(
+        competition_id=domain.competition_id, revision_id=first_revision,
+        request=MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.FACT,))),
+    ).matches[0].memory
+    replacement = _service(database_engine, domain).replace_fact(
+        MemoryMutationOrigin(
+            generation_id=_add_generation(database_engine, domain),
+            expected_revision_id=first_revision, competition_season_id=domain.season_id, week=8,
+        ), ids["fact_item"], 1, _fact(domain, ids["event_version"], archived=True),
+    )
+    assert replacement.revision is not None
+    latest_revision = replacement.revision.revision_id
+    current = service.search(
+        competition_id=domain.competition_id, revision_id=latest_revision,
+        request=MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.FACT,))),
+    ).matches[0].memory
+    first = service.inspect(competition_id=domain.competition_id, revision_id=latest_revision,
+        memory=current, view="history", limit=1)
+    second = service.inspect(competition_id=domain.competition_id, revision_id=latest_revision,
+        memory=current, view="history", offset=1, limit=1)
+    assert [match.memory.version.version_id for match in first.matches] == [current.version.version_id]
+    assert first.has_more
+    assert [match.memory.version.version_id for match in second.matches] == [original.version.version_id]
+    assert not second.has_more
+    selected_old = service.inspect(competition_id=domain.competition_id, revision_id=latest_revision,
+        memory=original, view="history")
+    assert [match.memory.version.version_id for match in selected_old.matches] == [original.version.version_id]
+    with pytest.raises(TargetNotFoundError):
+        service.inspect(competition_id=domain.competition_id, revision_id=first_revision,
+            memory=current, view="history")
+    with pytest.raises(ValueError, match="another competition"):
+        service.inspect(competition_id=domain.competition_id, revision_id=first_revision,
+            memory=original.model_copy(update={"item": original.item.model_copy(update={"competition_id": uuid4()})}))
+    # Caller content is never trusted over the selected canonical version.
+    forged = original.model_copy(update={"content": original.content.model_copy(update={"statement": "fabricated"})})
+    inspected = service.inspect(competition_id=domain.competition_id, revision_id=latest_revision, memory=forged)
+    assert inspected.matches[0].memory.content == original.content
+
+
+def test_evidence_inspection_keeps_exact_retired_targets_with_temporal_bounds(
+    database_engine: Engine,
+) -> None:
+    domain, ids, first_revision = _committed_bundle(database_engine)
+    replacement = _service(database_engine, domain).replace_fact(
+        MemoryMutationOrigin(
+            generation_id=_add_generation(database_engine, domain),
+            expected_revision_id=first_revision, competition_season_id=domain.season_id, week=8,
+        ), ids["fact_item"], 1, _fact(domain, ids["event_version"], archived=True),
+    )
+    assert replacement.revision is not None
+    service, _ = _retrieval_service(database_engine, domain)
+    storyline = service.search(
+        competition_id=domain.competition_id, revision_id=replacement.revision.revision_id,
+        request=MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.STORYLINE,))),
+    ).matches[0].memory
+    pages = [service.inspect(competition_id=domain.competition_id,
+        revision_id=replacement.revision.revision_id, memory=storyline, view="evidence", limit=1, offset=offset)
+        for offset in (0, 1)]
+    assert {page.matches[0].memory.version.version_id for page in pages} == {
+        ids["event_version"], ids["fact_version"],
+    }
+    assert pages[0].has_more and not pages[1].has_more
+    assert all(not page.matches[0].exact_references for page in pages)
+    with pytest.raises(TargetNotFoundError):
+        service.inspect(competition_id=domain.competition_id,
+            revision_id=replacement.revision.revision_id, memory=storyline,
+            scope=SearchDocumentQuery(allowed_season_weeks={domain.season_id: 6}))
+
+
+def test_generation_context_keeps_pinned_output_after_prior_observation_cutoff(
+    database_engine: Engine,
+) -> None:
+    from datetime import timedelta
+    from backend.services.memory import GenerationMemoryContext
+
+    domain, _, revision_id = _committed_bundle(database_engine)
+    service, _ = _retrieval_service(database_engine, domain)
+    query = MemoryRetrievalRequest(query=SearchDocumentQuery(kinds=(MemoryKind.STORYLINE,)))
+    selected = service.search(competition_id=domain.competition_id, revision_id=revision_id, request=query).matches[0].memory
+    context = GenerationMemoryContext(
+        competition_id=domain.competition_id, generation_id=uuid4(),
+        pinned_revision_id=revision_id, retrieval=service,
+        competition_season_id=domain.season_id, week=7,
+        knowledge_cutoff_at=selected.version.recorded_at - timedelta(seconds=1),
+        editorial_cutoff_at=selected.version.recorded_at + timedelta(days=1),
+    )
+    assert context.search(query).matches[0].memory == selected
+    assert context.inspect(selected).matches[0].memory == selected
+    explicit_clock = query.model_copy(update={"query": query.query.model_copy(update={
+        "recorded_through": context.knowledge_cutoff_at,
+    })})
+    assert context.search(explicit_clock).matches == ()
