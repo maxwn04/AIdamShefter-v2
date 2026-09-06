@@ -1,6 +1,11 @@
 
 # Reporter Quality and Season Continuity
 
+[Hybrid memory discovery](semantic-discovery.md) extends the discovery contract
+with eligible historical narratives, rebuildable semantic indexing and explicit
+degraded search status. Quality remains primary; retrieval-only comparisons do
+not establish improved article quality.
+
 **Current delivery:** [Memory discovery, callbacks, and evidence contracts](query-representation-contracts.md)
 define the accepted follow-up over the retained season baseline. The earlier
 simulation/evidence workstream descriptions below are historical design context.

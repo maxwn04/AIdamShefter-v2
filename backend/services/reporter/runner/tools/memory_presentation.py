@@ -44,8 +44,8 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_PRESENTATION_SCHEMA_VERSION = 4
-MEMORY_PRESENTATION_BUILDER_VERSION = 4
+MEMORY_PRESENTATION_SCHEMA_VERSION = 5
+MEMORY_PRESENTATION_BUILDER_VERSION = 5
 MAX_PRESENTED_REFERENCES = 3
 
 
@@ -68,6 +68,7 @@ class MemoryProvenance(_PresentationModel):
     season: int | None = None
     version: int | None = None
     historical: bool = False
+    current_at_pin: bool | None = None
     read_only: bool = False
     provenance: str = "Prior reporter memory; verify material claims against source evidence."
     clipped: bool = False
@@ -160,6 +161,7 @@ MemoryContext = Annotated[
 
 class MemorySearchContext(_PresentationModel):
     memories: list[MemoryContext]
+    retrieval_status: dict[str, Any] = Field(default_factory=dict)
     notice: str | None = None
     truncated: bool = False
 
@@ -224,12 +226,13 @@ class MemoryPresentationAdapter:
         truncated = len(retrieval.matches) > limit
         context = MemorySearchContext(
             memories=memories,
+            retrieval_status=retrieval.semantic_status.model_dump(mode="json"),
             notice=(
                 None
                 if memories
                 else "No relevant memory matched these editorial selectors."
-                + (" Text matching is lexical. Try a short name or concept, or omit text "
-                   "and browse with team, kind, or status filters; then inspect selected matches."
+                + (" Try a name or related concept, or browse with team, kind, or status "
+                   "filters. A miss does not establish that an event never happened or was saved."
                    if query.text else "")
             ),
             truncated=truncated,
@@ -270,6 +273,9 @@ class MemoryPresentationAdapter:
         state = _PresentationState(bindings=[], read_only=read_only)
         memories: list[MemoryContext] = []
         for ordinal, match in enumerate(matches[:limit]):
+            state.read_only = read_only or not match.current_at_pin or bool(
+                self._provenance(match.memory, read_only=False)["historical"]
+            )
             omissions: list[str] = []
             binding_index = len(state.bindings)
             state.bindings.append({})
@@ -282,7 +288,15 @@ class MemoryPresentationAdapter:
                 state=state,
                 omissions=omissions,
             )
-            provenance = self._provenance(match.memory, read_only=read_only)
+            provenance = self._provenance(match.memory, read_only=state.read_only)
+            provenance["current_at_pin"] = match.current_at_pin
+            if not match.current_at_pin:
+                provenance["historical"] = True
+                provenance["provenance"] = (
+                    "Superseded reporter narrative matched this question; its status describes "
+                    "this historical version, not the current state. Inspect its history and "
+                    "verify material claims against source evidence."
+                )
             updates = dict(provenance)
             presented = presented.model_copy(update=updates)
             memories.append(presented)
@@ -500,6 +514,8 @@ class MemoryPresentationAdapter:
             read_only = state.read_only or isinstance(
                 expansion, (StorylineEvidenceExpansion, FactOriginatingEventExpansion)
             )
+            provenance = self._provenance(memory, read_only=read_only)
+            read_only = provenance["read_only"]
             role = self._expansion_role(expansion)
             content = memory.content
             headline = getattr(content, "headline", None)
@@ -512,7 +528,7 @@ class MemoryPresentationAdapter:
             summaries.append(
                 SemanticMemorySummary(
                     memory_handle=self.handle_for(memory, read_only=read_only),
-                    **self._provenance(memory, read_only=read_only),
+                    **provenance,
                     kind=memory.item.kind,
                     role=role,
                     headline=headline,
