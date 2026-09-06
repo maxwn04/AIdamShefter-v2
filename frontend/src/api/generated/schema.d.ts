@@ -1310,12 +1310,16 @@ export interface components {
         BudgetTradeAsset: {
             /** Amount */
             amount: number;
-            direction: components["schemas"]["TradeAssetDirection"];
+            direction?: components["schemas"]["TradeAssetDirection"] | null;
+            /** From Franchise Id */
+            from_franchise_id?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
              */
             kind: "budget";
+            /** To Franchise Id */
+            to_franchise_id?: string | null;
         };
         /**
          * CanonicalRevision
@@ -1717,9 +1721,11 @@ export interface components {
         };
         /** DraftPickTradeAsset */
         DraftPickTradeAsset: {
-            direction: components["schemas"]["TradeAssetDirection"];
+            direction?: components["schemas"]["TradeAssetDirection"] | null;
             /** Draft Pick Id */
             draft_pick_id?: string | null;
+            /** From Franchise Id */
+            from_franchise_id?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -1731,6 +1737,8 @@ export interface components {
             round?: number | null;
             /** Season */
             season?: number | null;
+            /** To Franchise Id */
+            to_franchise_id?: string | null;
         };
         /**
          * EndpointKind
@@ -2946,7 +2954,9 @@ export interface components {
         };
         /** PlayerTradeAsset */
         PlayerTradeAsset: {
-            direction: components["schemas"]["TradeAssetDirection"];
+            direction?: components["schemas"]["TradeAssetDirection"] | null;
+            /** From Franchise Id */
+            from_franchise_id?: string | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2954,6 +2964,8 @@ export interface components {
             kind: "player";
             /** Player Id */
             player_id: string;
+            /** To Franchise Id */
+            to_franchise_id?: string | null;
         };
         /**
          * PreparedGenerationExecution
@@ -3889,16 +3901,10 @@ export interface components {
              * @enum {string}
              */
             kind: "trade";
-            /**
-             * Receiver Franchise Id
-             * Format: uuid
-             */
-            receiver_franchise_id: string;
-            /**
-             * Sender Franchise Id
-             * Format: uuid
-             */
-            sender_franchise_id: string;
+            /** Receiver Franchise Id */
+            receiver_franchise_id?: string | null;
+            /** Sender Franchise Id */
+            sender_franchise_id?: string | null;
         };
         /** TriggerContent */
         TriggerContent: {

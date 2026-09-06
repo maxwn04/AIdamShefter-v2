@@ -65,10 +65,15 @@ def get_team_dossier(
 
         Returns {"found": False, "roster_key": ...} if team not found.
     """
+    from .league import standings_context
+
     resolved = resolve_roster_id(conn, league_id, roster_key)
     if not resolved.get("found"):
         return {**resolved, "as_of_week": week}
     roster_id = resolved["roster_id"]
+    league = fetch_one(conn,
+        "SELECT playoff_week_start, league_average_match FROM leagues WHERE league_id=:league_id AND season=:season",
+        {"league_id": league_id, "season": season}) or {}
 
     team = fetch_one(
         conn,
@@ -139,6 +144,7 @@ def get_team_dossier(
     return {
         "found": True,
         "as_of_week": effective_week,
+        **standings_context(league, effective_week),
         "team": clean_team_profile(team),
         "standings": strip_id_fields(standings),
         "recent_games": strip_id_fields_list(recent_games),
