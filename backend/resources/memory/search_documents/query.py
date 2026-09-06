@@ -7,7 +7,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from backend.database.models.core.competitions import CompetitionSeason
 from backend.database.models.memory import MemoryItem, MemorySearchDocument
@@ -69,8 +69,11 @@ def query_search_documents(
         ).where(CompetitionSeason.season_year == query.season)
     if query.required_entity_keys:
         statement = statement.where(
-            MemorySearchDocument.entity_keys.op("&&")(
-                sa.cast(list(query.required_entity_keys), ARRAY(sa.Text()))
+            sa.or_(
+                MemorySearchDocument.entity_keys.op("&&")(
+                    sa.cast(list(query.required_entity_keys), ARRAY(sa.Text()))
+                ),
+                _trigger_reference_entity_match(competition_id, revision_id, query),
             )
         )
     if query.due_in_season is not None:
@@ -169,6 +172,63 @@ def query_search_documents(
 
     rows = session.execute(statement).all()
     return tuple((row[0], float(row[1])) for row in rows)
+
+
+def _trigger_reference_entity_match(
+    competition_id: UUID,
+    revision_id: UUID,
+    query: SearchDocumentQuery,
+) -> sa.ColumnElement[bool]:
+    """Let callbacks inherit team filters from one pinned, eligible parent.
+
+    Scheduled and trade callbacks need not repeat their parent's franchises in
+    their own condition. Resolve only their canonical storyline/event links;
+    never enrich stored projections or traverse arbitrary related-item chains.
+    """
+    trigger = aliased(TriggerVersion, name="entity_filter_trigger")
+    target_document = aliased(MemorySearchDocument, name="entity_filter_target")
+    target_version = visible_versions_statement(
+        competition_id, revision_id,
+    ).subquery("entity_filter_visible_targets")
+    inherited = (
+        sa.select(sa.literal(1))
+        .select_from(trigger)
+        .join(
+            target_version,
+            sa.or_(
+                target_version.c.item_id == trigger.target_storyline_item_id,
+                target_version.c.item_id == trigger.origin_event_item_id,
+            ),
+        )
+        .join(target_document, target_document.version_id == target_version.c.id)
+        .where(
+            trigger.version_id == MemorySearchDocument.version_id,
+            trigger.competition_id == competition_id,
+            target_document.competition_id == competition_id,
+            sa.or_(
+                sa.and_(
+                    target_version.c.item_id == trigger.target_storyline_item_id,
+                    target_document.kind == "storyline",
+                ),
+                sa.and_(
+                    target_version.c.item_id == trigger.origin_event_item_id,
+                    target_document.kind == "event",
+                ),
+            ),
+            target_document.entity_keys.op("&&")(
+                sa.cast(list(query.required_entity_keys), ARRAY(sa.Text()))
+            ),
+            *temporal_conditions(
+                competition_id, query,
+                season_id=target_version.c.competition_season_id,
+                week=target_version.c.week,
+                recorded_at=target_version.c.recorded_at,
+            ),
+        )
+        .correlate(MemorySearchDocument)
+        .exists()
+    )
+    return sa.and_(MemorySearchDocument.kind == "trigger", inherited)
 
 
 def temporal_conditions(
