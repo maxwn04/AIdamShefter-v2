@@ -336,6 +336,23 @@ def test_full_regular_query_contract_matches_legacy_golden(
         expected[key]["game"]["sleeper_matchup_number"] = 1
     normalized_actual = _json_round_trip(_without_volatile_player_state(actual))
     normalized_expected = _without_volatile_player_state(expected)
+    # Additive relationship/period metadata has dedicated source-boundary tests;
+    # compare the retained legacy shape without editing its frozen golden file.
+    def legacy_shape(value):
+        if isinstance(value, list):
+            return [legacy_shape(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        omitted = {"competition_phase", "standings_through_week", "standings_basis", "record_unit"}
+        if "as_of_week" in value:
+            omitted.add("streak_basis")
+        if "asset_type" in value:
+            omitted.update({"from_team", "to_team", "from_roster_key", "to_roster_key", "movement"})
+        if "assets_sent" in value:
+            omitted.add("roster_key")
+        return {key: legacy_shape(item) for key, item in value.items() if key not in omitted}
+
+    normalized_actual = legacy_shape(normalized_actual)
     assert _contract_shape(normalized_actual) == _contract_shape(normalized_expected)
     stable_keys = {
         "bench_analysis_league",

@@ -143,3 +143,27 @@ def test_natural_pick_identity_remains_distinct_in_projection_and_codec() -> Non
     values["details"]["assets"].append(values["details"]["assets"][0])
     with pytest.raises(ValueError, match="assets must be distinct"):
         EventContent.model_validate(values)
+
+
+def test_explicit_three_party_projection_and_codec_preserve_each_transfer() -> None:
+    from backend.database.models.memory import EventVersion
+    from backend.resources.memory.events.codec import _decode_content, encode_event
+
+    third = UUID(int=33)
+    values = _trade().model_dump(mode="python")
+    values["details"] = {"kind": "trade", "assets": [
+        {"kind": "player", "player_id": "player-7", "from_franchise_id": SENDER_ID, "to_franchise_id": RECEIVER_ID},
+        *[{"kind": "draft_pick", "season": year, "round": 1, "original_franchise_id": SENDER_ID,
+           "from_franchise_id": RECEIVER_ID, "to_franchise_id": third} for year in (2026, 2027)],
+    ]}
+    content = EventContent.model_validate(values)
+    projection = build_event_document(content)
+    assert f"franchise:{third}" in projection.entity_keys
+    assert f"from franchise:{SENDER_ID} to franchise:{RECEIVER_ID} player:player-7" in projection.document_text
+    assert f"from franchise:{RECEIVER_ID} to franchise:{third} draft_pick_natural:2027:1:{SENDER_ID}" in projection.document_text
+    stored = EventVersion(version_id=PICK_ID, competition_id=SENDER_ID,
+        **encode_event(content, receipt_generation_id=None))
+    assert _decode_content(1, stored) == content
+    assert "sender_franchise_id" not in stored.details
+    values["details"]["assets"].reverse()
+    assert build_event_document(EventContent.model_validate(values)) == projection

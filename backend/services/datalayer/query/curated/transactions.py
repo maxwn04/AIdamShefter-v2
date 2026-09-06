@@ -59,6 +59,8 @@ def _fetch_transaction_rows(
             tm.from_roster_id,
             tm.to_roster_id,
             tp.team_name,
+            tp_from.team_name AS from_team,
+            tp_to.team_name AS to_team,
             tp_orig.team_name AS pick_original_team_name
         FROM transactions t
         LEFT JOIN transaction_moves tm
@@ -69,6 +71,10 @@ def _fetch_transaction_rows(
             ON tp.league_id = t.league_id AND tp.roster_id = tm.roster_id
         LEFT JOIN team_profiles tp_orig
             ON tp_orig.league_id = t.league_id AND tp_orig.roster_id = tm.pick_original_roster_id
+        LEFT JOIN team_profiles tp_from
+            ON tp_from.league_id = t.league_id AND tp_from.roster_id = tm.from_roster_id
+        LEFT JOIN team_profiles tp_to
+            ON tp_to.league_id = t.league_id AND tp_to.roster_id = tm.to_roster_id
         WHERE t.league_id = :league_id
           AND t.season = :season
           AND t.week BETWEEN :week_from AND :week_to
@@ -83,7 +89,7 @@ def _group_transaction_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group raw transaction rows into structured transactions."""
     grouped: dict[str, dict[str, Any]] = {}
     ordered: list[dict[str, Any]] = []
-    details_by_team: dict[str, dict[str, dict[str, Any]]] = {}
+    details_by_team: dict[str, dict[object, dict[str, Any]]] = {}
 
     for row in rows:
         transaction_id = row["transaction_id"]
@@ -111,6 +117,11 @@ def _group_transaction_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "pick_season": row.get("pick_season"),
             "pick_round": row.get("pick_round"),
             "pick_original_team_name": row.get("pick_original_team_name"),
+            "from_team": row.get("from_team"),
+            "to_team": row.get("to_team"),
+            "from_roster_key": row.get("from_roster_id"),
+            "to_roster_key": row.get("to_roster_id"),
+            "movement": direction,
         }
         asset = {key: value for key, value in asset.items() if value is not None}
 
@@ -119,17 +130,22 @@ def _group_transaction_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         elif direction in {"drop", "pick_out"}:
             bucket = "assets_sent"
         else:
-            bucket = "assets_received"
+            bucket = "assets_unknown"
 
         if row.get("bid_amount") is not None and row.get("type") != "trade":
             grouped[transaction_id]["bid_amount"] = row.get("bid_amount")
 
         team_name = row.get("team_name") or "Unknown"
+        team_key = row.get("roster_id")
+        if team_key is None:
+            team_key = ("unresolved", team_name)
         details = details_by_team[transaction_id].setdefault(
-            team_name,
+            team_key,
             {"team_name": team_name, "assets_sent": [], "assets_received": []},
         )
-        details[bucket].append(asset)
+        if row.get("roster_id") is not None:
+            details["roster_key"] = str(row["roster_id"])
+        details.setdefault(bucket, []).append(asset)
 
     for transaction_id, grouped_row in grouped.items():
         grouped_row["details"] = list(details_by_team[transaction_id].values())

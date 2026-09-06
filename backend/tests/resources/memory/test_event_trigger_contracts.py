@@ -138,6 +138,49 @@ def test_payload_contracts_remain_independently_validatable() -> None:
     assert trade.kind == "trade"
 
 
+def test_explicit_transfer_payload_resolves_three_parties_and_preserves_legacy_json() -> None:
+    from backend.resources.memory.events.payloads.trade import resolve_trade_transfers
+
+    first, second, third = uuid4(), uuid4(), uuid4()
+    explicit = TradeEventPayload.model_validate({"assets": [
+        {"kind": "player", "player_id": "player-1", "from_franchise_id": first, "to_franchise_id": second},
+        {"kind": "draft_pick", "season": 2027, "round": 1, "original_franchise_id": first,
+         "from_franchise_id": second, "to_franchise_id": third},
+        {"kind": "budget", "amount": 5, "from_franchise_id": third, "to_franchise_id": first},
+    ]})
+    assert [(transfer.from_franchise_id, transfer.to_franchise_id)
+            for transfer in resolve_trade_transfers(explicit)] == [(first, second), (second, third), (third, first)]
+    assert "sender_franchise_id" not in explicit.model_dump(mode="json")
+    assert all("direction" not in asset for asset in explicit.model_dump(mode="json")["assets"])
+    legacy = {"kind": "trade", "sender_franchise_id": str(first), "receiver_franchise_id": str(second),
+              "assets": [{"kind": "player", "player_id": "player-1", "direction": "receiver_to_sender"}]}
+    retained = TradeEventPayload.model_validate(legacy)
+    assert retained.model_dump(mode="json") == legacy
+    transfer, = resolve_trade_transfers(retained)
+    assert (transfer.from_franchise_id, transfer.to_franchise_id) == (second, first)
+
+
+@pytest.mark.parametrize("variant", ["missing_endpoint", "self_transfer", "mixed_asset", "mixed_payload", "missing_pair", "duplicate"])
+def test_trade_rejects_incomplete_mixed_and_duplicate_transfers(variant: str) -> None:
+    first, second = uuid4(), uuid4()
+    asset = {"kind": "player", "player_id": "player-1", "from_franchise_id": first, "to_franchise_id": second}
+    payload = {"assets": [asset]}
+    if variant == "missing_endpoint":
+        del asset["to_franchise_id"]
+    elif variant == "self_transfer":
+        asset["to_franchise_id"] = first
+    elif variant == "mixed_asset":
+        asset["direction"] = "sender_to_receiver"
+    elif variant == "mixed_payload":
+        payload.update(sender_franchise_id=first, receiver_franchise_id=second)
+    elif variant == "missing_pair":
+        payload.update(sender_franchise_id=first)
+    else:
+        payload["assets"].append({**asset, "from_franchise_id": second, "to_franchise_id": first})
+    with pytest.raises(ValidationError):
+        TradeEventPayload.model_validate(payload)
+
+
 def test_trigger_contract_discriminates_initial_conditions() -> None:
     rematch = TriggerContent.model_validate(
         {
