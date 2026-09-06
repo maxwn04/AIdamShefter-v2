@@ -16,6 +16,14 @@ storyline or origin event at the pin. Stable franchise identity connects renames
 similarity cannot override an identity filter. Historical status describes the
 matched version, never the current state of that item.
 
+Temporal eligibility checks both the version's preserved origin season/week and
+its introduction revision's reporting season/week. A Week 17 update to an arc
+originating in Week 1 must not appear in Week 8 coverage merely because its
+origin stays unchanged. This additional boundary applies to direct callback
+parent filtering and selected inspection/expansions as well as discovery. An
+older eligible version remains historical at a later pin; filtering out the
+pin-current version never grants write access to an older version.
+
 ## Ranking and inspection
 
 Structured, lexical and semantic strategies are independent relevance signals
