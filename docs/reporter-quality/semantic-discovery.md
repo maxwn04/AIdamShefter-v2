@@ -89,7 +89,7 @@ rows are reused. An absent index table or provider error leaves lexical and
 structured retrieval available with degraded status.
 
 Reciprocal-rank fusion uses an offset of 60 and an initial cosine relevance
-floor of 0.30. The floor is not confidence in a claim. Quality review may change
+floor of 0.35. The floor is not confidence in a claim. Quality review may change
 it based on inspected relevant and irrelevant leads; deterministic vector tests
 alone do not establish an appropriate threshold for every league or model.
 
