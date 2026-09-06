@@ -11,7 +11,7 @@ from backend.resources.memory.search_documents.objects import (
 
 
 # A relevance floor, not a probability or evidence-confidence threshold.
-MIN_SEMANTIC_SIMILARITY = 0.30
+MIN_SEMANTIC_SIMILARITY = 0.35
 _RRF_OFFSET = 60
 
 
