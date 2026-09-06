@@ -21,7 +21,10 @@ from backend.database.sessions import (
     transaction_session,
 )
 from backend.resources.context import CompetitionScope, ManagerContext
-from backend.resources.memory.common.errors import RevisionNotFoundError
+from backend.resources.memory.common.errors import (
+    RevisionNotFoundError,
+    TargetNotFoundError,
+)
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.context_notes.codec import (
     context_note_rows_statement,
@@ -29,6 +32,7 @@ from backend.resources.memory.context_notes.codec import (
 )
 from backend.resources.memory.events.codec import decode_event, event_rows_statement
 from backend.resources.memory.facts.codec import decode_fact, fact_rows_statement
+from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.search_documents.builders import (
     build_context_note_document,
     build_event_document,
@@ -44,7 +48,10 @@ from backend.resources.memory.search_documents.objects import (
     SearchProjectionRebuildResult,
     SearchScoreComponents,
 )
-from backend.resources.memory.search_documents.query import query_search_documents
+from backend.resources.memory.search_documents.query import (
+    query_search_documents,
+    temporal_conditions,
+)
 from backend.resources.memory.search_documents.shared import insert_search_document
 from backend.resources.memory.storylines.codec import (
     decode_storyline,
@@ -96,6 +103,87 @@ class SearchDocumentManager:
             ),
         )
         return tuple(ordered[: query.limit])
+
+    def visible_reference_version(
+        self, revision_id: UUID, item_id: UUID,
+    ) -> UUID | None:
+        """Resolve a stable relationship without hydrating unselected content."""
+        visible = visible_versions_statement(
+            self._competition_id, revision_id,
+        ).subquery("visible_reference_versions")
+        with read_only_session(self._session_factory) as session:
+            return session.scalar(
+                sa.select(visible.c.id).where(visible.c.item_id == item_id)
+            )
+
+    def inspect_versions(
+        self,
+        revision_id: UUID,
+        version_id: UUID,
+        *,
+        history: bool = False,
+        offset: int = 0,
+        limit: int = 21,
+        scope: SearchDocumentQuery | None = None,
+    ) -> tuple[tuple[UUID, MemoryKind, int | None], ...]:
+        """Select bounded canonical history through a selected version and pin.
+
+        Unlike discovery, this deliberately permits retired exact versions. No
+        version introduced after the pin or after the selected item revision is
+        eligible, and pagination occurs before canonical content hydration.
+        """
+        if offset < 0 or not 1 <= limit <= 101:
+            raise ValueError("inspection requires offset >= 0 and limit in 1..101")
+        with read_only_session(self._session_factory) as session:
+            self._require_revision(session, revision_id)
+            pinned_sequence = (
+                sa.select(MemoryRevision.sequence_number)
+                .where(
+                    MemoryRevision.id == revision_id,
+                    MemoryRevision.competition_id == self._competition_id,
+                )
+                .scalar_subquery()
+            )
+            statement = (
+                sa.select(MemoryVersion, MemoryItem.kind)
+                .join(MemoryItem, MemoryItem.id == MemoryVersion.item_id)
+                .join(
+                    MemoryRevision,
+                    MemoryRevision.id == MemoryVersion.introduced_revision_id,
+                )
+                .where(
+                    MemoryVersion.competition_id == self._competition_id,
+                    MemoryItem.competition_id == self._competition_id,
+                    MemoryRevision.competition_id == self._competition_id,
+                    MemoryRevision.sequence_number <= pinned_sequence,
+                    *temporal_conditions(
+                        self._competition_id, scope or SearchDocumentQuery(),
+                        season_id=MemoryVersion.competition_season_id,
+                        week=MemoryVersion.week,
+                        recorded_at=MemoryVersion.recorded_at,
+                    ),
+                )
+            )
+            selected = session.execute(
+                statement.where(MemoryVersion.id == version_id)
+            ).one_or_none()
+            if selected is None:
+                raise TargetNotFoundError(version_id, tuple(MemoryKind))
+            if history:
+                statement = statement.where(
+                    MemoryVersion.item_id == selected[0].item_id,
+                    MemoryVersion.revision_number <= selected[0].revision_number,
+                )
+            else:
+                statement = statement.where(MemoryVersion.id == version_id)
+            rows = session.execute(
+                statement.order_by(
+                    MemoryVersion.revision_number.desc(), MemoryVersion.id,
+                ).offset(offset).limit(limit)
+            ).all()
+            return tuple(
+                (version.id, MemoryKind(kind), version.week) for version, kind in rows
+            )
 
     def rebuild(self) -> SearchProjectionRebuildResult:
         """Atomically replace every historical projection in the competition."""

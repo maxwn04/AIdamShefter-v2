@@ -3380,6 +3380,13 @@ export interface components {
              */
             related_item_ids: string[];
             /**
+             * Required Entity Keys
+             * @default []
+             */
+            required_entity_keys: string[];
+            /** Season */
+            season?: number | null;
+            /**
              * Statuses
              * @default []
              */
