@@ -31,6 +31,13 @@ REPORTER_OUTPUT_DIR=.output        # Optional: where articles are saved
 
 ## Common Commands
 
+For current backend reporter evaluation, use `aida-reporter-evaluation`; for
+sample-gated sequential season campaigns, use `aida-season-simulation`. These
+skills exercise `backend/` and its existing controller. See the shared
+[evaluation procedure](docs/reporter-quality/evaluation-procedure.md) and
+[campaign operations](docs/reporter-quality/campaign-operations.md). The legacy
+Reporter V2 CLI commands below are not the backend evaluation route.
+
 ```bash
 # Tests
 uv run pytest                                   # All default tests
