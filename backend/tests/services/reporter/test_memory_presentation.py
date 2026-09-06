@@ -490,7 +490,9 @@ def test_empty_result_has_bounded_notice() -> None:
     execution = _present(())
     assert execution.result == {
         "memories": [],
-        "notice": "No relevant memory matched these editorial selectors.",
+        "notice": "No relevant memory matched these editorial selectors."
+        " Text matching is lexical. Try a short name or concept, or omit text "
+        "and browse with team, kind, or status filters; then inspect selected matches.",
         "truncated": False,
     }
     assert execution.metadata["bindings"] == []

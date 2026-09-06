@@ -1,5 +1,43 @@
 # Memory discovery, callbacks, and evidence contracts
 
+## Memory tool behavior
+
+`search_memory` defaults to all seasons in the frozen snapshot. Season, team,
+kind, status and week filters narrow candidates before ranking and limiting.
+Team selectors use `franchise:<UUID>` and include that franchise's season-roster
+projection aliases. Names may resolve across available seasons; reused names
+belonging to different franchises require a season or durable selector.
+Callbacks can also match the teams on their direct storyline or origin event,
+using that parent's eligible version at the pin. This does not recursively
+inherit teams or change stored historical projections.
+
+Search preserves complete narrative summaries while omitting nested evidence by
+default. `inspect_memory(memory_handle, view, offset, limit)` selects detail,
+history or evidence. History stops at the selected version and pinned revision;
+history/evidence handles remain read-only even after a current card is recalled.
+The pin defines narrative knowledge: a generation's source observation cutoff
+must not hide the prior generation's output merely because it was recorded later.
+Frozen season/week limits still apply to discovery and inspection.
+
+Lexical text matching does not provide semantic paraphrase equivalence. A miss
+suggests a shorter concept or name, or browsing with team/kind/status filters.
+Structured recovery is useful but is not a substitute for demonstrating semantic
+retrieval quality. Vector infrastructure remains deferred pending a demonstrated
+need and an approved implementation/evaluation scope.
+
+`upsert_storyline_memory_card` merges supplied subjects into existing subjects
+and preserves their roles by default. `subjects_mode="replace"` intentionally
+removes omitted subjects, including clearing them with an empty replacement.
+Omitted state, origin and existing evidence remain preserved.
+
+`update_memory_callback` accepts a selected handle, resolve/reschedule/defer,
+and a reason. Reschedule requires a future week and preserves the original source
+event. Defer records an uninvestigated outcome without a canonical mutation.
+Each callback still permits one semantic update per run; a later defer cannot
+overwrite a successfully selected resolution or reschedule. Failed operations
+leave prior proposals and disposition records intact. Completion stays
+argument-free and does not require dispositions for every due callback.
+
 This delivery extends the reporter over the retained season baseline. It supersedes
 the earlier ownership split in `coordination.md` and explicit-season-only discovery
 proposal. Existing generation finalization and immutable artifact contracts remain.
