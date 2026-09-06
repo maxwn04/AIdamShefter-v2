@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -10,11 +11,21 @@ from sqlalchemy.dialects.postgresql import ARRAY, UUID as PGUUID
 from sqlalchemy.orm import Session, aliased
 
 from backend.database.models.core.competitions import CompetitionSeason
-from backend.database.models.memory import MemoryItem, MemorySearchDocument
+from backend.database.models.memory import (
+    MemoryItem, MemoryRevision, MemorySearchDocument, MemoryVersion,
+)
 from backend.database.models.memory.context_notes import ContextNote
 from backend.database.models.memory.triggers import TriggerVersion
 from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.search_documents.objects import SearchDocumentQuery
+
+
+@dataclass(frozen=True)
+class EligibleSearchDocument:
+    document: MemorySearchDocument
+    lexical_rank: float
+    current_at_pin: bool
+    revision_number: int
 
 
 def query_search_documents(
@@ -22,25 +33,54 @@ def query_search_documents(
     competition_id: UUID,
     revision_id: UUID,
     query: SearchDocumentQuery,
-) -> tuple[tuple[MemorySearchDocument, float], ...]:
-    """Return visible rows matching any discovery signal and every filter."""
+) -> tuple[EligibleSearchDocument, ...]:
+    """Return every eligible unit before any discovery strategy or result limit."""
 
     visible = visible_versions_statement(competition_id, revision_id).subquery(
         "visible_memory_versions"
     )
+    include_history = bool(
+        query.include_history and query.text
+        and query.due_in_season is None and query.context_for_season is None
+    )
+    pinned_sequence = sa.select(MemoryRevision.sequence_number).where(
+        MemoryRevision.id == revision_id,
+        MemoryRevision.competition_id == competition_id,
+    ).scalar_subquery()
     lexical_query = (
         sa.func.websearch_to_tsquery("english", query.text)
         if query.text is not None
         else None
     )
     lexical_rank = (
-        sa.func.ts_rank_cd(MemorySearchDocument.search_vector, lexical_query)
+        sa.case(
+            (MemorySearchDocument.search_vector.op("@@")(lexical_query),
+             sa.func.ts_rank_cd(MemorySearchDocument.search_vector, lexical_query)),
+            else_=0.0,
+        )
         if lexical_query is not None
         else sa.literal(0.0)
     ).label("lexical_rank")
     statement = (
-        sa.select(MemorySearchDocument, lexical_rank)
-        .join(visible, visible.c.id == MemorySearchDocument.version_id)
+        sa.select(
+            MemorySearchDocument, lexical_rank,
+            visible.c.id.is_not(None).label("current_at_pin"),
+            MemoryVersion.revision_number,
+        )
+        .join(MemoryVersion, MemoryVersion.id == MemorySearchDocument.version_id)
+        .join(MemoryRevision, sa.and_(
+            MemoryRevision.id == MemoryVersion.introduced_revision_id,
+            MemoryRevision.competition_id == competition_id,
+        ))
+        .outerjoin(visible, visible.c.id == MemorySearchDocument.version_id)
+        .where(
+            MemoryVersion.competition_id == competition_id,
+            MemoryRevision.sequence_number <= pinned_sequence,
+            sa.or_(
+                visible.c.id.is_not(None),
+                sa.and_(sa.literal(include_history), MemorySearchDocument.kind != "fact"),
+            ),
+        )
         .where(MemorySearchDocument.competition_id == competition_id)
     )
 
@@ -122,9 +162,10 @@ def query_search_documents(
     statement = statement.where(
         *temporal_conditions(
             competition_id, query,
-            season_id=visible.c.competition_season_id,
-            week=visible.c.week,
-            recorded_at=visible.c.recorded_at,
+            introduced_revision_id=MemoryVersion.introduced_revision_id,
+            season_id=MemoryVersion.competition_season_id,
+            week=MemoryVersion.week,
+            recorded_at=MemoryVersion.recorded_at,
         )
     )
     if query.week is not None:
@@ -134,44 +175,11 @@ def query_search_documents(
     if query.week_to is not None:
         statement = statement.where(MemorySearchDocument.week <= query.week_to)
 
-    signals: list[sa.ColumnElement[bool]] = []
-    if query.entity_keys:
-        signals.append(
-            MemorySearchDocument.entity_keys.op("&&")(
-                sa.cast(list(query.entity_keys), ARRAY(sa.Text()))
-            )
-        )
-    if query.evidence_version_ids:
-        signals.append(
-            MemorySearchDocument.evidence_version_ids.op("&&")(
-                sa.cast(
-                    list(query.evidence_version_ids),
-                    ARRAY(PGUUID(as_uuid=True)),
-                )
-            )
-        )
-    if query.related_item_ids:
-        signals.append(
-            MemorySearchDocument.related_item_ids.op("&&")(
-                sa.cast(
-                    list(query.related_item_ids),
-                    ARRAY(PGUUID(as_uuid=True)),
-                )
-            )
-        )
-    if query.tags:
-        signals.append(
-            MemorySearchDocument.tags.op("&&")(
-                sa.cast(list(query.tags), ARRAY(sa.Text()))
-            )
-        )
-    if lexical_query is not None:
-        signals.append(MemorySearchDocument.search_vector.op("@@")(lexical_query))
-    if signals:
-        statement = statement.where(sa.or_(*signals))
-
     rows = session.execute(statement).all()
-    return tuple((row[0], float(row[1])) for row in rows)
+    return tuple(
+        EligibleSearchDocument(row[0], float(row[1]), bool(row[2]), int(row[3]))
+        for row in rows
+    )
 
 
 def _trigger_reference_entity_match(
@@ -220,6 +228,7 @@ def _trigger_reference_entity_match(
             ),
             *temporal_conditions(
                 competition_id, query,
+                introduced_revision_id=target_version.c.introduced_revision_id,
                 season_id=target_version.c.competition_season_id,
                 week=target_version.c.week,
                 recorded_at=target_version.c.recorded_at,
@@ -232,6 +241,41 @@ def _trigger_reference_entity_match(
 
 
 def temporal_conditions(
+    competition_id: UUID,
+    query: SearchDocumentQuery,
+    *,
+    introduced_revision_id: sa.ColumnElement[UUID],
+    season_id: sa.ColumnElement[UUID | None],
+    week: sa.ColumnElement[int | None],
+    recorded_at: sa.ColumnElement[datetime],
+) -> tuple[sa.ColumnElement[bool], ...]:
+    """Bound both a memory's origin and when its narrative version was produced.
+
+    Replacing a storyline preserves its origin week. Its introduction revision
+    carries the reporting week of the new narrative, which must independently
+    fit the frozen coverage even when the selected pin is later than that week.
+    """
+    origin_conditions = _temporal_scope_conditions(
+        competition_id, query, season_id=season_id, week=week,
+        recorded_at=recorded_at,
+    )
+    introduced = aliased(MemoryRevision)
+    introduction_conditions = _temporal_scope_conditions(
+        competition_id, query.model_copy(update={"recorded_through": None}),
+        season_id=introduced.competition_season_id, week=introduced.week,
+        recorded_at=introduced.created_at,
+    )
+    if not introduction_conditions:
+        return origin_conditions
+    introduction_eligible = sa.select(sa.literal(1)).where(
+        introduced.id == introduced_revision_id,
+        introduced.competition_id == competition_id,
+        *introduction_conditions,
+    ).exists()
+    return (*origin_conditions, introduction_eligible)
+
+
+def _temporal_scope_conditions(
     competition_id: UUID,
     query: SearchDocumentQuery,
     *,

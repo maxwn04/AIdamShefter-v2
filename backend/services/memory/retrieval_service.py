@@ -16,6 +16,7 @@ from backend.resources.memory.context_notes import ContextNote, ContextNoteManag
 from backend.resources.memory.events import Event, EventManager
 from backend.resources.memory.facts import Fact, FactManager
 from backend.resources.memory.search_documents import (
+    SearchDiscoveryStatus,
     SearchDocumentCandidate,
     SearchDocumentManager,
     SearchDocumentQuery,
@@ -120,6 +121,8 @@ class MemoryRetrievalRequest(ContractModel):
 
 class HydratedMemoryMatch(ContractModel):
     memory: HydratedMemory
+    current_at_pin: bool = True
+    revision_number: int = Field(default=1, ge=1)
     week: SkipJsonSchema[int | None] = Field(
         default=None,
         ge=0,
@@ -141,6 +144,7 @@ class MemoryRetrievalResult(ContractModel):
     competition_id: UUID
     revision_id: UUID
     matches: tuple[HydratedMemoryMatch, ...]
+    semantic_status: SearchDiscoveryStatus = Field(default_factory=SearchDiscoveryStatus)
 
     @model_validator(mode="after")
     def validate_scope(self) -> MemoryRetrievalResult:
@@ -192,7 +196,8 @@ class MemoryRetrievalService:
 
         exact_cache: dict[tuple[MemoryKind, UUID], HydratedMemory] = {}
         visible_cache: dict[tuple[MemoryKind, UUID, UUID], Event | Storyline] = {}
-        candidates = self._search_documents.search(revision_id, request.query)
+        discovery = self._search_documents.discover(revision_id, request.query)
+        candidates = discovery.candidates
         matches: list[HydratedMemoryMatch] = []
         for candidate in candidates:
             try:
@@ -211,6 +216,8 @@ class MemoryRetrievalService:
             matches.append(
                 HydratedMemoryMatch(
                     memory=memory,
+                    current_at_pin=candidate.current_at_pin,
+                    revision_number=candidate.revision_number,
                     week=candidate.week,
                     score=candidate.score,
                     score_components=candidate.score_components,
@@ -244,6 +251,7 @@ class MemoryRetrievalService:
             competition_id=competition_id,
             revision_id=revision_id,
             matches=tuple(matches),
+            semantic_status=discovery.semantic_status,
         )
 
     def inspect(
@@ -291,14 +299,25 @@ class MemoryRetrievalService:
         return MemoryInspectionResult(
             competition_id=competition_id, revision_id=revision_id,
             matches=tuple(
-                HydratedMemoryMatch(
-                    memory=self._hydrate_exact(row_kind, row_id, cache), week=week,
-                    score=0, score_components=SearchScoreComponents(),
-                    match_reasons=(SearchMatchReason.BROWSE_MATCH,),
-                )
+                self._inspection_match(row_kind, row_id, week, revision_id, cache)
                 for row_id, row_kind, week in page[:limit]
             ),
             has_more=len(page) > limit,
+        )
+
+    def _inspection_match(
+        self, kind: MemoryKind, version_id: UUID, week: int | None,
+        revision_id: UUID, cache: dict[tuple[MemoryKind, UUID], HydratedMemory],
+    ) -> HydratedMemoryMatch:
+        memory = self._hydrate_exact(kind, version_id, cache)
+        current_version = self._search_documents.visible_reference_version(
+            revision_id, memory.item.item_id,
+        )
+        return HydratedMemoryMatch(
+            memory=memory, week=week, current_at_pin=current_version == version_id,
+            revision_number=memory.version.revision_number,
+            score=0, score_components=SearchScoreComponents(),
+            match_reasons=(SearchMatchReason.BROWSE_MATCH,),
         )
 
     def _inspection_evidence(
