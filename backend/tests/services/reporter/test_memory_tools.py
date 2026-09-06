@@ -291,7 +291,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "8"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "9"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
@@ -321,13 +321,11 @@ def test_search_remains_pinned_and_resolves_team_keys() -> None:
         team_keys=["Team Taco"],
     )
     assert isinstance(execution, ToolExecutionResult)
-    assert execution.result == {
-        "memories": [],
-        "notice": "No relevant memory matched these editorial selectors."
-        " Text matching is lexical. Try a short name or concept, or omit text "
-        "and browse with team, kind, or status filters; then inspect selected matches.",
-        "truncated": False,
-    }
+    assert execution.result["memories"] == []
+    assert "miss does not establish" in execution.result["notice"]
+    assert execution.result["retrieval_status"]["status"] == "disabled"
+    assert execution.result["truncated"] is False
+    assert retrieval.calls[0].query.include_history
     assert execution.metadata["pinned_revision_id"] == str(
         memory.pinned_revision_id
     )

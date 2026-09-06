@@ -10,6 +10,7 @@ from backend.config import (
     DatabaseSettings,
     DatalayerSettings,
     GenerationRuntimeSettings,
+    MemorySearchSettings,
     ModelCatalogSettings,
 )
 from backend.database.engine import build_runtime_engine, database_role_name
@@ -301,6 +302,8 @@ def build_competition_season_dependencies(
 def build_memory_api_dependencies(
     session_factory: SessionFactory,
     context: ManagerContext[CompetitionScope],
+    *,
+    search_settings: MemorySearchSettings | None = None,
 ) -> MemoryApiDependencies:
     """Compose memory capabilities for one already-resolved request context."""
 
@@ -310,7 +313,21 @@ def build_memory_api_dependencies(
     storylines = StorylineManager(session_factory, context)
     triggers = TriggerManager(session_factory, context)
     context_notes = ContextNoteManager(session_factory, context)
-    search_documents = SearchDocumentManager(session_factory, context)
+    settings = search_settings or MemorySearchSettings.from_environment()
+    semantic_index = None
+    if settings.semantic_enabled:
+        from backend.services.memory.semantic_index import (
+            EmbeddingSpec, OpenAIEmbeddingProvider, SemanticIndex,
+        )
+
+        semantic_index = SemanticIndex(
+            session_factory, context.scope.competition_id,
+            OpenAIEmbeddingProvider(
+                EmbeddingSpec(model=settings.embedding_model, dimensions=settings.embedding_dimensions),
+                timeout_seconds=settings.embedding_timeout_seconds,
+            ),
+        )
+    search_documents = SearchDocumentManager(session_factory, context, semantic_index=semantic_index)
     return MemoryApiDependencies(
         revisions=revisions,
         facts=facts,

@@ -488,11 +488,8 @@ def test_missing_labels_use_neutral_text_and_hidden_diagnostics() -> None:
 
 def test_empty_result_has_bounded_notice() -> None:
     execution = _present(())
-    assert execution.result == {
-        "memories": [],
-        "notice": "No relevant memory matched these editorial selectors."
-        " Text matching is lexical. Try a short name or concept, or omit text "
-        "and browse with team, kind, or status filters; then inspect selected matches.",
-        "truncated": False,
-    }
+    assert execution.result["memories"] == []
+    assert "miss does not establish" in execution.result["notice"]
+    assert execution.result["retrieval_status"]["status"] == "disabled"
+    assert not execution.result["truncated"]
     assert execution.metadata["bindings"] == []

@@ -11,6 +11,25 @@ from backend.database.engine import EngineSettings
 
 DEFAULT_REPORTER_MODEL = "gpt-5.6-luna"
 
+
+@dataclass(frozen=True, slots=True)
+class MemorySearchSettings:
+    """Explicit opt-in for query embeddings; document indexing stays separate."""
+
+    semantic_enabled: bool = False
+    embedding_model: str = "text-embedding-3-large"
+    embedding_dimensions: int = 3072
+    embedding_timeout_seconds: float = 30.0
+
+    @classmethod
+    def from_environment(cls) -> "MemorySearchSettings":
+        return cls(
+            semantic_enabled=_boolean("AIDAM_MEMORY_SEMANTIC_ENABLED", False),
+            embedding_model=os.getenv("AIDAM_MEMORY_EMBEDDING_MODEL", "text-embedding-3-large"),
+            embedding_dimensions=_positive_int("AIDAM_MEMORY_EMBEDDING_DIMENSIONS", 3072),
+            embedding_timeout_seconds=_positive_float("AIDAM_MEMORY_EMBEDDING_TIMEOUT_SECONDS", 30.0),
+        )
+
 # Curated tool-capable chat models for credentials supported by the local
 # product. Premium/pro-priced model families are intentionally omitted. An
 # explicit REPORTER_FALLBACK_MODELS value remains authoritative.

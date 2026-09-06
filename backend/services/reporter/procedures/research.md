@@ -50,10 +50,12 @@ History is opt-in. Use it only when the request, recalled memory, or current fac
 Begin with any automatically recalled due callbacks, standing context, and likely relevant memories already supplied in the conversation. They can satisfy the initial continuity check, but they remain unverified narrative leads. After the current-week inventory, use `search_memory` only when a concrete team, player, transaction, matchup, or stakes question remains unanswered by that prelude. Build any supplemental search from current evidence:
 
 - Prefer `team_keys` for current team names or roster IDs, and combine them with tags or a focused text concept when that sharpens the editorial question. Canonical memory identifiers are intentionally unavailable.
-- Use `text` for one short concept, name, phrase, or explicit `OR` set. Never pack unrelated teams, players, and themes into one query. If distinct hooks are independently valuable, test them with separate focused calls.
+- Use `text` for one continuity question, concept, name, or phrase. Hybrid discovery can connect paraphrases when semantic retrieval is ready. Never pack unrelated teams, players, and themes into one query. If distinct hooks are independently valuable, test them with separate focused calls.
 - Use `kinds`, `statuses`, and inclusive `week_from` / `week_to` only when they genuinely narrow the question. Omit temporal bounds for continuity spanning the season.
 - Prefer 5-8 focused semantic results. Include evidence or related summaries when they help evaluate continuity, but remember that memory is a lead rather than proof. Do not perform an unfiltered browse merely because memory exists.
 - Discard any match dated after the article's configured coverage.
+- Check `retrieval_status`: disabled, partial, stale or unavailable semantic retrieval means the lexical/structured fallback may miss paraphrases. A no-match result cannot tell you whether the reporter ever saved the event. Narrow to a known name or browse with hard franchise/kind filters when the question warrants it.
+- Historical matches may contain earlier hypotheses or superseded status. Use `inspect_memory` for their selected detail/history/evidence; historical handles stay read-only. Search without text for a current card before updating an arc. Similarity is a relevance signal, not source support or a callback answer.
 
 This is optional targeted retrieval, not a fixed research phase. Do not repeat the automatic prelude as a tool call. Stop after an empty or low-value result unless a more specific question is justified.
 
