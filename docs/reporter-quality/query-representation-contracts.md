@@ -4,6 +4,11 @@ This delivery extends the reporter over the retained season baseline. It superse
 the earlier ownership split in `coordination.md` and explicit-season-only discovery
 proposal. Existing generation finalization and immutable artifact contracts remain.
 
+Article quality, useful discovery and faithful memory outcomes are the primary
+acceptance criteria. Bytes, tokens and cost are informational in this delivery.
+Compact presentation is useful when it improves relevance or understanding; it
+must not remove relationships, caveats or context needed for good reporting.
+
 ## Ownership and shared seams
 
 | Surface | Owner |
