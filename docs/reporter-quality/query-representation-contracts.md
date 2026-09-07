@@ -99,9 +99,10 @@ discovery and an explicit maintenance/version-visibility contract.
 
 ## Callback lifecycle
 
-Resolve, reschedule and defer apply to the selected callback through successful
-buffered mutations. Runtime derives bookkeeping from that mutation. Defer remains
-open and uninvestigated; it does not assert an answer. Existing atomic publication,
+Resolve and reschedule apply to the selected callback through successful buffered
+mutations. Defer records an uninvestigated run disposition while preserving the
+canonical open question and review date. Runtime records successful actions without
+a duplicate receipt. Defer does not assert an answer. Existing atomic publication,
 read-only/backtest behavior and closeout constraints remain intact.
 
 No mandatory disposition gate is added for every due handle. No forced article
