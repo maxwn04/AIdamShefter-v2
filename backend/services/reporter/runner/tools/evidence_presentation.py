@@ -187,12 +187,10 @@ def selected_records(
                     if name in fields:
                         fields[f"recorded_{name}"] = fields[name]
                         paths[f"recorded_{name}"] = paths[name]
-                paths["result_kind"] = f"{path}/winner (recorded bracket outcome)"
             elif tool in {"week_games", "team_game", "league_snapshot"}:
                 fields["result_kind"] = "score_comparison"
                 fields["score_winner"] = fields["winner"]
                 paths["score_winner"] = paths["winner"]
-                paths["result_kind"] = f"{path}/winner (score comparison)"
         if transaction_context:
             fields.update(transaction_context[0])
             paths.update(transaction_context[1])
