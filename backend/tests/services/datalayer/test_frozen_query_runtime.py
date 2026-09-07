@@ -394,7 +394,12 @@ def test_playoff_query_contract_matches_legacy_golden(tmp_path: Path) -> None:
         # The frozen query now retains each matchup's bracket perspective.
         for matchup in expected["team_playoff_path"]["matchups"]:
             matchup["bracket_type"] = expected["team_playoff_path"]["bracket_type"]
+            matchup["result_kind"] = "recorded_bracket_outcome"
+        expected["team_playoff_path"].update(is_eliminated=None, elimination_status="not_established")
         for key in ("playoff_brackets", "playoff_winners"):
+            expected[key].update(configured_playoff_teams=4, coverage="visible_recorded_matchups",
+                                 remaining_field_status="not_established", observed_matchup_count=2,
+                                 observed_participants=["Alpha", "Beta"])
             for bracket_type, bracket in expected[key]["brackets"].items():
                 bracket["bracket_type"] = bracket_type
                 for matchups in bracket["rounds"].values():

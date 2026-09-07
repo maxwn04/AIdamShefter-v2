@@ -180,6 +180,17 @@ def selected_records(
             paths[key] = f"{path}/{_escape(key)}"
             if _points_field(key) and isinstance(value, (int, float)):
                 units[key] = "fantasy_points"
+        if "winner" in fields:
+            if tool == "playoff_bracket" or "bracket_type" in fields:
+                fields["result_kind"] = "recorded_bracket_outcome"
+                for name in ("winner", "loser"):
+                    if name in fields:
+                        fields[f"recorded_{name}"] = fields[name]
+                        paths[f"recorded_{name}"] = paths[name]
+            elif tool in {"week_games", "team_game", "league_snapshot"}:
+                fields["result_kind"] = "score_comparison"
+                fields["score_winner"] = fields["winner"]
+                paths["score_winner"] = paths["winner"]
         if transaction_context:
             fields.update(transaction_context[0])
             paths.update(transaction_context[1])
@@ -412,7 +423,7 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
     if any(record.limitations for record in records):
         guidance.append("limitation_definitions is a lookup: each caveat applies only to records citing its limitation_refs.")
     if view == "overview" and records and records[0].tool in {"week_games", "league_snapshot"}:
-        guidance.append("Game scores and winners are head-to-head results. Use team_game for player detail; read_evidence view=detail accesses the full catalog.")
+        guidance.append("Game score_winner (legacy winner) compares game scores; it does not establish a recorded playoff outcome or advancement. Use team_game for player detail; read_evidence view=detail accesses the full catalog.")
         if records[0].tool == "league_snapshot":
             guidance.append("Use transactions for movement detail in the selected week range.")
     if any("source_week" in record.fields for record in records):
@@ -429,7 +440,9 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
     ):
         guidance.append("Standings include a league-average bonus matchup. Standings wins/losses and streak_len count standings decisions, not head-to-head games; use game winner fields for head-to-head results and streaks.")
     if any("bracket_type" in record.fields for record in records):
-        guidance.append("bracket_type identifies the source bracket. Bracket winner/loser fields describe its recorded outcome, which may differ from the higher-scoring team; do not infer advancement rules from scores alone.")
+        guidance.append("recorded_winner/recorded_loser (legacy winner/loser) are the source bracket outcome, not score_winner. Report each explicitly: they may disagree. A result alone does not establish advancement or elimination rules.")
+    if any(record.fields.get("remaining_field_status") == "not_established" for record in records):
+        guidance.append("Coverage lists observed matchups and participants, not the complete remaining playoff field. configured_playoff_teams is the original configured field size. Do not omit unseen/byed teams or claim only these round winners remain; inspect cutoff-safe playoff paths or state that the remaining field is unknown.")
     return guidance
 
 
