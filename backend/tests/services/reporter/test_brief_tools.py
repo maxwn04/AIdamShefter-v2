@@ -310,3 +310,29 @@ def test_callback_same_fact_error_gives_precise_repair() -> None:
     assert error["missing_fact_ids"] == []
     assert error["repair"]["action"] == "choose_distinct_facts"
     assert ctx.brief.brief.revision == 1
+
+
+def test_unicode_name_repair_is_copyable_and_still_requires_exact_source_value() -> None:
+    ctx = _ctx()
+    expected = "FANTASY IS LUCK" + "\U0001f92c" * 3
+    wrong = "FANTASY IS LUCK" + "\U0001f976" * 3
+    ctx.evidence.register("e2_2", (EvidenceRecord(
+        ref="e2_2.r40", source="e2_2", tool="transactions", outcome="found",
+        fields={"to_team": expected},
+    ),))
+
+    def bind(value: str) -> str:
+        return save_fact(
+            ctx, id="trade_team", claim_text="The recorded receiving team.",
+            bindings=[{"ref": "e2_2.r40", "field": "to_team", "value": value}],
+        )
+
+    rejected = bind(wrong)
+    assert expected in rejected
+    assert "\\ud83e" not in rejected
+    error = _decode(rejected)["error"]
+    assert error["expected_value"] == expected
+    assert ctx.brief.brief.get_fact("trade_team") is None
+    assert ctx.brief.brief.revision == 0
+    assert _decode(bind(error["expected_value"]))["ok"] is True
+    assert ctx.brief.brief.get_fact("trade_team").bindings[0].value == expected

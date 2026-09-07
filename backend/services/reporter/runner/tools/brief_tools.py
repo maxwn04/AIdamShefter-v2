@@ -20,7 +20,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-BRIEF_TOOL_IMPLEMENTATION_VERSION = "4"
+BRIEF_TOOL_IMPLEMENTATION_VERSION = "5"
 
 BRIEF_TOOL_SPECS: list[ToolDef] = [
     {
@@ -407,7 +407,7 @@ def _error(error: dict[str, Any]) -> str:
 
 
 def _json(data: dict[str, Any]) -> str:
-    return json.dumps(data, sort_keys=True)
+    return json.dumps(data, sort_keys=True, ensure_ascii=False)
 
 
 __all__ = [
