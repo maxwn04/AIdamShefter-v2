@@ -14,7 +14,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "8"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "9"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
