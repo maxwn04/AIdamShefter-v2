@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 
 from pydantic import JsonValue
 
+from backend.services.reporter.runner.bracket_review import BracketReview, bracket_review
 from backend.services.reporter.runner.evidence import EvidenceReader, EvidenceRecord
 from backend.services.reporter.runner.grounding import validate_fact
 from backend.services.reporter.runner.research_brief import BriefFact, ResearchBrief, ResearchBriefError
@@ -61,6 +62,7 @@ class DraftVerification:
     truncated: bool
     directional_review_cards: tuple[DirectionalReviewCard, ...] = ()
     directional_review_passages: tuple[DirectionalReviewPassage, ...] = ()
+    bracket_review: BracketReview | None = None
 
     def is_current(self, artifact: ArtifactSnapshot, brief: ResearchBrief) -> bool:
         return (
@@ -194,6 +196,7 @@ def verify_draft(
                 if record.limitations and not any(word in sentence.casefold() for word in ("available", "partial", "unknown", "incomplete", "among", "through", "could", "may")):
                     diagnostics.append(DraftDiagnostic("source_limitation", "Meaningful source limitations may need to be visible: " + "; ".join(record.limitations), excerpt, fact.id))
     cards, passages, covered, review_truncated = _directional_reviews(selected, text, len(artifact.content) > limit)
+    bracket = bracket_review(text, evidence)
     for sentence in sentences:
         for pattern, category in ((_SUPERLATIVE, "superlative"), (_CHAMPIONSHIP, "championship"), (_COMPARISON, "comparison"), (_DIRECTION, "transaction")):
             if pattern.search(sentence):
@@ -209,9 +212,9 @@ def verify_draft(
     for ref in re.findall(r"\b(?:e\d+_\d+|direct\d+)\.r\d+\b", artifact.content):
         if evidence.resolve(ref) is None:
             errors.append(f"Visible reference {ref} does not resolve to this generation's evidence.")
-    truncated = review_truncated or scanned_records > 100 or len(artifact.content) > limit or len(re.split(r"(?<=[.!?])\s+|\n+", text)) > 160 or len(diagnostics) > 40
+    truncated = review_truncated or bool(bracket and bracket.truncated) or scanned_records > 100 or len(artifact.content) > limit or len(re.split(r"(?<=[.!?])\s+|\n+", text)) > 160 or len(diagnostics) > 40
     return DraftVerification(
         artifact.path, artifact.revision, artifact.content_hash, brief.revision,
         tuple(diagnostics[:40]), tuple(dict.fromkeys(errors)), len(text), truncated,
-        cards, passages,
+        cards, passages, bracket,
     )
