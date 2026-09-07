@@ -79,8 +79,7 @@ def resolve_roster_identity(
         """
         params["roster_key"] = key
 
-    rows = connection.execute(
-        f"""
+    select_identity = f"""
         SELECT
             ri.competition_id,
             ri.competition_season_id,
@@ -98,9 +97,18 @@ def resolve_roster_identity(
           AND ri.competition_season_id = :competition_season_id
           AND ({predicate})
         ORDER BY ri.roster_id
-        """,
-        params,
-    ).fetchall()
+        """
+    rows = connection.execute(select_identity, params).fetchall()
+    if not rows and not key.isdigit() and _season_roster_uuid(key) is None:
+        label = _undecorated_team_label(key)
+        if label:
+            # Identity scope remains exactly the selected frozen league/season.
+            # Names are matched whole; manager aliases retain exact semantics.
+            candidates = connection.execute(
+                select_identity.replace(f"AND ({predicate})", ""), params,
+            ).fetchall()
+            rows = [row for row in candidates
+                    if _undecorated_team_label(row["team_name"] or "") == label]
     matches = tuple(
         FrozenRosterIdentity(
             competition_id=competition_id,
@@ -118,6 +126,22 @@ def resolve_roster_identity(
     if len(matches) > 1:
         return AmbiguousRosterIdentity(roster_key=key, matches=matches)
     return ResolvedRosterIdentity(roster_key=key, identity=matches[0])
+
+
+def _undecorated_team_label(value: str) -> str:
+    """Remove emoji decoration without guessing spelling or dropping punctuation."""
+    def decorative(character: str) -> bool:
+        code = ord(character)
+        return (
+            0x1F000 <= code <= 0x1FAFF
+            or 0x2600 <= code <= 0x27BF
+            or code in (0x200D, 0xFE0E, 0xFE0F, 0x20E3)
+        )
+
+    label = " ".join("".join(
+        " " if decorative(character) else character for character in value
+    ).split()).casefold()
+    return label if any(character.isalnum() for character in label) else ""
 
 
 def _season_roster_uuid(key: str) -> str | None:

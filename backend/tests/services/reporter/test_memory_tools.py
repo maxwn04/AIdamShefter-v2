@@ -291,7 +291,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "9"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "10"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {
@@ -637,3 +637,42 @@ def test_invalid_legacy_inputs_are_safe_and_do_not_buffer() -> None:
     assert unresolved["error"]["code"] == "roster_not_found"
     assert unresolved["saved"] is False
     assert memory.take_completed_bundle().proposals == ()
+
+
+def test_emoji_name_repair_keeps_all_explicit_storyline_team_relationships() -> None:
+    import sqlite3
+    from backend.services.datalayer.query.identity import resolve_roster_identity
+
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.executescript("""
+        CREATE TABLE roster_identities(competition_id TEXT, competition_season_id TEXT,
+            season_roster_id TEXT, franchise_id TEXT, roster_id INTEGER, league_id TEXT);
+        CREATE TABLE team_profiles(league_id TEXT, roster_id INTEGER, team_name TEXT, manager_name TEXT);
+    """)
+    for number, label in ((1, "FANTASY IS LUCK🤬🤬🤬"), (2, "Lebron James")):
+        connection.execute("INSERT INTO roster_identities VALUES(?,?,?,?,?,?)",
+            (str(COMPETITION_ID), str(SEASON_ID), str(UUID(int=100+number)), str(UUID(int=200+number)), number, "league"))
+        connection.execute("INSERT INTO team_profiles VALUES(?,?,?,?)", ("league", number, label, None))
+    registry, _, memory, _, adapter = _registered()
+    class ActualIdentityData(FrozenData):
+        def resolve_roster_identity(self, key):
+            return resolve_roster_identity(connection, competition_id=COMPETITION_ID,
+                competition_season_id=SEASON_ID, league_id="league", roster_key=key)
+    adapter._data = ActualIdentityData()
+    try:
+        result = _call(registry, "upsert_storyline_memory_card", id="playoff_arc",
+            headline="Next round question", summary="Two observed winners await the next round.",
+            team_keys=["FANTASY IS LUCK🥶🥶🥶", "Lebron James"])
+        assert result["ok"] is True
+        assert {subject.id for subject in memory.proposal_snapshot()[0].content.subjects} == {UUID(int=201), UUID(int=202)}
+        before = memory.proposal_snapshot()
+        connection.execute("UPDATE team_profiles SET team_name=? WHERE roster_id=2", ("FANTASY IS LUCK🔥",))
+        ambiguous = _call(registry, "upsert_storyline_memory_card", id="other_arc",
+            headline="Ambiguous team", summary="Do not guess an identity.", team_keys=["FANTASY IS LUCK🥶"])
+        assert ambiguous["ok"] is False
+        assert ambiguous["error"]["code"] == "roster_ambiguous"
+        assert "franchise:" in ambiguous["error"]["message"]
+        assert memory.proposal_snapshot() == before
+    finally:
+        connection.close()
