@@ -85,6 +85,8 @@ def get_playoff_bracket(
     if not rows:
         return {"found": False}
 
+    league = fetch_one(conn, "SELECT playoff_teams FROM leagues WHERE league_id = :league_id AND season = :season", params)
+
     brackets: dict[str, dict[str, Any]] = {}
 
     for row in rows:
@@ -153,7 +155,18 @@ def get_playoff_bracket(
     for bt_data in brackets.values():
         bt_data["placements"].sort(key=lambda x: x["placement"])
 
-    return {"found": True, "brackets": brackets}
+    return {
+        "found": True,
+        "configured_playoff_teams": league["playoff_teams"] if league else None,
+        "coverage": "visible_recorded_matchups",
+        "remaining_field_status": "not_established",
+        "observed_matchup_count": len(rows),
+        "observed_participants": sorted({
+            name for row in rows for name in (row["t1_team_name"], row["t2_team_name"])
+            if name is not None
+        }),
+        "brackets": brackets,
+    }
 
 
 def get_team_playoff_path(
@@ -185,10 +198,12 @@ def get_team_playoff_path(
                 ...
             ],
             "final_placement": int | None,
-            "is_eliminated": bool,
+            "is_eliminated": bool | None,  # Championship status; unknown without a final winners placement.
             "is_champion": bool
         }
 
+        A recorded win/loss does not by itself establish advancement or elimination.
+        Losers-bracket results never establish championship status. Unknown is null.
         Returns {"found": False, "roster_key": ...} if team not found or not in playoffs.
     """
     resolved = resolve_roster_id(conn, league_id, roster_key)
@@ -234,7 +249,7 @@ def get_team_playoff_path(
 
     matchups: list[dict[str, Any]] = []
     final_placement: int | None = None
-    is_eliminated = False
+    is_eliminated: bool | None = None
     is_champion = False
     bracket_type: str | None = None
 
@@ -249,7 +264,6 @@ def get_team_playoff_path(
             result = "win"
         elif row["loser_roster_id"] == roster_id:
             result = "loss"
-            is_eliminated = True
         else:
             result = "pending"
 
@@ -259,6 +273,7 @@ def get_team_playoff_path(
             "matchup_id": row["matchup_id"],
             "opponent": opponent_name,
             "result": result,
+            "result_kind": "recorded_bracket_outcome",
         }
 
         if row["placement"] is not None:
@@ -267,6 +282,8 @@ def get_team_playoff_path(
                 final_placement = row["placement"]
                 if row["placement"] == 1 and row["bracket_type"] == "winners":
                     is_champion = True
+                if row["bracket_type"] == "winners":
+                    is_eliminated = row["placement"] != 1
 
         matchups.append(entry)
 
@@ -277,5 +294,6 @@ def get_team_playoff_path(
         "matchups": matchups,
         "final_placement": final_placement,
         "is_eliminated": is_eliminated,
+        "elimination_status": "final_winners_placement_recorded" if is_eliminated is not None else "not_established",
         "is_champion": is_champion,
     }
