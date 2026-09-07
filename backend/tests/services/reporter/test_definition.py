@@ -67,6 +67,8 @@ def test_definition_without_memory_omits_only_memory_tools() -> None:
 
     memory_names = {
         "search_memory",
+        "inspect_memory",
+        "update_memory_callback",
         "save_memory_event",
         "upsert_storyline_memory_card",
         "save_storyline_trigger",
