@@ -12,6 +12,18 @@ from backend.services.reporter.runner.tools.evidence_presentation import evidenc
 SEASONS = [{"role": "primary", "season_year": 2025, "through_week": 15, "competition_season_id": "season-2025"}]
 
 
+def resolve_pointer(raw, pointer):
+    for token in pointer.lstrip("/").split("/"):
+        token = token.replace("~1", "/").replace("~0", "~")
+        if isinstance(raw, list):
+            raw = raw[int(token)]
+        elif token in raw:
+            raw = raw[token]
+        else:
+            raw = raw[int(token)]  # Integer mapping keys serialize as JSON object keys.
+    return raw
+
+
 def bracket_records():
     raw = {"found": True, "configured_playoff_teams": 6,
            "coverage": "visible_recorded_matchups", "remaining_field_status": "not_established",
@@ -32,20 +44,28 @@ def test_actual_losers_bracket_shape_keeps_recorded_outcomes_and_raw_paths():
     assert [record.fields["recorded_loser"] for record in matchups] == ["caydengu", "mcleare"]
     assert all(record.fields["result_kind"] == "recorded_bracket_outcome" for record in matchups)
     assert matchups[0].field_paths["recorded_winner"] == "/brackets/losers/rounds/1/0/winner"
+    for matchup in matchups:
+        assert "result_kind" not in matchup.field_paths
+        for field, pointer in matchup.field_paths.items():
+            assert resolve_pointer(raw, pointer) == matchup.fields[field]
     assert matchups[0].fields["winner"] == "pookie"  # Legacy bindings remain readable.
     assert "recorded_winner" not in raw["brackets"]["losers"]["rounds"][1][0]
     assert any("complete remaining playoff field" in line for line in evidence_page(records)["guidance"])
 
 
 def test_score_winner_is_explicitly_a_different_evidence_kind():
-    records = selected_records("games", "week_games", [{
+    raw = [{
         "week": 15, "team_a": "caydengu", "team_b": "pookie", "points_a": 156.58,
         "points_b": 131.00, "winner": "caydengu",
-    }], {}, SEASONS, lambda *_: (None, None))
+    }]
+    records = selected_records("games", "week_games", raw, {}, SEASONS, lambda *_: (None, None))
     outcome, = [record for record in records if "score_winner" in record.fields]
     assert outcome.fields["score_winner"] == "caydengu"
     assert outcome.fields["result_kind"] == "score_comparison"
     assert outcome.field_paths["score_winner"] == "/0/winner"
+    assert "result_kind" not in outcome.field_paths
+    for field, pointer in outcome.field_paths.items():
+        assert resolve_pointer(raw, pointer) == outcome.fields[field]
     assert "recorded_winner" not in outcome.fields
 
 
