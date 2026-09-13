@@ -60,6 +60,43 @@ are rebuildable; malformed vectors, wrong dimensions, nonfinite values and sourc
 hash mismatches are ineligible. No separate vector service or search platform is
 required for the current corpus size.
 
+### Native exact vector search
+
+Use maintained pgvector storage and database-side cosine distance instead of
+loading embedding arrays into Python for custom similarity calculations. The
+Python adapter is `pgvector.sqlalchemy.Vector`; compatible IDs and metadata are
+checked without transferring stored vectors to the application. Native
+`public.cosine_distance` evaluates only the eligible versions and matching
+provider/model/dimension/content identity. Existing rank fusion still combines
+structured, lexical and semantic signals and selects one version per item.
+
+Search is exact over that eligible set. No HNSW or IVFFlat index is installed;
+introduce approximate search only when measured retrieval needs justify its
+recall/latency tradeoff. The variable-dimension vector column supports the current
+3072-dimensional model alongside differently identified models. Zero vectors are
+not usable cosine inputs and are reported stale. Native vector storage rejects
+nonfinite values and the dimension constraint must match model metadata.
+
+Migration 0014 converts the existing derived arrays into pgvector values without
+regenerating embeddings or changing canonical memory. Values use native float32
+precision; a downgrade restores arrays at that precision, not the original extra
+float64 bits. Incompatible legacy values abort migration transactionally for
+explicit derived-index repair. Downgrade leaves the shared extension installed.
+
+The server must provide pgvector. Before migration, an administrator runs
+`infra/database/bootstrap_extensions.sql` after role bootstrap to enable it in
+`public`. An existing installation in another schema needs administrator review;
+the application does not relocate shared extensions or gain superuser privileges.
+The local compose image and initialization scripts supply this prerequisite.
+Provision it on restore targets too: application-schema dumps exclude the public
+extension. Semantic functions are schema-qualified, so hardened runtime and
+migration search paths remain unchanged.
+
+Prefer these maintained database primitives over custom vector infrastructure.
+Structured/lexical discovery and the semantic opt-in default remain unchanged.
+See [pgvector](https://github.com/pgvector/pgvector#querying) and its
+[SQLAlchemy adapter](https://github.com/pgvector/pgvector-python#sqlalchemy).
+
 ### Operating the index
 
 Apply the additive database migration before indexing. The indexing manifest is

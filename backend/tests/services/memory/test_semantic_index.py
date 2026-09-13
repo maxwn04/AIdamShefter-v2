@@ -166,3 +166,99 @@ def test_openai_adapter_orders_response_and_is_lazy() -> None:
     assert calls == []
     assert provider.embed(["alpha", "beta"]) == ((1.0, 0.0), (0.0, 1.0))
     assert calls[0]["num_retries"] == 0 and calls[0]["dimensions"] == 2
+
+
+def test_pgvector_exact_cosine_filters_versions_and_model_dimensions(database_engine: Engine) -> None:
+    domain, documents, provider, index = _fixture(database_engine)
+    chosen = documents[:3]
+    assert len(chosen) == 3
+    index.index_missing(documents)
+    with database_engine.begin() as connection:
+        for document, vector in zip(chosen, ([1, 0, 0], [0, 1, 0], [-1, 0, 0]), strict=True):
+            connection.execute(sa.update(MemorySearchEmbedding).where(
+                MemorySearchEmbedding.version_id == document.version_id,
+            ).values(embedding=vector))
+        # Another model/dimension for an otherwise eligible version must not
+        # enter the native distance calculation or trigger dimension errors.
+        row = connection.execute(sa.select(MemorySearchEmbedding.__table__).where(
+            MemorySearchEmbedding.version_id == chosen[0].version_id,
+        )).mappings().one()
+        connection.execute(sa.insert(MemorySearchEmbedding).values(
+            **{**dict(row), "model": "different-shape", "dimensions": 2, "embedding": [1, 0]},
+        ))
+    hardened = sa.create_engine(database_engine.url, connect_args={
+        "options": "-c search_path=pg_catalog -c role=aidam_runtime",
+    })
+    try:
+        scoped = SemanticIndex(create_session_factory(hardened), domain.competition_id, provider)
+        result = scoped.score("exact neighbors", chosen)
+        assert result.status == "ready" and result.available_count == 3
+        assert result.scores == pytest.approx({
+            chosen[0].version_id: 1.0, chosen[1].version_id: 0.0, chosen[2].version_id: -1.0,
+        })
+        assert list(result.scores) == [document.version_id for document in chosen]
+        # The stronger unrequested vector never escapes the caller's eligibility.
+        assert set(scoped.score("subset", chosen[1:]).scores) == {d.version_id for d in chosen[1:]}
+    finally:
+        hardened.dispose()
+
+
+def test_pgvector_exact_search_supports_current_3072_dimension_model(database_engine: Engine) -> None:
+    domain, documents, _, _ = _fixture(database_engine)
+    class LargeProvider:
+        spec = EmbeddingSpec(provider="offline", model="large-vector", dimensions=3072)
+
+        def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+            return [[1.0] + [0.0] * 3071 for _ in texts]
+
+    index = SemanticIndex(create_session_factory(database_engine), domain.competition_id, LargeProvider())
+    index.index_missing(documents[:1])
+    result = index.score("query", documents[:1])
+    assert result.status == "ready"
+    assert result.scores[documents[0].version_id] == pytest.approx(1.0)
+
+
+def test_projection_changed_during_query_embedding_is_not_scored(database_engine: Engine) -> None:
+    domain, documents, provider, index = _fixture(database_engine)
+    index.index_missing(documents[:1])
+    class ChangingProvider(FakeProvider):
+        def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+            with database_engine.begin() as connection:
+                connection.execute(sa.update(MemorySearchDocument).where(
+                    MemorySearchDocument.version_id == documents[0].version_id,
+                ).values(document_text="projection rebuilt while query was embedding"))
+            return super().embed(texts)
+
+    changed = SemanticIndex(create_session_factory(database_engine), domain.competition_id, ChangingProvider())
+    result = changed.score("query", documents[:1])
+    assert result.status == "unavailable" and result.scores == {}
+    assert result.reason == "semantic_index_unavailable"
+
+
+def test_vectors_that_round_to_zero_are_rejected_at_native_boundary(database_engine: Engine) -> None:
+    domain, documents, _, index = _fixture(database_engine)
+    index.index_missing(documents[:1])
+    class TinyProvider(FakeProvider):
+        def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+            return [[1e-50, 0, 0] for _ in texts]
+
+    tiny = SemanticIndex(create_session_factory(database_engine), domain.competition_id, TinyProvider())
+    result = tiny.score("tiny query", documents[:1])
+    assert result.status == "unavailable" and result.reason == "semantic_provider_unavailable"
+    assert result.scores == {}
+    with pytest.raises(ValueError, match="nonzero"):
+        tiny.index_missing(documents[1:2])
+
+
+@pytest.mark.parametrize("scale", [1e-30, 1e30])
+def test_nonfinite_native_cosine_is_reported_unavailable(database_engine: Engine, scale: float) -> None:
+    domain, documents, _, _ = _fixture(database_engine)
+    class ExtremeProvider(FakeProvider):
+        def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+            return [[scale, 0, 0] for _ in texts]
+
+    index = SemanticIndex(create_session_factory(database_engine), domain.competition_id, ExtremeProvider())
+    index.index_missing(documents[:1])
+    result = index.score("query", documents[:1])
+    assert result.status == "unavailable" and result.reason == "semantic_index_unavailable"
+    assert result.scores == {}

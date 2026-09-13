@@ -50,18 +50,23 @@ def _temporary_database(base_url: str) -> Iterator[str]:
         parsed.set(database=database_name),
         isolation_level="AUTOCOMMIT",
     )
-    with bootstrap_engine.connect() as connection:
-        _ = connection.exec_driver_sql(
-            "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
-        )
-    bootstrap_engine.dispose()
     test_url = parsed.set(database=database_name).render_as_string(
         hide_password=False
     )
 
     try:
+        with bootstrap_engine.connect() as connection:
+            _ = connection.exec_driver_sql(
+                "REVOKE CREATE ON SCHEMA public FROM PUBLIC"
+            )
+            # Provision before Alembic switches to the application owner role.
+            _ = connection.exec_driver_sql(
+                "CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public"
+            )
+        bootstrap_engine.dispose()
         yield test_url
     finally:
+        bootstrap_engine.dispose()
         with admin_engine.connect() as connection:
             _ = connection.execute(
                 text(

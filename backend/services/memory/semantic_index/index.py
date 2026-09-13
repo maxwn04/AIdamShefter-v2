@@ -6,6 +6,8 @@ import hashlib
 import math
 from uuid import UUID
 
+from pgvector import Vector as VectorValue
+from pgvector.sqlalchemy import Vector
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,6 +19,17 @@ from backend.resources.memory.search_documents.semantic import EmbeddingDocument
 from backend.services.memory.semantic_index.provider import (
     EmbeddingProvider, EmbeddingSpec, validated_vectors,
 )
+
+
+def _native_vectors(
+    vectors: Sequence[Sequence[float]], *, count: int, dimensions: int,
+) -> tuple[tuple[float, ...], ...]:
+    """Validate provider values before and after pgvector's float32 conversion."""
+    checked = validated_vectors(vectors, count=count, dimensions=dimensions)
+    return validated_vectors(
+        [VectorValue(vector).to_list() for vector in checked],
+        count=count, dimensions=dimensions,
+    )
 
 
 def text_hash(document: EmbeddingDocument) -> str:
@@ -54,39 +67,57 @@ class SemanticIndex:
         try:
             with read_only_session(self._sessions) as session:
                 self._validate_documents(session, documents)
-                vectors, stale = self._cached(session, documents, self._provider.spec)
+                cached, stale = self._cached(session, documents, self._provider.spec)
         except (SQLAlchemyError, ValueError):
             return SemanticSearchResult(status="unavailable", total_count=total, reason="semantic_index_unavailable")
-        missing = total - len(vectors) - stale
-        if not vectors:
+        missing = total - len(cached) - stale
+        if not cached:
             return SemanticSearchResult(
                 status="stale" if stale else "partial", total_count=total,
                 missing_count=missing, stale_count=stale,
                 reason="semantic_index_requires_rebuild",
             )
         try:
-            query_vector, = validated_vectors(
+            query_vector, = _native_vectors(
                 self._provider.embed([query]), count=1, dimensions=self._provider.spec.dimensions,
             )
         except Exception:
             # Provider exceptions may contain credentials or request bodies. A
             # stable reason is sufficient to explain lexical fallback safely.
             return SemanticSearchResult(
-                status="unavailable", total_count=total, available_count=len(vectors),
+                status="unavailable", total_count=total, available_count=len(cached),
                 missing_count=missing, stale_count=stale, reason="semantic_provider_unavailable",
             )
-        query_norm = math.hypot(*query_vector)
-        scores: dict[UUID, float] = {}
-        for version_id, vector in vectors.items():
-            norm = math.hypot(*vector)
-            scores[version_id] = max(-1.0, min(1.0, sum(
-                (a / query_norm) * (b / norm)
-                for a, b in zip(query_vector, vector, strict=True)
-            )))
+        try:
+            with read_only_session(self._sessions) as session:
+                # Query embedding happens outside the transaction. Recheck the
+                # projection before evaluating its matching stored vectors.
+                self._validate_documents(session, documents)
+                cached, stale = self._cached(session, documents, self._provider.spec)
+                distance = sa.func.public.cosine_distance(
+                    MemorySearchEmbedding.embedding,
+                    sa.literal(query_vector, type_=Vector()), type_=sa.Float,
+                )
+                rows = session.execute(sa.select(
+                    MemorySearchEmbedding.version_id,
+                    (1.0 - distance).label("similarity"),
+                ).where(self._matching_embeddings(documents, self._provider.spec)).order_by(
+                    distance, MemorySearchEmbedding.version_id,
+                ))
+                scores = {version_id: similarity for version_id, similarity in rows}
+                # Native float32 arithmetic can still overflow or underflow
+                # for finite, nonzero inputs. Never expose NaN as a match.
+                if any(not math.isfinite(score) for score in scores.values()):
+                    raise ValueError("Native cosine similarity is not finite")
+        except (SQLAlchemyError, ValueError):
+            return SemanticSearchResult(
+                status="unavailable", total_count=total, reason="semantic_index_unavailable",
+            )
+        missing = total - len(cached) - stale
         return SemanticSearchResult(
-            scores=scores, status="ready" if len(vectors) == total else "partial",
-            total_count=total, available_count=len(vectors), missing_count=missing,
-            stale_count=stale, reason=None if len(vectors) == total else "semantic_index_incomplete",
+            scores=scores, status="ready" if len(scores) == total else "partial",
+            total_count=total, available_count=len(scores), missing_count=missing,
+            stale_count=stale, reason=None if len(scores) == total else "semantic_index_incomplete",
         )
 
     def index_missing(
@@ -111,7 +142,7 @@ class SemanticIndex:
         indexed = 0
         for offset in range(0, len(missing), batch_size):
             batch = missing[offset:offset + batch_size]
-            vectors = validated_vectors(
+            vectors = _native_vectors(
                 self._provider.embed([document.document_text for document in batch]),
                 count=len(batch), dimensions=spec.dimensions,
             )
@@ -173,31 +204,38 @@ class SemanticIndex:
                 raise ValueError("Embedding input does not match this competition's current search projection")
 
     @staticmethod
+    def _matching_embeddings(
+        documents: Sequence[EmbeddingDocument], spec: EmbeddingSpec,
+    ) -> sa.ColumnElement[bool]:
+        """The native distance query can only see compatible eligible versions."""
+        embedding = MemorySearchEmbedding
+        return sa.and_(
+            embedding.provider == spec.provider,
+            embedding.model == spec.model,
+            embedding.dimensions == spec.dimensions,
+            embedding.text_format_version == spec.text_format_version,
+            sa.tuple_(
+                embedding.version_id, embedding.document_builder_version,
+                embedding.source_content_hash, embedding.text_hash,
+            ).in_([
+                (document.version_id, document.builder_version,
+                 document.content_hash, text_hash(document))
+                for document in documents
+            ]),
+            sa.func.public.vector_norm(embedding.embedding) > 0,
+        )
+
+    @classmethod
     def _cached(
-        session: Session, documents: Sequence[EmbeddingDocument], spec: EmbeddingSpec,
-    ) -> tuple[dict[UUID, tuple[float, ...]], int]:
+        cls, session: Session, documents: Sequence[EmbeddingDocument], spec: EmbeddingSpec,
+    ) -> tuple[set[UUID], int]:
+        """Read coverage identifiers only; vector storage and arithmetic stay in PostgreSQL."""
         if not documents:
-            return {}, 0
-        by_id = {document.version_id: document for document in documents}
-        rows = session.scalars(sa.select(MemorySearchEmbedding).where(
-            MemorySearchEmbedding.version_id.in_(by_id),
-        ))
-        seen: set[UUID] = set()
-        vectors: dict[UUID, tuple[float, ...]] = {}
-        for row in rows:
-            seen.add(row.version_id)
-            document = by_id[row.version_id]
-            if (
-                (row.provider, row.model, row.dimensions, row.text_format_version)
-                != (spec.provider, spec.model, spec.dimensions, spec.text_format_version)
-                or row.document_builder_version != document.builder_version
-                or row.source_content_hash != document.content_hash
-                or row.text_hash != text_hash(document)
-            ):
-                continue
-            try:
-                vector, = validated_vectors([row.embedding], count=1, dimensions=spec.dimensions)
-            except (ValueError, TypeError, OverflowError):
-                continue
-            vectors[row.version_id] = vector
-        return vectors, len(seen - vectors.keys())
+            return set(), 0
+        seen = set(session.scalars(sa.select(MemorySearchEmbedding.version_id).where(
+            MemorySearchEmbedding.version_id.in_([document.version_id for document in documents]),
+        )))
+        matching = set(session.scalars(sa.select(MemorySearchEmbedding.version_id).where(
+            cls._matching_embeddings(documents, spec),
+        )))
+        return matching, len(seen - matching)

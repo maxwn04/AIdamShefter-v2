@@ -20,6 +20,7 @@ dependencies = [
     "fastapi>=0.116",
     "uvicorn[standard]>=0.35",
     "mcp[cli]>=2,<3",
+    "pgvector>=0.4,<0.5",
 ]
 
 [dependency-groups]
