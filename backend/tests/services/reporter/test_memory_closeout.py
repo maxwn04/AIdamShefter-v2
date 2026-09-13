@@ -101,6 +101,7 @@ def test_completion_derives_delta_counts_and_is_idempotent() -> None:
         "outcome": "proposals_saved",
         "proposal_counts": expected_counts,
         "callback_dispositions": [],
+        "pending_callback_reviews": [],
     }
     assert repeated == {
         **completed,
@@ -198,3 +199,80 @@ def test_defer_does_not_create_a_proposal_or_require_other_callback_dispositions
         "outcome": "uninvestigated",
     }]
     assert state.summary()["turn_allowance"] == 6
+
+
+def test_actual_due_question_reappears_at_closeout_without_becoming_a_gate() -> None:
+    from backend.services.reporter.runner.memory_closeout import RecalledCallbackReview
+
+    due = RecalledCallbackReview(memory_handle="memory_1",
+        question="Have GIBBS or iAmWeird sustained their early scoring edge?", due_week=3)
+    state = MemoryCloseoutState(procedure="# Closeout", memory_writes_enabled=True,
+        proposal_snapshot=lambda: (), callback_review_snapshot=lambda: (due,))
+    state.activate(turn=15)
+    state.begin_turn()
+    guidance = state.turn_guidance()
+    assert "memory_1" in guidance and due.question in guidance and '"due_week": 3' in guidance
+    assert "update_memory_callback" in guidance and "defer" in guidance and "reschedule" in guidance
+    result = state.complete(turn=16)
+    assert result["ok"] is True
+    assert result["callback_dispositions"] == []
+    assert result["pending_callback_reviews"][0]["memory_handle"] == "memory_1"
+    assert result["proposal_counts"]["total"] == 0
+
+
+def test_pending_context_uses_only_successful_dispositions_and_is_read_only() -> None:
+    from backend.services.reporter.runner.memory_closeout import RecalledCallbackReview
+
+    cards = tuple(RecalledCallbackReview(memory_handle=f"memory_{number}", question=f"Question {number}", due_week=3)
+                  for number in (1, 2, 3, 4))
+    state = MemoryCloseoutState(procedure="# Closeout", memory_writes_enabled=True,
+        proposal_snapshot=lambda: (), callback_review_snapshot=lambda: cards)
+    state.activate(turn=15)
+    for number, action in ((1, "resolve"), (2, "reschedule"), (3, "defer")):
+        state.record_callback_disposition(handle=f"memory_{number}", action=action, reason="Deliberate action")
+    pending = state.pending_callback_reviews()
+    assert [card["memory_handle"] for card in pending] == ["memory_4"]
+    pending[0]["question"] = "Changed copy"
+    assert state.pending_callback_reviews()[0]["question"] == "Question 4"
+    assert "Question 1" not in state.turn_guidance()
+    assert "Question 4" in state.turn_guidance()
+    assert state.complete(turn=16)["ok"] is True
+    assert cards[3].question == "Question 4"
+
+
+def test_read_only_closeout_does_not_suggest_blocked_callback_writes() -> None:
+    from backend.services.reporter.runner.memory_closeout import RecalledCallbackReview
+
+    state = MemoryCloseoutState(procedure="# Closeout", memory_writes_enabled=False,
+        proposal_snapshot=lambda: (), callback_review_snapshot=lambda: (
+            RecalledCallbackReview(memory_handle="memory_1", question="Still open", due_week=3),))
+    state.activate(turn=1)
+    assert "update_memory_callback" not in state.turn_guidance()
+    assert state.complete(turn=2)["pending_callback_reviews"][0]["question"] == "Still open"
+
+
+def test_closeout_snapshot_contains_only_actual_writable_due_cards() -> None:
+    from uuid import UUID
+    from backend.services.memory import GenerationMemoryContext
+    from backend.services.reporter.config import ReportConfig, TimeRange
+    from backend.services.reporter.runner.tools.memory_tools import TypedMemoryAdapter
+    from backend.tests.services.reporter.test_memory_recall import (
+        COMPETITION_ID, SEASON_ID, REVISION_ID, CUTOFF, FrozenData, Retrieval, _trigger,
+    )
+
+    due = _trigger(10, target_week=3)
+    historical = _trigger(11, target_week=3).model_copy(update={"current_at_pin": False})
+    future = _trigger(12, target_week=16)
+    retrieval = Retrieval(triggers=(due, historical, future))
+    memory = GenerationMemoryContext(competition_id=COMPETITION_ID, generation_id=UUID(int=99),
+        pinned_revision_id=REVISION_ID, retrieval=retrieval, competition_season_id=SEASON_ID,
+        week=15, knowledge_cutoff_at=CUTOFF)
+    adapter = TypedMemoryAdapter(memory, FrozenData())
+    assert adapter.callback_review_snapshot() == ()
+    plan = adapter.build_recall(ReportConfig(time_range=TimeRange.single_week(15)))
+    cards = adapter.callback_review_snapshot()
+    assert len(cards) == 1
+    assert cards[0].memory_handle in {card["memory_handle"] for card in plan.result["due_callbacks"]}
+    assert adapter._presentation.resolve_handle(cards[0].memory_handle).version.version_id == due.memory.version.version_id
+    assert cards[0].due_week == 3
+    assert memory.proposal_snapshot() == ()

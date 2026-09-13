@@ -32,6 +32,7 @@ from backend.services.memory import (
 )
 from backend.services.reporter.config import ReportConfig
 from backend.services.reporter.runner.models import ToolDef, ToolExecutionResult
+from backend.services.reporter.runner.memory_closeout import RecalledCallbackReview
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.memory_event_evidence import (
     EventEvidenceError,
@@ -51,7 +52,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "9"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "10"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -359,6 +360,7 @@ class TypedMemoryAdapter:
         ] = {}
         self._presentation = MemoryPresentationAdapter(data)
         self._callback_dispositions: dict[str, dict[str, str]] = {}
+        self._due_callback_context: tuple[RecalledCallbackReview, ...] = ()
         self._recall = MemoryRecallPlanner(
             memory_context,
             data,
@@ -385,7 +387,20 @@ class TypedMemoryAdapter:
     def build_recall(self, config: ReportConfig) -> MemoryRecallPlan:
         plan = self._recall.plan(config)
         self._cache_pinned_candidates(plan.candidates)
+        if isinstance(plan.result, dict):
+            self._due_callback_context = tuple(
+                RecalledCallbackReview(
+                    memory_handle=card["memory_handle"],
+                    question=card["condition_summary"],
+                    due_week=card.get("due_week"), due_time=card.get("due_time"),
+                ) for card in plan.result.get("due_callbacks", [])
+                if card.get("memory_handle") and not card.get("read_only", False)
+            )
         return plan
+
+    def callback_review_snapshot(self) -> tuple[RecalledCallbackReview, ...]:
+        """Return only due questions actually presented in automatic context."""
+        return self._due_callback_context
 
     def _season_bounds(self) -> dict[UUID, int] | None:
         if not hasattr(self._data, "available_seasons"):
@@ -964,12 +979,16 @@ class TypedMemoryAdapter:
         if resolution.status == "not_found":
             raise MemoryToolInputError(
                 "roster_not_found",
-                f"Could not resolve roster key: {roster_key}",
+                f"Could not resolve roster key: {roster_key}. "
+                "Copy its numeric roster key or franchise selector from source or memory cards; "
+                "retry with all intended team_keys instead of dropping team relationships.",
             )
         if resolution.status == "ambiguous":
             raise MemoryToolInputError(
                 "roster_ambiguous",
-                f"Roster key matches multiple teams: {roster_key}",
+                f"Roster key matches multiple teams: {roster_key}. Choose an exact selector: "
+                + "; ".join(f"{match.team_name} (franchise:{match.franchise_id})"
+                            for match in resolution.matches),
             )
         return resolution.identity
 

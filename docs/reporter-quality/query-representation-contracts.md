@@ -99,9 +99,10 @@ discovery and an explicit maintenance/version-visibility contract.
 
 ## Callback lifecycle
 
-Resolve, reschedule and defer apply to the selected callback through successful
-buffered mutations. Runtime derives bookkeeping from that mutation. Defer remains
-open and uninvestigated; it does not assert an answer. Existing atomic publication,
+Resolve and reschedule apply to the selected callback through successful buffered
+mutations. Defer records an uninvestigated run disposition while preserving the
+canonical open question and review date. Runtime records successful actions without
+a duplicate receipt. Defer does not assert an answer. Existing atomic publication,
 read-only/backtest behavior and closeout constraints remain intact.
 
 No mandatory disposition gate is added for every due handle. No forced article
@@ -147,3 +148,36 @@ Review article and saved-memory failures alongside mechanics and response size.
 Offline replay establishes interface behavior; it does not establish new article
 quality, provider token use, or season-long callback behavior. New paid evaluation
 and merging are separate user decisions after reviewable PRs.
+
+
+## Sample-driven reporting and identity clarifications
+
+Recorded bracket outcomes and score comparisons are different evidence kinds.
+Bracket cards identify the recorded winner/loser explicitly, while showing score
+comparison separately. Keep the executed source paths and legacy retained payloads
+readable. Observed round rows and their participants are not a complete remaining
+playoff field. Expose configured field size and visible coverage without inferring
+bye teams, advancement or elimination from incomplete rows or higher scores.
+Team playoff paths must not interpret a losers-bracket recorded result as verified
+championship elimination or survival. Unknown progression remains explicit.
+
+Advisory article review may show relevant executed bracket outcome/coverage cards
+even when the writer did not successfully bind a related fact. Those cards remain
+source-backed context for review, not automated prose entailment or a publication
+gate. No provider calls are needed to produce them.
+
+Memory team resolution prefers exact stable/numeric identities and exact names.
+Within one selected frozen season, a unique full team label may also resolve after
+removing decorative emoji; preserve meaningful words, punctuation and manager
+identity semantics. Never use fuzzy prefix/edit-distance matching or cross-season
+name guessing. Ambiguity and invalid identities still fail with useful stable
+selector guidance. A repair must not encourage omitting valid team relationships.
+Fact binding continues to require the exact executed field value; render Unicode
+values directly so names can be copied without interpreting escape sequences.
+
+At closeout, re-present already recalled due questions with their valid handles,
+review dates and actions. Derive pending questions from recall and the existing
+successful disposition ledger; add no second receipt or bookkeeping requirement.
+Completion may honestly report pending questions and remains permitted without
+accounting for every callback. No automatic resolve/defer, unseen callback closure,
+mandatory mention or parent-resolution cascade is introduced.

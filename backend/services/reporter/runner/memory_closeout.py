@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+import json
 from typing import Any, Literal
 from uuid import UUID
 
@@ -18,6 +19,16 @@ class MemoryCloseoutIncompleteError(RuntimeError):
     """The reporter submitted an article but did not complete memory review."""
 
 
+@dataclass(frozen=True, slots=True)
+class RecalledCallbackReview:
+    """Read-only presentation of an actual due card, not a disposition record."""
+
+    memory_handle: str
+    question: str
+    due_week: int | None = None
+    due_time: str | None = None
+
+
 @dataclass(slots=True)
 class MemoryCloseoutState:
     """Mutable lifecycle facts shared by the runner and closeout tools."""
@@ -25,6 +36,7 @@ class MemoryCloseoutState:
     procedure: str
     memory_writes_enabled: bool
     proposal_snapshot: Callable[[], tuple[MemoryProposal, ...]]
+    callback_review_snapshot: Callable[[], tuple[RecalledCallbackReview, ...]] = tuple
     article_submitted: bool = False
     memory_review_completed: bool = False
     exhausted: bool = False
@@ -95,19 +107,37 @@ class MemoryCloseoutState:
         """Expose the actual bounded lifecycle without inventing a completion."""
         remaining = MEMORY_CLOSEOUT_TURN_ALLOWANCE - self.closeout_turns_used
         if remaining == 0:
-            return (
+            guidance = (
                 "Final memory-review turn. Finish the necessary repairs or updates "
                 "and call complete_memory_review in this response. Writes in the "
                 "same response execute before completion. Do not start optional "
                 "research or unrelated memory writes."
             )
-        return (
-            f"Memory-review turn {self.closeout_turns_used} of "
-            f"{MEMORY_CLOSEOUT_TURN_ALLOWANCE}; {remaining} further turns remain. "
-            "Prioritize supported events and updates to recalled storylines. "
-            "Use successful write receipts for dependencies, then call "
-            "complete_memory_review explicitly."
-        )
+        else:
+            guidance = (
+                f"Memory-review turn {self.closeout_turns_used} of "
+                f"{MEMORY_CLOSEOUT_TURN_ALLOWANCE}; {remaining} further turns remain. "
+                "Prioritize supported events and updates to recalled storylines. "
+                "Use successful write receipts for dependencies, then call "
+                "complete_memory_review explicitly."
+            )
+        pending = self.pending_callback_reviews()
+        if pending and self.memory_writes_enabled:
+            guidance += (
+                " Already recalled due questions still have no recorded action: "
+                + json.dumps(pending, ensure_ascii=False)
+                + " Use update_memory_callback with that memory_handle as update_handle: "
+                "resolve when source evidence answers or ends the question; reschedule "
+                "with a future target_week when useful; defer with a reason if uninvestigated. "
+                "An article mention is optional. These questions do not block completion."
+            )
+        return guidance
+
+    def pending_callback_reviews(self) -> list[dict[str, Any]]:
+        """Derive untouched due questions from recall and successful actions."""
+        acted = {entry["memory_handle"] for entry in self.callback_dispositions}
+        return [asdict(card) for card in self.callback_review_snapshot()
+                if card.memory_handle not in acted]
 
     def complete(self, *, turn: int) -> dict[str, Any]:
         if not self.article_submitted:
@@ -128,6 +158,7 @@ class MemoryCloseoutState:
                 "outcome": "no_op" if self.no_op else "proposals_saved",
                 "proposal_counts": self.proposal_counts,
                 "callback_dispositions": self._callback_disposition_snapshot(),
+                "pending_callback_reviews": self.pending_callback_reviews(),
             }
 
         proposals = tuple(
@@ -146,6 +177,7 @@ class MemoryCloseoutState:
             "outcome": "no_op" if self.no_op else "proposals_saved",
             "proposal_counts": self.proposal_counts,
             "callback_dispositions": self._callback_disposition_snapshot(),
+            "pending_callback_reviews": self.pending_callback_reviews(),
         }
 
     def mark_exhausted(self) -> None:
@@ -163,6 +195,7 @@ class MemoryCloseoutState:
             "no_op": self.no_op,
             "proposal_counts": self.proposal_counts,
             "callback_dispositions": self._callback_disposition_snapshot(),
+            "pending_callback_reviews": self.pending_callback_reviews(),
         }
 
     def _callback_disposition_snapshot(self) -> list[dict[str, str]]:
@@ -183,4 +216,5 @@ __all__ = [
     "MEMORY_CLOSEOUT_TURN_ALLOWANCE",
     "MemoryCloseoutIncompleteError",
     "MemoryCloseoutState",
+    "RecalledCallbackReview",
 ]

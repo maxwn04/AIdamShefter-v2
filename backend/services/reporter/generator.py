@@ -135,6 +135,8 @@ async def generate_article(
                 procedure=prepared.procedure_contents["memory_closeout"],
                 memory_writes_enabled=allow_memory_writes,
                 proposal_snapshot=memory_context.proposal_snapshot,
+                callback_review_snapshot=(memory_adapter.callback_review_snapshot
+                    if memory_adapter is not None else tuple),
             )
             if memory_context is not None
             else None
