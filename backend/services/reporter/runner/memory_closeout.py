@@ -127,7 +127,7 @@ class MemoryCloseoutState:
                 " Already recalled due questions still have no recorded action: "
                 + json.dumps(pending, ensure_ascii=False)
                 + " Use update_memory_callback with that memory_handle as update_handle: "
-                "resolve when source evidence answers or ends the question; reschedule "
+                "resolve when source evidence answers the actual question; reschedule "
                 "with a future target_week when useful; defer with a reason if uninvestigated. "
                 "An article mention is optional. These questions do not block completion."
             )

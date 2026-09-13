@@ -26,7 +26,9 @@ Use this guide when enough evidence exists to compose or substantially revise th
 
 - Open with the strongest supported material, not a generic recap sentence.
 - Build paragraphs around a claim, its concrete evidence, and its significance.
+- Write transfer sentences from explicit sender-to-recipient relationships, not the order of team names in a source card. Keep player identity, scoring role, record units and competition phase attached to the claim when paraphrasing.
 - Give lead material room to develop and compress routine results into proportional supporting coverage.
+- Use player contributions to explain consequential games when supported; preserve meaningful league and roster-move coverage. Do not fill the requested length with repeated caveats or descriptions of data mechanics. State an outcome limitation once where it changes the reader's understanding.
 - Let the requested article form determine its structure. Do not force stock headings or a standard recap template.
 - Treat the outline as a revisable planning aid. Preserve it only while it improves the article.
 - For callbacks, state what happened before, what happened now, and why the meaning changed. Avoid vague continuity language without those specifics.

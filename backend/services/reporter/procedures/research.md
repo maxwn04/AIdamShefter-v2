@@ -30,11 +30,11 @@ Choose the smallest useful view for the current question:
 - Trades, waivers, and roster moves: `transactions` or `team_transactions`.
 - Playoff stakes: `playoff_bracket` and `team_playoff_path`.
 - A bespoke comparison unavailable from curated tools: guarded `run_sql`.
-- Historical narrative leads: `search_memory`, followed by datalayer verification of any lead worth using.
+- Historical narrative discovery: `search_memory`; selected detail, history and evidence: `inspect_memory`. Datalayer calls verify material claims from those leads.
 
 Run independent reads together when their results do not depend on one another. Avoid overlapping broad calls that reproduce the same evidence, and do not expand the week range merely to find more material.
 
-History is opt-in. Use it only when the request, recalled memory, or current facts create a meaningful cross-season lead; an ordinary weekly recap remains primary-season first. For a historical lead, discover the available seasons, prefer the curated history tools for orientation, and drill down with explicit `season=YYYY` arguments. Resolve historical teams through durable franchise identity rather than matching old names independently. Save evidence for every season involved in a comparison, callback, record, or superlative, and include every material tool argument in the source reference.
+Keep current coverage primary while investigating history that explains it. Same-season developments can warrant discovery without a special request for history: a contender losing, an acquired player becoming decisive, or a playoff result revisiting an earlier expectation. For cross-season leads, discover available seasons, prefer curated history tools for orientation, and drill down with explicit `season=YYYY` arguments. Resolve historical teams through durable franchise identity rather than matching old names independently. Save evidence for every season involved in a comparison, callback, record, or superlative, and include every material tool argument in the source reference.
 
 ## Evidence Judgment
 
@@ -47,17 +47,17 @@ History is opt-in. Use it only when the request, recalled memory, or current fac
 
 ## Memory Judgment
 
-Begin with any automatically recalled due callbacks, standing context, and likely relevant memories already supplied in the conversation. They can satisfy the initial continuity check, but they remain unverified narrative leads. After the current-week inventory, use `search_memory` only when a concrete team, player, transaction, matchup, or stakes question remains unanswered by that prelude. Build any supplemental search from current evidence:
+Treat automatically recalled cards as a useful selection of leads, not a complete account of what was previously reported. Ask whether a meaningful current development tests an older expectation, continues an acquisition story, changes a rivalry or answers an open question. Discover that history when it could change the angle or interpretation; inspect selected cards when their summaries do not establish the relevant prior state or evidence. This is editorial judgment within research, not an extra required workflow stage.
 
-- Prefer `team_keys` for current team names or roster IDs, and combine them with tags or a focused text concept when that sharpens the editorial question. Canonical memory identifiers are intentionally unavailable.
+- Use `team_keys` for a genuinely team-specific question, preferring returned stable `franchise:<UUID>` selectors. Names and roster IDs resolve in the selected season. Team, season, kind, status and week filters exclude other results; do not narrow away a trade counterparty, resolved arc or earlier chapter that the question needs.
 - Use `text` for one continuity question, concept, name, or phrase. Hybrid discovery can connect paraphrases when semantic retrieval is ready. Never pack unrelated teams, players, and themes into one query. If distinct hooks are independently valuable, test them with separate focused calls.
 - Use `kinds`, `statuses`, and inclusive `week_from` / `week_to` only when they genuinely narrow the question. Omit temporal bounds for continuity spanning the season.
-- Prefer 5-8 focused semantic results. Include evidence or related summaries when they help evaluate continuity, but remember that memory is a lead rather than proof. Do not perform an unfiltered browse merely because memory exists.
+- Read candidate summaries for relevance, then use `inspect_memory(view="detail")` for the selected question/state, `view="history"` for how it developed, or `view="evidence"` for linked events. Request further pages only when they may resolve the question. No search or result-count quota establishes useful research.
 - Discard any match dated after the article's configured coverage.
 - Check `retrieval_status`: disabled, partial, stale or unavailable semantic retrieval means the lexical/structured fallback may miss paraphrases. A no-match result cannot tell you whether the reporter ever saved the event. Narrow to a known name or browse with hard franchise/kind filters when the question warrants it.
-- Historical matches may contain earlier hypotheses or superseded status. Use `inspect_memory` for their selected detail/history/evidence; historical handles stay read-only. Search without text for a current card before updating an arc. Similarity is a relevance signal, not source support or a callback answer.
+- Historical matches may contain earlier hypotheses, errors or superseded status. Keep what the reporter previously believed distinct from what source data establishes. For an update, obtain the current card with a scoped search without text and confirm its identity. Historical evidence remains useful even when the current summary no longer mentions it.
 
-This is optional targeted retrieval, not a fixed research phase. Do not repeat the automatic prelude as a tool call. Stop after an empty or low-value result unless a more specific question is justified.
+An empty search is not proof that an event never happened or was never saved. Check overly restrictive filters or degraded retrieval when the question is consequential; otherwise leave the connection out. When the correct evidence is already available, resolve its meaning rather than adding more searches. Similarity, an old narrative label and a successful fact-save receipt do not establish a causal payoff.
 
 Saved brief facts remain working evidence for this article and are not copied into durable memory. After successful submission, use mandatory closeout to explicitly select future-use continuity: `upsert_storyline_memory_card` for an arc that should remain recognizable, and `save_memory_event`, `save_storyline_trigger`, `save_team_context`, or `save_league_note` for durable event, callback, team, or league state. Memory selection remains separate from proving today's article.
 
