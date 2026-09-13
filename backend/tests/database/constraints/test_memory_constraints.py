@@ -189,8 +189,13 @@ def test_memory_schema_keeps_only_structural_checks_and_history_guards(
         "context_notes",
         "context_note_versions",
         "memory_search_documents",
+        "memory_search_embeddings",
     }
-    expected_checks = {"ck_context_notes_scope_shape"}
+    expected_checks = {
+        "ck_context_notes_scope_shape",
+        "ck_memory_search_embeddings_positive_dimensions",
+        "ck_memory_search_embeddings_embedding_dimensions",
+    }
     expected_triggers = {
         "memory_revisions_reject_mutation",
         "memory_items_reject_mutation",
