@@ -63,6 +63,8 @@ def _fetch_transaction_rows(
             tm.from_roster_id,
             tm.to_roster_id,
             tp.team_name,
+            tp_from.team_name AS from_team,
+            tp_to.team_name AS to_team,
             tp_orig.team_name AS pick_original_team_name
         FROM transactions AS t
         LEFT JOIN transaction_moves AS tm
@@ -76,6 +78,12 @@ def _fetch_transaction_rows(
         LEFT JOIN team_profiles AS tp_orig
           ON tp_orig.league_id = t.league_id
          AND tp_orig.roster_id = tm.pick_original_roster_id
+        LEFT JOIN team_profiles AS tp_from
+          ON tp_from.league_id = t.league_id
+         AND tp_from.roster_id = tm.from_roster_id
+        LEFT JOIN team_profiles AS tp_to
+          ON tp_to.league_id = t.league_id
+         AND tp_to.roster_id = tm.to_roster_id
         WHERE t.league_id = :league_id
           AND t.season = :season
           AND t.week BETWEEN :week_from AND :week_to

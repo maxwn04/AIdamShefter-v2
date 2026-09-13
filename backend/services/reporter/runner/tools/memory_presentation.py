@@ -14,9 +14,6 @@ from backend.resources.memory.context_notes import ContextNote, ContextNoteConte
 from backend.resources.memory.events import EventContent
 from backend.resources.memory.events.payloads.matchup import MatchupEventPayload
 from backend.resources.memory.events.payloads.trade import (
-    BudgetTradeAsset,
-    DraftPickTradeAsset,
-    PlayerTradeAsset,
     TradeEventPayload,
 )
 from backend.resources.memory.facts import FactContent
@@ -38,6 +35,7 @@ from backend.services.memory import (
     TriggerTargetStorylineExpansion,
 )
 from backend.services.reporter.runner.models import ToolExecutionResult
+from backend.services.reporter.runner.tools.trade_presentation import present_trade
 
 
 if TYPE_CHECKING:
@@ -402,48 +400,18 @@ class MemoryPresentationAdapter:
             )
         if not isinstance(details, TradeEventPayload):
             raise TypeError(f"unsupported event payload: {details.kind}")
-        participants = [
-            SemanticEntity(
-                label=self._roster_label(
-                    franchise_id=details.sender_franchise_id,
-                    omissions=omissions,
-                    field="participants.0.label",
-                ),
-                role="sender",
+        participants, assets = present_trade(
+            details,
+            roster_label=lambda franchise_id, field: self._roster_label(
+                franchise_id=franchise_id, omissions=omissions, field=field,
             ),
-            SemanticEntity(
-                label=self._roster_label(
-                    franchise_id=details.receiver_franchise_id,
-                    omissions=omissions,
-                    field="participants.1.label",
-                ),
-                role="receiver",
+            player_label=lambda player_id, field: self._player_label(
+                player_id, omissions, field,
             ),
-        ]
-        assets: list[SemanticAsset] = []
-        for index, asset in enumerate(details.assets):
-            if isinstance(asset, PlayerTradeAsset):
-                label = self._player_label(
-                    asset.player_id,
-                    omissions,
-                    f"assets.{index}.label",
-                )
-            elif isinstance(asset, DraftPickTradeAsset):
-                if asset.season is not None:
-                    original = self._roster_label(franchise_id=asset.original_franchise_id,
-                        omissions=omissions, field=f"assets.{index}.original_team")
-                    label = f"{asset.season} round {asset.round} pick (originally {original})"
-                else:
-                    label = "Draft pick"
-                    omissions.append(f"assets.{index}.draft_pick_label")
-            elif isinstance(asset, BudgetTradeAsset):
-                label = f"{asset.amount} FAAB"
-            else:
-                raise TypeError(f"unsupported trade asset: {asset.kind}")
-            assets.append(
-                SemanticAsset(label=label, direction=asset.direction.value)
-            )
-        return participants, assets
+            omissions=omissions,
+        )
+        return ([SemanticEntity(**item) for item in participants],
+                [SemanticAsset(**item) for item in assets])
 
     def _condition_summary(
         self,

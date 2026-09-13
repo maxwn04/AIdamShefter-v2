@@ -12,6 +12,7 @@ from backend.resources.memory.events.payloads.trade import (
     DraftPickTradeAsset,
     PlayerTradeAsset,
     TradeEventPayload,
+    resolve_trade_transfers,
 )
 from backend.resources.memory.search_documents.objects import (
     SearchDocumentProjection,
@@ -50,10 +51,9 @@ def build_event_document(content: EventContent) -> SearchDocumentProjection:
 def _event_entity_keys(content: EventContent) -> set[str]:
     details = content.details
     if isinstance(details, TradeEventPayload):
-        keys = {
-            f"franchise:{details.sender_franchise_id}",
-            f"franchise:{details.receiver_franchise_id}",
-        }
+        keys = {f"franchise:{franchise_id}"
+                for transfer in resolve_trade_transfers(details)
+                for franchise_id in (transfer.from_franchise_id, transfer.to_franchise_id)}
         for asset in details.assets:
             if isinstance(asset, PlayerTradeAsset):
                 keys.add(f"player:{asset.player_id}")
@@ -76,7 +76,7 @@ def _event_detail_text(content: EventContent) -> list[str]:
         parts = [
             f"sender: franchise:{details.sender_franchise_id}",
             f"receiver: franchise:{details.receiver_franchise_id}",
-        ]
+        ] if details.sender_franchise_id is not None else []
         assets = sorted(_trade_asset_text(asset) for asset in details.assets)
         parts.append(f"assets: {'; '.join(assets)}")
         return parts
@@ -98,7 +98,9 @@ def _trade_asset_text(
         value = _pick_key(asset)
     else:
         value = f"budget:{asset.amount}"
-    return f"{asset.direction.value} {value}"
+    direction = (asset.direction.value if asset.direction is not None else
+                 f"from franchise:{asset.from_franchise_id} to franchise:{asset.to_franchise_id}")
+    return f"{direction} {value}"
 
 
 def _pick_key(asset: DraftPickTradeAsset) -> str:

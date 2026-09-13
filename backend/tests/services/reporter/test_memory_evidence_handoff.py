@@ -144,11 +144,57 @@ def test_trade_derives_all_assets_including_natural_pick_identity(player_id, nam
     assets = proposal.content.details.assets
     assert len(assets) == len(years)+1
     assert assets[0].player_id == player_id
-    assert assets[0].direction.value == "receiver_to_sender"
+    assert assets[0].direction is None
+    assert (assets[0].from_franchise_id, assets[0].to_franchise_id) == (WIRE_FRANCHISE_ID, TACO_FRANCHISE_ID)
     assert {a.season for a in assets[1:]} == set(years)
-    assert all(a.direction.value == "sender_to_receiver" and a.round == 1
+    assert all(a.from_franchise_id == TACO_FRANCHISE_ID and a.to_franchise_id == WIRE_FRANCHISE_ID and a.round == 1
                and a.original_franchise_id == TACO_FRANCHISE_ID for a in assets[1:])
     assert proposal.metadata.occurred_at is not None
+
+
+def test_three_party_trade_preserves_all_directed_assets_with_independent_move_indexes():
+    registry, context, memory, _, _, data = setup()
+    data.add_trade(years=(2026, 2027))
+    third = UUID(int=333)
+    data.connection.execute("INSERT INTO roster_identities VALUES ('league',3,?)", (str(third),))
+    data.connection.execute("INSERT INTO team_profiles VALUES ('league',3,'Third Team')")
+    # Redirect the second pick to a third participant, retaining its original owner.
+    data.connection.execute("UPDATE transaction_moves SET to_roster_id=3 WHERE pick_season='2027'")
+    data.connection.execute("UPDATE transaction_moves SET roster_id=3 WHERE pick_season='2027' AND direction='pick_in'")
+    data.connection.execute("UPDATE transaction_moves SET move_index=move_index+20 WHERE direction IN ('add','pick_in')")
+    saved_source_fact(registry, context, "transactions", week_from=2, week_to=2)
+    result = _call(registry, "save_memory_event", id="three_party", event_type="trade",
+        source_fact_ids=["fact_event"], headline="Three-team trade", summary="All three assets moved.")
+    assert result["saved"] is True, result
+    payload = memory.proposal_snapshot()[0].content.details
+    assert payload.sender_franchise_id is None and payload.receiver_franchise_id is None
+    assert len(payload.assets) == 3
+    picks = {asset.season: asset for asset in payload.assets if asset.kind == "draft_pick"}
+    assert picks[2026].to_franchise_id == WIRE_FRANCHISE_ID
+    assert picks[2027].to_franchise_id == third
+    assert all(asset.from_franchise_id == TACO_FRANCHISE_ID for asset in picks.values())
+    assert all(asset.original_franchise_id == TACO_FRANCHISE_ID for asset in picks.values())
+
+
+@pytest.mark.parametrize("corruption", [
+    "DELETE FROM transaction_moves WHERE pick_season='2027' AND direction='pick_in'",
+    "UPDATE transaction_moves SET to_roster_id=99 WHERE pick_season='2027'",
+    "UPDATE transaction_moves SET roster_id=99 WHERE pick_season='2027'",
+    "UPDATE transaction_moves SET roster_id=2 WHERE pick_season='2027' AND direction='pick_out'",
+    "UPDATE transaction_moves SET pick_original_roster_id=99 WHERE pick_season='2027'",
+    "UPDATE transaction_moves SET pick_season=NULL WHERE pick_season='2027'",
+    "INSERT INTO transaction_moves SELECT league_id,transaction_id,move_index+20,roster_id,player_id,asset_type,direction,bid_amount,from_roster_id,to_roster_id,pick_season,pick_round,pick_original_roster_id,pick_id FROM transaction_moves WHERE pick_season='2027'",
+])
+def test_incomplete_or_duplicate_unselected_pick_rejects_whole_event(corruption):
+    registry, context, memory, _, _, data = setup()
+    data.add_trade(years=(2026, 2027))
+    saved_source_fact(registry, context, "transactions", week_from=2, week_to=2)
+    data.connection.execute(corruption)
+    result = _call(registry, "save_memory_event", id="invalid", event_type="trade",
+        source_fact_ids=["fact_event"], headline="Trade", summary="Cannot save a partial trade.")
+    assert result["saved"] is False, result
+    assert result["error"]["code"] == "insufficient_event_evidence"
+    assert not memory.proposal_snapshot()
 
 
 def storyline_match():
