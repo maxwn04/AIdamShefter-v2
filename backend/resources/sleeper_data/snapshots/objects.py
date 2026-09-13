@@ -48,7 +48,7 @@ class ArtifactFailure(ContractModel):
 
 class BeginSnapshotBuild(ContractModel):
     competition_season_id: UUID
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
     as_of_date: date
     build_key: Sha256
     snapshot_projection_version: str = Field(min_length=1)
@@ -78,7 +78,7 @@ class SnapshotSeasonRole(StrEnum):
 class SealSnapshotSeason(ContractModel):
     competition_season_id: UUID
     role: SnapshotSeasonRole
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
 
 class SnapshotSeasonMembership(ContractModel):
@@ -88,7 +88,7 @@ class SnapshotSeasonMembership(ContractModel):
     season_year: int = Field(strict=True, ge=1900, le=9999)
     sequence_number: int = Field(strict=True, ge=1)
     role: SnapshotSeasonRole
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
 
 class SealSnapshot(ContractModel):
@@ -126,7 +126,7 @@ class DataSnapshot(ContractModel):
     primary_competition_season_id: UUID
     build_key: Sha256
     input_revision: Sha256 | None = None
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
     as_of_date: date
     status: SnapshotStatus
     snapshot_projection_version: str

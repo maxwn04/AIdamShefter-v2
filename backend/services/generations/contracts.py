@@ -17,7 +17,7 @@ from backend.services.memory import MemoryMutationResult
 from backend.services.reporter import ReporterOutput
 
 
-PositiveWeek = Annotated[int, Field(strict=True, ge=1, le=18)]
+ReportingWeek = Annotated[int, Field(strict=True, ge=0, le=18)]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 ControlLevel = Annotated[int, Field(strict=True, ge=0, le=3)]
@@ -103,8 +103,8 @@ class GenerationRequest(ContractModel):
     competition_season_id: UUID
     kind: GenerationKind
     request_text: NonBlankStr
-    week_start: PositiveWeek
-    week_end: PositiveWeek
+    week_start: ReportingWeek
+    week_end: ReportingWeek
     requested_primary_model: NonBlankStr
     settings: GenerationSettings = Field(default_factory=GenerationSettings)
     rerun_of_generation_id: UUID | None = None

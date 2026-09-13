@@ -80,7 +80,7 @@ def _build(projection_version: str) -> SnapshotSchema:
                 name="ck_snapshot_seasons_role",
             ),
             CheckConstraint(
-                "through_week BETWEEN 1 AND 18",
+                "through_week BETWEEN 0 AND 18",
                 name="ck_snapshot_seasons_through_week",
             ),
             Index("idx_snapshot_seasons_role", "role"),

@@ -90,7 +90,7 @@ class ApplyDisposition(StrEnum):
 
 class RefreshRequest(_WorkflowValue):
     competition_season_id: UUID
-    through_week: int | None = Field(default=None, ge=1, le=18, strict=True)
+    through_week: int | None = Field(default=None, ge=0, le=18, strict=True)
     trigger: RefreshTrigger
 
 
@@ -106,7 +106,7 @@ class ScopeRefreshResult(_WorkflowValue):
 class RefreshOutcome(_WorkflowValue):
     refresh_run_id: UUID
     status: RefreshStatus
-    effective_through_week: int | None = Field(ge=1, le=18, strict=True)
+    effective_through_week: int | None = Field(ge=0, le=18, strict=True)
     requested_scope_count: int = Field(ge=0, strict=True)
     succeeded_scope_count: int = Field(ge=0, strict=True)
     failed_scope_count: int = Field(ge=0, strict=True)
@@ -115,7 +115,7 @@ class RefreshOutcome(_WorkflowValue):
 
 class SnapshotRequest(_WorkflowValue):
     competition_season_id: UUID
-    through_week: int = Field(ge=1, le=18, strict=True)
+    through_week: int = Field(ge=0, le=18, strict=True)
     as_of_date: date
 
 
@@ -133,14 +133,14 @@ class ReadySnapshotSeason(_WorkflowValue):
     season_year: int = Field(strict=True, ge=1900, le=9999)
     sequence_number: int = Field(strict=True, ge=1)
     role: Literal["primary", "history"]
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
 
 class ReadyDataSnapshot(_WorkflowValue):
     id: UUID
     competition_id: UUID
     primary_competition_season_id: UUID
-    through_week: int = Field(ge=1, le=18, strict=True)
+    through_week: int = Field(ge=0, le=18, strict=True)
     as_of_date: date
     build_key: str
     snapshot_projection_version: str

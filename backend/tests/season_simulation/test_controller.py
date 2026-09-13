@@ -229,3 +229,23 @@ async def test_initial_export_pending_blocks_execution_until_repaired(setup):
     controller.export = failed_export
     with pytest.raises(OSError): await controller.run(RunLimits(max_steps=3))
     assert backend.calls == []
+
+
+def test_step_editorial_overrides_preserve_execution_pins(setup):
+    from backend.season_simulation.controller import step_request
+    from backend.services.generations.contracts import GenerationReportSettings, GenerationToneSettings
+
+    campaign, _, _, _ = setup
+    report = GenerationReportSettings(voice="analyst", tone=GenerationToneSettings(snark_level=0))
+    first = campaign.inputs.steps[0].model_copy(update={
+        "request_text": "Explain roster construction and the opening results.", "report_settings": report,
+    })
+    varied = campaign.model_copy(update={"inputs": campaign.inputs.model_copy(update={
+        "steps": (first, *campaign.inputs.steps[1:]),
+    })})
+    request = step_request(varied, 0, 1, campaign.root_revision_id)
+    assert request.request_text == first.request_text
+    assert request.settings.report == report
+    assert request.settings.prepared_execution.expected_memory_revision_id == campaign.root_revision_id
+    assert request.settings.prepared_execution.data_snapshot_id == first.snapshot_id
+    assert step_request(varied, 1, 1, campaign.root_revision_id).settings.report == campaign.inputs.settings.report

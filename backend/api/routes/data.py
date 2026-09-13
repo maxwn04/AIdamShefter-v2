@@ -58,7 +58,7 @@ router = APIRouter(
 DataApi = Annotated[DataApiDependencies, Depends(get_data_api_dependencies)]
 PageLimit = Annotated[int, Query(ge=1, le=200)]
 PageOffset = Annotated[int, Query(ge=0)]
-SnapshotWeek = Annotated[int, Query(ge=1, le=18)]
+SnapshotWeek = Annotated[int, Query(ge=0, le=18)]
 
 
 @router.post(

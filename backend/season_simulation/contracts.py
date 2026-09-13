@@ -7,12 +7,14 @@ from uuid import UUID, uuid5
 from pydantic import AwareDatetime, Field, model_validator
 
 from backend.resources._contracts import ContractModel, NonBlankStr
-from backend.services.generations.contracts import GenerationSettings
+from backend.services.generations.contracts import GenerationReportSettings, GenerationSettings
 from backend.services.generations.manifest import Sha256
 
 
 class PreparedStep(ContractModel):
-    week: Annotated[int, Field(strict=True, ge=1, le=18)]
+    week: Annotated[int, Field(strict=True, ge=0, le=18)]
+    request_text: NonBlankStr | None = None
+    report_settings: GenerationReportSettings | None = None
     snapshot_id: UUID
     artifact_sha256: Sha256
     input_revision: Sha256

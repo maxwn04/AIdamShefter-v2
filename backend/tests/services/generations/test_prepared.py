@@ -169,3 +169,28 @@ def test_exact_prepared_resolver_fails_closed_without_expire_or_rebuild(tmp_path
     assert not requests.calls
     assert not snapshots.expired
     assert len(snapshots.commands) == 1
+
+
+@pytest.mark.asyncio
+async def test_preseason_generation_preserves_zero_cutoff_and_memory_pin(tmp_path):
+    from backend.services.generations import GenerationRequest
+
+    service, manager, snapshots, revisions, reporter, _, _ = _service(tmp_path)
+    snapshot = snapshots.snapshot.model_copy(update={"through_week": 0})
+    execution = _execution(snapshot, revision_id=revisions.current_revision.revision_id)
+    request = GenerationRequest.model_validate({
+        **_request().model_dump(), "generation_id": _uuid(33),
+        "week_start": 0, "week_end": 0,
+        "request_text": "Preview the new season from roster changes; no games have completed.",
+        "settings": GenerationSettings(prepared_execution=execution),
+    })
+    service.submit(request)
+    service._prepared_snapshots = SimpleNamespace(resolve=lambda *args, **kwargs: snapshot)
+    result = await service.execute(request.generation_id)
+    assert result.generation.status is GenerationStatus.SUCCEEDED
+    assert manager.starts[-1].input_memory_revision_id == revisions.current_revision.revision_id
+    assert manager.starts[-1].input_manifest["cutoffs"]["domain_cutoff_week"] == 0
+    _, config, _ = reporter.calls[-1]
+    assert config.time_range.week_start == config.time_range.week_end == 0
+    assert not snapshots.preparation_requests
+

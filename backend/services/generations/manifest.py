@@ -21,7 +21,7 @@ PREPARED_MANIFEST_SCHEMA_VERSION = 3
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[a-f0-9]{64}$")]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
-PositiveWeek = Annotated[int, Field(strict=True, ge=1, le=18)]
+ReportingWeek = Annotated[int, Field(strict=True, ge=0, le=18)]
 SafeName = Annotated[
     str,
     StringConstraints(
@@ -45,13 +45,13 @@ class DataSnapshotSeasonInput(ContractModel):
     season_year: int = Field(strict=True, ge=1900, le=9999)
     sequence_number: PositiveInt
     role: Literal["primary", "history"]
-    through_week: PositiveWeek
+    through_week: ReportingWeek
 
 
 class SnapshotRefreshReceiptInput(ContractModel):
     claim_id: UUID
     competition_season_id: UUID
-    through_week: PositiveWeek
+    through_week: ReportingWeek
     refresh_run_id: UUID
     status: Literal["succeeded", "partial", "failed", "cancelled"]
     disposition: Literal["claimed", "joined"]
@@ -148,7 +148,7 @@ MemoryInput: TypeAlias = Annotated[
 
 
 class ManifestCutoffs(ContractModel):
-    domain_cutoff_week: PositiveWeek
+    domain_cutoff_week: ReportingWeek
     domain_cutoff_at: AwareDatetime | None = None
     knowledge_cutoff_at: AwareDatetime
     editorial_cutoff_at: AwareDatetime | None = None

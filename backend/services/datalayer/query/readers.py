@@ -99,8 +99,9 @@ class FrozenSnapshotReader:
         resolved = scope.through_week if week is None else week
         if isinstance(resolved, bool) or not isinstance(resolved, int):
             raise ValueError("week must be an integer")
-        if not 1 <= resolved <= scope.through_week:
-            raise ValueError(f"week must be from 1 through {scope.through_week}")
+        minimum = 0 if scope.through_week == 0 else 1
+        if not minimum <= resolved <= scope.through_week:
+            raise ValueError(f"week must be from {minimum} through {scope.through_week}")
         return resolved
 
     def week_range(

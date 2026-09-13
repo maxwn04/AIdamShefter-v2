@@ -25,7 +25,7 @@ from backend.services.generations import GenerationSettings
 from backend.services.model_usage import GenerationUsage
 
 
-PositiveWeek = Annotated[int, Field(strict=True, ge=1, le=18)]
+ReportingWeek = Annotated[int, Field(strict=True, ge=0, le=18)]
 
 
 class GenerationApiModel(BaseModel):
@@ -36,8 +36,8 @@ class SubmitGenerationBody(GenerationApiModel):
     competition_season_id: UUID
     kind: GenerationKind
     request_text: NonBlankStr
-    week_start: PositiveWeek
-    week_end: PositiveWeek
+    week_start: ReportingWeek
+    week_end: ReportingWeek
     requested_primary_model: NonBlankStr
     settings: GenerationSettings = Field(default_factory=GenerationSettings)
 

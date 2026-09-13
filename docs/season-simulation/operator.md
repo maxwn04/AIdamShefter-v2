@@ -268,3 +268,26 @@ For focused PostgreSQL tests, set only `AIDAM_TEST_DATABASE_URL` from a new owne
 test target. Clear `AIDAM_MIGRATION_DATABASE_URL` before invoking pytest: the test
 fixtures allocate their own child database and supply its migration URL directly.
 Do not source the entire target env into a database test process.
+
+## Preseason and editorial variation
+
+Prepared steps may specify `request_text` and `report_settings`. Omitted values
+use the campaign request template and report settings. Overrides are sealed into
+the campaign and verified against persisted generation intent on resume. They
+change editorial focus, not source snapshots, memory pins, models or execution order.
+Keep requests fixed for matched evaluations; use variation when explicitly requested
+for representative coverage.
+
+Week 0 denotes a preseason snapshot. It includes selected roster and draft-asset
+observations and any historical seasons, but requests no current-season matchup,
+transaction-week or bracket endpoints. Current-season games, performance and
+standings tables are empty. Roster membership uses the selected roster observation,
+including reserve/taxi roles, rather than requiring a nonexistent Week 0 lineup.
+The source observation time remains authoritative; Week 0 does not transform a
+later roster observation into contemporaneous preseason knowledge. Historical
+lineup-based roster coverage can be incomplete and must be described honestly.
+
+API generation and snapshot requests accept zero; regular-week queries remain
+bounded to their frozen season. Migration 0015 widens the two persisted preparation
+cutoff constraints. It follows migration 0014 and retains its administrator-provisioned
+pgvector prerequisite. Downgrade does not delete existing Week 0 history.

@@ -423,9 +423,9 @@ def build_standard_refresh_plan(
     if through_week is not None and (
         isinstance(through_week, bool)
         or not isinstance(through_week, int)
-        or not 1 <= through_week <= 18
+        or not 0 <= through_week <= 18
     ):
-        raise ValueError("refresh plan through_week must be between 1 and 18")
+        raise ValueError("refresh plan through_week must be between 0 and 18")
 
     requests: list[EndpointRequest] = [
         build_league_request(
@@ -477,7 +477,7 @@ def build_standard_refresh_plan(
             if league_records is not None
             else None
         )
-        if league_records is not None and (
+        if through_week > 0 and league_records is not None and (
             playoff_start is None or through_week >= playoff_start
         ):
             requests.extend(

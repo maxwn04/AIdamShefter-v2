@@ -41,7 +41,7 @@ class StartRefresh(ContractModel):
     requested_through_week: int | None = Field(
         default=None,
         strict=True,
-        ge=1,
+        ge=0,
         le=18,
     )
     trigger: RefreshTrigger
@@ -112,7 +112,7 @@ class AutomaticRefreshClaimStatus(StrEnum):
 class ClaimAutomaticRefresh(ContractModel):
     competition_season_id: UUID
     active_key: Sha256
-    requested_through_week: int = Field(strict=True, ge=1, le=18)
+    requested_through_week: int = Field(strict=True, ge=0, le=18)
     policy_version: NonBlankStr
     reason: RefreshNeedReason
     coverage_fingerprint: Sha256
@@ -128,7 +128,7 @@ class AutomaticRefreshClaim(ContractModel):
     competition_id: UUID
     competition_season_id: UUID
     active_key: Sha256
-    requested_through_week: int = Field(strict=True, ge=1, le=18)
+    requested_through_week: int = Field(strict=True, ge=0, le=18)
     policy_version: str
     reason: RefreshNeedReason
     coverage_fingerprint: Sha256

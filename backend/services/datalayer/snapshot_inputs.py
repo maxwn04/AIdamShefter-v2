@@ -83,7 +83,7 @@ class SnapshotSeasonSettings(ContractModel):
 class ResolvedSnapshotSeason(ContractModel):
     identity: SnapshotSeasonIdentity
     role: SnapshotSeasonRole
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
     settings: SnapshotSeasonSettings
     requirement_scopes: tuple[ScopeKey, ...]
 
@@ -120,7 +120,7 @@ class ResolvedSnapshotInputs(ContractModel):
 
 class RefreshSeason(ContractModel):
     season: SnapshotSeasonIdentity
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
     reason: RefreshNeedReason
     missing_scopes: tuple[ScopeKey, ...] = ()
     coverage_fingerprint: Sha256
@@ -528,7 +528,7 @@ def _season_requirements(
                 ),
             )
         )
-    if settings.playoff_start_week is None or through_week >= settings.playoff_start_week:
+    if through_week > 0 and (settings.playoff_start_week is None or through_week >= settings.playoff_start_week):
         entries.extend(
             (
                 SnapshotRequirement(

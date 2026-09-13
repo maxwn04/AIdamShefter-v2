@@ -41,6 +41,7 @@ class Reconciled:
 def step_request(campaign: Campaign, index: int, attempt: int, head: UUID) -> GenerationRequest:
     step = campaign.inputs.steps[index]
     settings = campaign.inputs.settings.model_copy(update={
+        "report": step.report_settings or campaign.inputs.settings.report,
         "prepared_execution": PreparedGenerationExecution(
             data_snapshot_id=step.snapshot_id, artifact_sha256=step.artifact_sha256,
             input_revision=step.input_revision, expected_memory_revision_id=head,
@@ -51,7 +52,7 @@ def step_request(campaign: Campaign, index: int, attempt: int, head: UUID) -> Ge
         generation_id=campaign.generation_id(index, attempt),
         competition_id=campaign.inputs.competition_id,
         competition_season_id=campaign.inputs.competition_season_id,
-        kind=GenerationKind.LIVE, request_text=campaign.inputs.request_template.format(week=step.week),
+        kind=GenerationKind.LIVE, request_text=step.request_text or campaign.inputs.request_template.format(week=step.week),
         week_start=step.week, week_end=step.week,
         requested_primary_model=campaign.inputs.model, settings=settings,
         rerun_of_generation_id=campaign.generation_id(index, attempt - 1) if attempt > 1 else None,

@@ -160,7 +160,7 @@ def plan_snapshot_requirements(
                 ),
             )
         )
-    if (
+    if request.through_week > 0 and (
         context.playoff_start_week is None
         or request.through_week >= context.playoff_start_week
     ):

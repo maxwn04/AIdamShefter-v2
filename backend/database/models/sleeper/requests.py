@@ -226,7 +226,7 @@ class AutomaticRefreshClaim(Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "requested_through_week BETWEEN 1 AND 18",
+            "requested_through_week BETWEEN 0 AND 18",
             name="through_week",
         ),
         CheckConstraint("reason IN ('missing', 'stale')", name="reason"),

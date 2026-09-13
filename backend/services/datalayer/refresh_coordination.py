@@ -47,7 +47,7 @@ class RefreshReceiptDisposition(StrEnum):
 class RefreshReceipt(ContractModel):
     claim_id: UUID
     competition_season_id: UUID
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
     refresh_run_id: UUID
     status: RefreshStatus
     disposition: RefreshReceiptDisposition

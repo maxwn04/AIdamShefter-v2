@@ -39,7 +39,7 @@ class SnapshotSeason(QueryValue):
     season_year: int = Field(strict=True, ge=1900, le=9999)
     sequence_number: int = Field(strict=True, ge=1)
     role: Literal["primary", "history"]
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
 
 __all__ = [

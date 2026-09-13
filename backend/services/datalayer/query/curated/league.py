@@ -21,7 +21,7 @@ def standings_context(league: dict[str, Any], week: int | None) -> dict[str, Any
     playoff_start = league.get("playoff_week_start")
     postseason = week is not None and playoff_start is not None and week >= playoff_start
     return {
-        "competition_phase": "postseason" if postseason else (
+        "competition_phase": "preseason" if week == 0 else "postseason" if postseason else (
             "regular_season" if playoff_start is not None else "unknown"
         ),
         "standings_through_week": min(week, playoff_start - 1) if week is not None and playoff_start is not None else week,

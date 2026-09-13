@@ -230,11 +230,18 @@ def _project_endpoint(
                 league_id,
                 roster_id,
             )
-        builder.warn(
-            "snapshot.roster_reconstruction_limited",
-            "Roster membership is reconstructed as starter or bench at the cutoff",
-            scope,
-        )
+        if cutoff == 0:
+            builder.warn(
+                "snapshot.preseason_roster_observation",
+                "Week 0 roster membership uses the selected roster observation; lineup roles are not game results",
+                scope,
+            )
+        else:
+            builder.warn(
+                "snapshot.roster_reconstruction_limited",
+                "Roster membership is reconstructed as starter or bench at the cutoff",
+                scope,
+            )
     elif isinstance(records, MatchupsEndpointRecords):
         for matchup in records.matchups:
             if matchup.week > cutoff or matchup.sleeper_matchup_id is None:
@@ -372,6 +379,23 @@ def _project_cutoff_membership(
     seen: set[tuple[int, str]] = set()
     for endpoint in materialization.endpoint_records:
         records = endpoint.records
+        if cutoff == 0 and isinstance(records, LeagueRostersEndpointRecords):
+            for player in records.players:
+                roster_id = _roster_id(player.sleeper_roster_id)
+                builder.add(
+                    "roster_players",
+                    {
+                        "league_id": league_id,
+                        "roster_id": roster_id,
+                        "player_id": player.sleeper_player_id,
+                        "role": player.role,
+                    },
+                    endpoint.manifest_entry.scope_key,
+                    league_id,
+                    roster_id,
+                    player.sleeper_player_id,
+                )
+            continue
         if not isinstance(records, MatchupsEndpointRecords):
             continue
         for performance in records.player_performances:

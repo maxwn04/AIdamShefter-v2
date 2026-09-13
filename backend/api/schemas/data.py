@@ -34,7 +34,7 @@ class DataApiModel(BaseModel):
 
 
 class ManualRefreshBody(DataApiModel):
-    through_week: Annotated[int, Field(strict=True, ge=1, le=18)] | None = None
+    through_week: Annotated[int, Field(strict=True, ge=0, le=18)] | None = None
 
     model_config = ConfigDict(
         extra="forbid",
@@ -43,7 +43,7 @@ class ManualRefreshBody(DataApiModel):
 
 
 class SnapshotPreparationBody(DataApiModel):
-    through_week: Annotated[int, Field(strict=True, ge=1, le=18)]
+    through_week: Annotated[int, Field(strict=True, ge=0, le=18)]
     mode: SnapshotPreparationMode
 
 

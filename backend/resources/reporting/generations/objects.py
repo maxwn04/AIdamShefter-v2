@@ -17,7 +17,7 @@ from pydantic import (
 from backend.resources._contracts import ContractModel, NonBlankStr
 
 
-PositiveWeek = Annotated[int, Field(strict=True, ge=1, le=18)]
+ReportingWeek = Annotated[int, Field(strict=True, ge=0, le=18)]
 NonNegativeInt = Annotated[int, Field(strict=True, ge=0)]
 PositiveInt = Annotated[int, Field(strict=True, ge=1)]
 PageLimit = Annotated[int, Field(strict=True, ge=1, le=200)]
@@ -55,8 +55,8 @@ class CreateGeneration(ContractModel):
     competition_season_id: UUID
     kind: GenerationKind
     request_text: NonBlankStr
-    week_start: PositiveWeek | None = None
-    week_end: PositiveWeek | None = None
+    week_start: ReportingWeek | None = None
+    week_end: ReportingWeek | None = None
     requested_primary_model: NonBlankStr
     settings: dict[str, JsonValue]
     rerun_of_generation_id: UUID | None = None

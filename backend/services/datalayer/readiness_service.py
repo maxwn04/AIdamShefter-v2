@@ -27,7 +27,7 @@ class SnapshotReadinessSeason(ContractModel):
     season_year: int = Field(strict=True, ge=1900, le=9999)
     sequence_number: int = Field(strict=True, ge=1)
     role: SnapshotSeasonRole
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
 
 class ReadySnapshotReadiness(ContractModel):

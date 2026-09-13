@@ -98,7 +98,7 @@ class ApiRequest(ContractModel):
 class SnapshotCandidateQuery(ContractModel):
     competition_season_id: UUID
     scope_keys: tuple[ScopeKey, ...]
-    through_week: int = Field(strict=True, ge=1, le=18)
+    through_week: int = Field(strict=True, ge=0, le=18)
 
     @model_validator(mode="after")
     def validate_scopes(self) -> "SnapshotCandidateQuery":
