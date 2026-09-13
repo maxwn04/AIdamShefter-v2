@@ -181,7 +181,7 @@ def test_cross_season_query_reports_matches_misses_and_selective_inspection(data
     assert inspected["memories"][0]["summary"] == card["summary"]
     failed = _call(registry, "upsert_storyline_memory_card", update_handle=card["memory_handle"],
         headline="Changed", summary="Cannot rewrite a prior-season hypothesis.")
-    assert failed["error"]["code"] == "cross_season_update_unsupported"
+    assert failed["error"]["code"] == "read_only_memory_handle"
     assert memory.proposal_snapshot() == ()
     # Retain actual ordered public results and the known lexical gap for offline review.
     evidence = {"case": "retained-inspired Amon-Ra payoff/rebuild and renamed franchise",

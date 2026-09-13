@@ -19,11 +19,13 @@ The pin defines narrative knowledge: a generation's source observation cutoff
 must not hide the prior generation's output merely because it was recorded later.
 Frozen season/week limits still apply to discovery and inspection.
 
-Lexical text matching does not provide semantic paraphrase equivalence. A miss
-suggests a shorter concept or name, or browsing with team/kind/status filters.
-Structured recovery is useful but is not a substitute for demonstrating semantic
-retrieval quality. Vector infrastructure remains deferred pending a demonstrated
-need and an approved implementation/evaluation scope.
+Text discovery now composes lexical and available semantic matching under the
+[hybrid discovery contract](semantic-discovery.md). Historical narrative versions
+may supply a better lead than the latest summary and remain explicitly read-only.
+Semantic capability is opt-in and derived indexes must be built explicitly.
+Search reports degraded semantic coverage separately from a genuine no-match;
+structured recovery remains available. Real paraphrase quality requires an
+approved retrieval-only comparison and does not follow from deterministic tests.
 
 `upsert_storyline_memory_card` merges supplied subjects into existing subjects
 and preserves their roles by default. `subjects_mode="replace"` intentionally
