@@ -45,6 +45,8 @@ class EvidenceReader(Protocol):
 
     def records_for(self, source: str) -> tuple[EvidenceRecord, ...]: ...
 
+    def records_for_tool(self, tool: str) -> tuple[EvidenceRecord, ...]: ...
+
 
 class EvidenceCatalog:
     """Immutable registrations with defensive reads, usable without a recorder."""
@@ -70,3 +72,7 @@ class EvidenceCatalog:
 
     def records_for(self, source: str) -> tuple[EvidenceRecord, ...]:
         return deepcopy(self._sources.get(source, ()))
+
+    def records_for_tool(self, tool: str) -> tuple[EvidenceRecord, ...]:
+        """Inspect executed evidence, including sources without accepted facts."""
+        return deepcopy(tuple(record for record in self._records.values() if record.tool == tool))
