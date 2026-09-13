@@ -51,12 +51,13 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "7"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "8"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
     "upsert_storyline_memory_card",
     "save_storyline_trigger",
+    "update_memory_callback",
     "save_team_context",
     "save_league_note",
 )
@@ -79,6 +80,7 @@ class ScheduledReviewTriggerInput(_StrictModel):
 
 
 class SearchMemoryArgs(_StrictModel):
+    season: int | None = Field(default=None, ge=1900, le=9999, description="Optional season year; omitted searches all available seasons.")
     text: str | None = Field(
         default=None,
         description=(
@@ -90,8 +92,8 @@ class SearchMemoryArgs(_StrictModel):
     team_keys: list[str] = Field(
         default_factory=list,
         description=(
-            "Current team names or roster IDs. They are resolved internally; "
-            "canonical identifiers are never required or returned."
+            "Hard team filter: franchise:<UUID> selectors from memory cards, "
+            "or team names/roster IDs in the selected season. Matches any selected franchise."
         ),
     )
     tags: list[str] = Field(
@@ -128,15 +130,15 @@ class SearchMemoryArgs(_StrictModel):
         description="Maximum semantic memories to return; prefer 5-8 focused results.",
     )
     include_evidence: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Include up to three semantic evidence summaries when available."
+            "Optionally include evidence summaries; prefer inspect_memory for selected results."
         ),
     )
     include_related: bool = Field(
-        default=True,
+        default=False,
         description=(
-            "Include up to three semantic related-memory summaries when available."
+            "Optionally include related summaries; prefer inspect_memory for selected results."
         ),
     )
 
@@ -149,6 +151,20 @@ class SearchMemoryArgs(_StrictModel):
         ):
             raise ValueError("week_from cannot be greater than week_to")
         return self
+
+
+class InspectMemoryArgs(_StrictModel):
+    memory_handle: str = Field(min_length=1)
+    view: Literal["detail", "history", "evidence"] = "detail"
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=5, ge=1, le=20)
+
+
+class UpdateMemoryCallbackArgs(_StrictModel):
+    update_handle: str = Field(min_length=1)
+    action: Literal["resolve", "reschedule", "defer"]
+    reason: str = Field(min_length=1)
+    target_week: int | None = Field(default=None, ge=0)
 
 
 class SaveMemoryEventArgs(_StrictModel):
@@ -184,6 +200,7 @@ class UpsertStorylineMemoryCardArgs(_StrictModel):
     tags: list[str] = Field(default_factory=list)
     team_keys: list[str] = Field(default_factory=list)
     entities: list[dict[str, JsonValue]] = Field(default_factory=list)
+    subjects_mode: Literal["merge", "replace"] = Field(default="merge", description="Merge preserves existing subjects and roles. Replace explicitly removes omitted subjects; empty replacement clears all.")
     evidence_event_ids: list[str] = Field(default_factory=list)
     trigger_specs: list[dict[str, JsonValue]] = Field(default_factory=list)
     resolution_summary: str | None = None
@@ -253,12 +270,17 @@ MEMORY_TOOL_SPECS: list[ToolDef] = [
     _tool(
         _READ_TOOL,
         "Search reporter memory by editorial intent at this generation's pinned "
-        "revision. Text, team names, and tags are discovery signals; kinds, statuses, "
+        "revision across available seasons. Text and tags are discovery signals; team, season, kinds, statuses, "
         "and inclusive week bounds narrow the results. Returned memories contain "
         "semantic writing context rather than storage identifiers. Treat every "
         "memory as a research lead and verify material claims against frozen data.",
         SearchMemoryArgs,
     ),
+    _tool("inspect_memory", "Inspect a selected memory's detail, prior versions, or linked evidence. "
+          "Use bounded pages; prior versions and evidence are read-only reporter memory, not verified current facts.", InspectMemoryArgs),
+    _tool("update_memory_callback", "Resolve, reschedule, or defer one recalled callback using its handle and a reason. "
+          "Reschedule needs a future target_week. Defer leaves it open and uninvestigated. "
+          "No article mention or separate completion receipt is required.", UpdateMemoryCallbackArgs),
     _tool(
         "save_memory_event",
         "Save one durable event from successful source_fact_ids in the brief. "
@@ -303,6 +325,10 @@ MEMORY_TOOL_SPECS: list[ToolDef] = [
 ]
 
 
+_spec_order = (_READ_TOOL, "inspect_memory", *_WRITE_TOOLS)
+MEMORY_TOOL_SPECS.sort(key=lambda spec: _spec_order.index(spec["function"]["name"]))
+
+
 class MemoryToolInputError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -332,6 +358,7 @@ class TypedMemoryAdapter:
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
         self._presentation = MemoryPresentationAdapter(data)
+        self._callback_dispositions: dict[str, dict[str, str]] = {}
         self._recall = MemoryRecallPlanner(
             memory_context,
             data,
@@ -344,6 +371,7 @@ class TypedMemoryAdapter:
         completed = self._completed_semantic_saves.copy()
         local_refs = self._local_agent_refs.copy()
         proposed_ids = self._proposed_item_ids.copy()
+        dispositions = self._callback_dispositions.copy()
         try:
             with self._memory_context.proposal_savepoint():
                 yield
@@ -351,6 +379,7 @@ class TypedMemoryAdapter:
             self._completed_semantic_saves = completed
             self._local_agent_refs = local_refs
             self._proposed_item_ids = proposed_ids
+            self._callback_dispositions = dispositions
             raise
 
     def build_recall(self, config: ReportConfig) -> MemoryRecallPlan:
@@ -358,43 +387,82 @@ class TypedMemoryAdapter:
         self._cache_pinned_candidates(plan.candidates)
         return plan
 
+    def _season_bounds(self) -> dict[UUID, int] | None:
+        if not hasattr(self._data, "available_seasons"):
+            return None
+        return {season.competition_season_id: min(season.through_week, self._memory_context.week or season.through_week)
+                if season.role == "primary" else season.through_week
+                for season in self._data.available_seasons()}
+
     def search(self, arguments: SearchMemoryArgs) -> ToolExecutionResult:
-        season_id = self._memory_context.competition_season_id
-        if season_id is None:
-            raise RuntimeError("reporter memory search requires season scope")
         entity_keys: list[str] = []
         for roster_key in arguments.team_keys:
-            identity = self._resolve_roster(roster_key)
-            entity_keys.extend(
-                (
-                    f"franchise:{identity.franchise_id}",
-                    f"season_roster:{identity.season_roster_id}",
-                )
-            )
+            identity = self._resolve_search_roster(roster_key, arguments.season)
+            entity_keys.append(f"franchise:{identity.franchise_id}")
+            entity_keys.append(f"roster:{identity.season_roster_id}")
+            if arguments.season is None and hasattr(self._data, "available_seasons"):
+                for scope in self._data.available_seasons():
+                    alias = self._data.get_roster_identity_by_canonical_id(
+                        franchise_id=identity.franchise_id, season=scope.season_year)
+                    if alias is not None:
+                        entity_keys.append(f"roster:{alias.season_roster_id}")
         query = SearchDocumentQuery(
             text=arguments.text,
-            entity_keys=tuple(dict.fromkeys(entity_keys)),
-            tags=tuple(arguments.tags),
-            kinds=tuple(arguments.kinds),
-            statuses=tuple(arguments.statuses),
-            competition_season_id=season_id,
-            week_from=arguments.week_from,
-            week_to=arguments.week_to,
-            limit=arguments.limit + 1,
+            required_entity_keys=tuple(dict.fromkeys(entity_keys)),
+            tags=tuple(arguments.tags), kinds=tuple(arguments.kinds),
+            statuses=tuple(arguments.statuses), season=arguments.season,
+            week_from=arguments.week_from, week_to=arguments.week_to,
+            allowed_season_weeks=self._season_bounds(), limit=arguments.limit + 1,
         )
-        result = self._memory_context.search(
-            MemoryRetrievalRequest(
-                query=query,
-                expand_exact_references=arguments.include_evidence,
-                expand_stable_references=arguments.include_related,
-            )
-        )
+        result = self._memory_context.search(MemoryRetrievalRequest(
+            query=query, expand_exact_references=arguments.include_evidence,
+            expand_stable_references=arguments.include_related,
+        ))
         self._cache_pinned_candidates(result.matches)
-        return self._presentation.present(
-            result,
-            query=query,
-            limit=arguments.limit,
-        )
+        return self._presentation.present(result, query=query, limit=arguments.limit,
+                                          compact=not (arguments.include_evidence or arguments.include_related))
+
+    def inspect(self, arguments: InspectMemoryArgs) -> ToolExecutionResult:
+        memory = self._presentation.resolve_handle(arguments.memory_handle)
+        if memory is None:
+            raise MemoryToolInputError("unknown_memory_handle", "Select a memory_handle from search or automatic context.")
+        result = self._memory_context.inspect(memory, view=arguments.view,
+            offset=arguments.offset, limit=arguments.limit,
+            allowed_season_weeks=self._season_bounds())
+        group = self._presentation.present_group(result.matches, root="memories", limit=arguments.limit,
+            compact=arguments.view != "detail",
+            read_only=arguments.view != "detail" or self._presentation.is_read_only(arguments.memory_handle))
+        return ToolExecutionResult(result={
+            "memories": [card.model_dump(mode="json", exclude_none=True) for card in group.memories],
+            "view": arguments.view, "has_more": result.has_more,
+            "next_offset": arguments.offset + len(group.memories) if result.has_more else None,
+        }, metadata={"bindings": list(group.bindings), "pinned_revision_id": str(result.revision_id)})
+
+    def _require_writable_handle(self, handle: str) -> None:
+        if self._presentation.is_read_only(handle):
+            raise MemoryToolInputError("read_only_memory_handle", "Historical versions and evidence inspection handles are read-only. Search for the current card to update it.")
+
+    def _resolve_search_roster(self, key: str, season: int | None) -> Any:
+        if season is not None or not hasattr(self._data, "available_seasons"):
+            return self._resolve_roster(key, season=season)
+        # Roster numbers are season-relative convenience selectors; names and
+        # durable franchise selectors may discover a renamed historical team.
+        if key.isdigit():
+            return self._resolve_roster(key)
+        matches: dict[UUID, Any] = {}
+        for scope in self._data.available_seasons():
+            try:
+                identity = self._resolve_roster(key, season=scope.season_year)
+            except MemoryToolInputError as error:
+                if error.code != "roster_not_found":
+                    raise
+                continue
+            matches.setdefault(identity.franchise_id, identity)
+        if len(matches) > 1:
+            raise MemoryToolInputError("roster_ambiguous", "This name identifies different franchises across seasons; select a season or a franchise key from a memory card.")
+        if not matches:
+            raise MemoryToolInputError("roster_not_found", "No matching team exists in the available frozen seasons.")
+        return next(iter(matches.values()))
 
     def _cache_pinned_candidates(
         self,
@@ -467,6 +535,7 @@ class TypedMemoryAdapter:
     ) -> dict[str, Any]:
         candidate = None
         if arguments.update_handle:
+            self._require_writable_handle(arguments.update_handle)
             candidate = self._presentation.resolve_handle(arguments.update_handle)
             if candidate is None or candidate.item.kind is not MemoryKind.STORYLINE:
                 raise MemoryToolInputError("unknown_memory_handle", "Use the memory_handle returned on the existing storyline; search for the arc if it is not in context.")
@@ -564,8 +633,12 @@ class TypedMemoryAdapter:
             for argument_field, content_field in preserved.items():
                 if argument_field not in arguments.model_fields_set:
                     values[content_field] = getattr(candidate.content, content_field)
-            if not {"team_keys", "entities"}.intersection(arguments.model_fields_set):
-                values["subjects"] = candidate.content.subjects
+            if arguments.subjects_mode == "merge":
+                existing_subjects = {(subject.kind, subject.id): subject.model_dump(mode="python")
+                                     for subject in candidate.content.subjects}
+                for subject in subjects:
+                    existing_subjects.setdefault((subject["kind"], subject["id"]), subject)
+                values["subjects"] = list(existing_subjects.values())
             if "importance" not in arguments.model_fields_set and "priority" not in arguments.model_fields_set:
                 values["salience"] = candidate.content.salience
         canonical = StorylineContent.model_validate(values)
@@ -603,6 +676,7 @@ class TypedMemoryAdapter:
     ) -> dict[str, Any]:
         candidate = None
         if arguments.update_handle:
+            self._require_writable_handle(arguments.update_handle)
             candidate = self._presentation.resolve_handle(arguments.update_handle)
             if candidate is None or candidate.item.kind is not MemoryKind.TRIGGER:
                 raise MemoryToolInputError("unknown_memory_handle", "Use the memory_handle returned on the existing trigger.")
@@ -614,7 +688,8 @@ class TypedMemoryAdapter:
         if trigger_type is None:
             raise MemoryToolInputError("missing_trigger_type", "Use scheduled_review for a general storyline follow-up.")
         season_id = self._memory_context.competition_season_id
-        if candidate and values.get("target_competition_season_id") not in (None, season_id):
+        if candidate and (candidate.version.competition_season_id not in (None, season_id)
+                          or values.get("target_competition_season_id") not in (None, season_id)):
             raise MemoryToolInputError("cross_season_update_unsupported", "This trigger targets another season; cross-season rescheduling is not supported.")
         fields = arguments.model_fields_set
         values["trigger_type"] = trigger_type
@@ -655,9 +730,16 @@ class TypedMemoryAdapter:
             values["origin_event_item_id"] = None
             values["target_competition_season_id"] = season_id
         elif values["status"] in {"open", "fired"}:
-            if not arguments.event_id:
-                raise MemoryToolInputError("missing_trigger_origin", "Provide a source-backed event_id to create or reschedule this event callback. Use scheduled_review for a general follow-up.")
-            source = self._selected_event_content(arguments.event_id)
+            if arguments.event_id:
+                source = self._selected_event_content(arguments.event_id)
+            elif candidate and candidate.content.origin_event_item_id:
+                inspected = self._memory_context.inspect(candidate, view="evidence", limit=20,
+                    allowed_season_weeks=self._season_bounds())
+                source = next((match.memory.content for match in inspected.matches
+                    if match.memory.item.item_id == candidate.content.origin_event_item_id
+                    and match.memory.item.kind is MemoryKind.EVENT), None)
+            else:
+                raise MemoryToolInputError("missing_trigger_origin", "Provide a source-backed event_id for a new event callback; unchanged origins are preserved on updates.")
             expected = "trade" if trigger_type == "trade_evaluation" else "matchup"
             if source is None or source.event_type.value != expected or source.confidence.value != "source_backed":
                 raise MemoryToolInputError("invalid_trigger_origin", f"This callback requires a source-backed {expected} event. Use scheduled_review for an unsupported or general follow-up.")
@@ -671,9 +753,45 @@ class TypedMemoryAdapter:
             create=self._memory_context.propose_trigger,
             replace=self._memory_context.replace_trigger,
         )
+        if candidate:
+            handle = arguments.update_handle or self._presentation.handle_for(candidate)
+            if canonical.status.value == "satisfied":
+                self._callback_dispositions[handle] = {"action": "resolve", "reason": canonical.resolution_reason or "Resolved"}
+            elif canonical.target_week != candidate.content.target_week:
+                self._callback_dispositions[handle] = {"action": "reschedule", "reason": arguments.resolution_reason or "Review rescheduled"}
         return {**result, "id": trigger_id, "update_handle": arguments.update_handle,
                 "trigger_type": canonical.trigger_type.value, "status": canonical.status.value,
                 "review_notice": "Review requested; verify evidence. An article mention is optional."}
+
+    def update_memory_callback(self, context: ToolContext, arguments: UpdateMemoryCallbackArgs) -> dict[str, Any]:
+        self._require_writable_handle(arguments.update_handle)
+        candidate = self._presentation.resolve_handle(arguments.update_handle)
+        if candidate is None or candidate.item.kind is not MemoryKind.TRIGGER:
+            raise MemoryToolInputError("unknown_memory_handle", "Select the callback's memory_handle.")
+        if candidate.version.competition_season_id not in (None, self._memory_context.competition_season_id) or candidate.content.target_competition_season_id not in (None, self._memory_context.competition_season_id):
+            raise MemoryToolInputError("cross_season_update_unsupported", "Historical callbacks cannot be updated.")
+        if arguments.action == "defer":
+            if any(proposal.item_id == candidate.item.item_id for proposal in self._memory_context.proposal_snapshot()):
+                raise MemoryToolInputError("callback_already_updated", "This callback already has a selected update this run; keep its successful disposition.")
+            if candidate.content.status.value not in {"open", "fired"}:
+                raise MemoryToolInputError("callback_not_open", "Only open callbacks can be deferred.")
+            if arguments.target_week is not None:
+                raise MemoryToolInputError("unexpected_target_week", "Use reschedule to set a new review week.")
+            result = {"ok": True, "saved": False, "status": candidate.content.status.value,
+                      "outcome": "uninvestigated", "update_handle": arguments.update_handle}
+        else:
+            values: dict[str, Any] = {"update_handle": arguments.update_handle,
+                "status": "resolved" if arguments.action == "resolve" else "open",
+                "resolution_reason": arguments.reason if arguments.action == "resolve" else None}
+            if arguments.action == "reschedule":
+                if arguments.target_week is None or arguments.target_week <= (self._memory_context.week or 0):
+                    raise MemoryToolInputError("future_review_week_required", "Reschedule requires target_week after the current reporting week.")
+                values["target_week"] = arguments.target_week
+            elif arguments.target_week is not None:
+                raise MemoryToolInputError("unexpected_target_week", "Resolve does not accept a new target_week.")
+            result = self.save_storyline_trigger(context, SaveStorylineTriggerArgs.model_validate(values))
+        self._callback_dispositions[arguments.update_handle] = {"action": arguments.action, "reason": arguments.reason}
+        return result
 
     def _selected_event_content(self, event_key: str) -> EventContent | None:
         reference = self._agent_reference(MemoryKind.EVENT, event_key)
@@ -830,8 +948,18 @@ class TypedMemoryAdapter:
             replace=self._memory_context.replace_context_note,
         )
 
-    def _resolve_roster(self, roster_key: str) -> Any:
-        resolution = self._data.resolve_roster_identity(roster_key)
+    def _resolve_roster(self, roster_key: str, *, season: int | None = None) -> Any:
+        scope = {"season": season} if season is not None else {}
+        if roster_key.startswith("franchise:"):
+            try:
+                franchise_id = UUID(roster_key.removeprefix("franchise:"))
+            except ValueError:
+                raise MemoryToolInputError("invalid_team_selector", "Copy the complete franchise selector from a memory card.") from None
+            identity = self._data.get_roster_identity_by_canonical_id(franchise_id=franchise_id, **scope)
+            if identity is None:
+                raise MemoryToolInputError("roster_not_found", "This franchise is not present in the selected frozen season.")
+            return identity
+        resolution = self._data.resolve_roster_identity(roster_key, **scope)
         if resolution.status == "not_found":
             raise MemoryToolInputError(
                 "roster_not_found",
@@ -882,7 +1010,7 @@ class TypedMemoryAdapter:
         if candidate is None:
             return None
         local = self._local_agent_refs.get((kind, candidate.item.agent_key))
-        if local is not None:
+        if local is not None and not self._presentation.is_read_only(agent_key):
             return local
         return _CanonicalReference(
             item_id=candidate.item.item_id,
@@ -987,7 +1115,18 @@ def register_memory_tools(
         MEMORY_TOOL_IMPLEMENTATION_VERSION,
     )
 
+    def inspect_memory(**kwargs: Any) -> ToolExecutionResult | dict[str, Any]:
+        try:
+            return adapter.inspect(InspectMemoryArgs.model_validate(kwargs))
+        except (ValidationError, MemoryToolInputError, ValueError) as error:
+            if isinstance(error, (ValidationError, MemoryToolInputError)):
+                return _safe_error(error)
+            return _safe_error(MemoryToolInputError("memory_inspection_unavailable", str(error)))
+
+    specs_by_name = {spec["function"]["name"]: spec for spec in MEMORY_TOOL_SPECS}
+    registry.register("inspect_memory", inspect_memory, specs_by_name["inspect_memory"], MEMORY_TOOL_IMPLEMENTATION_VERSION)
     write_models: dict[str, type[BaseModel]] = {
+        "update_memory_callback": UpdateMemoryCallbackArgs,
         "save_memory_event": SaveMemoryEventArgs,
         "upsert_storyline_memory_card": UpsertStorylineMemoryCardArgs,
         "save_storyline_trigger": SaveStorylineTriggerArgs,
@@ -1006,6 +1145,9 @@ def register_memory_tools(
                 method = getattr(adapter, tool_name)
                 with adapter.write_savepoint():
                     result = method(context, arguments)
+                if context.memory_closeout is not None:
+                    for handle, disposition in adapter._callback_dispositions.items():
+                        context.memory_closeout.record_callback_disposition(handle=handle, **disposition)
                 activity_items: list[dict[str, JsonValue]] = []
                 if result.get("saved") is True:
                     activity_items.append(

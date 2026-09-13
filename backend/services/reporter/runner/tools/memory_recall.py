@@ -35,6 +35,7 @@ from backend.services.reporter.runner.tools.memory_presentation import (
     MemoryContext,
     MemoryPresentationAdapter,
     StorylineMemoryContext,
+    SemanticEntity,
     TriggerMemoryContext,
 )
 
@@ -43,8 +44,8 @@ if TYPE_CHECKING:
     from backend.services.memory import GenerationMemoryContext
 
 
-MEMORY_RECALL_SCHEMA_VERSION = 2
-MEMORY_RECALL_PLANNER_VERSION = 2
+MEMORY_RECALL_SCHEMA_VERSION = 3
+MEMORY_RECALL_PLANNER_VERSION = 3
 MAX_RECALL_CANDIDATES = 100
 MAX_DUE_CALLBACKS = 8
 MAX_STANDING_CONTEXT = 8
@@ -65,6 +66,8 @@ class StorylineReviewLead(_RecallModel):
     summary: str
     callback_condition: str | None = None
     relevant_week: int | None = None
+    season: int | None = None
+    subjects: list[SemanticEntity] = []
     truncated: bool = False
 
 
@@ -264,6 +267,13 @@ class MemoryRecallPlanner:
             candidates=candidates,
         )
 
+    def _season_bounds(self) -> dict[UUID, int] | None:
+        if not hasattr(self._data, "available_seasons"):
+            return None
+        return {season.competition_season_id: min(season.through_week, self._memory_context.week or season.through_week)
+                if season.role == "primary" else season.through_week
+                for season in self._data.available_seasons()}
+
     def _due_callbacks(
         self,
         *,
@@ -274,6 +284,8 @@ class MemoryRecallPlanner:
         query = SearchDocumentQuery(
             kinds=(MemoryKind.TRIGGER,),
             statuses=(TriggerStatus.OPEN.value, TriggerStatus.FIRED.value),
+            due_in_season=season_id, due_week=current_week, due_at=editorial_cutoff_at,
+            allowed_season_weeks=self._season_bounds(),
             limit=MAX_RECALL_CANDIDATES,
         )
         retrieval = self._memory_context.search(
@@ -313,7 +325,9 @@ class MemoryRecallPlanner:
     ) -> _GroupResult:
         query = SearchDocumentQuery(
             kinds=(MemoryKind.CONTEXT_NOTE,),
-            statuses=("active",),
+            statuses=("active",), context_for_season=season_id,
+            context_franchise_ids=tuple(sorted(focused_franchises, key=str)),
+            allowed_season_weeks=self._season_bounds(),
             limit=MAX_RECALL_CANDIDATES,
         )
         retrieval = self._memory_context.search(MemoryRetrievalRequest(query=query))
@@ -366,14 +380,15 @@ class MemoryRecallPlanner:
             kinds=(MemoryKind.STORYLINE, MemoryKind.FACT, MemoryKind.EVENT),
             statuses=("active", "dormant"),
             competition_season_id=season_id,
+            allowed_season_weeks=self._season_bounds(),
             week_to=current_week,
             limit=MAX_LIKELY_RELEVANT + 1,
         )
         retrieval = self._memory_context.search(
             MemoryRetrievalRequest(
                 query=query,
-                expand_exact_references=True,
-                expand_stable_references=True,
+                expand_exact_references=False,
+                expand_stable_references=False,
             )
         )
         return self._present_group(
@@ -396,6 +411,7 @@ class MemoryRecallPlanner:
         query = SearchDocumentQuery(
             kinds=(MemoryKind.STORYLINE,), statuses=("active",),
             competition_season_id=season_id, week_to=current_week,
+            allowed_season_weeks=self._season_bounds(),
             # Skip any arc already delivered by a due callback without spending
             # the three-card pool budget on it. One extra row signals truncation.
             limit=MAX_STORYLINE_REVIEW_POOL + len(excluded_item_ids) + 1,
@@ -413,11 +429,10 @@ class MemoryRecallPlanner:
             assert card.memory_handle is not None
             callback = card.callback_condition
             leads.append(StorylineReviewLead(
-                memory_handle=card.memory_handle, headline=card.headline[:180],
-                summary=card.summary[:500], callback_condition=callback[:300] if callback else None,
-                relevant_week=card.relevant_week,
-                truncated=(len(card.headline) > 180 or len(card.summary) > 500
-                           or callback is not None and len(callback) > 300),
+                memory_handle=card.memory_handle, headline=card.headline,
+                summary=card.summary, callback_condition=callback,
+                relevant_week=card.relevant_week, season=card.season, subjects=card.subjects,
+                truncated=False,
             ))
         bindings = []
         for binding in group.bindings:
@@ -428,10 +443,7 @@ class MemoryRecallPlanner:
             card = cast(StorylineMemoryContext, group.memories[index])
             compact_binding = {key: value for key, value in binding.items() if key != "omitted_fields"}
             compact_binding["omitted_fields"] = sorted(set(type(card).model_fields) - set(StorylineReviewLead.model_fields))
-            compact_binding["clipped_fields"] = [
-                field for field, budget in (("headline", 180), ("summary", 500), ("callback_condition", 300))
-                if (value := getattr(card, field)) is not None and len(value) > budget
-            ]
+            compact_binding["clipped_fields"] = []
             bindings.append(compact_binding)
         return replace(
             group, memories=tuple(leads), bindings=tuple(bindings),
@@ -460,7 +472,7 @@ class MemoryRecallPlanner:
         group = self._presentation.present_group(
             selected,
             root=root,
-            limit=limit,
+            limit=limit, compact=root != "storyline_review_pool",
         )
         returned = selected[:limit]
         return _GroupResult(
@@ -536,7 +548,7 @@ class MemoryRecallPlanner:
             entity_keys.extend(
                 (
                     f"franchise:{identity.franchise_id}",
-                    f"season_roster:{identity.season_roster_id}",
+                    f"roster:{identity.season_roster_id}",
                 )
             )
             diagnostics.append(

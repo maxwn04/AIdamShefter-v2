@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from backend.services.memory.proposals import MemoryProposal
@@ -33,6 +33,7 @@ class MemoryCloseoutState:
     closeout_turns_used: int = 0
     no_op: bool | None = None
     proposal_counts: dict[str, Any] = field(default_factory=dict)
+    callback_dispositions: list[dict[str, str]] = field(default_factory=list)
     _baseline_proposal_ids: frozenset[UUID] = field(default_factory=frozenset)
 
     @property
@@ -61,6 +62,34 @@ class MemoryCloseoutState:
     def begin_turn(self) -> None:
         if self.active:
             self.closeout_turns_used += 1
+
+    def record_callback_disposition(
+        self,
+        *,
+        handle: str,
+        action: Literal["resolve", "reschedule", "defer"],
+        reason: str,
+    ) -> None:
+        """Record a successful runtime action, never infer completion from recall.
+
+        Callers record only after a successful proposal savepoint, or restore this
+        ledger with their savepoint on failure. Defer records no memory mutation.
+        """
+        disposition = {
+            "memory_handle": handle,
+            "action": action,
+            "reason": reason,
+            "outcome": {
+                "resolve": "resolved",
+                "reschedule": "rescheduled",
+                "defer": "uninvestigated",
+            }[action],
+        }
+        for index, existing in enumerate(self.callback_dispositions):
+            if existing["memory_handle"] == handle:
+                self.callback_dispositions[index] = disposition
+                return
+        self.callback_dispositions.append(disposition)
 
     def turn_guidance(self) -> str:
         """Expose the actual bounded lifecycle without inventing a completion."""
@@ -98,6 +127,7 @@ class MemoryCloseoutState:
                 "already_completed": True,
                 "outcome": "no_op" if self.no_op else "proposals_saved",
                 "proposal_counts": self.proposal_counts,
+                "callback_dispositions": self._callback_disposition_snapshot(),
             }
 
         proposals = tuple(
@@ -115,6 +145,7 @@ class MemoryCloseoutState:
             "already_completed": False,
             "outcome": "no_op" if self.no_op else "proposals_saved",
             "proposal_counts": self.proposal_counts,
+            "callback_dispositions": self._callback_disposition_snapshot(),
         }
 
     def mark_exhausted(self) -> None:
@@ -131,7 +162,11 @@ class MemoryCloseoutState:
             "completion_turn": self.completion_turn,
             "no_op": self.no_op,
             "proposal_counts": self.proposal_counts,
+            "callback_dispositions": self._callback_disposition_snapshot(),
         }
+
+    def _callback_disposition_snapshot(self) -> list[dict[str, str]]:
+        return [disposition.copy() for disposition in self.callback_dispositions]
 
 
 def _proposal_counts(proposals: tuple[MemoryProposal, ...]) -> dict[str, Any]:
