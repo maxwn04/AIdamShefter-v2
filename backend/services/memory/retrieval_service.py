@@ -152,6 +152,12 @@ class MemoryRetrievalResult(ContractModel):
         return self
 
 
+class MemoryInspectionResult(MemoryRetrievalResult):
+    """One bounded page of selected canonical memory or its relationships."""
+
+    has_more: bool = False
+
+
 class MemoryRetrievalService:
     """Hydrate revision-grounded search candidates from canonical resources."""
 
@@ -216,7 +222,9 @@ class MemoryRetrievalService:
                     matched_tags=candidate.matched_tags,
                     match_reasons=candidate.match_reasons,
                     exact_references=(
-                        self._expand_exact(memory, exact_cache)
+                        self._expand_exact(
+                            memory, exact_cache, revision_id, request.query,
+                        )
                         if request.expand_exact_references
                         else ()
                     ),
@@ -225,6 +233,7 @@ class MemoryRetrievalService:
                             memory,
                             revision_id,
                             visible_cache,
+                            request.query,
                         )
                         if request.expand_stable_references
                         else ()
@@ -236,6 +245,100 @@ class MemoryRetrievalService:
             revision_id=revision_id,
             matches=tuple(matches),
         )
+
+    def inspect(
+        self,
+        *,
+        competition_id: UUID,
+        revision_id: UUID,
+        memory: HydratedMemory,
+        view: Literal["detail", "history", "evidence"] = "detail",
+        offset: int = 0,
+        limit: int = 20,
+        scope: SearchDocumentQuery | None = None,
+    ) -> MemoryInspectionResult:
+        """Inspect selected canonical content without broadening its history pin."""
+        if competition_id != self._search_documents.competition_id:
+            raise ValueError("inspection request is outside the service competition")
+        if memory.item.competition_id != competition_id:
+            raise ValueError("selected memory belongs to another competition")
+        if view not in ("detail", "history", "evidence"):
+            raise ValueError("unknown memory inspection view")
+        if (
+            type(offset) is not int or type(limit) is not int
+            or offset < 0 or not 1 <= limit <= 100
+        ):
+            raise ValueError("inspection requires offset >= 0 and limit in 1..100")
+        selected_rows = self._search_documents.inspect_versions(
+            revision_id, memory.version.version_id, scope=scope,
+        )
+        version_id, kind, _ = selected_rows[0]
+        cache: dict[tuple[MemoryKind, UUID], HydratedMemory] = {}
+        selected = self._hydrate_exact(kind, version_id, cache)
+        if (
+            selected.item.item_id != memory.item.item_id
+            or selected.item.kind != memory.item.kind
+        ):
+            raise ValueError("selected memory identity differs from canonical memory")
+        if view == "evidence":
+            rows = self._inspection_evidence(selected, revision_id, scope)
+            page = rows[offset : offset + limit + 1]
+        else:
+            page = self._search_documents.inspect_versions(
+                revision_id, version_id, history=view == "history",
+                offset=offset, limit=limit + 1, scope=scope,
+            )
+        return MemoryInspectionResult(
+            competition_id=competition_id, revision_id=revision_id,
+            matches=tuple(
+                HydratedMemoryMatch(
+                    memory=self._hydrate_exact(row_kind, row_id, cache), week=week,
+                    score=0, score_components=SearchScoreComponents(),
+                    match_reasons=(SearchMatchReason.BROWSE_MATCH,),
+                )
+                for row_id, row_kind, week in page[:limit]
+            ),
+            has_more=len(page) > limit,
+        )
+
+    def _inspection_evidence(
+        self,
+        memory: HydratedMemory,
+        revision_id: UUID,
+        scope: SearchDocumentQuery | None,
+    ) -> tuple[tuple[UUID, MemoryKind, int | None], ...]:
+        """Resolve one-hop references; validate temporal eligibility before hydration."""
+        exact_ids: list[UUID] = []
+        stable_targets: list[UUID] = []
+        if isinstance(memory, Fact):
+            exact_ids.extend(memory.content.originating_event_version_ids)
+        elif isinstance(memory, Storyline):
+            exact_ids.extend(
+                reference.version_id for reference in memory.content.evidence
+            )
+            stable_targets.extend(
+                reference.item_id for reference in memory.content.related_storylines
+            )
+        elif isinstance(memory, Trigger):
+            if memory.content.target_storyline_item_id is not None:
+                stable_targets.append(memory.content.target_storyline_item_id)
+            if memory.content.origin_event_item_id is not None:
+                stable_targets.append(memory.content.origin_event_item_id)
+        for item_id in stable_targets:
+            target_id = self._search_documents.visible_reference_version(
+                revision_id, item_id,
+            )
+            if target_id is not None:
+                exact_ids.append(target_id)
+        rows: list[tuple[UUID, MemoryKind, int | None]] = []
+        for target_id in dict.fromkeys(exact_ids):
+            try:
+                rows.extend(self._search_documents.inspect_versions(
+                    revision_id, target_id, scope=scope,
+                ))
+            except TargetNotFoundError:
+                continue
+        return tuple(rows)
 
     def _hydrate_exact(
         self,
@@ -285,6 +388,8 @@ class MemoryRetrievalService:
         self,
         memory: HydratedMemory,
         cache: dict[tuple[MemoryKind, UUID], HydratedMemory],
+        revision_id: UUID,
+        scope: SearchDocumentQuery,
     ) -> tuple[ExactReferenceExpansion, ...]:
         if memory.item.kind is MemoryKind.FACT:
             fact = cast(Fact, memory)
@@ -296,6 +401,7 @@ class MemoryRetrievalService:
                     ),
                 )
                 for version_id in fact.content.originating_event_version_ids
+                if self._reference_eligible(version_id, revision_id, scope)
             )
         if memory.item.kind is MemoryKind.STORYLINE:
             storyline = cast(Storyline, memory)
@@ -312,6 +418,7 @@ class MemoryRetrievalService:
                     ),
                 )
                 for reference in storyline.content.evidence
+                if self._reference_eligible(reference.version_id, revision_id, scope)
             )
         return ()
 
@@ -320,10 +427,11 @@ class MemoryRetrievalService:
         memory: HydratedMemory,
         revision_id: UUID,
         cache: dict[tuple[MemoryKind, UUID, UUID], Event | Storyline],
+        scope: SearchDocumentQuery,
     ) -> tuple[StableReferenceExpansion, ...]:
         if memory.item.kind is MemoryKind.STORYLINE:
             storyline = cast(Storyline, memory)
-            return tuple(
+            related_expansions = tuple(
                 RelatedStorylineExpansion(
                     reference=reference,
                     memory=self._require_storyline(
@@ -336,6 +444,12 @@ class MemoryRetrievalService:
                     ),
                 )
                 for reference in storyline.content.related_storylines
+            )
+            return tuple(
+                expansion for expansion in related_expansions
+                if self._reference_eligible(
+                    expansion.memory.version.version_id, revision_id, scope,
+                )
             )
         if memory.item.kind is MemoryKind.TRIGGER:
             trigger = cast(Trigger, memory)
@@ -370,8 +484,22 @@ class MemoryRetrievalService:
                         ),
                     )
                 )
-            return tuple(expansions)
+            return tuple(
+                expansion for expansion in expansions
+                if self._reference_eligible(
+                    expansion.memory.version.version_id, revision_id, scope,
+                )
+            )
         return ()
+
+    def _reference_eligible(
+        self, version_id: UUID, revision_id: UUID, scope: SearchDocumentQuery,
+    ) -> bool:
+        try:
+            self._search_documents.inspect_versions(revision_id, version_id, scope=scope)
+        except TargetNotFoundError:
+            return False
+        return True
 
     @staticmethod
     def _validate_candidate(
