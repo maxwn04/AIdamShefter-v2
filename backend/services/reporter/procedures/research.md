@@ -42,6 +42,7 @@ Keep current coverage primary while investigating history that explains it. Same
 - Treat retrieved memory as a hypothesis. Save a callback only after the old event and current payoff both exist as reverified facts.
 - Treat `found: false`, missing matchups, all-zero scoring, implausible totals, or disagreement between views as unresolved evidence. Cross-check through a different representation before relying on it. If the anomaly cannot be resolved, narrow or qualify the claim rather than presenting certainty.
 - Save facts that are precise, traceable, and useful to the article. Use stable lowercase IDs, exact numbers, accurate categories, and source references matching calls actually made.
+- Derive population claims from all relevant source rows, not only the examples selected for the brief. Count distinct matching teams or games; record IDs and a partial list do not establish a population size. Keep transaction assets bound to their directional endpoints when correcting a rejected fact, and reread the claim against those relationships before saving the repair.
 - Save every material numeric or factual detail that the draft will need; raw tool output remaining in conversation is not a substitute for brief evidence.
 - Bias may guide what deserves investigation, but it cannot change what the evidence says.
 

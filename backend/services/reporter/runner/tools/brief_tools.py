@@ -65,7 +65,8 @@ BRIEF_TOOL_SPECS: list[ToolDef] = [
                             "Category such as score, standing, player, transaction, "
                             "history, comparison (same-franchise ordered before/after only), superlative, or championship. "
                             "Use player or score for different players/teams in one week. "
-                            "Transaction claims must select a sent/received asset identity or net_draft_picks, not just bid/status."
+                            "Transfer claims need asset identity and sender/recipient or sent/received direction for named parties. "
+                            "net_draft_picks supports net-count claims only; bid/status alone does not support transfers."
                         ),
                     },
                     "superlative_binding": {

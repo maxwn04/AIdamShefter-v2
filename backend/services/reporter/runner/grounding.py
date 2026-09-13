@@ -126,7 +126,7 @@ def validate_fact(fact: BriefFact, evidence: EvidenceReader) -> tuple[str, ...]:
             for binding in fact.bindings
             for record in (records[binding.ref],)
         ):
-            _reject("Transactions require a selected sent/received asset field or source net_draft_picks count.")
+            _reject("Transaction validation needs a selected asset field (or net_draft_picks for a net-count claim). For transfer claims, retain sender/recipient evidence as well as asset identity and correct the claim text to agree with both.")
         diagnostics.add("DIAGNOSTIC: preserve each asset's sent/received direction; strategic flexibility is interpretation.")
     elif fact.category == "comparison":
         if len(fact.bindings) < 2:
