@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 import hashlib
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -21,7 +22,7 @@ from backend.season_simulation.contracts import (
     StepProgress,
 )
 from backend.season_simulation.controller import step_request
-from backend.season_simulation.relocation import service as relocation
+from scripts import verify_campaign_import as verifier
 from backend.season_simulation.store import campaign_hash, write_json
 from backend.services.generations.manifest import canonical_json_sha256
 from backend.tests.season_simulation.test_controller import FakeBackend
@@ -64,7 +65,7 @@ def seal(root: Path) -> str:
 @pytest.fixture
 def imported(tmp_path, monkeypatch):
     def forbidden(*args, **kwargs):
-        raise AssertionError("offline relocation attempted network access")
+        raise AssertionError("offline verification attempted network access")
 
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
@@ -194,26 +195,29 @@ def imported(tmp_path, monkeypatch):
     return root, seal(root), campaign
 
 
-def test_offline_binding_preserves_windows_identity_and_requests(imported):
-    root, sha, campaign = imported
+def test_verification_preserves_originals_and_reports_differences(imported):
+    root, sha, _ = imported
     before = {str(p): p.read_bytes() for p in root.rglob("*") if p.is_file()}
-    verified = relocation.verify_import(root, sha)
-    assert verified.campaign == campaign
-    assert verified.next_step == 1
-    assert verified.summary()["next_week"] == 2
-    assert verified.summary()["retained_head_has_index_receipt"] is True
-    assert verified.bindings.historical_data_root == "C:\\synthetic\\data"
-    assert (
-        verified.asset_path("snapshots/one.sqlite")
-        == root / "data/snapshots/one.sqlite"
-    )
-    request = step_request(verified.campaign, 1, 1, verified.head)
-    assert request.generation_id == campaign.generation_id(1, 1)
-    assert request.request_text == "Synthetic request 2"
-    assert (
-        request.settings.prepared_execution.expected_memory_revision_id == verified.head
-    )
+    report = verifier.verify_import(root, sha)
+    assert report["next_week"] == 2
+    assert report["retained_generations"] == 1
+    assert report["retained_head_has_index_receipt"] is True
+    assert report["scope"] == "retained_files_only"
+    assert report["live_state_verified"] is False
+    assert report["runtime_differences"]["packages"]["synthetic"] == {
+        "frozen": "1",
+        "current": None,
+    }
     assert {str(p): p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
+
+
+def test_configuration_differences_do_not_print_values(imported, monkeypatch):
+    root, sha, _ = imported
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://private-setting.invalid")
+    report = verifier.verify_import(root, sha)
+    assert "OPENAI_BASE_URL" in report["runtime_differences"]["configuration"]
+    assert "private-setting" not in json.dumps(report)
+    assert report["runtime_differences"]["pricing_sha256"]["frozen"] == digest(b"{}")
 
 
 @pytest.mark.parametrize(
@@ -221,7 +225,7 @@ def test_offline_binding_preserves_windows_identity_and_requests(imported):
 )
 def test_paths_must_be_canonical_and_contained(tmp_path, relative):
     with pytest.raises(ValueError):
-        relocation.safe_file(tmp_path, relative)
+        verifier.safe_file(tmp_path, relative)
 
 
 @pytest.mark.parametrize(
@@ -247,7 +251,7 @@ def test_transfer_integrity_fails_closed(imported, mutation):
     else:
         (root / "transfer-manifest.json").write_text("{}")
     with pytest.raises(ValueError):
-        relocation.verify_import(root, sha)
+        verifier.verify_import(root, sha)
 
 
 @pytest.mark.parametrize(
@@ -338,63 +342,7 @@ def test_historical_guards_survive_transfer_resealing(imported, mutation):
             else b"changed"
         )
     with pytest.raises(ValueError):
-        relocation.verify_import(root, seal(root))
-
-
-def test_attestation_detects_drift_without_authorizing_execution(
-    imported, tmp_path, monkeypatch
-):
-    root, sha, _ = imported
-    output = tmp_path / "relocation.json"
-    record, digest_value = relocation.attest(root, sha, output)
-    verified, read_record = relocation.verify_record(output, digest_value)
-    assert read_record == record
-    assert record.execution_authorized is False
-    assert "packages" in relocation.runtime_differences(verified, record)
-    assert output.stat().st_mode & 0o777 == 0o600
-    with pytest.raises(FileExistsError):
-        relocation.attest(root, sha, output)
-    with pytest.raises(ValueError):
-        relocation.attest(root, sha, root / "relocation.json")
-    monkeypatch.setenv("REPORTER_MODEL", "unexpected-runtime-model")
-    with pytest.raises(ValueError, match="observed runtime changed"):
-        relocation.verify_record(output, digest_value)
-
-
-@pytest.mark.parametrize("field", ["files", "packages", "python", "pricing_sha256"])
-def test_observed_runtime_drift_rejected(imported, tmp_path, monkeypatch, field):
-    root, sha, _ = imported
-    output = tmp_path / "relocation.json"
-    record, expected = relocation.attest(root, sha, output)
-    original = relocation.runtime_freeze
-
-    def drift(path):
-        result = original(path)
-        if path == record.bindings.runtime_root:
-            value = (
-                {"unreviewed": "0" * 64} if field in {"files", "packages"} else "0" * 64
-            )
-            return result.model_copy(update={field: value})
-        return result
-
-    monkeypatch.setattr(relocation, "runtime_freeze", drift)
-    with pytest.raises(ValueError, match="observed runtime changed"):
-        relocation.verify_record(output, expected)
-
-
-def test_record_tampering_and_asset_changes_rejected(imported, tmp_path):
-    root, sha, _ = imported
-    output = tmp_path / "relocation.json"
-    _, expected = relocation.attest(root, sha, output)
-    verified = relocation.verify_import(root, sha)
-    with pytest.raises(ValueError):
-        verified.asset_path("undeclared")
-    (root / "data/snapshots/one.sqlite").write_bytes(b"changed after validation")
-    with pytest.raises(ValueError):
-        verified.asset_path("snapshots/one.sqlite")
-    output.write_text(output.read_text().replace("offline_inspection_only", "execute"))
-    with pytest.raises(ValueError):
-        relocation.verify_record(output, expected)
+        verifier.verify_import(root, seal(root))
 
 
 @pytest.mark.parametrize("status", ["failed", "running"])
@@ -412,71 +360,85 @@ def test_nonterminal_or_failed_boundary_never_becomes_a_retry(imported, status):
     rows[0]["current_revision_id"] = str(campaign.root_revision_id)
     write_json(head, rows)
     (root / "campaign/indexing/one/receipt.json").unlink()
-    verified = relocation.verify_import(root, seal(root))
-    assert verified.next_step == 0
-    assert verified.summary()["retained_next_status"] == status
-    assert verified.progress.steps[0].attempts == 1
-    assert verified.summary()["execution_authorized"] is False
-
-
-@pytest.mark.parametrize("mutation", ["bindings", "adapter", "platform"])
-def test_separately_attested_bindings_and_adapter_reject_drift(
-    imported, tmp_path, monkeypatch, mutation
-):
-    root, sha, _ = imported
-    output = tmp_path / "relocation.json"
-    record, expected = relocation.attest(root, sha, output)
-    if mutation == "bindings":
-        value = read(output)
-        value["bindings"]["data_root"] = str(tmp_path / "other-data")
-        write_json(output, value)
-        expected = digest(output.read_bytes())
-    elif mutation == "platform":
-        monkeypatch.setattr(relocation.platform, "release", lambda: "changed-kernel")
-    else:
-        original = relocation.runtime_freeze
-
-        def changed(path):
-            result = original(path)
-            if path != record.bindings.runtime_root:
-                return result.model_copy(update={"files": {"changed.py": "0" * 64}})
-            return result
-
-        monkeypatch.setattr(relocation, "runtime_freeze", changed)
-    with pytest.raises(ValueError, match="observed runtime changed"):
-        relocation.verify_record(output, expected)
+    verified = verifier.verify_import(root, seal(root))
+    assert verified["next_week"] == 1
+    assert verified["retained_next_status"] == status
+    assert read(root / "campaign/progress.json")["steps"][0]["attempts"] == 1
+    assert verified["live_state_verified"] is False
 
 
 def test_duplicate_json_keys_and_unknown_versions_fail_closed(imported):
     root, sha, _ = imported
     with pytest.raises(ValueError, match="duplicate JSON"):
-        relocation.parse_json(b'{"same": 1, "same": 2}')
+        verifier.parse_json(b'{"same": 1, "same": 2}')
     path = root / "transfer-manifest.json"
     value = read(path)
     value["schema_version"] = 2
     write_json(path, value)
     with pytest.raises(ValueError):
-        relocation.verify_import(root, digest(path.read_bytes()))
+        verifier.verify_import(root, digest(path.read_bytes()))
 
 
 def test_cli_failure_does_not_echo_private_inputs(tmp_path):
-    bad = tmp_path / "bad.json"
+    bad = tmp_path / "transfer-manifest.json"
     bad.write_text('{"private": "never-print-this-value"}')
     result = subprocess.run(
         [
             sys.executable,
             "-m",
-            "backend.season_simulation.relocation",
-            "verify",
-            "--record",
-            str(bad),
-            "--record-sha256",
+            "scripts.verify_campaign_import",
+            "--import-root",
+            str(tmp_path),
+            "--manifest-sha256",
             digest(bad.read_bytes()),
         ],
+        env={
+            **os.environ,
+            "PYTHON_DOTENV_DISABLED": "1",
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+        },
         capture_output=True,
         text=True,
         timeout=30,
     )
     assert result.returncode == 2
     assert "never-print-this-value" not in result.stderr
-    assert "No execution authorized" in result.stderr
+    assert "No files changed" in result.stderr
+
+
+def test_cli_verifies_with_network_blocked_before_imports(imported, tmp_path):
+    root, sha, _ = imported
+    attempts = tmp_path / "network-attempted"
+    launcher = """
+import pathlib, runpy, socket, sys
+attempts = pathlib.Path(sys.argv.pop(1))
+def deny(*args, **kwargs):
+    attempts.write_text('blocked')
+    raise AssertionError('network forbidden')
+socket.socket.connect = deny
+socket.create_connection = deny
+runpy.run_module('scripts.verify_campaign_import', run_name='__main__')
+"""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            launcher,
+            str(attempts),
+            "--import-root",
+            str(root),
+            "--manifest-sha256",
+            sha,
+        ],
+        env={
+            **os.environ,
+            "PYTHON_DOTENV_DISABLED": "1",
+            "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+        },
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["next_week"] == 2
+    assert not attempts.exists()

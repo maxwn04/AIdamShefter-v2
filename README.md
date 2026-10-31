@@ -6,8 +6,8 @@ data-grounded articles through the reporter generation service.
 
 ## Setup
 
-For managed cloud development and offline campaign relocation, see the
-[Linux development workflow](docs/linux-wsl-relocation/development.md).
+For cloud checks and offline verification of imported campaign evidence, see the
+[cloud operator guide](docs/cloud-operator.md).
 
 ```bash
 uv python install

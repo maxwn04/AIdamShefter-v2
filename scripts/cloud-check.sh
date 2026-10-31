@@ -21,7 +21,7 @@ export LITELLM_LOCAL_MODEL_COST_MAP=True
 unset AIDAM_TEST_DATABASE_URL AIDAM_MIGRATION_DATABASE_URL
 
 .venv/bin/python -m pytest \
-  backend/tests/season_simulation/test_relocation.py \
+  tests/scripts/test_verify_campaign_import.py \
   backend/tests/season_simulation/test_controller.py \
   backend/tests/season_simulation/test_freeze.py \
   backend/tests/services/datalayer/test_preseason_snapshot.py \
