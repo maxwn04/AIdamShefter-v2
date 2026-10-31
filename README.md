@@ -6,6 +6,9 @@ data-grounded articles through the reporter generation service.
 
 ## Setup
 
+For managed cloud development and offline campaign relocation, see the
+[Linux development workflow](docs/linux-wsl-relocation/development.md).
+
 ```bash
 uv python install
 uv sync --locked

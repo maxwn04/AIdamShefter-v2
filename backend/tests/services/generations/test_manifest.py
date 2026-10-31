@@ -451,9 +451,11 @@ def test_semantic_memory_tool_bundle_is_manifest_safe_and_versioned() -> None:
     names = [tool["name"] for tool in built.manifest["tools"]["implementations"]]
     assert names == [
         "search_memory",
+        "inspect_memory",
         "save_memory_event",
         "upsert_storyline_memory_card",
         "save_storyline_trigger",
+        "update_memory_callback",
         "save_team_context",
         "save_league_note",
     ]
