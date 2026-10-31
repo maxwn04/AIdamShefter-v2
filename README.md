@@ -6,6 +6,9 @@ data-grounded articles through the reporter generation service.
 
 ## Setup
 
+For cloud checks and offline verification of imported campaign evidence, see the
+[cloud operator guide](docs/cloud-operator.md).
+
 ```bash
 uv python install
 uv sync --locked
