@@ -159,7 +159,8 @@ def test_qualified_vector_reflection_and_drift_detection_under_hardened_search_p
     monkeypatch.setenv("AIDAM_MIGRATION_REQUIRE_TLS", "false")
     monkeypatch.setenv("AIDAM_MIGRATION_ROLE", "aidam_owner")
     config = _config(database_url)
-    command.upgrade(config, "0014")
+    # Autogenerate compares against current metadata and requires the latest head.
+    command.upgrade(config, "head")
     engine = sa.create_engine(database_url)
     with warnings.catch_warnings():
         warnings.simplefilter("error", sa.exc.SAWarning)
