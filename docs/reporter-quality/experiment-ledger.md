@@ -325,9 +325,45 @@ errors remain separate, including wrong seed-win counting, period labels and a
 scoring-rank claim contradicted by two higher totals in the same output.
 
 Decision: **failed primary discriminator; not promoted**. Retain both first
-samples and offline candidate, no full season, reroll or shipping PR. The next
-unpaid investigation concerns original-question context omitted from some
-callback-linked storylines in E08. It must not inherit this failed paragraph.
+samples and offline candidate, no full season, reroll or shipping PR. E12 separately investigates original-question context omitted from some
+callback-linked storylines in E08. It does not inherit this failed paragraph.
+
+## E12: original context in existing due callbacks
+
+E08's pool excludes storylines already supplied through due callbacks. E12 adds
+the same bounded original-question context to those existing linked summaries;
+callback selection, current update handles, source/save/verifier semantics and
+other recall content remain unchanged. Original history is not current factual
+authority or required article coverage. A lookup failure leaves the current
+callback visible, with an explicit notice and partial-recall metadata.
+
+The clean feature commit is `aa80a11ea9a813b6c83f86c1f9feaf08de65a0e4`, stacked on
+PR263 head `c925515b0c9abefe0ac4231be9fbb1c9f9194386`. Its sole runtime file hash is
+`eac63694770073675835cb980c9b90d7a0f66e894a3c224d1640cc6169b11267`.
+Forty-five targeted tests pass on the clean candidate and actual E08-based
+operational parent; no failed E05/E11 paragraph or unrelated treatment is present.
+
+The selected challenge explicitly reuses E11's preserved control, whose false
+canonical summary is already known. This is not a newly randomized independent
+pair. One treatment used the exact original pre-generation state, all143 complete
+vectors, request, source cutoff and shared Flash limits. Before paid dispatch,
+two exact original-version projections were checked; all other initial messages,
+tools and recall content matched the control.
+
+Nine completions settled for about $0.03527 and the reporter queried the full-season
+source trade ledger. An upstream503 stopped turn10 before any draft or canonical
+mutation. Including the full uncertain request reservation, approximately$0.38959
+is retained. Neither lack of a response nor a later successful balance read proves
+zero billing. Failed traces and the stopped ledger remain immutable. There is no
+article-quality verdict or full-season promotion.
+
+One bounded infrastructure recovery is prepared after cooldown and unchanged-state
+checks. It will begin a new generation-local transcript from the same canonical
+pin, not claim exact transcript continuation. All historical spending and unknown
+reservations remain charged; another upstream failure stops paid attempts. The
+primary challenge still requires source-grounded correction and original-question
+continuity, not merely exact delivery or a different callback date. Draft #266
+is reviewable technical work with these limitations, not a proven quality fix.
 
 ## Reviewable drafts
 
@@ -349,5 +385,8 @@ callback-linked storylines in E08. It must not inherit this failed paragraph.
 
 - [#265](https://github.com/maxwn04/AIdamShefter-v2/pull/265): bounded recent-trade
   exposure, based on main; 65 targeted tests, quality gate inconclusive with adverse evidence.
+
+- [#266](https://github.com/maxwn04/AIdamShefter-v2/pull/266): original context in due
+  callbacks, stacked on #263; 45 tests, first challenge interrupted by infrastructure.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.

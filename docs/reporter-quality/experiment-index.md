@@ -25,6 +25,7 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E09 | Median terminology correction, draft #264; both matched arms preserved the discriminating bonus result. | Inconclusive for applied accuracy; treatment clarified median/postseason scope but introduced a separate historical memory error. No reroll or full-season promotion. |
 | E10 | Bounded recent-trade exposure delivered three exact cards; both matched final-week arms recovered the complete callback. | Technical exposure passed, article-quality gate inconclusive. Ownership contradictions persisted; no full-season promotion or reroll. Draft #265. |
 | E11 | Both Week 15 arms newly saved the same false whole-season no-upgrade claim, despite correct guidance delivery. | Failed primary discriminator; candidate not promoted, no full season or shipping PR. More cautious callback scheduling did not fix factual memory. |
+| E12 | Extends original context to existing due-callback storyline links. Two exact additions verified; first known-failure challenge stopped on upstream503 before drafting. | Technical exposure verified, no quality verdict. Failed trace and uncertain reservation retained; at most one bounded infrastructure recovery. Draft #266 stacks on #263. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -59,7 +60,10 @@ sample was silently replaced or interpreted as a behavioral success.
 - [PR #265: offer recent trade leads](https://github.com/maxwn04/AIdamShefter-v2/pull/265)
   contains bounded read-only exposure and 65 passing targeted tests; quality gate inconclusive.
 
-All six are drafts, with no merge or deployment. General CI does not replace
+- [PR #266: original context in due callbacks](https://github.com/maxwn04/AIdamShefter-v2/pull/266)
+  extends #263 with 45 passing targeted tests; first paid challenge interrupted before an article.
+
+All seven are drafts, with no merge or deployment. General CI does not replace
 the explicitly run backend test selections. E06 now has selected-week and full-
 season identity evidence, but its final-week article missed an important
 acquisition callback present in the baseline. The earlier stop was a pre-dispatch
