@@ -45,11 +45,12 @@ if TYPE_CHECKING:
 
 
 MEMORY_RECALL_SCHEMA_VERSION = 3
-MEMORY_RECALL_PLANNER_VERSION = 3
+MEMORY_RECALL_PLANNER_VERSION = 4
 MAX_RECALL_CANDIDATES = 100
 MAX_DUE_CALLBACKS = 8
 MAX_STANDING_CONTEXT = 8
 MAX_LIKELY_RELEVANT = 5
+MAX_RECENT_TRADE_LEADS = 3
 MAX_STORYLINE_REVIEW_POOL = 3
 MAX_INTENT_TEXT_LENGTH = 500
 
@@ -363,6 +364,23 @@ class MemoryRecallPlanner:
     ) -> _GroupResult:
         text = self._intent_text(config)
         if text is None and not entity_keys:
+            if not self._has_explicit_focus(config):
+                query = SearchDocumentQuery(
+                    kinds=(MemoryKind.EVENT,), statuses=("active",),
+                    recent_trade_events=True,
+                    competition_season_id=season_id,
+                    allowed_season_weeks=self._season_bounds(),
+                    week_to=current_week, limit=MAX_RECENT_TRADE_LEADS + 1,
+                )
+                retrieval = self._memory_context.search(MemoryRetrievalRequest(
+                    query=query, expand_exact_references=False,
+                    expand_stable_references=False,
+                ))
+                return self._present_group(
+                    root="likely_relevant_memories", query=query,
+                    candidates=retrieval.matches, selected=retrieval.matches,
+                    limit=MAX_RECENT_TRADE_LEADS,
+                )
             return _GroupResult(
                 root="likely_relevant_memories",
                 memories=(),

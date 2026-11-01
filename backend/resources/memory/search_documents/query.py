@@ -15,6 +15,7 @@ from backend.database.models.memory import (
     MemoryItem, MemoryRevision, MemorySearchDocument, MemoryVersion,
 )
 from backend.database.models.memory.context_notes import ContextNote
+from backend.database.models.memory.events import EventVersion
 from backend.database.models.memory.triggers import TriggerVersion
 from backend.resources.memory.revisions.shared import visible_versions_statement
 from backend.resources.memory.search_documents.objects import SearchDocumentQuery
@@ -87,6 +88,13 @@ def query_search_documents(
     if query.kinds:
         statement = statement.where(
             MemorySearchDocument.kind.in_(kind.value for kind in query.kinds)
+        )
+    if query.recent_trade_events:
+        statement = statement.join(
+            EventVersion, EventVersion.version_id == MemorySearchDocument.version_id,
+        ).where(
+            EventVersion.competition_id == competition_id,
+            EventVersion.event_type == "trade",
         )
     if query.statuses:
         statement = statement.where(MemorySearchDocument.status.in_(query.statuses))

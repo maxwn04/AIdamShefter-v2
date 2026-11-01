@@ -83,6 +83,14 @@ def rank_candidates(
         -candidate.score_components.salience, -candidate.revision_number,
         candidate.kind.value, str(candidate.version_id),
     ))
+    if query.recent_trade_events:
+        # Apply recency to all eligible typed trades before the result limit.
+        # A later rewrite of an old event does not change its source week.
+        selected.sort(key=lambda candidate: (
+            -(candidate.week if candidate.week is not None else -1),
+            -candidate.score_components.salience,
+            str(candidate.item_id),
+        ))
     winners: dict[UUID, SearchDocumentCandidate] = {}
     for candidate in selected:
         winners.setdefault(candidate.item_id, candidate)
