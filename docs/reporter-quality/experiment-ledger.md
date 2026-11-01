@@ -27,7 +27,7 @@ already included in completion tokens is not charged a second time.
 | E09 | Clarify median bonus terminology without changing source computation | Two matched selected-week arms | $0.3135 | Inconclusive applied-accuracy gate: both arms preserved the discriminating result. No season or reroll. |
 | E10 | Expose up to three recent trade cards on unfocused requests | Two matched final-week arms | $0.2450 | Exact exposure passed; both arms recovered the callback, so quality improvement is inconclusive. |
 | E11 | Bound historical absence claims to the evidence window | Two matched selected-week arms | $0.1870 | Reject: both arms saved the false whole-season absence claim. No season or shipping PR. |
-| E12 | Extend original context to already-selected due-callback storyline links | Selected challenge; first attempt failed, one recovery active | $0.3896 retained from first attempt; recovery accounting pending | Exact exposure verified; no article-quality verdict yet. Known-failure control reused, not an independent paired efficacy test. |
+| E12 | Extend original context to already-selected due-callback storyline links | One completed selected challenge after a preserved infrastructure failure | $0.5232, including $0.3543 unknown | Partial/mixed: historical inversion corrected with source verification; question narrowing and other errors remain. No automatic season promotion. Known-failure control reused. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -358,20 +358,53 @@ vectors, request, source cutoff and shared Flash limits. Before paid dispatch,
 two exact original-version projections were checked; all other initial messages,
 tools and recall content matched the control.
 
-Nine completions settled for about $0.03527 and the reporter queried the full-season
-source trade ledger. An upstream 503 stopped turn 10 before any draft or canonical
-mutation. Including the full uncertain request reservation, approximately $0.38959
-is retained. Neither lack of a response nor a later successful balance read proves
-zero billing. Failed traces and the stopped ledger remain immutable. There is no
-article-quality verdict or full-season promotion.
+The first attempt settled nine completions for $0.03527, then an upstream 503
+stopped turn 10 before any article or canonical mutation. Its full $0.35432 unknown
+reservation remains charged. One bounded recovery after cooldown began a clean
+new generation-local transcript from the unchanged pin; it did not claim exact
+transcript continuation. No further generation retry occurred.
 
-One bounded infrastructure recovery started after cooldown and unchanged-state
-checks. It begins a new generation-local transcript from the same canonical
-pin, not exact transcript continuation. All historical spending and unknown
-reservations remain charged; another upstream failure stops paid attempts. The
-primary challenge still requires source-grounded correction and original-question
-continuity, not merely exact delivery or a different callback date. Draft #266
-is reviewable technical work with these limitations, not a proven quality fix.
+The recovery completed the article and closeout in 30 calls for $0.13361. Both
+article and newly saved storyline/team context correctly recover the earlier
+acquisition and its two first-round picks. It actually queried the full historical
+transaction window for that team. No explicit memory search or inspection occurred:
+this is automatic original-context exposure plus fresh source verification, not
+proof of direct saved-event retrieval. The narrower claim that two remaining picks
+were unspent is distinct from the old false whole-season absence claim; ambiguous
+midseason wording is not forced into a definite factual failure.
+
+The original question still narrows: whether a contender can repair its roster
+through lower-cost routes without its spent picks becomes whether the roster holds
+up in the playoffs, despite calling the question unchanged. A bye supports waiting
+for a playoff result but does not answer the broader repair/cost question. Other
+errors include a misdated historical week, an acquisition-month mismatch, a new
+matchup summary misclassifying an acquired receiver as a running back, and
+unsupported paperwork/anomaly framing of bracket outcomes without a verified rule.
+
+| E12 trajectory | Reused control | Recovery treatment |
+| --- | ---: | ---: |
+| Completion calls | 23 | 30 |
+| Before draft / draft through submission / closeout | 13 / 5 / 5 | 15 / 10 / 5 |
+| Create / edit calls | 2 / 0 | 1 / 7 |
+| Prompt tokens | 2,379,835 | 3,587,365 |
+| Completion tokens including reasoning | 48,856 | 65,701 |
+| Article words | 1,093 | 1,086 |
+
+All 143 prior versions and item bindings survive, with no duplicate trade identity
+or broken storyline/callback link. Two malformed callback updates returned typed
+errors, then succeeded after removing an extra argument; they were not four saved
+mutations. The successful article submitted on turn 25 and closeout ended on 30.
+Maximum output was 10,355 tokens, maximum serialized input 665,313 bytes; no guard
+stopped it. Export-only repair copied verified identical frozen files, with no
+paid replay or change to the submitted article.
+
+Decision: **partial/mixed, not a full discriminator pass**. The positive historical
+correction is substantive, but original-question continuity and general grounding
+are not repaired. Total E12 cost/reservation is $0.52320, including the retained
+failure; the reused control was already charged to E11. No reroll or automatic
+full-season promotion. Draft #266 remains reviewable technical work with the
+negative findings. The next offline investigation is the question-identity write
+boundary; no new paid treatment is registered yet.
 
 ## Reviewable drafts
 
@@ -395,6 +428,6 @@ is reviewable technical work with these limitations, not a proven quality fix.
   exposure, based on main; 65 targeted tests, quality gate inconclusive with adverse evidence.
 
 - [#266](https://github.com/maxwn04/AIdamShefter-v2/pull/266): original context in due
-  callbacks, stacked on #263; 45 tests, first challenge interrupted by infrastructure.
+  callbacks, stacked on #263; 45 tests, historical correction with persistent question narrowing; mixed completed challenge.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.
