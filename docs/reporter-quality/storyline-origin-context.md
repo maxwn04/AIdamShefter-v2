@@ -74,6 +74,15 @@ all-arc lifecycle behavior, origin exposure, stale-history errors and acquisitio
 callbacks. The gate is technical feasibility evidence, not an efficacy promotion.
 This remains an exploratory draft pending the longitudinal audit.
 
+The ongoing audit also confirmed a source limitation shared with the baselines:
+an early frozen pick-ownership view already contains the receiver of a transfer
+that appears only in a later week's transaction history. The earlier transaction
+view does not contain that transfer. This is not memory-pin leakage introduced by
+the projection, but it limits historical ownership claims and questions based on
+them. Showing an exact original summary can preserve an unsupported source-derived
+claim as well as a useful question. Inputs remain frozen; the experiment must not
+be described as a clean historical forecasting simulation.
+
 Private articles, source identifiers, raw traces and account records remain
 outside this repository. See the consolidated experiment ledger in draft PR #261
 for the preceding experiments and their limitations.
