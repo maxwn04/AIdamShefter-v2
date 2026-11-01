@@ -1,4 +1,4 @@
-# Median bonus terminology: offline candidate
+# Median bonus terminology and matched gate
 
 The reporter currently receives guidance calling Sleeper's additional standings
 decision a “league-average bonus matchup.” That wording can invite an arithmetic
@@ -37,9 +37,35 @@ its expected consolation-guidance phrase is absent on untouched main
 runs produced the same one failure and 11 passes. This unrelated assertion is not
 changed by the patch. The focused successful run excludes it explicitly.
 
-No paid comparison has run. The active original-storyline-context experiment is
-unchanged. A future comparison must freeze its parent, checkpoint, cutoff and
-evaluation before dispatch. It should distinguish merely repeating “median” from
-correctly explaining actual standings decisions, retain source results, and check
-that postseason outcomes are not assigned an invented bonus decision. It must not
-claim improved general article quality from a terminology correction.
+The preregistered two-arm gate completed one final-regular-week request from the
+same original post-prior-week checkpoint, with 146 memory versions and vectors.
+The runtime parent was E06 plus the E04 question instruction; E08 and other later
+candidates were absent. Original requests, cutoffs, source assets, settings and
+first model messages/tools matched; only this guidance file differed. Both arms
+preserved every inherited version and completed their article and memory commit.
+
+The discriminating team scored above the median but below the arithmetic mean,
+and its recorded result was a sweep. Both arms preserved that sweep. Control
+used the legacy average label without publishing a cutoff, then explicitly ruled
+out arithmetic mean in its saved league note. Treatment named the median and
+correctly excluded the bonus from postseason games. Neither article published a
+numeric threshold. The motivating explicit mean error did not reproduce.
+
+Decision: inconclusive for improved applied-decision accuracy. The independently
+supported terminology clarification remains reviewable; no full-season efficacy
+promotion or reroll follows. Do not replace the fresh control with an older
+failing article. Correct terminology is not a general quality result.
+
+Control used 32 calls, four edits and five closeout turns; treatment used 36 calls,
+13 edits and four closeout turns. Costs were $0.15787 and $0.15562, totaling
+$0.31349, with no embedding request or new uncertain charge. Both unchanged
+articles and complete traces remain private.
+
+A separate adverse finding remains: treatment saved a canonical claim that no
+additional first-round pick arrived after an earlier trade, despite a later saved
+acquisition. Its fresh source queries covered recent weeks and the earlier trade
+window, omitting the intervening acquisition. The article's “since” is less
+explicit; the saved summary has a clear false historical anchor. This does not
+establish causation by the median guidance and is not hidden by the correct bonus
+wording. It motivates a separate historical-scope hypothesis, not another change
+in this PR.
