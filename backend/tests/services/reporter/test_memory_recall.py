@@ -109,6 +109,9 @@ class Retrieval:
         elif kinds == (MemoryKind.CONTEXT_NOTE,):
             matches = self.notes
             kind = MemoryKind.CONTEXT_NOTE
+        elif kinds == (MemoryKind.EVENT,):
+            matches = tuple(match for match in self.relevant if match.memory.item.kind is MemoryKind.EVENT)
+            kind = MemoryKind.EVENT
         else:
             matches = self.relevant
             kind = MemoryKind.STORYLINE
@@ -449,6 +452,7 @@ def test_empty_and_fully_failed_recall_remain_explicit_model_context() -> None:
     assert set(failed.metadata["errors"]) == {
         "due_callbacks",
         "standing_context",
+        "likely_relevant_memories",
         "storyline_review_pool",
     }
 

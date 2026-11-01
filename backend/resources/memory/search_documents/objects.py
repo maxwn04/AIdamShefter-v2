@@ -52,6 +52,8 @@ class SearchDocumentQuery(ContractModel):
     tags: tuple[NonBlankStr, ...] = ()
     text: NonBlankStr | None = None
     include_history: SkipJsonSchema[bool] = False
+    # Internal automatic-recall browse: typed trades, newest source week first.
+    recent_trade_events: SkipJsonSchema[bool] = False
     kinds: tuple[MemoryKind, ...] = ()
     statuses: tuple[NonBlankStr, ...] = ()
     agent_key: NonBlankStr | None = None
@@ -75,6 +77,12 @@ class SearchDocumentQuery(ContractModel):
 
     @model_validator(mode="after")
     def _validate_week_filters(self) -> SearchDocumentQuery:
+        if self.recent_trade_events and (
+            self.kinds != (MemoryKind.EVENT,)
+            or self.has_discovery_signals
+            or self.include_history
+        ):
+            raise ValueError("recent trade browse requires current event-only structured discovery")
         if self.week is not None and (
             self.week_from is not None or self.week_to is not None
         ):
