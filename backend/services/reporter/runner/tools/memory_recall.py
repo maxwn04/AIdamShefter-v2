@@ -19,6 +19,7 @@ from backend.resources.memory.triggers import (
     TriggerStatus,
 )
 from backend.services.memory import (
+    HydratedMemory,
     HydratedMemoryMatch,
     MemoryKind,
     MemoryRetrievalRequest,
@@ -37,6 +38,7 @@ from backend.services.reporter.runner.tools.memory_presentation import (
     MemoryPresentationAdapter,
     StorylineMemoryContext,
     SemanticEntity,
+    SemanticMemorySummary,
     TriggerMemoryContext,
 )
 
@@ -45,8 +47,8 @@ if TYPE_CHECKING:
     from backend.services.memory import GenerationMemoryContext
 
 
-MEMORY_RECALL_SCHEMA_VERSION = 4
-MEMORY_RECALL_PLANNER_VERSION = 4
+MEMORY_RECALL_SCHEMA_VERSION = 5
+MEMORY_RECALL_PLANNER_VERSION = 5
 MAX_RECALL_CANDIDATES = 100
 MAX_DUE_CALLBACKS = 8
 MAX_STANDING_CONTEXT = 8
@@ -74,6 +76,15 @@ class StorylineOriginContext(_RecallModel):
     clipped: bool = False
 
 
+class CallbackMemorySummary(SemanticMemorySummary):
+    original_context: StorylineOriginContext | None = None
+    origin_context_notice: str | None = None
+
+
+class CallbackMemoryContext(TriggerMemoryContext):
+    linked_memories: list[CallbackMemorySummary]
+
+
 class StorylineReviewLead(_RecallModel):
     original_context: StorylineOriginContext | None = None
     memory_handle: str
@@ -90,7 +101,7 @@ class MemoryRecallPrelude(_RecallModel):
     context_type: Literal["automatic_reporter_memory"] = (
         "automatic_reporter_memory"
     )
-    due_callbacks: list[TriggerMemoryContext]
+    due_callbacks: list[CallbackMemoryContext]
     standing_context: list[ContextNoteMemoryContext]
     likely_relevant_memories: list[
         StorylineMemoryContext | FactMemoryContext | EventMemoryContext
@@ -203,7 +214,7 @@ class MemoryRecallPlanner:
 
         prelude = MemoryRecallPrelude(
             due_callbacks=[
-                cast(TriggerMemoryContext, memory) for memory in due.memories
+                cast(CallbackMemoryContext, memory) for memory in due.memories
             ],
             standing_context=[
                 cast(ContextNoteMemoryContext, memory)
@@ -324,13 +335,39 @@ class MemoryRecallPlanner:
                 key=self._due_sort_key,
             )
         )
-        return self._present_group(
+        group = self._present_group(
             root="due_callbacks",
             query=query,
             candidates=retrieval.matches,
             selected=due,
             limit=MAX_DUE_CALLBACKS,
         )
+        cards = []
+        bindings = list(group.bindings)
+        origin_error = None
+        for index, memory in enumerate(group.memories):
+            card = CallbackMemoryContext.model_validate(memory.model_dump())
+            linked = []
+            for ordinal, summary in enumerate(card.linked_memories):
+                if summary.kind is MemoryKind.STORYLINE and summary.memory_handle:
+                    current = self._presentation.resolve_handle(summary.memory_handle)
+                    assert current is not None
+                    try:
+                        origin, binding = self._storyline_origin(
+                            current, ["due_callbacks", index, "linked_memories", ordinal, "original_context"],
+                        )
+                    except Exception as exc:
+                        origin_error = sanitize_provider_error(exc)
+                        summary = summary.model_copy(update={"origin_context_notice": (
+                            "Original storyline context unavailable; current linked memory remains shown."
+                        )})
+                    else:
+                        summary = summary.model_copy(update={"original_context": origin})
+                        if binding is not None:
+                            bindings.append(binding)
+                linked.append(summary)
+            cards.append(card.model_copy(update={"linked_memories": linked}))
+        return replace(group, memories=tuple(cards), bindings=tuple(bindings), error=origin_error)
 
     def _standing_context(
         self,
@@ -444,7 +481,9 @@ class MemoryRecallPlanner:
             card = cast(StorylineMemoryContext, memory)
             assert card.memory_handle is not None
             callback = card.callback_condition
-            origin, binding = self._storyline_origin(group.candidates[index], index)
+            origin, binding = self._storyline_origin(
+                group.candidates[index].memory, ["storyline_review_pool", index, "original_context"],
+            )
             if binding is not None:
                 origin_bindings.append(binding)
             leads.append(StorylineReviewLead(
@@ -472,20 +511,20 @@ class MemoryRecallPlanner:
         )
 
     def _storyline_origin(
-        self, match: HydratedMemoryMatch, index: int,
+        self, memory: HydratedMemory, result_path: list[str | int],
     ) -> tuple[StorylineOriginContext | None, dict[str, JsonValue] | None]:
         """Expose only immutable version one through the same history boundary."""
-        revision = match.memory.version.revision_number
+        revision = memory.version.revision_number
         if revision == 1:
             return None, None  # The current lead already is the original context.
         history = self._memory_context.inspect(
-            match.memory, view="history", offset=revision - 1, limit=1,
+            memory, view="history", offset=revision - 1, limit=1,
             allowed_season_weeks=self._season_bounds(),
         )
         if not history.matches:
             return None, None
         original = history.matches[0]
-        if (original.memory.item.item_id != match.memory.item.item_id
+        if (original.memory.item.item_id != memory.item.item_id
                 or original.memory.version.revision_number != 1):
             return None, None  # A filtered/gapped history is not an origin substitute.
         content = original.memory.content
@@ -505,7 +544,7 @@ class MemoryRecallPlanner:
         )
         # Context has no selector: only the unchanged current lead can be edited.
         binding = {
-            "result_path": ["storyline_review_pool", index, "original_context"],
+            "result_path": result_path,
             "kind": original.memory.item.kind.value,
             "item_id": str(original.memory.item.item_id),
             "version_id": str(original.memory.version.version_id),
