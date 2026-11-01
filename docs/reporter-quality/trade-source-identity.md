@@ -75,8 +75,19 @@ memory with the same original requests, cutoffs and chronological indexing.
 Its first week stopped on a provider connection error before article submission
 or canonical memory commit. The failed attempt and verified export are retained;
 this is infrastructure evidence, not an identity or article-quality result.
-Paid recovery is held because the original forecast plus a further request
-reservation no longer fits the conservative authorization after retaining the
-uncertain request in full. No charge was released or sample silently replaced.
-Longitudinal behavior therefore remains unassessed. Private articles, source
-identifiers, raw traces and accounting records are retained outside this PR.
+One explicitly authorized infrastructure retry then started from the same
+unchanged empty-memory root. It stopped at its fourth call on HTTP 503: an upstream
+connection terminated before response headers. Neither attempt submitted an
+article or committed canonical memory. Both failed attempts and verified exports
+are retained; there was no further retry. No input, output or turn limit caused
+these failures.
+
+The private operator reconciliation retained every prior settlement and each
+uncertain request at its full reservation under the unchanged hard cap. Eleven
+offline tests covered repeated recovery without double-counting, cap exhaustion,
+immutable ancestry and refusal of in-flight or unresolved accounting. This
+operator-only recovery code is not included in the PR. Longitudinal behavior
+remains unassessed: zero completed weeks and zero trade saves provide no evidence
+for season-wide duplicate suppression, recall or article quality. Private
+articles, source identifiers, raw traces and accounting records remain outside
+this PR.
