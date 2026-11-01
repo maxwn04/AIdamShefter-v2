@@ -21,7 +21,10 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E06 selected-week gate | Identical checkpoint and first-request settings; only exact trade-source identity code differed. Control created a duplicate on one repeat save; treatment reused three original items, preserving prior versions and typed assets. | Passed the narrow identity-reuse discriminator. Differing acquisition callbacks occurred before the changed save boundary and are not causal quality evidence. |
 | E06 completed season | Two first-week infrastructure failures and the original accepted-but-unfinalized Week 14 are preserved. A labeled recovery from committed Week 13 completed all 17 weeks. | Fifteen source transactions retained 15 identities and 23 versions, with zero duplicate groups; baseline had five groups. All 37 original pin checks passed. Final championship acquisition callback was missed despite earlier canonical saving. Keep technical identity fix; content quality remains mixed. |
 | E07 selection gate | Both selected-week arms saved the same eligible new acquisition with complete assets and unchanged prior memory. | Inconclusive under the preregistered tie rule; no full season or shipping PR. |
-| E08 original context | Matched Week 7 gate completed; three origin bindings exact, 69 inherited versions unchanged. A separate empty-memory 17-week measurement is running. | Technical feasibility passed, behavior mixed: question narrowing and a misdated historical-memory claim remain. No efficacy promotion or E05/E07 paragraph. |
+| E08 original context | Matched Week 7 gate completed; three origin bindings exact, 69 inherited versions unchanged. A separate empty-memory 17-week measurement completed. | Technical feasibility passed, behavior mixed: question narrowing and a misdated historical-memory claim remain. Full season preserves trade identity and produces an accurate final acquisition/price callback, but grounding failures and stale/question-shifting cards remain. No general efficacy promotion or E05/E07 paragraph. |
+
+| E09 | Median terminology correction, independently reviewed draft #264; matched gate pending. | Offline rule compatibility evidence is separate from live efficacy. |
+| E10 / E11 | Separate local candidates for recent-trade exposure and historical-claim scope; offline tests pass, no paid gate yet. | Prospective hypotheses, not promoted outcomes. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -48,9 +51,12 @@ sample was silently replaced or interpreted as a behavioral success.
 - [PR #263: expose original storyline context](https://github.com/maxwn04/AIdamShefter-v2/pull/263)
   adds read-only first-version context to existing automatic review leads. Based
   on `main`; 40 targeted tests passed. The selected-week technical gate passed,
-  behavior remains mixed, and a separate season is measuring longitudinal effects.
+  completed-season behavior remains mixed; exact exposure is not proof of use.
 
-All four are drafts, with no merge or deployment. General CI does not replace
+- [PR #264: clarify median bonus guidance](https://github.com/maxwn04/AIdamShefter-v2/pull/264)
+  contains only terminology guidance and synthetic regressions; paid gate pending.
+
+All five are drafts, with no merge or deployment. General CI does not replace
 the explicitly run backend test selections. E06 now has selected-week and full-
 season identity evidence, but its final-week article missed an important
 acquisition callback present in the baseline. The earlier stop was a pre-dispatch

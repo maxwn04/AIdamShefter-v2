@@ -199,12 +199,74 @@ an older scoring lead into the wrong week. The same old fact was already present
 in current context, so added-origin causality is unresolved. Control also has a
 confirmed prior-record error. Both errors and unchanged articles are preserved.
 
-Technical feasibility does not establish efficacy. A separately preregistered
-17-week season now starts from empty memory, with only this presentation file
-changed from E06. It audits every arc, distinguishes origin exposure from no
-exposure, and tracks stale-history claims, supported closures, scope changes,
-acquisition discovery/retention/retrieval/use, cost and article quality. No minimum
-arc duration, forced research quota or target-name hint is introduced.
+The empty-memory season completed all 17 weeks. The runtime and original inputs
+remained frozen. It delivered 32/32 exact origin projections, including two in a
+preserved failed attempt. Added origin context covered 17/37 successful storyline
+updates; six more had first-version context already, and 14 did not. The changed
+pool does not cover every due-callback presentation path.
+
+All 16 source trades retained 16 identities and 24 immutable versions, with zero
+duplicate identities, changed typed assets or broken links; 19 pin checks passed.
+The final championship article connected an acquired player's decisive score to
+the multi-party transaction and full pick price. E06 omitted that callback. E08
+also researched historical source transactions again: no exact automatic event
+binding appeared, so successful coverage is not demonstrated saved-event recall.
+
+Seven arcs ended with five resolved and two active. Supported closures coexist
+with question accumulation, one stale seeding card, and a near-term churn payoff
+closing a card whose future-pick component remains unobserved. A memory headline
+inverted known prior pick spending into no spending; a subsequent article repeated
+a whole-season absence claim. Its resource question later reopened. Technical
+identity and origin correctness do not certify narrative grounding or lifecycle.
+
+| Completed trajectory | E06 | E08 |
+| --- | ---: | ---: |
+| Completion calls | 512 | 537 |
+| Prompt tokens | 61,053,883 | 65,968,358 |
+| Output tokens including reasoning | 1,004,689 | 1,064,630 |
+| Before first draft / draft through submission / closeout | 275 / 157 / 80 | 285 / 175 / 77 |
+| Article edit calls | 88 | 124 |
+| Explicit memory searches / inspections | 7 / 0 | 3 / 0 |
+| Mean article words | 1,062.5 | 1,069.8 |
+
+E08's total cost was $2.31586 including embeddings and the preserved failed
+attempt. Its 549 settled completion calls include 12 before a read-only balance
+GET failed prior to a new completion dispatch; there was no new uncertain charge.
+A labeled recovery used the same committed checkpoint and original request.
+The largest response used 20,247 output tokens including reasoning; ten weeks
+exceeded the old 8,192 allowance. No context/output-limit failure occurred.
+
+Decision: mixed, no general efficacy promotion. Reduced revision churn is not
+established. One accurate final callback cannot isolate the origin projection's
+causal contribution in a stochastic season. All unchanged articles, failures and
+full accounting remain private.
+
+The source audit found identical draft-pick ownership views across all 17 frozen
+snapshots, with three pick identities producing ten week-level disagreements
+against recorded completed transfers. This is a shared input limitation, not a
+memory-pin failure. A separate audit of 269 visible trade observations found no
+final status update after its editorial cutoff; weekly lineup ownership alone
+still cannot invalidate a completed transaction. No original source was changed.
+
+## Next isolated hypotheses
+
+E09 corrects legacy average terminology to the weekly median, with no source or
+standings computation change. Official feature documentation plus the enabled
+frozen setting and 168 team-week outcomes support this mapping; the arithmetic
+mean disagrees on 12 outcomes. The raw setting key's mapping is an inference, and
+current documentation is not an archived season-specific specification. Draft
+#264 has 11 focused passing tests and one unrelated reproduced base failure
+excluded. A preregistered two-arm final-regular-week gate is pending; no live
+quality claim yet.
+
+E10 is an unpaid local candidate for bounded recent-trade exposure on generic
+requests. Sixty-five tests cover selection, temporal boundaries and unchanged
+focused behavior. It does not solve unsaved acquisitions or certify summaries.
+E11 is a separate unpaid local candidate limiting negative historical claims to
+verified transaction windows and distinguishing inventory from spending history;
+32 focused tests pass with one unrelated reproduced base failure excluded.
+Neither is combined with E09 or inherited by E08. Gate outcomes must be assessed
+before deciding on more season spending; ties stay inconclusive without rerolls.
 
 ## Reviewable drafts
 
@@ -219,6 +281,9 @@ arc duration, forced research quota or target-name hint is introduced.
 
 - [#263](https://github.com/maxwn04/AIdamShefter-v2/pull/263): original storyline
   context, based on main; 40 targeted tests, technically correct selected-week
-  projection, mixed behavior, full-season measurement in progress.
+  projection, mixed behavior, completed season mixed; accurate callback alongside unresolved grounding/lifecycle failures.
+
+- [#264](https://github.com/maxwn04/AIdamShefter-v2/pull/264): median bonus guidance,
+  independently based on main; paid discriminator pending.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.
