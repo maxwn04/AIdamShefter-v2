@@ -149,6 +149,9 @@ claims must be assessed before trusting the output.
 
 ## Documents
 
+- [Experiment index](experiment-index.md): completed seasons, rejected candidates,
+  bounded gates, infrastructure failures and draft PR review links.
+
 - [Evidence representations](evidence-representations.md): source relationships,
   standings periods, multi-party trades and retained payload compatibility.
 - [Memory discovery, callbacks, and evidence](query-representation-contracts.md): current ownership, shared interfaces and acceptance.
