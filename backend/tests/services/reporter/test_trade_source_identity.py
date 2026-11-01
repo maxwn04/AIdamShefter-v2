@@ -119,3 +119,72 @@ def test_identity_separates_league_season_transaction_and_rejects_other_provider
         SleeperTradeIdentity(SEASON_ID, "league-a", "transaction-b")]}) == 4
     with pytest.raises(ValueError, match="not a Sleeper"):
         SleeperTradeIdentity.from_hints({"provider": "another-provider"}, SEASON_ID)
+
+
+def test_no_change_new_alias_hydrates_exact_version_for_callback_and_storyline(monkeypatch):
+    from backend.services.reporter.runner.tools import memory_tools
+    from backend.services.reporter.runner.tools.memory_event_evidence import ResolvedEvent
+
+    receipt = uuid4()
+    registry, context, memory, _ = prepared()
+    with context.bind_tool_execution(receipt):
+        assert _call(registry, "save_memory_event", **args())["saved"]
+    original = memory.proposal_snapshot()[0]
+    existing = prior(original)
+    registry, context, memory, adapter = prepared((existing,))
+    # Exercise exact canonical equality, including the existing primary receipt.
+    # A different receipt is a new version, not the no-change case under test.
+    resolved = ResolvedEvent(
+        original.content.details.model_dump(mode="json"), 2,
+        original.content.source_hints, original.metadata.occurred_at,
+    )
+    monkeypatch.setattr(memory_tools, "resolve_event", lambda *a, **kw: resolved)
+    with context.bind_tool_execution(receipt):
+        result = _call(registry, "save_memory_event", **args("fresh-alias"))
+    assert result["no_change"] and not memory.proposal_snapshot()
+    reference = adapter._agent_reference(MemoryKind.EVENT, "fresh-alias")
+    assert reference.version_id == existing.memory.version.version_id
+    callback = _call(
+        registry, "save_storyline_trigger", id="review-trade",
+        trigger_type="trade_evaluation", event_id="fresh-alias", target_week=9,
+    )
+    assert callback.get("saved"), callback
+    storyline = _call(
+        registry, "upsert_storyline_memory_card", id="trade-question",
+        headline="Assess the trade", summary="The acquisition remains an open question.",
+        evidence_event_ids=["fresh-alias"],
+    )
+    assert storyline.get("saved"), storyline
+    proposals = memory.proposal_snapshot()
+    assert [p.kind for p in proposals] == [MemoryKind.TRIGGER, MemoryKind.STORYLINE]
+    assert proposals[0].content.origin_event_item_id == existing.memory.item.item_id
+    assert proposals[1].content.evidence[0].version_id == existing.memory.version.version_id
+    assert adapter._selected_event_content("fresh-alias") == existing.memory.content
+
+
+def test_read_only_historical_handle_cannot_be_shadowed_by_trade_save_alias():
+    registry, _, memory, _ = prepared()
+    assert _call(registry, "save_memory_event", **args())["saved"]
+    historical = prior(memory.proposal_snapshot()[0]).memory
+    current = type(historical).model_validate(historical.model_copy(update={
+        "version": historical.version.model_copy(update={
+            "version_id": uuid4(), "revision_number": 2,
+        }),
+        "content": historical.content.model_copy(update={"summary": "A later assessment."}),
+    }).model_dump())
+    template = _event_match()
+    match = HydratedMemoryMatch.model_validate({**template.model_dump(), "memory": current})
+    registry, _, memory, adapter = prepared((match,))
+    handle = adapter._presentation.handle_for(historical, read_only=True)
+    before = adapter._agent_reference(MemoryKind.EVENT, handle)
+
+    rejected = _call(registry, "save_memory_event", **args(handle))
+    assert rejected["error"]["code"] == "read_only_memory_handle"
+    assert not memory.proposal_snapshot()
+    assert (MemoryKind.EVENT, handle) not in adapter._local_agent_refs
+    assert adapter._agent_reference(MemoryKind.EVENT, handle) == before
+
+    assert _call(registry, "save_memory_event", **args("writable-alias"))["saved"]
+    assert adapter._agent_reference(MemoryKind.EVENT, handle) == before
+    assert adapter._selected_event_content(handle) == historical.content
+    assert adapter._agent_reference(MemoryKind.EVENT, "writable-alias").version_id != before.version_id

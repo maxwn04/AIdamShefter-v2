@@ -24,14 +24,14 @@ class IdentityRetrieval(MemoryRetrievalService):
         return MemoryRetrievalResult(competition_id=competition_id, revision_id=revision_id, matches=())
 
 
-def setup_identity(engine, domain, pin, monkeypatch, *, transaction="tx-a", league="synthetic-league", provider="sleeper"):
+def setup_identity(engine, domain, pin, monkeypatch, *, transaction="tx-a", league="synthetic-league", provider="sleeper", reporting_week=7):
     from types import SimpleNamespace
     manager = _manager(engine, domain.competition_id)
     retrieval = IdentityRetrieval(search_documents=SimpleNamespace(competition_id=domain.competition_id),
         events=manager, facts=None, storylines=None, triggers=None, context_notes=None)
     memory = GenerationMemoryContext(competition_id=domain.competition_id,
         generation_id=_add_generation(engine, domain), pinned_revision_id=pin,
-        retrieval=retrieval, competition_season_id=domain.season_id, week=7)
+        retrieval=retrieval, competition_season_id=domain.season_id, week=reporting_week)
     registry, context, *_ = _registered()
     adapter = memory_tools.register_memory_tools(registry, memory, FrozenData())
     hints = {"provider": provider, "league_id": league, "transaction_id": transaction,
@@ -71,7 +71,8 @@ def test_source_identity_commits_one_item_retains_history_and_obeys_pin_and_scop
     assert current.version.revision_number == 2
     assert manager.trade_at_source(identity, first.revision.revision_id, through_week=7)[0].content.summary == old.content.summary
     assert manager.trade_at_source(identity, d.root_revision_id, through_week=7) == ()
-    assert manager.trade_at_source(identity, second.revision.revision_id, through_week=1) == ()
+    with pytest.raises(ValueError, match="outside.*reporting boundary"):
+        manager.trade_at_source(identity, second.revision.revision_id, through_week=1)
     assert len(manager.history(old.item.item_id)) == 2
     assert manager.trade_at_source(SleeperTradeIdentity(d.season_id, "other-league", "tx-a"), second.revision.revision_id, through_week=7) == ()
     assert manager.trade_at_source(SleeperTradeIdentity(uuid4(), "synthetic-league", "tx-a"), second.revision.revision_id, through_week=7) == ()
@@ -115,3 +116,53 @@ def test_same_transaction_text_in_other_league_is_distinct(database_engine, monk
     one = manager.trade_at_source(SleeperTradeIdentity(d.season_id, "synthetic-league", "tx-a"), second.revision.revision_id, through_week=7)
     two = manager.trade_at_source(SleeperTradeIdentity(d.season_id, "another-league", "tx-a"), second.revision.revision_id, through_week=7)
     assert len(one) == len(two) == 1 and one[0].item.item_id != two[0].item.item_id
+
+
+@pytest.mark.parametrize("has_earlier_version", [False, True])
+def test_future_assessment_at_later_pin_blocks_save_without_duplicate_or_replacement(
+    database_engine, monkeypatch, has_earlier_version,
+):
+    domain = _seed_domain(database_engine)
+    service = _service(database_engine, domain)
+    pin = domain.root_revision_id
+    original = None
+    if has_earlier_version:
+        registry, memory, manager, _ = setup_identity(
+            database_engine, domain, pin, monkeypatch, reporting_week=2,
+        )
+        save(registry, "early-label", "The original week-two assessment.")
+        original = service.apply(memory.take_completed_bundle())
+        pin = original.revision.revision_id
+
+    registry, memory, manager, _ = setup_identity(
+        database_engine, domain, pin, monkeypatch, reporting_week=8,
+    )
+    save(registry, "late-label", "An assessment produced in week eight.")
+    latest = service.apply(memory.take_completed_bundle())
+    identity = SleeperTradeIdentity(domain.season_id, "synthetic-league", "tx-a")
+    current = manager.trade_at_source(identity, latest.revision.revision_id, through_week=8)[0]
+    assert current.version.week == 2
+    history_before = manager.history(current.item.item_id)
+
+    # Even when its origin week is old, the currently selected version is future
+    # narrative for this coverage window. Do not fall back to old content or create.
+    with pytest.raises(ValueError, match="outside.*reporting boundary"):
+        manager.trade_at_source(identity, latest.revision.revision_id, through_week=7)
+    registry, memory, _, _ = setup_identity(
+        database_engine, domain, latest.revision.revision_id, monkeypatch, reporting_week=7,
+    )
+    result = _call(
+        registry, "save_memory_event", id="another-alias", event_type="trade",
+        source_fact_ids=["synthetic-fact"], headline="An exact source transaction",
+        summary="A week-seven assessment.",
+    )
+    assert result["error"]["code"] == "unverifiable_trade_identity"
+    assert not memory.proposal_snapshot()
+    assert manager.history(current.item.item_id) == history_before
+    with database_engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(MemoryItem).where(
+            MemoryItem.competition_id == domain.competition_id,
+        )) == 1
+    if original is not None:
+        earlier = manager.trade_at_source(identity, original.revision.revision_id, through_week=7)[0]
+        assert earlier.content.summary == "The original week-two assessment."

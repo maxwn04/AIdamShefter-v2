@@ -13,6 +13,8 @@ from backend.resources.memory.events.codec import decode_event, event_rows_state
 from backend.resources.memory.events.objects import Event
 from backend.resources.memory.events.source_identity import SleeperTradeIdentity
 from backend.resources.memory.revisions.shared import visible_versions_statement
+from backend.resources.memory.search_documents.objects import SearchDocumentQuery
+from backend.resources.memory.search_documents.query import temporal_conditions
 
 
 class EventManager:
@@ -31,27 +33,48 @@ class EventManager:
     ) -> tuple[Event, ...]:
         """Exact write lookup at the input pin; never a relevance search or merge."""
         visible = visible_versions_statement(self._competition_id, revision_id).subquery()
-        statement = event_rows_statement().join(visible, visible.c.id == MemoryVersion.id).where(
-            MemoryVersion.competition_id == self._competition_id,
-            MemoryVersion.competition_season_id == identity.competition_season_id,
-            MemoryVersion.week <= through_week,
-            EventVersion.event_type == "trade",
-            EventVersion.additional_source_hints["transaction_id"].astext == identity.transaction_id,
+        scope = SearchDocumentQuery(
+            through_competition_season_id=identity.competition_season_id,
+            through_week=through_week,
+        )
+        eligible = sa.and_(*temporal_conditions(
+            self._competition_id, scope,
+            introduced_revision_id=MemoryVersion.introduced_revision_id,
+            season_id=MemoryVersion.competition_season_id,
+            week=MemoryVersion.week,
+            recorded_at=MemoryVersion.recorded_at,
+        ))
+        # Keep pin-visible matches outside the reporting window in this internal
+        # identity check. Filtering them out would incorrectly authorize create.
+        statement = (
+            event_rows_statement()
+            .add_columns(eligible.label("within_reporting_scope"))
+            .join(visible, visible.c.id == MemoryVersion.id)
+            .where(
+                MemoryVersion.competition_id == self._competition_id,
+                MemoryVersion.competition_season_id == identity.competition_season_id,
+                EventVersion.event_type == "trade",
+                EventVersion.additional_source_hints["transaction_id"].astext == identity.transaction_id,
+            )
         )
         with read_only_session(self._session_factory) as session:
             rows = session.execute(statement).all()
-        matches = []
-        for row in rows:
-            event = decode_event(*row)
-            if event.content.source_hints.get("provider", "sleeper") != "sleeper":
+        matches: list[Event] = []
+        for item, version, stored, within_scope in rows:
+            hints = stored.additional_source_hints
+            if hints.get("provider", "sleeper") != "sleeper":
                 continue
             # Missing/conflicting legacy identity fails closed; do not create a
             # fresh identity merely because an old receipt cannot be interpreted.
-            source = SleeperTradeIdentity.from_hints(
-                event.content.source_hints, event.version.competition_season_id,
-            )
-            if source == identity:
-                matches.append(event)
+            source = SleeperTradeIdentity.from_hints(hints, version.competition_season_id)
+            if source != identity:
+                continue
+            if not within_scope:
+                raise ValueError(
+                    "A matching source transaction is outside this generation's reporting boundary; "
+                    "no event was selected or created."
+                )
+            matches.append(decode_event(item, version, stored))
         return tuple(matches)
 
     def exact(self, version_id: UUID) -> Event:

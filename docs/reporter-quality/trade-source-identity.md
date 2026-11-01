@@ -11,7 +11,8 @@ The candidate selects trade identity by provider, competition, competition seaso
 source league and source transaction. A model label remains a local alias for
 subsequent tool calls. Later assessments retain the same item and create immutable
 versions. Distinct source transactions remain separate even when their assets
-match. The lookup respects the input revision and week and does not change
+match. The lookup respects the input revision, origin week and version introduction
+week and does not change
 editorial search ranking, model prompts, storyline behavior or the verifier.
 
 An offline replay of the 26 recorded, already-resolved saves produced five items
@@ -23,10 +24,17 @@ Targeted tests cover local aliases, semantic retries, conflicting same-run saves
 legacy keys, distinct transactions and leagues, inactive events, existing
 duplicates, rollback, revision visibility and concurrent commits. The 64-test
 selection passed both on the experiment checkout and on a clean branch from the
-public main baseline. No provider calls were needed for this investigation.
+public main baseline. Independent review added four regression cases covering
+future assessments at later pins, no-change alias hydration and historical-handle
+shadowing. They failed on the original candidate; all 68 targeted cases passed
+after repair on the clean public branch. No provider calls were needed.
 
 Existing duplicate identities fail closed and require explicit reconciliation;
-the candidate does not silently merge or delete history. The guarantee applies to
+the candidate does not silently merge or delete history. A pin-visible source
+match outside the reporting window also blocks the save, rather than being
+filtered away and treated as permission to create a duplicate. No-change aliases
+resolve selected exact content for callbacks and storyline evidence. Read-only
+historical handles cannot be used as save aliases. The guarantee applies to
 the reporter save path and its existing canonical revision lock, not arbitrary
 low-level database writes. Concurrent stale writers cannot both commit; the
 existing writer may report either a stale revision or a missing revision after

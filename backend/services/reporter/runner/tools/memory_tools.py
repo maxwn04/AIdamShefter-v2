@@ -28,6 +28,7 @@ from backend.services.memory import (
     MemoryKind,
     MemoryMutationMetadata,
     MemoryRetrievalRequest,
+    ProposedMemoryRef,
     SearchDocumentQuery,
     StorylineContent,
     TriggerContent,
@@ -345,6 +346,14 @@ class _CanonicalReference:
     version_id: UUID
 
 
+@dataclass(frozen=True, slots=True)
+class _TradeSelection:
+    signature: str
+    reference: _CanonicalReference | ProposedMemoryRef
+    result: dict[str, Any]
+    content: EventContent
+
+
 class TypedMemoryAdapter:
     """Translate model-facing inputs into canonical typed memory proposals."""
 
@@ -361,7 +370,7 @@ class TypedMemoryAdapter:
         self._completed_semantic_saves: dict[
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
-        self._trade_selections: dict[SleeperTradeIdentity, tuple[str, Any, dict[str, Any]]] = {}
+        self._trade_selections: dict[SleeperTradeIdentity, _TradeSelection] = {}
         self._presentation = MemoryPresentationAdapter(data)
         self._callback_dispositions: dict[str, dict[str, str]] = {}
         self._due_callback_context: tuple[RecalledCallbackReview, ...] = ()
@@ -553,6 +562,7 @@ class TypedMemoryAdapter:
         }
 
     def _save_source_trade(self, context: ToolContext, arguments: SaveMemoryEventArgs, resolved: ResolvedEvent) -> dict[str, Any]:
+        self._require_writable_handle(arguments.id)
         try:
             identity = SleeperTradeIdentity.from_hints(
                 resolved.audit, self._memory_context.competition_season_id,
@@ -583,15 +593,15 @@ class TypedMemoryAdapter:
         signature = canonical.model_dump_json(exclude={"primary_tool_call_id", "primary_api_request_id", "source_hints"})
         signature += str((resolved.week, resolved.occurred_at))
         previous = self._trade_selections.get(identity)
-        expected_item = previous[1].item_id if previous else candidate.item.item_id if candidate else None
+        expected_item = previous.reference.item_id if previous else candidate.item.item_id if candidate else None
         alias = self._agent_reference(MemoryKind.EVENT, arguments.id)
         if alias is not None and alias.item_id != expected_item:
             raise MemoryToolInputError("event_alias_conflict", "This event id already refers to another transaction; use a different local id.")
         if previous is not None:
-            if previous[0] != signature:
+            if previous.signature != signature:
                 raise MemoryToolInputError("memory_already_selected",
                     "This source transaction already changed in this run. Only an exact semantic retry is allowed; no second event was created.")
-            reference, result = previous[1], {**previous[2], "saved": False, "no_change": True, "operation": "no_change"}
+            reference, result = previous.reference, {**previous.result, "saved": False, "no_change": True, "operation": "no_change"}
         else:
             result = self._upsert(
                 MemoryKind.EVENT, identity.agent_key, canonical, context=context,
@@ -601,7 +611,7 @@ class TypedMemoryAdapter:
             reference = self._local_agent_refs.get((MemoryKind.EVENT, identity.agent_key))
             if reference is None:
                 reference = _CanonicalReference(item_id=candidate.item.item_id, version_id=candidate.version.version_id)
-            self._trade_selections[identity] = (signature, reference, result)
+            self._trade_selections[identity] = _TradeSelection(signature, reference, result, canonical)
         # Model IDs remain usable by later tools in this generation; they no
         # longer choose the durable trade identity. Legacy keys are preserved.
         self._local_agent_refs[(MemoryKind.EVENT, arguments.id)] = reference
@@ -883,6 +893,11 @@ class TypedMemoryAdapter:
         for proposal in self._memory_context.proposal_snapshot():
             if proposal.version_id == reference.version_id and isinstance(proposal.content, EventContent):
                 return proposal.content
+        # A no-change save has no proposal. Hydrate its selected exact version,
+        # including new local aliases, without searching the alias or latest item.
+        for selected in self._trade_selections.values():
+            if (selected.reference.item_id, selected.reference.version_id) == (reference.item_id, reference.version_id):
+                return selected.content
         candidate = self._presentation.resolve_handle(event_key) or self._agent_candidate(MemoryKind.EVENT, event_key)
         return candidate.content if candidate is not None else None
 
