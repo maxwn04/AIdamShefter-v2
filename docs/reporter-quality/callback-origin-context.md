@@ -38,10 +38,32 @@ rerolls; decide on further measurement only after the result is inspected.
 The first treatment attempt verified both exact added original contexts before
 provider dispatch, with all other initial messages and tools unchanged. It then
 made nine successful completion calls and inspected the season-wide source trade
-ledger. An upstream HTTP 503 stopped turn10 before any draft or canonical commit.
+ledger. An upstream HTTP 503 stopped turn 10 before any draft or canonical commit.
 The failed trace and checkpoint are preserved; the full unknown request reservation
 remains charged conservatively. Nine settled calls cost about $0.03527; including
-the uncertain reservation, the attempt retains about $0.38959. There is no completed
-article or quality verdict. A single bounded infrastructure recovery may follow
-cooldown and reconciliation checks; it must not erase this attempt or retry for
-preferred prose. Another upstream failure stops paid work.
+the uncertain reservation, the attempt retains about $0.38959. The failed attempt remains separate from one bounded infrastructure recovery.
+
+The recovery completed an unchanged 1,086-word article and closeout in 30 calls
+for $0.13361. It verified the team's full historical transaction window and
+corrected the earlier acquisition and two-pick price in both article and new
+storyline/team memory. The earlier global absence claim is not repeated; a claim
+scoped to two still-unspent picks is not treated as the same error. No explicit
+memory search/inspection was used, so fresh source research remains part of the
+explanation rather than proven direct saved-event retrieval.
+
+The original repair-capacity and pick-debt question nevertheless narrows into a
+playoff-performance question. Supported rescheduling after a bye does not establish
+question continuity. Separate date, position and unsupported bracket-anomaly
+claims remain. All 143 inherited versions and identities survive with no duplicate
+trade source or broken link. The 23-call reused control versus 30-call treatment,
+and two creations/no edits versus one creation/seven edits, do not show reduced
+churn. Treatment submitted on turn 25 and completed five closeout calls. Two typed
+callback argument errors were corrected; those were not duplicate saved mutations.
+
+**Decision: partial/mixed, not a full discriminator pass.** This selected known-
+failure challenge provides useful historical correction, not general efficacy
+proof. Total E12 charges/reservations are $0.52320 including the first failure's
+full uncertainty; the reused control cost was already recorded in E11. No reroll
+or automatic full-season promotion. The narrow technical draft remains reviewable
+with these limitations. A local export-only repair restored verified identical
+frozen files without paid replay or changing the accepted article.
