@@ -69,12 +69,43 @@ origin is unresolved. The control article had a separate prior-record error.
 Exact binding does not certify historical prose or improve question adherence by
 itself. More memory writes and fewer calls are not general quality evidence.
 
-A separately preregistered 17-week season is running from empty memory to measure
-all-arc lifecycle behavior, origin exposure, stale-history errors and acquisition
-callbacks. The gate is technical feasibility evidence, not an efficacy promotion.
-This remains an exploratory draft pending the longitudinal audit.
+The separately preregistered empty-memory season completed all 17 weeks. All
+32 selected updated leads received exact origins (30 successful-run exposures,
+two in a preserved failed attempt). However, the added projection appeared for
+only 17 of 37 successful storyline updates; six more had first-version context
+through existing paths, and 14 did not. Due callbacks can bypass this pool.
+Correct projection is therefore narrower than universal origin availability.
 
-The ongoing audit also confirmed a source limitation shared with the baselines:
+The season retained 16 source transactions as 16 canonical trade identities and
+24 versions, with zero duplicates, typed-asset changes or broken links. All 19
+original-pin checks passed. The final championship article accurately connected
+an acquired player's performance to the multi-party acquisition and its pick
+price, unlike the E06 final article. It also performed fresh historical source
+research; no exact event card was automatically bound. This is successful final
+coverage, not proof of saved-event retrieval or projection causality.
+
+Behavior remains mixed. Seven arcs ended with five resolved and two active.
+Supported repair and repeat-pattern closures coexist with a stale seeding card,
+a top-seed question accumulating a playoff question, and a churn card closing
+while an original future-pick component remains unobserved. A memory headline
+incorrectly changed prior pick spending into no spending; a later article repeated
+a broader absence claim. The question reopened later, so this was not permanent
+erasure. Complete typed assets did not validate narrative summaries.
+
+Compared with E06's completed trajectory, E08 used 537 versus 512 completion calls,
+124 versus 88 article edits, and 65.97 versus 61.05 million prompt tokens. Mean
+article length was similar (1,070 versus 1,062 words). Reduced churn is not
+established. Total E08 season cost was $2.31586, including a preserved failed
+attempt and embeddings; no new uncertain request. One read-only balance GET
+failed before completion dispatch, followed by a labeled checkpoint recovery.
+All 17 accepted articles remain unchanged in the private review packet.
+
+Decision: retain the exploratory draft with mixed evidence; do not claim a general
+quality improvement or promote based on technical binding alone. Each season is
+one stochastic trajectory, and later research/memory states differ endogenously.
+No forced callback, minimum story duration or rejected E05 paragraph was added.
+
+The completed audit also confirmed a source limitation shared with the baselines:
 an early frozen pick-ownership view already contains the receiver of a transfer
 that appears only in a later week's transaction history. The earlier transaction
 view does not contain that transfer. This is not memory-pin leakage introduced by
