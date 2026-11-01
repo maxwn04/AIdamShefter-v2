@@ -115,7 +115,7 @@ def test_league_overview_excludes_transaction_details_and_explains_bonus_record(
     page = evidence_page(records)
     assert all("status" not in r["fields"] for r in page["records"])
     assert not page["limitation_definitions"]
-    assert any("league-average bonus" in item for item in page["guidance"])
+    assert any("weekly league median, not the arithmetic mean" in item for item in page["guidance"])
     assert any(r["fields"].get("wins") == 2 for r in page["records"])
 
 
