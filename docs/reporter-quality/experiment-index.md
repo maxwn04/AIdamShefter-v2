@@ -22,9 +22,9 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E06 completed season | Two first-week infrastructure failures and the original accepted-but-unfinalized Week 14 are preserved. A labeled recovery from committed Week 13 completed all 17 weeks. | Fifteen source transactions retained 15 identities and 23 versions, with zero duplicate groups; baseline had five groups. All 37 original pin checks passed. Final championship acquisition callback was missed despite earlier canonical saving. Keep technical identity fix; content quality remains mixed. |
 | E07 selection gate | Both selected-week arms saved the same eligible new acquisition with complete assets and unchanged prior memory. | Inconclusive under the preregistered tie rule; no full season or shipping PR. |
 | E08 original context | Matched Week 7 gate completed; three origin bindings exact, 69 inherited versions unchanged. A separate empty-memory 17-week measurement completed. | Technical feasibility passed, behavior mixed: question narrowing and a misdated historical-memory claim remain. Full season preserves trade identity and produces an accurate final acquisition/price callback, but grounding failures and stale/question-shifting cards remain. No general efficacy promotion or E05/E07 paragraph. |
-
 | E09 | Median terminology correction, draft #264; both matched arms preserved the discriminating bonus result. | Inconclusive for applied accuracy; treatment clarified median/postseason scope but introduced a separate historical memory error. No reroll or full-season promotion. |
-| E10 / E11 | Separate local candidates for recent-trade exposure and historical-claim scope; offline tests pass, no paid gate yet. | Prospective hypotheses, not promoted outcomes. |
+| E10 | Bounded recent-trade exposure delivered three exact cards; both matched final-week arms recovered the complete callback. | Technical exposure passed, article-quality gate inconclusive. Ownership contradictions persisted; no full-season promotion or reroll. Draft #265. |
+| E11 | Both Week 15 arms newly saved the same false whole-season no-upgrade claim, despite correct guidance delivery. | Failed primary discriminator; candidate not promoted, no full season or shipping PR. More cautious callback scheduling did not fix factual memory. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -56,7 +56,10 @@ sample was silently replaced or interpreted as a behavioral success.
 - [PR #264: clarify median bonus guidance](https://github.com/maxwn04/AIdamShefter-v2/pull/264)
   contains terminology guidance and synthetic regressions; completed accuracy gate is inconclusive.
 
-All five are drafts, with no merge or deployment. General CI does not replace
+- [PR #265: offer recent trade leads](https://github.com/maxwn04/AIdamShefter-v2/pull/265)
+  contains bounded read-only exposure and 65 passing targeted tests; quality gate inconclusive.
+
+All six are drafts, with no merge or deployment. General CI does not replace
 the explicitly run backend test selections. E06 now has selected-week and full-
 season identity evidence, but its final-week article missed an important
 acquisition callback present in the baseline. The earlier stop was a pre-dispatch

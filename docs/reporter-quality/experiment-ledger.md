@@ -258,14 +258,76 @@ current documentation is not an archived season-specific specification. Draft
 #264 has 11 focused passing tests and one unrelated reproduced base failure
 excluded. The preregistered two-arm final-regular-week gate completed for $0.31349. Both arms preserved the discriminating sweep above median but below mean; control explicitly rejected arithmetic mean in new memory, while treatment supplied correct median terminology and postseason scope. The motivating error did not reproduce: inconclusive for applied-decision accuracy, no full-season promotion or reroll. Control/treatment used32/36calls and4/13edits, with no new uncertainty. Treatment also introduced a separate false canonical absence-after-trade claim despite a later saved acquisition; correct terminology did not establish general factuality.
 
-E10 is an unpaid local candidate for bounded recent-trade exposure on generic
-requests. Sixty-five tests cover selection, temporal boundaries and unchanged
-focused behavior. It does not solve unsaved acquisitions or certify summaries.
-E11 is a separate unpaid local candidate limiting negative historical claims to
-verified transaction windows and distinguishing inventory from spending history;
-32 focused tests pass with one unrelated reproduced base failure excluded.
-Neither is combined with E09 or inherited by E08. Gate outcomes must be assessed
-before deciding on more season spending; ties stay inconclusive without rerolls.
+E10 adds bounded recent-trade exposure to generic requests, retaining focused
+behavior and existing temporal/version boundaries. Its standalone clean feature
+head is `f7d9006e522970ccaebbd380d97a19e09e79dfb6`; the operational pair's parent
+was E06 with the E04 identity paragraph, without E08/E09/E11. Sixty-five targeted
+tests passed. Both original post-Week16 restorations had identical 175 versions
+and vectors; source/request/settings and tool definitions were matched. Only
+four runtime query/presentation files differed.
+
+The completed first-sample pair cost $0.24504, with no new uncertain calls. It
+exposed zero versus three exact trade cards; existing recall groups matched after
+exact handle normalization. Both arms retained prior versions and zero duplicate
+source identities or broken storyline links. Both independently produced the
+complete central acquisition and price callback. Neither used explicit memory
+search/inspection; both verified historical source transactions.
+
+| E10 trajectory | Control | Treatment |
+| --- | ---: | ---: |
+| Completion calls | 34 | 30 |
+| Before draft / draft through submission / closeout | 22 / 7 / 5 | 14 / 12 / 4 |
+| Article edits | 6 | 10 |
+| Article words | 1,271 | 1,168 |
+
+Decision: technical exposure works; article-quality discriminator is inconclusive
+because both fresh arms succeed. The older season's miss is not the control.
+Both later reversed an ownership relationship despite correct central trade
+explanations; treatment also judged bracket winners wrong without establishing
+the configured rule. Ordinary sports payoff framing is not itself treated as a
+false counterfactual. Fewer research calls with more revisions is not evidence
+of general efficiency. No full-season promotion or reroll. The optional read-only
+candidate remains draft #265, with these adverse findings disclosed.
+
+E11 is a separate historical-claim scope hypothesis on the completed E08 parent,
+without E09/E10 or the rejected E05 paragraph. One evidence-presentation paragraph
+says current holdings are not spending history and a returned recent transaction
+window cannot establish a whole-season absence. The exact changed-file SHA256 is
+`b194a84221d5a4468484a3c4c35a700dc202e5e7ba804266afafa904a55414fe`.
+Thirty-two focused tests pass with one unrelated reproduced base failure excluded.
+One control and one treatment Week15 trajectory were selected, starting from the
+same original postWeek14 state and all 143 complete original vectors. Inspection
+JSON abbreviates vector arrays; full coordinate equality was verified against
+retained PostgreSQL dumps instead. No regenerated embeddings or future memory.
+
+The preregistered discriminator separately assessed source coverage, article claim,
+and newly saved memory. Both mostly kept article inventory claims within the
+cutoff; ambiguous wording was not alone scored as definite whole-season absence.
+Control nevertheless saved an unqualified season-record-plus-no-upgrade claim;
+treatment saved the same claim with stronger certainty. Earlier source-backed
+spending contradicts both. The paragraph appeared in three treatment tool results
+and subsequent model input, so this is behavioral failure, not missing delivery.
+Treatment's historical query concerned another team; its memory search concerned
+bracket byes, not the disputed earlier spending.
+
+The pair cost $0.18700: 23 control and 19 treatment completions, plus one treatment
+retrieval embedding; no new uncertain charges. Both drafted on turn14, submitted
+on turns18/16 and completed closeout in five/three further calls. Control created
+two artifact versions; treatment one. Neither made edit calls, which does not
+mean control never revised. All143 prior versions and identities survived, with
+no duplicate trade source or broken link; first messages/tools were identical.
+No context/output/turn limit stopped either arm.
+
+Treatment rescheduled both due callbacks while control resolved them; the linked
+arcs remained active in both. This secondary lifecycle difference does not repair
+the false historical premise or demonstrate causal improvement. Other factual
+errors remain separate, including wrong seed-win counting, period labels and a
+scoring-rank claim contradicted by two higher totals in the same output.
+
+Decision: **failed primary discriminator; not promoted**. Retain both first
+samples and offline candidate, no full season, reroll or shipping PR. The next
+unpaid investigation concerns original-question context omitted from some
+callback-linked storylines in E08. It must not inherit this failed paragraph.
 
 ## Reviewable drafts
 
@@ -284,5 +346,8 @@ before deciding on more season spending; ties stay inconclusive without rerolls.
 
 - [#264](https://github.com/maxwn04/AIdamShefter-v2/pull/264): median bonus guidance,
   independently based on main; completed accuracy gate inconclusive; terminology evidence is independent.
+
+- [#265](https://github.com/maxwn04/AIdamShefter-v2/pull/265): bounded recent-trade
+  exposure, based on main; 65 targeted tests, quality gate inconclusive with adverse evidence.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.
