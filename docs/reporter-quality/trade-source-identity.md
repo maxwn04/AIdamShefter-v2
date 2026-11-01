@@ -41,7 +41,34 @@ existing writer may report either a stale revision or a missing revision after
 its locked query is rechecked. That error-class inconsistency is outside this
 change.
 
-A prospective generation comparison remains pending. Its primary discriminator
-is exact source identity reuse with preserved versions and valid evidence links.
-Save, retrieve and use coverage, research loops and article quality are secondary
-observations, not assumed consequences of reducing duplicate identities.
+A preregistered two-run selected-week comparison is complete. Both arms started
+from the same duplicate-free checkpoint, with identical source snapshots,
+editorial request, first-request messages, tool definitions and inference settings.
+Both retained the same reviewed storyline-identity instruction; only the six
+runtime files implementing this trade-identity change differed. No rejected
+partial-question instruction was included. Each arm ran once, without rerolls.
+
+The control re-saved one existing transaction under a new label and created a
+second canonical item. The treatment re-saved three existing transactions under
+new labels, reused all three original items and left no duplicate source groups.
+Their structured asset movements were unchanged, the new versions linked to the
+updated storylines, and all 62 prior memory versions and their content remained
+intact in both arms. This passes the narrow live identity-reuse discriminator;
+it does not establish a general article-quality improvement.
+
+Both articles and closeouts completed: 34 model calls in control and 25 in
+treatment. The treatment included three acquisition callbacks versus one in
+control, but neither used explicit memory search or inspection. Those differences
+occurred before the changed save boundary was exercised and are stochastic sample
+observations, not causal evidence for this fix. Both runs had research or repair
+loops. One treatment trade headline reversed the draft-pick side even though its
+summary and structured assets were correct; the identity fix does not validate
+model-authored prose. A callback-handle error also led to another scheduled review
+instead of reuse of the existing callback. These remain separate quality issues.
+
+Settings were direct Flash with high reasoning, 32,768 completion-token headroom,
+a 16 MB serialized-input guard and unchanged research/closeout turn limits. The
+byte guard is distinct from the provider context-token ceiling. These settings
+match the preceding Flash baseline, not the earlier smaller-limit comparison.
+Full-season follow-up is held for review of this gate. Private articles, source
+identifiers, raw traces and accounting records are retained outside this PR.
