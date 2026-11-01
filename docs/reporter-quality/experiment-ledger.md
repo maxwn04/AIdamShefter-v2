@@ -23,7 +23,11 @@ already included in completion tokens is not charged a second time.
 | E06 season | E04 plus the repaired E06 identity boundary | 17 completed weeks; original interrupted Week 14 retained | $3.0955, including $0.7086 unresolved requests | Keep narrow identity fix: zero duplicates; final championship acquisition callback missed. No general content-quality promotion. |
 | E07 | Consider durable acquisition-event selection separately from storyline updating | Two matched selected-week arms | $0.2667 | Inconclusive, not promoted: both arms retained the one eligible acquisition completely. No full season or shipping PR. |
 | E08 gate | Show immutable original context beside existing automatic storyline leads | Two matched Week 7 arms | $0.2747 | Technical feasibility passed; quality mixed. Three exact origin bindings, continued scope shifts and a misdated historical memory claim. No efficacy promotion. |
-| E08 season | E06 plus the E08 presentation file only | Fresh empty-memory 17-week measurement running | Pending terminal accounting | Preregistered all-arc lifecycle and grounding audit; no E05 or E07 paragraph. |
+| E08 season | E06 plus the E08 presentation file only | 17 completed weeks; one infrastructure failure retained | $2.3159 | Mixed: exact origin exposure and correct final acquisition callback; grounding, lifecycle and revision churn remain unresolved. |
+| E09 | Clarify median bonus terminology without changing source computation | Two matched selected-week arms | $0.3135 | Inconclusive applied-accuracy gate: both arms preserved the discriminating result. No season or reroll. |
+| E10 | Expose up to three recent trade cards on unfocused requests | Two matched final-week arms | $0.2450 | Exact exposure passed; both arms recovered the callback, so quality improvement is inconclusive. |
+| E11 | Bound historical absence claims to the evidence window | Two matched selected-week arms | $0.1870 | Reject: both arms saved the false whole-season absence claim. No season or shipping PR. |
+| E12 | Extend original context to already-selected due-callback storyline links | Selected challenge; first attempt failed, one recovery active | $0.3896 retained from first attempt; recovery accounting pending | Exact exposure verified; no article-quality verdict yet. Known-failure control reused, not an independent paired efficacy test. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -248,7 +252,7 @@ memory-pin failure. A separate audit of 269 visible trade observations found no
 final status update after its editorial cutoff; weekly lineup ownership alone
 still cannot invalidate a completed transaction. No original source was changed.
 
-## Next isolated hypotheses
+## E09: median terminology, accuracy gate inconclusive
 
 E09 corrects legacy average terminology to the weekly median, with no source or
 standings computation change. Official feature documentation plus the enabled
@@ -256,7 +260,9 @@ frozen setting and 168 team-week outcomes support this mapping; the arithmetic
 mean disagrees on 12 outcomes. The raw setting key's mapping is an inference, and
 current documentation is not an archived season-specific specification. Draft
 #264 has 11 focused passing tests and one unrelated reproduced base failure
-excluded. The preregistered two-arm final-regular-week gate completed for $0.31349. Both arms preserved the discriminating sweep above median but below mean; control explicitly rejected arithmetic mean in new memory, while treatment supplied correct median terminology and postseason scope. The motivating error did not reproduce: inconclusive for applied-decision accuracy, no full-season promotion or reroll. Control/treatment used32/36calls and4/13edits, with no new uncertainty. Treatment also introduced a separate false canonical absence-after-trade claim despite a later saved acquisition; correct terminology did not establish general factuality.
+excluded. The preregistered two-arm final-regular-week gate completed for $0.31349. Both arms preserved the discriminating sweep above median but below mean; control explicitly rejected arithmetic mean in new memory, while treatment supplied correct median terminology and postseason scope. The motivating error did not reproduce: inconclusive for applied-decision accuracy, no full-season promotion or reroll. Control/treatment used 32/36 calls and 4/13 edits, with no new uncertainty. Treatment also introduced a separate false canonical absence-after-trade claim despite a later saved acquisition; correct terminology did not establish general factuality.
+
+## E10: recent trade exposure, quality gate inconclusive
 
 E10 adds bounded recent-trade exposure to generic requests, retaining focused
 behavior and existing temporal/version boundaries. Its standalone clean feature
@@ -289,14 +295,16 @@ false counterfactual. Fewer research calls with more revisions is not evidence
 of general efficiency. No full-season promotion or reroll. The optional read-only
 candidate remains draft #265, with these adverse findings disclosed.
 
+## E11: historical evidence scope, rejected
+
 E11 is a separate historical-claim scope hypothesis on the completed E08 parent,
 without E09/E10 or the rejected E05 paragraph. One evidence-presentation paragraph
 says current holdings are not spending history and a returned recent transaction
 window cannot establish a whole-season absence. The exact changed-file SHA256 is
 `b194a84221d5a4468484a3c4c35a700dc202e5e7ba804266afafa904a55414fe`.
 Thirty-two focused tests pass with one unrelated reproduced base failure excluded.
-One control and one treatment Week15 trajectory were selected, starting from the
-same original postWeek14 state and all 143 complete original vectors. Inspection
+One control and one treatment Week 15 trajectory were selected, starting from the
+same original post-Week 14 state and all 143 complete original vectors. Inspection
 JSON abbreviates vector arrays; full coordinate equality was verified against
 retained PostgreSQL dumps instead. No regenerated embeddings or future memory.
 
@@ -311,10 +319,10 @@ Treatment's historical query concerned another team; its memory search concerned
 bracket byes, not the disputed earlier spending.
 
 The pair cost $0.18700: 23 control and 19 treatment completions, plus one treatment
-retrieval embedding; no new uncertain charges. Both drafted on turn14, submitted
-on turns18/16 and completed closeout in five/three further calls. Control created
+retrieval embedding; no new uncertain charges. Both drafted on turn 14, submitted
+on turns 18/16 and completed closeout in five/three further calls. Control created
 two artifact versions; treatment one. Neither made edit calls, which does not
-mean control never revised. All143 prior versions and identities survived, with
+mean control never revised. All 143 prior versions and identities survived, with
 no duplicate trade source or broken link; first messages/tools were identical.
 No context/output/turn limit stopped either arm.
 
@@ -338,28 +346,28 @@ authority or required article coverage. A lookup failure leaves the current
 callback visible, with an explicit notice and partial-recall metadata.
 
 The clean feature commit is `aa80a11ea9a813b6c83f86c1f9feaf08de65a0e4`, stacked on
-PR263 head `c925515b0c9abefe0ac4231be9fbb1c9f9194386`. Its sole runtime file hash is
+PR #263 head `c925515b0c9abefe0ac4231be9fbb1c9f9194386`. Its sole runtime file hash is
 `eac63694770073675835cb980c9b90d7a0f66e894a3c224d1640cc6169b11267`.
 Forty-five targeted tests pass on the clean candidate and actual E08-based
 operational parent; no failed E05/E11 paragraph or unrelated treatment is present.
 
 The selected challenge explicitly reuses E11's preserved control, whose false
 canonical summary is already known. This is not a newly randomized independent
-pair. One treatment used the exact original pre-generation state, all143 complete
+pair. One treatment used the exact original pre-generation state, all 143 complete
 vectors, request, source cutoff and shared Flash limits. Before paid dispatch,
 two exact original-version projections were checked; all other initial messages,
 tools and recall content matched the control.
 
 Nine completions settled for about $0.03527 and the reporter queried the full-season
-source trade ledger. An upstream503 stopped turn10 before any draft or canonical
-mutation. Including the full uncertain request reservation, approximately$0.38959
+source trade ledger. An upstream 503 stopped turn 10 before any draft or canonical
+mutation. Including the full uncertain request reservation, approximately $0.38959
 is retained. Neither lack of a response nor a later successful balance read proves
 zero billing. Failed traces and the stopped ledger remain immutable. There is no
 article-quality verdict or full-season promotion.
 
-One bounded infrastructure recovery is prepared after cooldown and unchanged-state
-checks. It will begin a new generation-local transcript from the same canonical
-pin, not claim exact transcript continuation. All historical spending and unknown
+One bounded infrastructure recovery started after cooldown and unchanged-state
+checks. It begins a new generation-local transcript from the same canonical
+pin, not exact transcript continuation. All historical spending and unknown
 reservations remain charged; another upstream failure stops paid attempts. The
 primary challenge still requires source-grounded correction and original-question
 continuity, not merely exact delivery or a different callback date. Draft #266
