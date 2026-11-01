@@ -70,5 +70,13 @@ Settings were direct Flash with high reasoning, 32,768 completion-token headroom
 a 16 MB serialized-input guard and unchanged research/closeout turn limits. The
 byte guard is distinct from the provider context-token ceiling. These settings
 match the preceding Flash baseline, not the earlier smaller-limit comparison.
-Full-season follow-up is held for review of this gate. Private articles, source
+After gate review, a full-season follow-up was launched from pristine empty
+memory with the same original requests, cutoffs and chronological indexing.
+Its first week stopped on a provider connection error before article submission
+or canonical memory commit. The failed attempt and verified export are retained;
+this is infrastructure evidence, not an identity or article-quality result.
+Paid recovery is held because the original forecast plus a further request
+reservation no longer fits the conservative authorization after retaining the
+uncertain request in full. No charge was released or sample silently replaced.
+Longitudinal behavior therefore remains unassessed. Private articles, source
 identifiers, raw traces and accounting records are retained outside this PR.
