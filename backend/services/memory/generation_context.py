@@ -14,7 +14,8 @@ from backend.resources.memory.context_notes.objects import (
     ContextNoteContent,
     ContextNoteIdentity,
 )
-from backend.resources.memory.events.objects import EventContent
+from backend.resources.memory.events.objects import Event, EventContent
+from backend.resources.memory.events.source_identity import SleeperTradeIdentity
 from backend.resources.memory.facts.objects import FactContent
 from backend.resources.memory.storylines.objects import StorylineContent
 from backend.resources.memory.search_documents import SearchDocumentQuery
@@ -36,6 +37,11 @@ from backend.services.memory.retrieval_service import (
 
 class PinnedMemoryRetrieval(Protocol):
     """Temporary boundary implemented by the retrieval service in MEMORY-11."""
+
+    def trade_at_source(
+        self, *, competition_id: UUID, revision_id: UUID,
+        identity: SleeperTradeIdentity, through_week: int,
+    ) -> tuple[Event, ...]: ...
 
     def search(
         self,
@@ -100,6 +106,15 @@ class GenerationMemoryContext:
     def editorial_cutoff_at(self) -> datetime | None:
         """Date eligibility boundary; observation knowledge keeps its real clock."""
         return self._editorial_cutoff_at or self._knowledge_cutoff_at
+
+    def trade_at_source(self, identity: SleeperTradeIdentity) -> tuple[Event, ...]:
+        self._require_open()
+        if identity.competition_season_id != self.competition_season_id or self.week is None:
+            raise ValueError("trade identity lookup requires this generation's season and week")
+        return self._retrieval.trade_at_source(
+            competition_id=self.competition_id, revision_id=self.pinned_revision_id,
+            identity=identity, through_week=self.week,
+        )
 
     def search(self, request: MemoryRetrievalRequest) -> MemoryRetrievalResult:
         """Search only the immutable canonical input revision."""

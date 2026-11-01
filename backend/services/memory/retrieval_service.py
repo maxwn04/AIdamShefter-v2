@@ -14,6 +14,7 @@ from backend.resources.memory.common.errors import (
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.context_notes import ContextNote, ContextNoteManager
 from backend.resources.memory.events import Event, EventManager
+from backend.resources.memory.events.source_identity import SleeperTradeIdentity
 from backend.resources.memory.facts import Fact, FactManager
 from backend.resources.memory.search_documents import (
     SearchDiscoveryStatus,
@@ -181,6 +182,15 @@ class MemoryRetrievalService:
         self._storylines = storylines
         self._triggers = triggers
         self._context_notes = context_notes
+
+    def trade_at_source(
+        self, *, competition_id: UUID, revision_id: UUID,
+        identity: SleeperTradeIdentity, through_week: int,
+    ) -> tuple[Event, ...]:
+        """Write-only identity lookup; leaves discovery/ranking unchanged."""
+        if competition_id != self._search_documents.competition_id:
+            raise ValueError("trade identity request is outside the service competition")
+        return self._events.trade_at_source(identity, revision_id, through_week=through_week)
 
     def search(
         self,
