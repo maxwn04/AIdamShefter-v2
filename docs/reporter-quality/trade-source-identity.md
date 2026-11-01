@@ -70,24 +70,55 @@ Settings were direct Flash with high reasoning, 32,768 completion-token headroom
 a 16 MB serialized-input guard and unchanged research/closeout turn limits. The
 byte guard is distinct from the provider context-token ceiling. These settings
 match the preceding Flash baseline, not the earlier smaller-limit comparison.
-After gate review, a full-season follow-up was launched from pristine empty
-memory with the same original requests, cutoffs and chronological indexing.
-Its first week stopped on a provider connection error before article submission
-or canonical memory commit. The failed attempt and verified export are retained;
-this is infrastructure evidence, not an identity or article-quality result.
-One explicitly authorized infrastructure retry then started from the same
-unchanged empty-memory root. It stopped at its fourth call on HTTP 503: an upstream
-connection terminated before response headers. Neither attempt submitted an
-article or committed canonical memory. Both failed attempts and verified exports
-are retained; there was no further retry. No input, output or turn limit caused
-these failures.
+After gate review, the chronological follow-up started from pristine empty memory
+with the same original requests, cutoffs and indexing. Two first-week attempts
+failed on a connection error and an upstream HTTP 503 before submission or
+canonical commit. Their traces, exports and uncertain reservations remain intact.
+A final authorized recovery after a cooldown completed Weeks 1–13. Week 14
+submitted an unchanged article at turn 38; its first closeout response returned,
+but the next request was blocked before dispatch because the remaining
+conservative authorization could not cover its reservation. The accepted article
+is preserved separately; Week 14 made no canonical memory commit. Weeks 15–17
+were not run. No new upstream failure occurred during the final recovery.
 
-The private operator reconciliation retained every prior settlement and each
-uncertain request at its full reservation under the unchanged hard cap. Eleven
-offline tests covered repeated recovery without double-counting, cap exhaustion,
-immutable ancestry and refusal of in-flight or unresolved accounting. This
-operator-only recovery code is not included in the PR. Longitudinal behavior
-remains unassessed: zero completed weeks and zero trade saves provide no evidence
-for season-wide duplicate suppression, recall or article quality. Private
-articles, source identifiers, raw traces and accounting records remain outside
-this PR.
+The completed 13-week prefix contains 15 source transactions, 15 canonical trade
+items and 22 immutable versions: seven later assessments reused their original
+items under new local aliases. There are zero duplicate source groups, item/source
+collisions, typed-asset changes or broken storyline/callback links. All original
+visibility pins across 30 exports and their prior content remain intact. Over the
+same weeks, the baseline contains 13 transactions represented by 19 items, with
+four duplicate groups and six excess identities. Twelve transactions occur in
+both samples; different source selection and evolved memory prevent a claim that
+all narrative differences were caused by the identity fix.
+
+There is no clear efficiency improvement. Completed-prefix model calls were
+402 in baseline and 397 in treatment, while treatment used more prompt and
+completion tokens. Explicit memory search/inspection counts were 4/2 versus 5/0.
+The treatment's final incomplete week drafted at turn 24, revised through turn
+36, verified at 37, submitted at 38 and began closeout at 39; revision work remains substantial.
+Failed infrastructure attempts and the incomplete week are excluded from these
+matched completed-prefix counts, but retained in the private cost record.
+
+A tracked acquisition illustrates the remaining selection/retrieval distinction.
+Week 12 discovered and used it in the article but retained it only in the local
+research brief, not canonical memory. Week 13 researched it again, used it and
+saved the complete canonical trade. Week 14 received its history in a storyline
+summary, without an exact binding to the original event card. This is useful
+continuity, not proof of direct event retrieval or postseason payoff.
+
+Lifecycle and prose remain mixed. One roster-risk question spans eleven weeks
+with ten versions, but some arcs broaden into new roster or playoff questions.
+A mathematically supported playoff-place closure should not be penalized merely
+for ending an arc. Conversely, an answered standings question does not settle
+all acquisition-value consequences. A trade memory summary contained mutually
+inconsistent records while the article used the correct record; structured
+identity correctness does not validate model-authored narrative claims. The
+partial run cannot establish final-season lifecycle or championship callbacks.
+
+Private recovery diagnostics and accounting passed 18 targeted tests, including
+redaction, repeated carry, immutable ancestry and cap exhaustion. That operator
+code is not included in this PR. All uncertain requests remain fully charged
+under the unchanged authorization, and no further paid recovery was launched.
+Private articles, source identifiers, raw traces and financial records remain
+outside this repository. This is evidence for the narrow identity fix, not a
+general article-quality claim.

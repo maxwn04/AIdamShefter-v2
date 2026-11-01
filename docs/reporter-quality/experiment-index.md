@@ -16,7 +16,7 @@ universal model superiority or isolate every difference in article quality.
 | E04 | A single closeout paragraph preserved the original unresolved storyline question. The matched 17-week season completed, with fewer clear question replacements but increased active-memory pressure and mixed lifecycle evidence. | Promising exploratory evidence, not a general efficacy claim. An initially criticized compound-question closure was corrected to scope-sensitive/ambiguous after source review. |
 | E05 | Three-run partial-question gate: fresh control and treatment both retained the disputed question; treatment introduced an additional criterion. A later legitimate closure passed. | Gate failed to demonstrate the intended improvement. Candidate rejected; no full season and no shipping PR. Article differences preceded the changed closeout instruction. |
 | E06 selected-week gate | Identical checkpoint and first-request settings; only exact trade-source identity code differed. Control created a duplicate on one repeat save; treatment reused three original items, preserving prior versions and typed assets. | Passed the narrow identity-reuse discriminator. Differing acquisition callbacks occurred before the changed save boundary and are not causal quality evidence. |
-| E06 full-season follow-up | Original empty-memory plan; first attempt failed on a connection error. One bounded infrastructure retry failed on HTTP 503 before response headers. Zero completed weeks, articles or canonical memory commits. | Infrastructure-blocked. Long-run duplicate suppression, retrieval, storyline continuity and article quality remain unassessed. No input, output or turn guard caused these failures. |
+| E06 partial-season follow-up | Two initial infrastructure failures were retained. A final authorized recovery completed Weeks 1–13; Week 14 submitted its article but stopped before its second closeout call because the next reservation exceeded the remaining authorization. | Fifteen transactions retained fifteen canonical identities and seven later versions, with no duplicate groups. The matched baseline prefix had four duplicate groups. Recall and lifecycle evidence remained mixed; Weeks 15–17 were not run. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -41,8 +41,9 @@ sample was silently replaced or interpreted as a behavioral success.
   This is transport compatibility evidence, not a new quality treatment.
 
 All three are drafts, with no merge or deployment. General CI does not replace
-the explicitly run backend test selections. E06's failed full-season attempts
-leave the selected-week gate as its only live identity evidence. Before resuming,
-resolve or reassess upstream reliability, preserve the stopped ledger and all
-uncertain reservations, validate the original source/memory pins, and enforce the
-remaining authorization before every request. Do not reroll for preferred prose.
+the explicitly run backend test selections. E06 now has both selected-week and
+partial-season identity evidence, but no postseason comparison. Its final stop
+was a pre-dispatch budget guard, not another upstream failure or a context/output
+limit. All prior uncertain charges remain retained; a positive provider balance
+does not release them or increase the experiment authorization. No further paid
+recovery was launched. Do not reroll for preferred prose.
