@@ -42,6 +42,17 @@ editorial requests and weekly cutoffs run from 2025-09-12 12:00 UTC through
 2026-01-02 12:00 UTC. Frozen retrospective source snapshots are reused; later
 retrieved roster state must not be described as contemporaneous historical proof.
 
+A concrete source discrepancy is now confirmed: an early frozen ownership view
+already assigns a draft pick to the receiver of its only recorded transfer in a
+later week's transaction history. The early transaction view correctly lacks that
+later transfer. This is an inconsistency between retrospective source views shared
+by the baselines, not a changed memory revision or evidence of a new retrieval
+bypassing the pin. Historical pick-inventory claims and questions built on them
+need qualification. The frozen inputs remain unchanged for the ongoing comparison;
+these runs are not a clean historical forecasting simulation. Deterministic
+identity/pin tests remain informative, but source-grounded prose is not necessarily
+historically correct merely because a field was present in the snapshot.
+
 Each season starts with empty canonical memory. Selected-week arms identify their
 inherited checkpoint explicitly and are not substituted for an empty-memory
 season. Infrastructure timeouts, uncertainty, safe retries and headroom changes
