@@ -20,7 +20,8 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E05 | Three-run partial-question gate: fresh control and treatment both retained the disputed question; treatment introduced an additional criterion. A later legitimate closure passed. | Gate failed to demonstrate the intended improvement. Candidate rejected; no full season and no shipping PR. Article differences preceded the changed closeout instruction. |
 | E06 selected-week gate | Identical checkpoint and first-request settings; only exact trade-source identity code differed. Control created a duplicate on one repeat save; treatment reused three original items, preserving prior versions and typed assets. | Passed the narrow identity-reuse discriminator. Differing acquisition callbacks occurred before the changed save boundary and are not causal quality evidence. |
 | E06 completed season | Two first-week infrastructure failures and the original accepted-but-unfinalized Week 14 are preserved. A labeled recovery from committed Week 13 completed all 17 weeks. | Fifteen source transactions retained 15 identities and 23 versions, with zero duplicate groups; baseline had five groups. All 37 original pin checks passed. Final championship acquisition callback was missed despite earlier canonical saving. Keep technical identity fix; content quality remains mixed. |
-| E07 selection gate | One closeout paragraph considers durable acquisition-event retention independently of storyline changes. Two selected-week arms use the identical original post-Week 11 checkpoint; gate is running. | Pending. No target hint, no quality reroll; ties and unexercised or incomparable opportunities are inconclusive. |
+| E07 selection gate | Both selected-week arms saved the same eligible new acquisition with complete assets and unchanged prior memory. | Inconclusive under the preregistered tie rule; no full season or shipping PR. |
+| E08 original context | Matched Week 7 gate completed; three origin bindings exact, 69 inherited versions unchanged. A separate empty-memory 17-week measurement is running. | Technical feasibility passed, behavior mixed: question narrowing and a misdated historical-memory claim remain. No efficacy promotion or E05/E07 paragraph. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -44,7 +45,12 @@ sample was silently replaced or interpreted as a behavioral success.
   one known closeout assertion reproduced on the untouched base was excluded.
   This is transport compatibility evidence, not a new quality treatment.
 
-All three are drafts, with no merge or deployment. General CI does not replace
+- [PR #263: expose original storyline context](https://github.com/maxwn04/AIdamShefter-v2/pull/263)
+  adds read-only first-version context to existing automatic review leads. Based
+  on `main`; 40 targeted tests passed. The selected-week technical gate passed,
+  behavior remains mixed, and a separate season is measuring longitudinal effects.
+
+All four are drafts, with no merge or deployment. General CI does not replace
 the explicitly run backend test selections. E06 now has selected-week and full-
 season identity evidence, but its final-week article missed an important
 acquisition callback present in the baseline. The earlier stop was a pre-dispatch

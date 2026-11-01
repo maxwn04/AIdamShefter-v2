@@ -21,7 +21,9 @@ already included in completion tokens is not charged a second time.
 | E05 | Explicitly retain unanswered parts of compound questions | Three selected-week arms | $0.3836 | Reject: fresh control already retained the disputed question; treatment introduced an extra criterion. No full season or shipping PR. |
 | E06 gate | Select trade identity by exact source transaction rather than generated label | Two matched selected-week arms | $0.2347 | Keep narrow correctness fix: one duplicate in control, three reused identities in treatment, original pins and assets preserved. |
 | E06 season | E04 plus the repaired E06 identity boundary | 17 completed weeks; original interrupted Week 14 retained | $3.0955, including $0.7086 unresolved requests | Keep narrow identity fix: zero duplicates; final championship acquisition callback missed. No general content-quality promotion. |
-| E07 candidate | Consider durable acquisition-event selection separately from storyline updating | Two-arm gate running from the same post-Week 11 checkpoint | Pending | Pending. No quality rerolls; already-full coverage or incomparable opportunities count as inconclusive. |
+| E07 | Consider durable acquisition-event selection separately from storyline updating | Two matched selected-week arms | $0.2667 | Inconclusive, not promoted: both arms retained the one eligible acquisition completely. No full season or shipping PR. |
+| E08 gate | Show immutable original context beside existing automatic storyline leads | Two matched Week 7 arms | $0.2747 | Technical feasibility passed; quality mixed. Three exact origin bindings, continued scope shifts and a misdated historical memory claim. No efficacy promotion. |
+| E08 season | E06 plus the E08 presentation file only | Fresh empty-memory 17-week measurement running | Pending terminal accounting | Preregistered all-arc lifecycle and grounding audit; no E05 or E07 paragraph. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -51,7 +53,8 @@ count, storyline duration or named-player target is supplied to the reporter.
 | E03 | Original Flash season baseline | `abe783c4c345a9575d33405ce669beeab8596b98c52766331f3de303ee25c323` | `7add51085aa448fe9a4f9ef90807f2adc54f31c9ab8df633084fa0dcf529d9b1` |
 | E04 | E03 plus one question-identity paragraph | `51eeb2ca0731c7823fb25d90c7766f744a05a2e230da3beb71fb8ee10c341c7d` | `09895bd48de62beff93bcdbf95819888b8427a8ac982296570326bec0e72186f` |
 | E06 | E04 plus six exact-source-identity runtime files, repaired candidate `5ba681071343e64de824da53ef15162d0221a9bc` | `c75025926b820ed4154f19d6f2a242b9448b47be55e1d312eaf83a1bb830e3e3` | Same as E04 |
-| E07 candidate | E06 plus one acquisition-event selection paragraph | Recorded in isolated arm manifests | `219437fc6150831054ec0908af506159ce7e98311b28ca198f45dedf991d527c` |
+| E07 | E06 plus one acquisition-event selection paragraph, not promoted | Recorded in isolated arm manifests | `219437fc6150831054ec0908af506159ce7e98311b28ca198f45dedf991d527c` |
+| E08 | E06 plus original-context projection in one presentation file | `42fea624a123830e0e1c81be32909edeb2835f1f9cd24d02e94382fd52f0ab1c` | Same as E04 |
 
 Runtime manifest hashes above are SHA256 of the sorted compact JSON mapping of
 frozen file paths to file hashes. Private checkpoint receipts retain exact memory
@@ -72,7 +75,7 @@ The final article used the acquired player's championship score but missed the
 acquisition and its price; neither the event card nor that acquisition appeared
 in final-week automatic context. The E04 final article did make that connection.
 This is an unfavorable content observation, not proof the E06 code caused it.
-The E07 gate tests event selection at closeout; it does not claim to fix retrieval.
+The E07 gate tested event selection at closeout and tied; it did not test a retrieval fix.
 
 **Question identity remains mixed.** A synthetic illustration of the failure is
 replacing “Does this acquisition improve the team's weekly floor?” with “Can the
@@ -132,6 +135,66 @@ the aggregate cost includes them. The preserved season has 574 completion
 dispatches, including two uncertain, and 22 embedding requests. Settled charges
 are $2.3869; full uncertain reservations add $0.7086. No uncertain cost was erased.
 
+## E07 gate: preserve the inconclusive result
+
+The fresh control already saved the material acquisition that the earlier sample
+had left only in its brief. Both new arms retained 1/1 eligible events with the
+complete asset flow. Both preserved 129 inherited versions and had zero duplicate
+source groups. Other article callbacks referred to already-canonical trades and
+were excluded from this new-event denominator. First-request messages and tools
+matched exactly; the only treatment difference was the closeout paragraph.
+
+Control used 38 calls, 12 edits and 54,038 completion tokens; treatment used 35 calls,
+eight edits and 60,347 completion tokens. Both needed five closeout calls. Costs
+were $0.13075 and $0.13591, including a small embedding request in treatment.
+There were no new uncertain charges. Treatment's article differences preceded
+its changed closeout instruction, so they are not evidence for that paragraph.
+The tie is inconclusive under the preregistration. Do not replace the fresh
+control with the older missing-retention sample to manufacture an improvement.
+No full-season E07 or shipping PR will follow this gate.
+
+## E08: original context is technically correct, behavior remains mixed
+
+Automatic review leads currently show only the current storyline summary and
+callback question. History can be inspected explicitly, but E06 made no such
+inspection in its 17 completed articles. Its 37 automatic review leads included
+30 updated versions. A bounded original context could make question replacement
+visible without prescribing an answer, minimum lifetime or compulsory article
+coverage.
+
+The candidate adds the exact first-version summary/question alongside the same
+at-most-three selected leads. Current card selection and update handles stay
+unchanged. The historical context has no update selector, is labeled as prior
+narrative, and uses the existing pinned history boundary. Missing/filtered original
+history is not replaced with a later version. The limits are 200 headline, 2,000
+summary and 400 callback characters; the largest observed original summary was
+1,016, so recorded original questions fit. Clipping is explicit and full history
+remains inspectable through the current lead.
+
+One runtime file changes: `backend/services/reporter/runner/tools/memory_recall.py`,
+SHA256 `70c293ac350e8c7d311866d369514506fb0a26c0676209efcd97d61db6519fa7`.
+The E04 closeout paragraph and E06 identity baseline remain; E05 and E07 are absent.
+Forty targeted tests pass, including PostgreSQL old-pin stability, introduction-
+week exclusion, original/current separation and clipping. The Week 7 feasibility
+gate completed both articles and closeouts. Control used 34 calls and treatment
+31; costs were $0.13566 and $0.13901. All three added origin bindings were exact,
+other first-request messages/tools matched, and all 69 prior versions were
+unchanged. No duplicate source identities or broken evidence links appeared.
+
+The behavioral result is mixed. A roster-risk question still narrows toward
+seeding despite seeing its origin. One updated card overstates what a single
+acquisition return answers, although it stays active. A treatment summary moves
+an older scoring lead into the wrong week. The same old fact was already present
+in current context, so added-origin causality is unresolved. Control also has a
+confirmed prior-record error. Both errors and unchanged articles are preserved.
+
+Technical feasibility does not establish efficacy. A separately preregistered
+17-week season now starts from empty memory, with only this presentation file
+changed from E06. It audits every arc, distinguishes origin exposure from no
+exposure, and tracks stale-history claims, supported closures, scope changes,
+acquisition discovery/retention/retrieval/use, cost and article quality. No minimum
+arc duration, forced research quota or target-name hint is introduced.
+
 ## Reviewable drafts
 
 - [#260](https://github.com/maxwn04/AIdamShefter-v2/pull/260): E04 question identity,
@@ -142,5 +205,9 @@ are $2.3869; full uncertain reservations add $0.7086. No uncertain cost was eras
   compatibility, based on `codex/canonical-preseason-backfill`; 47 targeted tests
   passed and one pre-existing closeout assertion reproduced on the untouched base
   was excluded. This is infrastructure compatibility, not a quality treatment.
+
+- [#263](https://github.com/maxwn04/AIdamShefter-v2/pull/263): original storyline
+  context, based on main; 40 targeted tests, technically correct selected-week
+  projection, mixed behavior, full-season measurement in progress.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.

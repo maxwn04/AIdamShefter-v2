@@ -117,8 +117,10 @@ does not validate model-authored prose. Repeatedly inverted consolation results
 were called a filing error in the final article, although the cause requires
 checking bracket rules rather than inferring corruption from the pattern.
 
-The next preregistered gate changes only acquisition-event selection guidance at
-closeout. It does not claim to fix the separate final-week retrieval miss. Private
+The subsequent acquisition-selection gate was inconclusive: the fresh control
+and treatment both retained the eligible complete trade. It is not promoted.
+A separate original-question context candidate is now undergoing a matched
+feasibility gate; neither candidate changes this PR. Private
 articles, source identifiers, raw traces and detailed financial records remain
 outside this repository. This PR remains a narrow identity fix with explicit
 quality limitations; rejected partial-question guidance is not included.
