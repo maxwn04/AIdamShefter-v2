@@ -11,6 +11,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, JsonValue
 
+from backend.resources.memory.storylines import StorylineContent
 from backend.resources.memory.context_notes import ContextNote
 from backend.resources.memory.triggers import (
     FirePolicy,
@@ -44,8 +45,8 @@ if TYPE_CHECKING:
     from backend.services.memory import GenerationMemoryContext
 
 
-MEMORY_RECALL_SCHEMA_VERSION = 3
-MEMORY_RECALL_PLANNER_VERSION = 3
+MEMORY_RECALL_SCHEMA_VERSION = 4
+MEMORY_RECALL_PLANNER_VERSION = 4
 MAX_RECALL_CANDIDATES = 100
 MAX_DUE_CALLBACKS = 8
 MAX_STANDING_CONTEXT = 8
@@ -60,7 +61,21 @@ class _RecallModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class StorylineOriginContext(_RecallModel):
+    relevant_week: int | None = None
+    season: int | None = None
+    headline: str
+    summary: str
+    callback_condition: str | None = None
+    provenance: str = (
+        "Original storyline context, not current facts or required article coverage. "
+        "This is read-only context; inspect the current lead's history if clipped."
+    )
+    clipped: bool = False
+
+
 class StorylineReviewLead(_RecallModel):
+    original_context: StorylineOriginContext | None = None
     memory_handle: str
     headline: str
     summary: str
@@ -424,11 +439,16 @@ class MemoryRecallPlanner:
             selected=selected, limit=MAX_STORYLINE_REVIEW_POOL,
         )
         leads = []
-        for memory in group.memories:
+        origin_bindings = []
+        for index, memory in enumerate(group.memories):
             card = cast(StorylineMemoryContext, memory)
             assert card.memory_handle is not None
             callback = card.callback_condition
+            origin, binding = self._storyline_origin(group.candidates[index], index)
+            if binding is not None:
+                origin_bindings.append(binding)
             leads.append(StorylineReviewLead(
+                original_context=origin,
                 memory_handle=card.memory_handle, headline=card.headline,
                 summary=card.summary, callback_condition=callback,
                 relevant_week=card.relevant_week, season=card.season, subjects=card.subjects,
@@ -438,7 +458,7 @@ class MemoryRecallPlanner:
         for binding in group.bindings:
             path = binding["result_path"]
             if not isinstance(path, list) or len(path) != 2:
-                continue  # Compact leads do not deliver nested reference cards.
+                continue  # Only the current card is projected into the top-level lead.
             index = cast(int, path[1])
             card = cast(StorylineMemoryContext, group.memories[index])
             compact_binding = {key: value for key, value in binding.items() if key != "omitted_fields"}
@@ -446,10 +466,54 @@ class MemoryRecallPlanner:
             compact_binding["clipped_fields"] = []
             bindings.append(compact_binding)
         return replace(
-            group, memories=tuple(leads), bindings=tuple(bindings),
+            group, memories=tuple(leads), bindings=tuple(bindings + origin_bindings),
             truncated=group.truncated or any(lead.truncated for lead in leads),
             excluded_presented_item_ids=excluded_item_ids,
         )
+
+    def _storyline_origin(
+        self, match: HydratedMemoryMatch, index: int,
+    ) -> tuple[StorylineOriginContext | None, dict[str, JsonValue] | None]:
+        """Expose only immutable version one through the same history boundary."""
+        revision = match.memory.version.revision_number
+        if revision == 1:
+            return None, None  # The current lead already is the original context.
+        history = self._memory_context.inspect(
+            match.memory, view="history", offset=revision - 1, limit=1,
+            allowed_season_weeks=self._season_bounds(),
+        )
+        if not history.matches:
+            return None, None
+        original = history.matches[0]
+        if (original.memory.item.item_id != match.memory.item.item_id
+                or original.memory.version.revision_number != 1):
+            return None, None  # A filtered/gapped history is not an origin substitute.
+        content = original.memory.content
+        assert isinstance(content, StorylineContent)
+        limits = {"headline": 200, "summary": 2000, "callback_condition": 400}
+        values = {name: getattr(content, name) for name in limits}
+        clipped = [name for name, value in values.items()
+                   if value is not None and len(value) > limits[name]]
+        for name in clipped:
+            values[name] = values[name][:limits[name] - 1] + "…"
+        seasons = self._data.available_seasons() if hasattr(self._data, "available_seasons") else ()
+        season = next((row.season_year for row in seasons
+                       if row.competition_season_id == original.memory.version.competition_season_id), None)
+        context = StorylineOriginContext(
+            relevant_week=original.week, season=season,
+            clipped=bool(clipped), **values,
+        )
+        # Context has no selector: only the unchanged current lead can be edited.
+        binding = {
+            "result_path": ["storyline_review_pool", index, "original_context"],
+            "kind": original.memory.item.kind.value,
+            "item_id": str(original.memory.item.item_id),
+            "version_id": str(original.memory.version.version_id),
+            "expected_item_revision": 1,
+            "omitted_fields": sorted(set(StorylineContent.model_fields) - set(StorylineOriginContext.model_fields)),
+            "clipped_fields": clipped,
+        }
+        return context, binding
 
     @staticmethod
     def _has_explicit_focus(config: ReportConfig) -> bool:
