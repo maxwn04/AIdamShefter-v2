@@ -4,13 +4,14 @@ from uuid import UUID
 
 import sqlalchemy as sa
 
-from backend.database.models.memory import MemoryItem, MemoryVersion
+from backend.database.models.memory import EventVersion, MemoryItem, MemoryVersion
 from backend.database.sessions import SessionFactory, read_only_session
 from backend.resources.context import CompetitionScope, ManagerContext
 from backend.resources.memory.common.errors import TargetNotFoundError
 from backend.resources.memory.common.kinds import MemoryKind
 from backend.resources.memory.events.codec import decode_event, event_rows_statement
 from backend.resources.memory.events.objects import Event
+from backend.resources.memory.events.source_identity import SleeperTradeIdentity
 from backend.resources.memory.revisions.shared import visible_versions_statement
 
 
@@ -24,6 +25,34 @@ class EventManager:
     ) -> None:
         self._session_factory = session_factory
         self._competition_id = context.scope.competition_id
+
+    def trade_at_source(
+        self, identity: SleeperTradeIdentity, revision_id: UUID, *, through_week: int,
+    ) -> tuple[Event, ...]:
+        """Exact write lookup at the input pin; never a relevance search or merge."""
+        visible = visible_versions_statement(self._competition_id, revision_id).subquery()
+        statement = event_rows_statement().join(visible, visible.c.id == MemoryVersion.id).where(
+            MemoryVersion.competition_id == self._competition_id,
+            MemoryVersion.competition_season_id == identity.competition_season_id,
+            MemoryVersion.week <= through_week,
+            EventVersion.event_type == "trade",
+            EventVersion.additional_source_hints["transaction_id"].astext == identity.transaction_id,
+        )
+        with read_only_session(self._session_factory) as session:
+            rows = session.execute(statement).all()
+        matches = []
+        for row in rows:
+            event = decode_event(*row)
+            if event.content.source_hints.get("provider", "sleeper") != "sleeper":
+                continue
+            # Missing/conflicting legacy identity fails closed; do not create a
+            # fresh identity merely because an old receipt cannot be interpreted.
+            source = SleeperTradeIdentity.from_hints(
+                event.content.source_hints, event.version.competition_season_id,
+            )
+            if source == identity:
+                matches.append(event)
+        return tuple(matches)
 
     def exact(self, version_id: UUID) -> Event:
         """Hydrate one exact event version, including retired history."""
