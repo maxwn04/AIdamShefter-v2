@@ -256,8 +256,7 @@ frozen setting and 168 team-week outcomes support this mapping; the arithmetic
 mean disagrees on 12 outcomes. The raw setting key's mapping is an inference, and
 current documentation is not an archived season-specific specification. Draft
 #264 has 11 focused passing tests and one unrelated reproduced base failure
-excluded. A preregistered two-arm final-regular-week gate is pending; no live
-quality claim yet.
+excluded. The preregistered two-arm final-regular-week gate completed for $0.31349. Both arms preserved the discriminating sweep above median but below mean; control explicitly rejected arithmetic mean in new memory, while treatment supplied correct median terminology and postseason scope. The motivating error did not reproduce: inconclusive for applied-decision accuracy, no full-season promotion or reroll. Control/treatment used32/36calls and4/13edits, with no new uncertainty. Treatment also introduced a separate false canonical absence-after-trade claim despite a later saved acquisition; correct terminology did not establish general factuality.
 
 E10 is an unpaid local candidate for bounded recent-trade exposure on generic
 requests. Sixty-five tests cover selection, temporal boundaries and unchanged
@@ -284,6 +283,6 @@ before deciding on more season spending; ties stay inconclusive without rerolls.
   projection, mixed behavior, completed season mixed; accurate callback alongside unresolved grounding/lifecycle failures.
 
 - [#264](https://github.com/maxwn04/AIdamShefter-v2/pull/264): median bonus guidance,
-  independently based on main; paid discriminator pending.
+  independently based on main; completed accuracy gate inconclusive; terminology evidence is independent.
 
 No merge, PR approval or deployment is authorized by these experiment outcomes.

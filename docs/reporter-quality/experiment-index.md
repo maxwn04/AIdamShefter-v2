@@ -23,7 +23,7 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E07 selection gate | Both selected-week arms saved the same eligible new acquisition with complete assets and unchanged prior memory. | Inconclusive under the preregistered tie rule; no full season or shipping PR. |
 | E08 original context | Matched Week 7 gate completed; three origin bindings exact, 69 inherited versions unchanged. A separate empty-memory 17-week measurement completed. | Technical feasibility passed, behavior mixed: question narrowing and a misdated historical-memory claim remain. Full season preserves trade identity and produces an accurate final acquisition/price callback, but grounding failures and stale/question-shifting cards remain. No general efficacy promotion or E05/E07 paragraph. |
 
-| E09 | Median terminology correction, independently reviewed draft #264; matched gate pending. | Offline rule compatibility evidence is separate from live efficacy. |
+| E09 | Median terminology correction, draft #264; both matched arms preserved the discriminating bonus result. | Inconclusive for applied accuracy; treatment clarified median/postseason scope but introduced a separate historical memory error. No reroll or full-season promotion. |
 | E10 / E11 | Separate local candidates for recent-trade exposure and historical-claim scope; offline tests pass, no paid gate yet. | Prospective hypotheses, not promoted outcomes. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
@@ -54,7 +54,7 @@ sample was silently replaced or interpreted as a behavioral success.
   completed-season behavior remains mixed; exact exposure is not proof of use.
 
 - [PR #264: clarify median bonus guidance](https://github.com/maxwn04/AIdamShefter-v2/pull/264)
-  contains only terminology guidance and synthetic regressions; paid gate pending.
+  contains terminology guidance and synthetic regressions; completed accuracy gate is inconclusive.
 
 All five are drafts, with no merge or deployment. General CI does not replace
 the explicitly run backend test selections. E06 now has selected-week and full-
