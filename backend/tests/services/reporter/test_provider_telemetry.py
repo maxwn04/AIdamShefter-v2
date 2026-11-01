@@ -67,3 +67,31 @@ def test_response_sanitizer_falls_back_when_provider_dump_fails() -> None:
     assert sanitized == {
         "payload": {"api_key": "[REDACTED]", "value": 7}
     }
+
+
+def test_deepseek_cache_and_reasoning_are_subsets_of_reported_totals() -> None:
+    raw = {
+        "prompt_tokens": 1000,
+        "prompt_cache_hit_tokens": 800,
+        "prompt_cache_miss_tokens": 200,
+        "completion_tokens": 100,
+        "completion_tokens_details": {"reasoning_tokens": 80},
+        "total_tokens": 1100,
+    }
+    usage = normalize_token_usage({"usage": raw})
+
+    assert usage.input_tokens == 1000
+    assert usage.cached_input_tokens == 800
+    assert usage.output_tokens == 100
+    assert usage.reasoning_tokens == 80
+    assert usage.total_tokens == 1100
+    assert usage.raw_provider_usage == raw
+
+
+def test_explicit_zero_cached_tokens_takes_precedence_over_provider_fallback() -> None:
+    usage = normalize_token_usage({"usage": {
+        "prompt_tokens_details": {"cached_tokens": 0},
+        "prompt_cache_hit_tokens": 800,
+    }})
+
+    assert usage.cached_input_tokens == 0

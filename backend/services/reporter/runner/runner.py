@@ -28,6 +28,7 @@ from backend.services.reporter.runner.models import (
     ToolCall,
     ToolExecutionResult,
     assistant_tool_call_message,
+    assistant_text_message,
     extract_text,
     extract_tool_calls,
     serialize_model_value,
@@ -210,12 +211,15 @@ class Runner:
                 text = extract_text(response)
                 if text:
                     self.log.add_model_text(text, turn=turn)
-                    messages.append({"role": "assistant", "content": text})
+                    messages.append(assistant_text_message(response, text))
                     if self._closeout_is_active():
                         continue
                     break
 
                 if self._closeout_is_active():
+                    assistant = assistant_text_message(response, text)
+                    if "reasoning_content" in assistant or "provider_specific_fields" in assistant:
+                        messages.append(assistant)
                     continue
                 break
 
