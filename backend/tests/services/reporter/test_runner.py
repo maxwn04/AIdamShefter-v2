@@ -1390,3 +1390,19 @@ def test_closeout_replays_reasoning_on_text_and_empty_turns(text) -> None:
     assert assistants[-1]["content"] == text
     assert "tool_calls" not in assistants[-1]
     assert output.run_log_summary["total_turns"] == 3
+
+
+@pytest.mark.parametrize("text", [None, ""])
+def test_closeout_skips_empty_assistant_without_provider_continuation_state(text) -> None:
+    complete = FakeCompletion([
+        make_response(tool_calls=[tool_call("submit_artifact", call_id="submit")]),
+        make_response(text=text),
+        make_response(tool_calls=[tool_call("complete_memory_review", call_id="complete")]),
+    ])
+    runner, _ = closeout_runner(complete)
+    output = run(runner.run("system", "user"))
+    assistants = [m for m in complete.requests[2]["messages"] if m["role"] == "assistant"]
+
+    assert len(assistants) == 1
+    assert assistants[0]["tool_calls"][0]["function"]["name"] == "submit_artifact"
+    assert output.run_log_summary["total_turns"] == 3

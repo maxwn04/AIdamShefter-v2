@@ -5,7 +5,8 @@ calls and then make another completion request. The existing text-only path kept
 the response text but discarded its reasoning content. The empty-text path did
 not append an assistant message at all. Both paths now use the same message
 construction as tool-call responses, removing only the empty tool-call array and
-preserving provider fields. This allows a later request to retain the original
+preserving provider fields. Empty responses without text or provider continuation
+state retain the previous skip behavior. This allows a later request to retain the original
 provider reasoning across all closeout turns.
 
 Token telemetry also recognizes `prompt_cache_hit_tokens` as a fallback cached
@@ -19,7 +20,7 @@ retry policy, prompt or memory behavior. The direct paid comparison adapter and
 its experiment-accounting dependencies require a separate review; they are not
 included here.
 
-Validation: 45 targeted runner and telemetry tests passed. One existing closeout
+Validation: 47 targeted runner and telemetry tests passed. One existing closeout
 assertion was excluded after reproducing the same failure on the untouched base:
 `test_closeout_counts_parallel_write_before_completion` expects a receipt without
 the callback fields that the base implementation already returns. No provider

@@ -217,7 +217,9 @@ class Runner:
                     break
 
                 if self._closeout_is_active():
-                    messages.append(assistant_text_message(response, text))
+                    assistant = assistant_text_message(response, text)
+                    if "reasoning_content" in assistant or "provider_specific_fields" in assistant:
+                        messages.append(assistant)
                     continue
                 break
 
