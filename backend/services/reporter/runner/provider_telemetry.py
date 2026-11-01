@@ -49,7 +49,7 @@ def normalize_token_usage(response: Any) -> RecordedTokenUsage:
         cached_input_tokens=_first_present(
             _nested_token(usage, "prompt_tokens_details", "cached_tokens"),
             _nested_token(usage, "input_tokens_details", "cached_tokens"),
-            _first_token(usage, "cache_read_input_tokens", "cached_tokens"),
+            _first_token(usage, "cache_read_input_tokens", "cached_tokens", "prompt_cache_hit_tokens"),
         ),
         output_tokens=_first_token(usage, "completion_tokens", "output_tokens"),
         reasoning_tokens=_first_present(

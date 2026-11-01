@@ -83,6 +83,14 @@ def assistant_tool_call_message(
     return message
 
 
+def assistant_text_message(response: Any, text: str | None) -> ChatMessage:
+    """Preserve provider reasoning across text-only closeout turns too."""
+    message = assistant_tool_call_message([], response)
+    message.pop("tool_calls")
+    message["content"] = text
+    return message
+
+
 def extract_tool_calls(response: Any) -> list[ToolCall]:
     """Extract normalized tool calls from a litellm/OpenAI-style response."""
     message = _first_message(response)
