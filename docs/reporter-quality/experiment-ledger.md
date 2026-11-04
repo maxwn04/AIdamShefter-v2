@@ -31,7 +31,7 @@ already included in completion tokens is not charged a second time.
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
 | E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
-| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Season running; seven completed weeks at this checkpoint | $0.8678 through Week 7 indexing | Pending: audit identity correctness separately from recall, narrative continuity and article quality. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Seven completed weeks; accepted Week 8 article retained after closeout failure | $1.3877, including $0.3543 uncertain | Interrupted by HTTP 503; one bounded recovery prepared. Quality and final callback remain pending. |
 | E17 | Coherent storyline identity at creation | One-factor proposal gate preregistered, unrun | $0 | Pending; no-op, inspection-only and quality ties will remain inconclusive. |
 | E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
 
@@ -508,7 +508,7 @@ partial answers, legitimate early closure, separate successor stories, missing
 origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
 separate from the merged baseline and is not evidence of improved reporting.
 
-### E16: fresh merged baseline — running
+### E16: fresh merged baseline — interrupted; recovery prepared
 
 E16 starts with empty canonical memory and the original chronological 17-week
 source/editorial plan. Reporting changes exactly match the four approved merges.
@@ -591,7 +591,7 @@ or efficiency improvement**. No paid E18 call, full-season treatment or deployme
 has occurred. The next decision requires evaluating unnecessary edits and genuine
 error correction separately, without treating disappearance of warnings as success.
 
-E16 checkpoint: seven weeks completed and verified, with no new upstream failure.
+E16 initially completed seven weeks without an upstream failure. Its later Week 8 closeout failure is recorded below.
 The early baseline saved all five observed Week 2 trades as five canonical
 identities; E08 had saved two by that point. This is sample coverage, not attribution
 to the median-guidance difference. Later recall, use and final season quality remain
@@ -604,3 +604,32 @@ record warnings clarified a real sentence ambiguity. It is not counted as wasted
 work caused by those warnings. The synthetic cross-comparison reproduction
 supports the narrower presentation concern; live efficiency remains unmeasured.
 Draft #268's quality CI passed on current head `c5b33ec466305ea9b10f1598c9b55a6ba0e8352a`. Its final change only clarifies the evidence; production code and tests are identical to the 76-test candidate.
+
+
+### E16 infrastructure checkpoint and bounded recovery
+
+Week 8's article was accepted at turn 25. The completion requested at turn 29
+failed with HTTP 503 after 11.154 seconds, carrying an upstream connection-reset
+message. No useful correlation ID was available; the evidence does not establish
+whether the provider or environment network path originated the failure. No SDK
+retry or provider fallback occurred.
+
+The failed request executed no tools, and Week 8 committed no canonical memory.
+The memory head remains exactly the complete Week 7 checkpoint. The supported
+controller cannot resume that exact in-memory closeout, so one separately labeled
+infrastructure retry is prepared from Week 7. The original accepted article, raw
+trace, failed generation and full uncertain reservation remain preserved. A new
+article from recovery will not replace the original result in the evidence record.
+
+Twenty targeted reconciliation, budget and sanitized-diagnostic tests passed.
+Runtime/source-pin/controller preflight also passed without a provider call.
+Recovery waits for a 15-minute cooldown, retains the unchanged hard allowance and
+may stop with partial season coverage if the next reservation cannot be covered.
+A further upstream failure stops paid work, including new gates; no repeated
+quality retries are permitted.
+
+E18's separately registered synthetic reviewer gate uses two completions over
+five cases: correct multi-team and historical passages, wrong current and tied
+records, and unsupported period attribution. Only record diagnostics differ. Nine
+packet/scorer checks passed. A tie or incomplete response remains inconclusive;
+no paid E18 call has run. See draft #268 for the frozen discriminator and limits.
