@@ -592,3 +592,10 @@ identities; E08 had saved two by that point. This is sample coverage, not attrib
 to the median-guidance difference. Later recall, use and final season quality remain
 pending. E17's one-file candidate passed 14 targeted closeout/definition tests and
 remains unrun locally.
+
+
+E18 evidence clarification: the inspected edit immediately following the live
+record warnings clarified a real sentence ambiguity. It is not counted as wasted
+work caused by those warnings. The synthetic cross-comparison reproduction
+supports the narrower presentation concern; live efficiency remains unmeasured.
+Draft #268's quality CI passed on its initial candidate head.
