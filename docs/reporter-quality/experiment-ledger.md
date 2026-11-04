@@ -525,3 +525,35 @@ closure versus replacement, unsupported historical claims, duplicate trade
 identities, and research versus revision work. There are no storyline-duration
 quotas or target-specific hints. New interventions require their own recorded
 hypothesis and comparison; rejected E05/E11/E13 and mixed E12 are not inherited.
+
+
+### E17: coherent identity at creation — preregistered, unrun
+
+E16's first new storyline exposed a different failure from update drift: its
+headline and callback concerned a scoring-format trend, while its explicit live
+question concerned a separate lineup decision. The card already lacked a stable
+single development at creation. This observation motivates a new test; it does
+not establish that guidance will fix it.
+
+The candidate adds one paragraph to closeout: keep a new storyline's headline,
+unresolved question and callback about the same coherent development. Independent
+questions should not be combined merely because one article mentions them.
+Related compound questions remain valid, and no-op remains allowed. No minimum
+duration, card count, named target, schema, retrieval or verifier change is added.
+The existing identity and callback rules remain intact.
+
+The gate uses one fresh proposal-only control and one treatment at the first
+eligible creation opportunity in the same completed E16 Week 1 conversation.
+Only the encoded closeout paragraph differs; all 83 messages, the article,
+source state, prior event receipt and 25 assistant reasoning fields are preserved.
+Offline checks verified the exact difference and unchanged surrounding payload.
+Returned tools will not execute. Both arms must actually propose a new storyline;
+inspection-only, no-op and ambiguous cases are inconclusive, as are quality ties.
+Only a coherent treatment versus a bundling control, without a new unsupported
+claim or invented question, supports narrow proposal-level improvement. No reroll
+or automatic full-season promotion is planned. Paid execution remains serialized
+behind E16 and subject to the shared spending guard.
+
+Draft #267 changes documentation only, so its paths do not trigger the repository's
+backend/frontend or database CI workflows. The merged main checks and local
+combined backend test results above are the relevant existing validation.
