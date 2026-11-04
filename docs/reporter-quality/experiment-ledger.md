@@ -9,7 +9,7 @@ The cost figures below are aggregate experiment charges, not a financial ledger
 or provider invoice. DeepSeek charges use conservative peak rates; reasoning
 already included in completion tokens is not charged a second time.
 
-## Completed experiments and decisions
+## Experiment status and decisions
 
 | Arm | Hypothesis / one changed factor | Coverage | Conservative cost | Decision |
 | --- | --- | --- | ---: | --- |
@@ -29,6 +29,11 @@ already included in completion tokens is not charged a second time.
 | E11 | Bound historical absence claims to the evidence window | Two matched selected-week arms | $0.1870 | Reject: both arms saved the false whole-season absence claim. No season or shipping PR. |
 | E12 | Extend original context to already-selected due-callback storyline links | One completed selected challenge after a preserved infrastructure failure | $0.5232, including $0.3543 unknown | Partial/mixed: historical inversion corrected with source verification; question narrowing and other errors remain. No automatic season promotion. Known-failure control reused. |
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
+| E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
+| E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Season running; seven completed weeks at this checkpoint | $0.8678 through Week 7 indexing | Pending: audit identity correctness separately from recall, narrative continuity and article quality. |
+| E17 | Coherent storyline identity at creation | One-factor proposal gate preregistered, unrun | $0 | Pending; no-op, inspection-only and quality ties will remain inconclusive. |
+| E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -586,7 +591,7 @@ or efficiency improvement**. No paid E18 call, full-season treatment or deployme
 has occurred. The next decision requires evaluating unnecessary edits and genuine
 error correction separately, without treating disappearance of warnings as success.
 
-E16 checkpoint: five weeks completed and verified, with no new upstream failure.
+E16 checkpoint: seven weeks completed and verified, with no new upstream failure.
 The early baseline saved all five observed Week 2 trades as five canonical
 identities; E08 had saved two by that point. This is sample coverage, not attribution
 to the median-guidance difference. Later recall, use and final season quality remain
@@ -598,4 +603,4 @@ E18 evidence clarification: the inspected edit immediately following the live
 record warnings clarified a real sentence ambiguity. It is not counted as wasted
 work caused by those warnings. The synthetic cross-comparison reproduction
 supports the narrower presentation concern; live efficiency remains unmeasured.
-Draft #268's quality CI passed on its initial candidate head.
+Draft #268's quality CI passed on current head `c5b33ec466305ea9b10f1598c9b55a6ba0e8352a`. Its final change only clarifies the evidence; production code and tests are identical to the 76-test candidate.
