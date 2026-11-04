@@ -182,6 +182,8 @@ def resolve_event(
             raise EventEvidenceError("The frozen trade has duplicate or incomplete asset perspectives; no partial event was saved.")
     if not assets:
         raise EventEvidenceError("No complete transferable assets were present; no event was saved.")
+    audit["provider"] = "sleeper"
+    audit["league_id"] = snapshot_season.sleeper_league_id
     audit["transaction_id"] = matched[0]["transaction_id"]
     timestamp = matched[0].get("created_ts")
     occurred_at = datetime.fromtimestamp(timestamp / 1000, tz=UTC) if timestamp is not None else None

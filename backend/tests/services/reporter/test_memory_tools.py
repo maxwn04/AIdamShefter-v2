@@ -54,6 +54,18 @@ class RecordingRetrieval:
         self.calls: list[MemoryRetrievalRequest] = []
         self.matches = matches
 
+    def trade_at_source(self, *, competition_id, revision_id, identity, through_week):
+        from backend.resources.memory.events.source_identity import SleeperTradeIdentity
+        return tuple(match.memory for match in self.matches
+                     if isinstance(match.memory, Event)
+                     and match.memory.item.competition_id == competition_id
+                     and match.memory.version.competition_season_id == identity.competition_season_id
+                     and match.memory.version.week <= through_week
+                     and match.memory.content.event_type.value == "trade"
+                     and match.memory.content.source_hints.get("provider", "sleeper") == "sleeper"
+                     and SleeperTradeIdentity.from_hints(match.memory.content.source_hints,
+                         match.memory.version.competition_season_id) == identity)
+
     def search(
         self,
         *,
@@ -291,7 +303,7 @@ def test_search_schema_exposes_only_editorial_selectors() -> None:
     description = search["description"]
     properties = search["parameters"]["properties"]
 
-    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "10"
+    assert MEMORY_TOOL_IMPLEMENTATION_VERSION == "11"
     assert "editorial intent" in description
     assert "storage identifiers" in description
     assert set(properties) == {

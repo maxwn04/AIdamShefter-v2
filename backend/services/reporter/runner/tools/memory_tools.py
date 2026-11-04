@@ -18,6 +18,8 @@ from pydantic import (
     model_validator,
 )
 
+from backend.resources.memory.events.source_identity import SleeperTradeIdentity
+
 from backend.services.memory import (
     ContextNoteContent,
     EventContent,
@@ -26,6 +28,7 @@ from backend.services.memory import (
     MemoryKind,
     MemoryMutationMetadata,
     MemoryRetrievalRequest,
+    ProposedMemoryRef,
     SearchDocumentQuery,
     StorylineContent,
     TriggerContent,
@@ -36,6 +39,7 @@ from backend.services.reporter.runner.memory_closeout import RecalledCallbackRev
 from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.memory_event_evidence import (
     EventEvidenceError,
+    ResolvedEvent,
     resolve_event,
 )
 from backend.services.reporter.runner.tools.memory_presentation import (
@@ -52,7 +56,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-MEMORY_TOOL_IMPLEMENTATION_VERSION = "10"
+MEMORY_TOOL_IMPLEMENTATION_VERSION = "11"
 _READ_TOOL = "search_memory"
 _WRITE_TOOLS = (
     "save_memory_event",
@@ -342,6 +346,14 @@ class _CanonicalReference:
     version_id: UUID
 
 
+@dataclass(frozen=True, slots=True)
+class _TradeSelection:
+    signature: str
+    reference: _CanonicalReference | ProposedMemoryRef
+    result: dict[str, Any]
+    content: EventContent
+
+
 class TypedMemoryAdapter:
     """Translate model-facing inputs into canonical typed memory proposals."""
 
@@ -358,6 +370,7 @@ class TypedMemoryAdapter:
         self._completed_semantic_saves: dict[
             tuple[str, str], tuple[str, dict[str, Any]]
         ] = {}
+        self._trade_selections: dict[SleeperTradeIdentity, _TradeSelection] = {}
         self._presentation = MemoryPresentationAdapter(data)
         self._callback_dispositions: dict[str, dict[str, str]] = {}
         self._due_callback_context: tuple[RecalledCallbackReview, ...] = ()
@@ -371,6 +384,7 @@ class TypedMemoryAdapter:
     def write_savepoint(self) -> Iterator[None]:
         """Keep a parent card and its dependent proposals atomic within a call."""
         completed = self._completed_semantic_saves.copy()
+        trade_selections = self._trade_selections.copy()
         local_refs = self._local_agent_refs.copy()
         proposed_ids = self._proposed_item_ids.copy()
         dispositions = self._callback_dispositions.copy()
@@ -379,6 +393,7 @@ class TypedMemoryAdapter:
                 yield
         except BaseException:
             self._completed_semantic_saves = completed
+            self._trade_selections = trade_selections
             self._local_agent_refs = local_refs
             self._proposed_item_ids = proposed_ids
             self._callback_dispositions = dispositions
@@ -502,6 +517,8 @@ class TypedMemoryAdapter:
             )
         except EventEvidenceError as error:
             raise MemoryToolInputError("insufficient_event_evidence", str(error)) from error
+        if arguments.event_type == "trade":
+            return self._save_source_trade(context, arguments, resolved)
         candidate = self._agent_candidate(MemoryKind.EVENT, arguments.id)
         if (
             candidate is not None
@@ -543,6 +560,66 @@ class TypedMemoryAdapter:
             "confidence": canonical.confidence.value,
             "_event_resolution": resolved.audit,
         }
+
+    def _save_source_trade(self, context: ToolContext, arguments: SaveMemoryEventArgs, resolved: ResolvedEvent) -> dict[str, Any]:
+        self._require_writable_handle(arguments.id)
+        try:
+            identity = SleeperTradeIdentity.from_hints(
+                resolved.audit, self._memory_context.competition_season_id,
+            )
+            candidates = self._memory_context.trade_at_source(identity)
+        except ValueError as error:
+            raise MemoryToolInputError("unverifiable_trade_identity", str(error)) from error
+        if len(candidates) > 1:
+            raise MemoryToolInputError("duplicate_trade_identity",
+                "Multiple canonical cards already represent this source transaction. "
+                "No card was selected or merged; explicit reconciliation is required.")
+        candidate = candidates[0] if candidates else None
+        keyed = self._agent_candidate(MemoryKind.EVENT, identity.agent_key)
+        if keyed is not None and (candidate is None or keyed.item.item_id != candidate.item.item_id):
+            raise MemoryToolInputError("event_source_key_conflict",
+                "The source key is already bound to an event with different or unverifiable source identity.")
+        if candidate is not None and candidate.content.status.value != "active":
+            raise MemoryToolInputError("inactive_trade_identity",
+                "This transaction already has an inactive event. A repeat save cannot reactivate it.")
+        canonical = EventContent.model_validate({
+            "event_type": "trade", "headline": arguments.headline, "summary": arguments.summary,
+            "salience": max(1, min(5, arguments.importance)),
+            "confidence": "source_backed" if context.current_tool_call_id else "inferred",
+            "primary_tool_call_id": context.current_tool_call_id,
+            "status": "active", "details": resolved.details, "source_hints": resolved.audit,
+        })
+        # A new tool-call/fact handle is new provenance, not a different claim.
+        signature = canonical.model_dump_json(exclude={"primary_tool_call_id", "primary_api_request_id", "source_hints"})
+        signature += str((resolved.week, resolved.occurred_at))
+        previous = self._trade_selections.get(identity)
+        expected_item = previous.reference.item_id if previous else candidate.item.item_id if candidate else None
+        alias = self._agent_reference(MemoryKind.EVENT, arguments.id)
+        if alias is not None and alias.item_id != expected_item:
+            raise MemoryToolInputError("event_alias_conflict", "This event id already refers to another transaction; use a different local id.")
+        if previous is not None:
+            if previous.signature != signature:
+                raise MemoryToolInputError("memory_already_selected",
+                    "This source transaction already changed in this run. Only an exact semantic retry is allowed; no second event was created.")
+            reference, result = previous.reference, {**previous.result, "saved": False, "no_change": True, "operation": "no_change"}
+        else:
+            result = self._upsert(
+                MemoryKind.EVENT, identity.agent_key, canonical, context=context,
+                week=resolved.week, occurred_at=resolved.occurred_at, candidate=candidate,
+                create=self._memory_context.propose_event, replace=self._memory_context.replace_event,
+            )
+            reference = self._local_agent_refs.get((MemoryKind.EVENT, identity.agent_key))
+            if reference is None:
+                reference = _CanonicalReference(item_id=candidate.item.item_id, version_id=candidate.version.version_id)
+            self._trade_selections[identity] = _TradeSelection(signature, reference, result, canonical)
+        # Model IDs remain usable by later tools in this generation; they no
+        # longer choose the durable trade identity. Legacy keys are preserved.
+        self._local_agent_refs[(MemoryKind.EVENT, arguments.id)] = reference
+        if candidate is not None and candidate.item.agent_key:
+            self._local_agent_refs[(MemoryKind.EVENT, candidate.item.agent_key)] = reference
+        return {**result, "id": arguments.id, "event_type": "trade", "week": resolved.week,
+                "source_fact_ids": arguments.source_fact_ids, "confidence": canonical.confidence.value,
+                "_event_resolution": resolved.audit}
 
     def upsert_storyline_memory_card(
         self,
@@ -816,6 +893,11 @@ class TypedMemoryAdapter:
         for proposal in self._memory_context.proposal_snapshot():
             if proposal.version_id == reference.version_id and isinstance(proposal.content, EventContent):
                 return proposal.content
+        # A no-change save has no proposal. Hydrate its selected exact version,
+        # including new local aliases, without searching the alias or latest item.
+        for selected in self._trade_selections.values():
+            if (selected.reference.item_id, selected.reference.version_id) == (reference.item_id, reference.version_id):
+                return selected.content
         candidate = self._presentation.resolve_handle(event_key) or self._agent_candidate(MemoryKind.EVENT, event_key)
         return candidate.content if candidate is not None else None
 
