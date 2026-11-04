@@ -31,7 +31,7 @@ already included in completion tokens is not charged a second time.
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
 | E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
-| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Nine completed weeks; original interrupted Week 8 retained; season continuing | $1.7195 through Week 9 indexing, including $0.3543 uncertain | Bounded recovery succeeded; identity correctness remains sound, but question substitution and incomplete narrative trade prices persist. Final callback pending. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Thirteen completed weeks; original interrupted Week 8 retained; season continuing | $2.2369 through Week 13 closeout, including $0.3543 uncertain | Bounded recovery succeeded; identity correctness remains sound, but question substitution and incomplete narrative trade prices persist. Final callback pending. |
 | E17 | Coherent storyline identity at creation | One-factor proposal gate preregistered, unrun | $0 | Pending; no-op, inspection-only and quality ties will remain inconclusive. |
 | E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
 
@@ -603,7 +603,7 @@ E18 evidence clarification: the inspected edit immediately following the live
 record warnings clarified a real sentence ambiguity. It is not counted as wasted
 work caused by those warnings. The synthetic cross-comparison reproduction
 supports the narrower presentation concern; live efficiency remains unmeasured.
-Draft #268's quality CI passed on current head `c5b33ec466305ea9b10f1598c9b55a6ba0e8352a`. Its final change only clarifies the evidence; production code and tests are identical to the 76-test candidate.
+Draft #268's quality CI passed on current head `12389772989c95e4078889da2f78f7500b0d3a5a`. Its final change only clarifies the evidence; production code and tests are identical to the 76-test candidate.
 
 
 ### E16 infrastructure checkpoint and bounded recovery
@@ -672,3 +672,34 @@ calls, versus E16's 216 and 47. These are descriptive single-sample counts with
 failures recorded separately, not causal evidence of efficiency or article quality.
 The Week 8 retry also exposed three stale-revision conflicts from batching edits
 against the same article revision; other edits made useful factual corrections.
+
+
+### E16 checkpoint through Week 13
+
+Thirteen weeks completed, with no additional upstream error after the single
+Week 8 recovery. The season continues under its unchanged per-request spending
+guard. E17 and E18 remain unrun, so neither has a paid quality verdict.
+
+The completed audit through Week 11 found 20 source transactions mapped to 20
+canonical items and 27 versions, with no duplicate source groups, altered typed
+assets or broken links. Thirteen retained checkpoints preserved their original
+visibility. Of 22 source trades available by that boundary, E16 saved 20, versus
+15 for E08 and 14 for E06 at the same boundary and identical source cutoffs. All
+saves in these counts occurred in the source's first available week. Coverage is
+not a quality score, and omitted trades are not automatically editorial failures.
+
+The matched eleven completed weeks used 377 completion calls and 87 article-edit
+calls in E16, versus 357 and 84 in E08. The early seven-week reduction did not
+persist at this boundary. Failed attempts stay in experiment costs but outside
+these completed-week counts; useful factual repairs and stale-revision conflicts
+are distinguished when interpreting edits. These counts do not isolate causality.
+
+Week 12 correctly covered and saved a three-team acquisition, including the
+outgoing first-round pick. Final-week recall and use remain pending. Separately,
+a verified Week 11 memory summary called two double-loss weeks consecutive even
+though frozen standings show two wins in the intervening week. That exact false
+summary was exposed in Week 12 automatic recall, and the next article repeated
+the consecutive-loss assertion. This is evidence of a saved→exposed→repeated
+factual error, not proof of a unique causal path or of a regression caused by a
+particular merge. It motivates a separate hypothesis about source-supported
+temporal claims in memory; neither E17 nor E18 currently addresses that boundary.

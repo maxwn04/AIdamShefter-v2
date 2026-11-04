@@ -34,14 +34,14 @@ interweek indexing. These settings differ from the earlier small-cap comparisons
 Failed attempts and uncertain billing evidence are retained privately; no failed
 sample was silently replaced or interpreted as a behavioral success.
 
-## Drafts for review
+## Changes and review status
 
-- [PR #260: preserve storyline question identity](https://github.com/maxwn04/AIdamShefter-v2/pull/260)
-  contains the E04 paragraph and its sanitized memory experiment log. Based on
+- **Merged:** [PR #260: preserve storyline question identity](https://github.com/maxwn04/AIdamShefter-v2/pull/260)
+  contains the E04 paragraph and its sanitized memory experiment log. Merged into
   `main`; 20 targeted regression tests cover compatibility, not live efficacy.
-- [PR #261: reuse exact trade source identity](https://github.com/maxwn04/AIdamShefter-v2/pull/261)
+- **Merged:** [PR #261: reuse exact trade source identity](https://github.com/maxwn04/AIdamShefter-v2/pull/261)
   contains E06, [its detailed evidence and limitations](trade-source-identity.md),
-  and this index. Based on `main`; 68 targeted tests cover identity, provenance,
+  and this index. Merged into `main`; 68 targeted tests cover identity, provenance,
   temporal boundaries, aliases, retries and concurrency. It does not include E04
   or E05 prompt changes, a verifier change, or the private budget adapter.
 - [PR #262: preserve provider continuation messages](https://github.com/maxwn04/AIdamShefter-v2/pull/262)
@@ -50,12 +50,12 @@ sample was silently replaced or interpreted as a behavioral success.
   one known closeout assertion reproduced on the untouched base was excluded.
   This is transport compatibility evidence, not a new quality treatment.
 
-- [PR #263: expose original storyline context](https://github.com/maxwn04/AIdamShefter-v2/pull/263)
+- **Merged:** [PR #263: expose original storyline context](https://github.com/maxwn04/AIdamShefter-v2/pull/263)
   adds read-only first-version context to existing automatic review leads. Based
-  on `main`; 40 targeted tests passed. The selected-week technical gate passed,
+  on `main` and now merged; 40 targeted tests passed. The selected-week technical gate passed,
   completed-season behavior remains mixed; exact exposure is not proof of use.
 
-- [PR #264: clarify median bonus guidance](https://github.com/maxwn04/AIdamShefter-v2/pull/264)
+- **Merged:** [PR #264: clarify median bonus guidance](https://github.com/maxwn04/AIdamShefter-v2/pull/264)
   contains terminology guidance and synthetic regressions; completed accuracy gate is inconclusive.
 
 - [PR #265: offer recent trade leads](https://github.com/maxwn04/AIdamShefter-v2/pull/265)
@@ -64,8 +64,9 @@ sample was silently replaced or interpreted as a behavioral success.
 - [PR #266: original context in due callbacks](https://github.com/maxwn04/AIdamShefter-v2/pull/266)
   extends #263 with 45 passing targeted tests; completed challenge partially repairs history but not question identity.
 
-All seven are drafts, with no merge or deployment. General CI does not replace
-the explicitly run backend test selections. E06 now has selected-week and full-
+PRs #261, #260, #263 and #264 were merged in that order on November 4 after
+explicit user review. PRs #262, #265 and #266 remain drafts; there was no
+deployment. General CI does not replace the explicitly run backend test selections. E06 now has selected-week and full-
 season identity evidence, but its final-week article missed an important
 acquisition callback present in the baseline. The earlier stop was a pre-dispatch
 spending guard, not another upstream failure or a context/output limit. Renewal
