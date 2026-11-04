@@ -45,7 +45,7 @@ error detection, unnecessary edits, latency and article quality needs a separate
 registered live comparison. No paid E18 call or production deployment has occurred.
 
 Decision: reviewable offline candidate, **not promoted as a quality improvement**.
-The active E16 baseline continues with the original verifier unchanged.
+E16 retained the original verifier throughout its sixteen completed weeks.
 
 ## Preregistered synthetic reviewer gate
 
@@ -66,4 +66,8 @@ rerolls or extra turns. Returned review tools do not execute article or memory
 mutations. Even a favorable result would establish only synthetic reviewer
 behavior, not an improvement in full reporting conversations. Execution is
 serialized after the unchanged baseline and the creation-coherence gate, subject
-to the remaining hard budget. This gate has not run yet.
+to the remaining hard budget. This gate was not dispatched: the preceding baseline reached its shared
+conservative spending boundary during Week 17. Both arms remain unrun, with zero
+paid gate calls. This is neither a failed comparison nor an inconclusive paid
+result; the frozen packets and discriminator are retained. No quality promotion
+is made from the offline tests.
