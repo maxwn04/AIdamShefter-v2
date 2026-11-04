@@ -4,8 +4,9 @@ A correct sentence such as “Cedar (8-0) and Birch (6-2) lead the table” prod
 two attribution warnings: the verifier compared every record-like number in the
 sentence against every named team's selected source record. Historical comparison
 facts also triggered warnings against current records without resolving period.
-A retained season trace showed edits following these warnings; that sequence is
-an observation, not a measured causal efficiency result.
+A retained season trace showed edits following these warnings. The inspected
+next edit clarified a real sentence ambiguity, so it is not counted as wasted
+work caused by the warnings. Efficiency benefit remains unmeasured.
 
 This candidate replaces that heuristic with bounded source-record context grouped
 by subject identity. Each advisory context retains the selected source reference,
