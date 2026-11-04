@@ -438,7 +438,9 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
         or record.fields.get("streak_basis") == "head_to_head_and_league_average"
         for record in records
     ):
-        guidance.append("Standings include a league-average bonus matchup. Standings wins/losses and streak_len count standings decisions, not head-to-head games; use game winner fields for head-to-head results and streaks.")
+        # Sleeper's legacy API label names its league-median feature:
+        # https://support.sleeper.com/en/articles/3971690-extra-game-each-week-against-league-median
+        guidance.append("Standings include Sleeper's extra regular-season matchup against the weekly league median, not the arithmetic mean. Legacy field names league_average_match and head_to_head_and_league_average refer to that bonus result. A score equal to the median earns a tie. This extra result does not apply to playoff or consolation games. Standings wins/losses and streak_len count standings decisions, not head-to-head games; use game winner fields for head-to-head results and streaks.")
     if any("bracket_type" in record.fields for record in records):
         guidance.append("recorded_winner/recorded_loser (legacy winner/loser) are the source bracket outcome, not score_winner. Report each explicitly: they may disagree. A result alone does not establish advancement or elimination rules.")
     if any(record.fields.get("remaining_field_status") == "not_established" for record in records):
