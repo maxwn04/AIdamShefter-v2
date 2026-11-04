@@ -30,6 +30,7 @@ from backend.services.memory import (
     MemoryRetrievalRequest,
     MemoryRetrievalResult,
 )
+from backend.services.memory.retrieval_service import MemoryInspectionResult
 from backend.services.reporter.config import ReportConfig, TimeRange
 from backend.services.reporter.runner.tools.memory_presentation import (
     MemoryPresentationAdapter,
@@ -93,6 +94,12 @@ class Retrieval:
         self.relevant = relevant
         self.fail_kind = fail_kind
         self.requests: list[MemoryRetrievalRequest] = []
+
+    def inspect(self, *, competition_id, revision_id, **kwargs):
+        # These presentation fixtures do not contain an original history row.
+        return MemoryInspectionResult(
+            competition_id=competition_id, revision_id=revision_id, matches=(),
+        )
 
     def search(
         self,

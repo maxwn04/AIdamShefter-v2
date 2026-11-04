@@ -1,0 +1,119 @@
+# Original context for storyline review leads
+
+A storyline's current summary can replace the question that originally justified
+keeping it. Asking the reporter to preserve that question is less useful when
+only the current summary is presented. The original remains in immutable history,
+but obtaining it requires an explicit inspection that the completed baseline did
+not use in any of its 17 articles.
+
+This candidate adds bounded first-version context alongside each updated card in
+the existing automatic storyline review pool. It changes no selection/ranking,
+card limit, current update handle, source cutoff, writing prompt or resolution
+rule. First-version cards do not repeat their own context. The pool still contains
+at most three leads and retains its existing exclusions for explicit focus and
+storylines already delivered by due callbacks. Other recall groups are unchanged.
+
+The original context includes its headline, summary, callback question, season
+and week where available. It is labeled historical narrative, not verified current
+facts or compulsory article coverage. It has no update selector. The current lead
+is still the editable card, and its history can be inspected for the full text.
+Hidden metadata binds the added projection to the exact original version.
+
+The implementation reuses pinned history inspection and its introduction-week
+and season boundaries. It accepts only version one of the same item; missing or
+filtered/gapped history is omitted rather than replaced by a later version.
+Headlines are bounded to 200 characters, summaries to 2,000 and callback questions
+to 400; clipping is explicit. The largest original summary in the baseline was
+1,016 characters, so this bound retains all recorded original questions. This
+adds context and up to three bounded history reads; it does not make old narrative
+claims true or guarantee the model will respect them.
+
+For example, an original question might ask whether an acquisition improves the
+weekly scoring floor, while the current summary asks whether the team holds its
+seed. Showing both makes that change visible. It does not require the team to stay
+in one story forever or prevent a supported closure and a separate new question.
+
+Forty targeted tests passed on the operational candidate and the clean main-based
+candidate. PostgreSQL regressions cover exact original/current separation,
+unchanged old-pin output after a later commit, introduction-week filtering,
+no fallback when the original is unavailable, explicit clipping and retention of
+the current update target. A legacy unit fixture was extended with the history
+inspection interface; no provider call is part of these tests.
+
+The live comparison is preregistered, with one baseline and one treatment Week 7
+from the identical original post-Week 6 checkpoint. The runtime parent is the
+completed E06 season, including the E04 question-identity paragraph and source-
+identity fix. Only this presentation file differs. The independently scoped PR
+is based on main and includes neither of those other candidates nor the rejected
+E05 rule or inconclusive E07 paragraph.
+
+The selected-week gate assesses feasibility, temporal/current-handle correctness,
+article/closeout completion and major grounding regressions. It separately records
+question retention, replacement, legitimate closure, ambiguous scope and no-update
+outcomes. A qualitative tie is not a superiority result. A safe gate may justify a
+separately preregistered empty-memory season to assess long-run lifecycle behavior;
+no lifecycle or article-quality improvement is claimed from the offline tests.
+
+The selected-week gate completed both arms: 34 control calls and 31 treatment
+calls, with four and five closeout calls respectively. All three origin bindings
+were exact. First-request messages matched after removing only the added origin
+context; tools/current selections matched, all 69 inherited versions and contents
+were unchanged, and no duplicate source identities or broken evidence links
+appeared. Aggregate gate cost was $0.27468, with no new uncertain request.
+
+Behavior remains mixed. The treatment still narrowed a roster-risk question toward
+seeding and overstated what one acquisition return answered while leaving the card
+active. It also moved an older scoring lead into the wrong historical week. The
+same old fact was already present in current context, so attribution to the added
+origin is unresolved. The control article had a separate prior-record error.
+Exact binding does not certify historical prose or improve question adherence by
+itself. More memory writes and fewer calls are not general quality evidence.
+
+The separately preregistered empty-memory season completed all 17 weeks. All
+32 selected updated leads received exact origins (30 successful-run exposures,
+two in a preserved failed attempt). However, the added projection appeared for
+only 17 of 37 successful storyline updates; six more had first-version context
+through existing paths, and 14 did not. Due callbacks can bypass this pool.
+Correct projection is therefore narrower than universal origin availability.
+
+The season retained 16 source transactions as 16 canonical trade identities and
+24 versions, with zero duplicates, typed-asset changes or broken links. All 19
+original-pin checks passed. The final championship article accurately connected
+an acquired player's performance to the multi-party acquisition and its pick
+price, unlike the E06 final article. It also performed fresh historical source
+research; no exact event card was automatically bound. This is successful final
+coverage, not proof of saved-event retrieval or projection causality.
+
+Behavior remains mixed. Seven arcs ended with five resolved and two active.
+Supported repair and repeat-pattern closures coexist with a stale seeding card,
+a top-seed question accumulating a playoff question, and a churn card closing
+while an original future-pick component remains unobserved. A memory headline
+incorrectly changed prior pick spending into no spending; a later article repeated
+a broader absence claim. The question reopened later, so this was not permanent
+erasure. Complete typed assets did not validate narrative summaries.
+
+Compared with E06's completed trajectory, E08 used 537 versus 512 completion calls,
+124 versus 88 article edits, and 65.97 versus 61.05 million prompt tokens. Mean
+article length was similar (1,070 versus 1,062 words). Reduced churn is not
+established. Total E08 season cost was $2.31586, including a preserved failed
+attempt and embeddings; no new uncertain request. One read-only balance GET
+failed before completion dispatch, followed by a labeled checkpoint recovery.
+All 17 accepted articles remain unchanged in the private review packet.
+
+Decision: retain the exploratory draft with mixed evidence; do not claim a general
+quality improvement or promote based on technical binding alone. Each season is
+one stochastic trajectory, and later research/memory states differ endogenously.
+No forced callback, minimum story duration or rejected E05 paragraph was added.
+
+The completed audit also confirmed a source limitation shared with the baselines:
+an early frozen pick-ownership view already contains the receiver of a transfer
+that appears only in a later week's transaction history. The earlier transaction
+view does not contain that transfer. This is not memory-pin leakage introduced by
+the projection, but it limits historical ownership claims and questions based on
+them. Showing an exact original summary can preserve an unsupported source-derived
+claim as well as a useful question. Inputs remain frozen; the experiment must not
+be described as a clean historical forecasting simulation.
+
+Private articles, source identifiers, raw traces and account records remain
+outside this repository. See the consolidated experiment ledger in draft PR #261
+for the preceding experiments and their limitations.
