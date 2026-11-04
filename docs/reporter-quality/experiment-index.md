@@ -77,3 +77,9 @@ November 4 continuation: approved #261/#260/#263/#264 merged into
 `ddccadd6c51947da2c9c2c539611e69dd2f11b25`. Combined backend checks: 133 pass,
 one reproduced pre-existing bracket-guidance failure; main CI passes. The ledger
 now records rejected E13, inconclusive E14, unrun E15 and running E16 baseline.
+
+
+E18 is an offline advisory-record-context candidate in draft #268 (76 targeted
+tests); no paid quality comparison has run. E17 is a separately preregistered
+creation-coherence gate with a local one-file candidate and 14 passing tests.
+Neither candidate is part of the running E16 merged baseline.

@@ -557,3 +557,38 @@ behind E16 and subject to the shared spending guard.
 Draft #267 changes documentation only, so its paths do not trigger the repository's
 backend/frontend or database CI workflows. The merged main checks and local
 combined backend test results above are the relevant existing validation.
+
+
+### E18: scoped record-review context — offline candidate
+
+A live E16 revision trace prompted a synthetic reproduction: a correct sentence
+listing two teams at different records generated two attribution warnings because
+the verifier compared every record-like number with every named team's source
+record. Historical and current periods were also mixed in those comparisons.
+
+[Draft #268](https://github.com/maxwn04/AIdamShefter-v2/pull/268) replaces that
+heuristic with bounded source-record contexts grouped by subject identity. The
+contexts preserve source references, periods, ties, units, limitations and the
+relevant draft passage. They explicitly make no match/mismatch verdict. Other
+diagnostics, traceability errors and submission behavior remain unchanged; the
+active E16 verifier is untouched, and E17 is not inherited.
+
+The final candidate passed **76 targeted tests**. The correct two-team fixture
+changes from two false attribution warnings to two scoped contexts. A deliberately
+wrong record remains visible beside its authoritative source; this preserves
+review evidence but does not establish that the writer will correct it. Tests
+also cover invalid bindings, poisoned claim text, duplicate references, distinct
+identities with equal display names, unknown periods, ties, units, limitations,
+ordinary prose without records and output truncation.
+
+Decision: reviewable offline presentation candidate, **not promoted as a quality
+or efficiency improvement**. No paid E18 call, full-season treatment or deployment
+has occurred. The next decision requires evaluating unnecessary edits and genuine
+error correction separately, without treating disappearance of warnings as success.
+
+E16 checkpoint: five weeks completed and verified, with no new upstream failure.
+The early baseline saved all five observed Week 2 trades as five canonical
+identities; E08 had saved two by that point. This is sample coverage, not attribution
+to the median-guidance difference. Later recall, use and final season quality remain
+pending. E17's one-file candidate passed 14 targeted closeout/definition tests and
+remains unrun locally.
