@@ -28,6 +28,12 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E12 | Due-callback original context: one recovery completed after a preserved upstream failure. Historical acquisition claim corrected with fresh source verification. | Partial/mixed: original repair/cost question still narrows, other errors remain. All 143 prior versions preserved. Reused known-failure control is not independent efficacy evidence; no automatic season promotion. Draft #266 stacks on #263. |
 | E13 | Structured identity assessment produced three exact original quotations, but both arms still substituted questions; treatment acknowledged a resolved question while keeping it active. | Rejected proposal-only gate. No canonical writes, article change, shipping PR, reroll or full season. |
 
+| E14 | A reset closeout handoff produced an inspection-only treatment. | Inconclusive; no extra turn or reroll. |
+| E15 | Independent identity-reviewer packet prepared. | Unrun; no capability result. |
+| E16 | Fresh merged baseline completed 16 weeks; Week 17 stopped before turn 4 dispatch at the spending guard. | Zero duplicate trade identities and correct semifinal acquisition/price use, but verified narrative errors and mixed question identity. Final championship callback unmeasured. |
+| E17 | One-paragraph creation-coherence candidate, 14 targeted tests. | Preregistered proposal gate unrun due to the shared budget boundary. |
+| E18 | Scoped record-review contexts, 76 targeted tests, draft #268. | Offline presentation evidence only; synthetic paid gate unrun due to budget. |
+
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
 interweek indexing. These settings differ from the earlier small-cap comparisons.
@@ -77,10 +83,16 @@ Do not reroll for preferred prose.
 November 4 continuation: approved #261/#260/#263/#264 merged into
 `ddccadd6c51947da2c9c2c539611e69dd2f11b25`. Combined backend checks: 133 pass,
 one reproduced pre-existing bracket-guidance failure; main CI passes. The ledger
-now records rejected E13, inconclusive E14, unrun E15 and running E16 baseline.
+now records rejected E13, inconclusive E14, unrun E15 and the terminal, partially completed E16 baseline.
 
 
 E18 is an offline advisory-record-context candidate in draft #268 (76 targeted
 tests); no paid quality comparison has run. E17 is a separately preregistered
 creation-coherence gate with a local one-file candidate and 14 passing tests.
-Neither candidate is part of the running E16 merged baseline.
+Neither candidate entered E16. Its budget stop left both paid gates unrun.
+
+The latest [ledger result](experiment-ledger.md#e16-terminal-result-and-decisions)
+records exact frozen hashes, costs, retained failure evidence, matched work counts,
+source→memory→article paths, scope-sensitive lifecycle judgments and the next
+factual-memory hypothesis. [Draft #267](https://github.com/maxwn04/AIdamShefter-v2/pull/267)
+contains this documentation update.

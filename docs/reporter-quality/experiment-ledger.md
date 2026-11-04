@@ -31,9 +31,9 @@ already included in completion tokens is not charged a second time.
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
 | E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
-| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Thirteen completed weeks; original interrupted Week 8 retained; season continuing | $2.2369 through Week 13 closeout, including $0.3543 uncertain | Bounded recovery succeeded; identity correctness remains sound, but question substitution and incomplete narrative trade prices persist. Final callback pending. |
-| E17 | Coherent storyline identity at creation | One-factor proposal gate preregistered, unrun | $0 | Pending; no-op, inspection-only and quality ties will remain inconclusive. |
-| E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Sixteen completed weeks; Week 17 stopped before turn 4 dispatch; original interrupted Week 8 retained | $2.6295, including $0.3543 uncertain | Partial baseline: sound trade identity, broader saving and a correct semifinal acquisition callback, alongside verified factual errors and mixed question identity. Championship callback unmeasured. |
+| E17 | Coherent storyline identity at creation | One-factor proposal gate prepared, unrun due to shared budget boundary | $0 | No paid verdict; frozen packets and 14 passing targeted tests retained. |
+| E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests; synthetic gate unrun due to budget | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -508,7 +508,7 @@ partial answers, legitimate early closure, separate successor stories, missing
 origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
 separate from the merged baseline and is not evidence of improved reporting.
 
-### E16: fresh merged baseline — running after bounded recovery
+### E16: fresh merged baseline — terminal partial coverage
 
 E16 starts with empty canonical memory and the original chronological 17-week
 source/editorial plan. Reporting changes exactly match the four approved merges.
@@ -556,8 +556,8 @@ Returned tools will not execute. Both arms must actually propose a new storyline
 inspection-only, no-op and ambiguous cases are inconclusive, as are quality ties.
 Only a coherent treatment versus a bundling control, without a new unsupported
 claim or invented question, supports narrow proposal-level improvement. No reroll
-or automatic full-season promotion is planned. Paid execution remains serialized
-behind E16 and subject to the shared spending guard.
+or automatic full-season promotion is planned. The shared spending guard stopped E16 before the gate could dispatch. Both
+preregistered arms remain unrun; the frozen packets are retained for later review.
 
 Draft #267 changes documentation only, so its paths do not trigger the repository's
 backend/frontend or database CI workflows. The merged main checks and local
@@ -703,3 +703,82 @@ the consecutive-loss assertion. This is evidence of a saved→exposed→repeated
 factual error, not proof of a unique causal path or of a regression caused by a
 particular merge. It motivates a separate hypothesis about source-supported
 temporal claims in memory; neither E17 nor E18 currently addresses that boundary.
+
+
+### E16 terminal result and decisions
+
+E16 completed Weeks 1–16. Week 17 received three settled research responses, then
+stopped before turn 4 was sent because the remaining conservative allowance could
+not cover the next request reservation. It produced no Week 17 draft or submitted
+article and committed no Week 17 memory. This was an application spending guard,
+not a provider context limit, output limit, empty account or another upstream
+failure. The original accepted Week 8 article and failed closeout remain separate
+from the successful recovery. There was no second recovery or quality reroll.
+
+Aggregate E16 charge is **$2.629523724**: $2.275202124 settled across providers plus
+the retained $0.3543216 uncertain Week 8 request. It includes 563 dispatched
+completion requests (562 settled, one uncertain) and 21 embedding requests costing
+$0.008974680. The blocked request was not sent or charged. Older spending and
+uncertain requests remain in the private cumulative ledger; they were not reset.
+
+The full frozen runtime SHA256 is
+`8c917447d2b187464673bc4ba678468fed48e56a8d9ad7b4c8c6667b6b12cb64`
+(sorted JSON of files, packages, configuration, Python and pricing, using default
+JSON separators). Its 382-file map SHA256 is
+`4d3b3209da0ae8f237ddd1cc22d28fc1f128f559ee8833bf23e66e8ae69a7e4f`
+(sorted compact JSON). All files and the saved pricing manifest remain unchanged.
+The only runtime-file difference from E08 is the merged median-guidance file.
+Observed maxima across recorded attempts were 240,670 prompt tokens, 14,546
+completion tokens including reasoning, and 797,793 serialized input bytes. These
+are observations, not new limits; the frozen limits remain those declared above.
+
+Technical and behavioral findings:
+
+- **Trade identity:** 21 source transactions, 21 canonical identities, 29 versions
+  and eight repeat versions; zero duplicate groups, changed typed assets or broken
+  links. All 19 retained checkpoint visibility/content checks passed.
+- **Coverage:** 21 of 23 available trades were saved in their first available
+  week. At the same Week 16 boundary E08 had saved 16 and E06 had saved 15. These
+  are identical-source single samples, not evidence that the median guidance
+  caused better selection or that every extra card was useful.
+- **Acquisition path:** the acquisition was first encountered and canonically
+  saved in Week 12. Weeks 13–14 mentioned it through broader recalled context,
+  without an exact original-event binding. Week 16 rediscovered the transaction
+  through source tools, saved grounded facts and used the full acquisition/price
+  in the semifinal article. Its repeat save reused the original identity. This
+  demonstrates source rediscovery and use, not direct event-card retrieval. The
+  championship callback is unmeasured because Week 17 never wrote an article.
+- **Original context:** all 26 selected updated leads received their exact
+  immutable origin. Across 36 successful storyline updates, 27 had a first
+  version somewhere in automatic context, including 20 using the added projection;
+  nine did not. Later explicit retrieval can also supply context. Delivery is
+  not semantic adherence.
+- **Lifecycle:** all seven identities were reviewed against their original
+  summaries/callbacks and subsequent question/status transitions. There are
+  legitimate short-scope closures, an ambiguous multi-theme creation, clear
+  acquisition-to-playoff question substitution, and scope-sensitive evolution.
+  The substituted acquisition arc later explicitly hands its remaining payoff
+  to a broader market story; that matters when judging its closure. The handoff
+  is textual, without a structured related-storyline link. No blanket premature-
+  closure count or longevity quota is applied.
+- **Grounding:** the saved→exposed→repeated false streak claim remains a verified
+  failure. A later article incorrectly calls one qualifying record the weakest
+  despite a worse record in its own table. The semifinal closing paragraph assigns
+  an eliminated top seed's record to the finalists. Correct trade assets and
+  useful callbacks therefore do not certify authored summaries or conclusions.
+- **Work and voice:** over sixteen matched completed weeks, E16 used 531
+  completions versus E08's 507, with 110 edit calls in each. E16 used 297
+  pre-draft turns, 159 draft-through-submission turns and 75 closeout turns, versus
+  270, 164 and 73. Failed attempts remain separate in those counts and included
+  in costs. The articles range from 856–1,307 words with 5–9 headings, using short
+  numerical openings, matchup sections, tables and pointed concluding lines.
+  The style is readable in places, but emphatic comparisons and conclusions can
+  outrun the evidence. These observations are not a causal quality score.
+
+**Decision:** retain the merged baseline and its partial result; do not claim a
+new general quality improvement. E17 and E18 are **unrun due to budget**, not
+failed comparisons or favorable ties. Their frozen inputs and offline test
+evidence remain available. No new treatment was promoted, merged or deployed.
+The most concrete next unresolved question is how to validate temporal and
+comparative claims in saved narrative without suppressing useful synthesis.
+The known retrospective pick-ownership input limitation still applies.
