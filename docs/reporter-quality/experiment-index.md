@@ -26,6 +26,7 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E10 | Bounded recent-trade exposure delivered three exact cards; both matched final-week arms recovered the complete callback. | Technical exposure passed, article-quality gate inconclusive. Ownership contradictions persisted; no full-season promotion or reroll. Draft #265. |
 | E11 | Both Week 15 arms newly saved the same false whole-season no-upgrade claim, despite correct guidance delivery. | Failed primary discriminator; candidate not promoted, no full season or shipping PR. More cautious callback scheduling did not fix factual memory. |
 | E12 | Due-callback original context: one recovery completed after a preserved upstream failure. Historical acquisition claim corrected with fresh source verification. | Partial/mixed: original repair/cost question still narrows, other errors remain. All 143 prior versions preserved. Reused known-failure control is not independent efficacy evidence; no automatic season promotion. Draft #266 stacks on #263. |
+| E13 | Structured identity assessment produced three exact original quotations, but both arms still substituted questions; treatment acknowledged a resolved question while keeping it active. | Rejected proposal-only gate. No canonical writes, article change, shipping PR, reroll or full season. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -70,3 +71,9 @@ acquisition callback present in the baseline. The earlier stop was a pre-dispatc
 spending guard, not another upstream failure or a context/output limit. Renewal
 did not erase uncertain charges or silently replace the interrupted article.
 Do not reroll for preferred prose.
+
+
+November 4 continuation: approved #261/#260/#263/#264 merged into
+`ddccadd6c51947da2c9c2c539611e69dd2f11b25`. Combined backend checks: 133 pass,
+one reproduced pre-existing bracket-guidance failure; main CI passes. The ledger
+now records rejected E13, inconclusive E14, unrun E15 and running E16 baseline.

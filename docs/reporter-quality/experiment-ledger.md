@@ -28,6 +28,7 @@ already included in completion tokens is not charged a second time.
 | E10 | Expose up to three recent trade cards on unfocused requests | Two matched final-week arms | $0.2450 | Exact exposure passed; both arms recovered the callback, so quality improvement is inconclusive. |
 | E11 | Bound historical absence claims to the evidence window | Two matched selected-week arms | $0.1870 | Reject: both arms saved the false whole-season absence claim. No season or shipping PR. |
 | E12 | Extend original context to already-selected due-callback storyline links | One completed selected challenge after a preserved infrastructure failure | $0.5232, including $0.3543 unknown | Partial/mixed: historical inversion corrected with source verification; question narrowing and other errors remain. No automatic season promotion. Known-failure control reused. |
+| E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -404,9 +405,40 @@ are not repaired. Total E12 cost/reservation is $0.52320, including the retained
 failure; the reused control was already charged to E11. No reroll or automatic
 full-season promotion. Draft #266 remains reviewable technical work with the
 negative findings. The next offline investigation is the question-identity write
-boundary; no new paid treatment is registered yet.
+boundary; the subsequent E13 and E14 results are recorded below.
 
-## Reviewable drafts
+## E13: explicit identity assessment, rejected
+
+The upsert tool gained an optional assessment quoting the full original summary,
+classifying new evidence as continuing or answering it, and stating the basis.
+Supplied scope was checked against pinned version one; an answers classification
+required resolved status and a resolution summary. Legacy updates and independent
+successors remained compatible. A callback trigger was not substituted for the
+question. Eighty targeted tests passed on both the actual operational parent and
+clean public candidate, including temporal boundaries, retries and valid closure.
+
+The parent was measured E12, with its presentation shared by both arms; no efficacy
+was assumed from stacking those mixed candidates. One fresh control and one
+treatment completion used the same preserved pre-update closeout context. Only
+the upsert definition differed. These were proposals only: no tool execution,
+canonical mutation or new article. The runtime-file SHA256 was
+`4457c599fa0e3ae971c497b70c55cb33a89a4ed297e62654fe2a3ce1d301523e`.
+
+Treatment supplied three exact original summaries, but both arms still replaced
+an unresolved repair/cost question with playoff performance. In the already-
+answered seeding case, treatment explicitly said the original question resolved
+in its basis, yet selected continues/active. The syntactic consistency check could
+not detect that semantic contradiction. Both retained the third arc's genuinely
+unanswered pick-value/ownership components; that did not repair the focal failures.
+
+**Decision: reject.** Exact quotation did not establish question continuity.
+The two calls cost $0.11741: $0.05831 control and $0.05910 treatment, with
+2,344 versus 4,442 output tokens including reasoning. No new uncertainty,
+embedding calls, reroll, shipping PR or full season. The candidate and failures
+remain retained offline. E14 separately tests conversation anchoring using the
+original tools, without this rejected contract.
+
+## Reviewed changes and remaining drafts
 
 - [#260](https://github.com/maxwn04/AIdamShefter-v2/pull/260): E04 question identity,
   based on main; mixed live result, not proven by its compatibility tests.
@@ -430,4 +462,66 @@ boundary; no new paid treatment is registered yet.
 - [#266](https://github.com/maxwn04/AIdamShefter-v2/pull/266): original context in due
   callbacks, stacked on #263; 45 tests, historical correction with persistent question narrowing; mixed completed challenge.
 
-No merge, PR approval or deployment is authorized by these experiment outcomes.
+Experimental outcomes alone did not authorize merges. On November 4 the user explicitly reviewed and authorized merging #261, #260, #263 and #264; the remaining PRs stay draft. No deployment or PR approval review was performed.
+
+
+## Reviewed baseline and follow-up results — November 4
+
+The user reviewed and requested merging #261, #260, #263 and #264, in that
+order. All four merged without conflicts. The resulting main is
+`ddccadd6c51947da2c9c2c539611e69dd2f11b25`. No approval review was submitted.
+The other experimental PRs remain unmerged.
+
+Combined targeted backend validation: **133 passed, 1 failed**. The failure is
+`test_bracket_identity_survives_public_cards_with_overlapping_matchup_numbers`:
+the assertion expects guidance saying the recorded winner may differ from the
+higher-scoring team. The same assertion fails on pre-merge main
+`5dfeb036fd756ffed1c9b6d9a6ed84757e611525`. It is recorded as a pre-existing
+failure, not silently excluded or treated as a merge regression. Both final-main
+CI checks, quality and migrations, passed.
+
+### E14: explicit closeout handoff — inconclusive
+
+The control retained the full research conversation. Treatment began an explicitly
+new conversation containing the unchanged request, current memory, complete latest
+research brief, unchanged submitted article, verifier/submission receipts, saved
+event arguments and receipts, and closeout guidance. This was a proposal-only
+comparison: no returned tools or canonical memory mutations were executed.
+Seven offline packet-integrity checks passed.
+
+The control made three storyline proposals and retained the known question drift.
+Treatment requested a standings lookup instead of proposing a memory update.
+Under the preregistered inspection-only rule this is **inconclusive**, not evidence
+that context reset improves identity preservation. There was no extra treatment
+turn or favorable reroll. Two settled completions cost $0.026976372; no embeddings
+or new uncertain request. The intervention was not promoted.
+
+### E15: independent reviewer capability — prepared, not run
+
+A synthetic reviewer test was prepared to distinguish question substitution,
+partial answers, legitimate early closure, separate successor stories, missing
+origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
+separate from the merged baseline and is not evidence of improved reporting.
+
+### E16: fresh merged baseline — running
+
+E16 starts with empty canonical memory and the original chronological 17-week
+source/editorial plan. Reporting changes exactly match the four approved merges.
+Relative to the completed E08 runtime, only the merged median-scoring guidance
+changes. The existing E08 preseason snapshot support, DeepSeek continuation,
+private spending controls and simulation safeguards remain runtime prerequisites;
+this is not a claim that unmodified main includes those unmerged facilities.
+
+Settings remain direct Flash with high reasoning, 32,768 output tokens,
+16,000,000 serialized input bytes, 60 research plus 6 closeout turns, 600-second
+transport timeout, no SDK generation retries or fallback, and chronological
+3,072-dimensional embeddings. Serialized bytes are an application guard, not a
+provider context-token limit. The forecast is approximately $2.30 plus embeddings;
+a hard reservation guard may stop the run with partial coverage.
+
+The audit separates acquisition discovery, saving, automatic exposure, explicit
+retrieval and article use. It also measures original-question retention, valid
+closure versus replacement, unsupported historical claims, duplicate trade
+identities, and research versus revision work. There are no storyline-duration
+quotas or target-specific hints. New interventions require their own recorded
+hypothesis and comparison; rejected E05/E11/E13 and mixed E12 are not inherited.
