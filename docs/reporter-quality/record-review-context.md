@@ -46,3 +46,24 @@ registered live comparison. No paid E18 call or production deployment has occurr
 
 Decision: reviewable offline candidate, **not promoted as a quality improvement**.
 The active E16 baseline continues with the original verifier unchanged.
+
+## Preregistered synthetic reviewer gate
+
+Before any paid E18 call, the next gate was frozen as one fresh control completion
+and one treatment completion over the same five independent synthetic cases:
+a correct two-team sentence, an incorrect current record, a correct historical
+comparison, an incorrect ties record and a period claim unsupported by its source.
+Only record-attribution diagnostics versus source-record contexts differ. Article
+text, source observations, other receipt fields, reviewer prompt and output tool
+are identical; the answer key is not supplied to the model. Nine offline packet
+and scorer checks passed.
+
+The treatment must preserve both correct passages, correct both wrong records,
+and decline the unsupported period attribution. A favorable comparison additionally
+requires an unnecessary control edit on a correct case. Both arms passing is a tie,
+not superiority; incomplete or ambiguous responses are inconclusive. There are no
+rerolls or extra turns. Returned review tools do not execute article or memory
+mutations. Even a favorable result would establish only synthetic reviewer
+behavior, not an improvement in full reporting conversations. Execution is
+serialized after the unchanged baseline and the creation-coherence gate, subject
+to the remaining hard budget. This gate has not run yet.
