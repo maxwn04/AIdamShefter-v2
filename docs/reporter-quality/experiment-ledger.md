@@ -31,7 +31,7 @@ already included in completion tokens is not charged a second time.
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
 | E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
-| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Seven completed weeks; accepted Week 8 article retained after closeout failure | $1.3877, including $0.3543 uncertain | Interrupted by HTTP 503; one bounded recovery prepared. Quality and final callback remain pending. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Nine completed weeks; original interrupted Week 8 retained; season continuing | $1.7195 through Week 9 indexing, including $0.3543 uncertain | Bounded recovery succeeded; identity correctness remains sound, but question substitution and incomplete narrative trade prices persist. Final callback pending. |
 | E17 | Coherent storyline identity at creation | One-factor proposal gate preregistered, unrun | $0 | Pending; no-op, inspection-only and quality ties will remain inconclusive. |
 | E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
 
@@ -508,7 +508,7 @@ partial answers, legitimate early closure, separate successor stories, missing
 origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
 separate from the merged baseline and is not evidence of improved reporting.
 
-### E16: fresh merged baseline — interrupted; recovery prepared
+### E16: fresh merged baseline — running after bounded recovery
 
 E16 starts with empty canonical memory and the original chronological 17-week
 source/editorial plan. Reporting changes exactly match the four approved merges.
@@ -633,3 +633,42 @@ five cases: correct multi-team and historical passages, wrong current and tied
 records, and unsupported period attribution. Only record diagnostics differ. Nine
 packet/scorer checks passed. A tie or incomplete response remains inconclusive;
 no paid E18 call has run. See draft #268 for the frozen discriminator and limits.
+
+
+### E16 recovery result and interim quality evidence
+
+The one authorized recovery completed Week 8 in 48 turns, and Week 9 also
+completed in 48 turns. Verification confirmed identical request, settings, source
+snapshot and input memory between the two Week 8 attempts. The failed attempt
+made no canonical memory commit; recovery produced one revision. The original
+accepted article's hash remains unchanged and its trace stays separate. No new
+upstream failure occurred through this checkpoint. The remaining season continues
+under the same guard; full coverage and the later gates are not guaranteed.
+
+Through Week 8, 13 source trades map to 13 identities and 19 versions, with zero
+duplicate groups, changed typed assets or broken links. Ten historical checkpoints
+preserve their original visibility. Through Week 7, 13 of 14 available completed
+trades were saved in their first available week. The unsaved move appeared in two
+source responses: it is a selection/retention observation, not a discovery failure.
+
+Qualitative findings remain mixed:
+
+- A new card combined a scoring-format theme with a separate lineup question
+  before any update drift. That motivates the unrun E17 creation test.
+- A later acquisition-value card explicitly said its purchase was unvalidated,
+  then changed the open question to sustaining a playoff run under the same
+  identity. Its automatic exposure came through a due-callback link without the
+  first version. This identifies a coverage route, not proof that E12 would fix
+  semantic drift; that candidate's prior result remains mixed.
+- A market summary named a pick as the price of a package that also sent two
+  players. The underlying trade and another summary retained the full package.
+  Typed asset correctness therefore does not certify complete narrative prices.
+- One short-lived volatility/standings arc plausibly answered its explicit
+  either/or question. It is not counted as premature merely because it closed
+  before its nominal review week.
+
+Across the seven matched completed weeks, E08 used 223 completions and 58 edit
+calls, versus E16's 216 and 47. These are descriptive single-sample counts with
+failures recorded separately, not causal evidence of efficiency or article quality.
+The Week 8 retry also exposed three stale-revision conflicts from batching edits
+against the same article revision; other edits made useful factual corrections.
