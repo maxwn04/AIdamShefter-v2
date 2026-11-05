@@ -43,7 +43,9 @@ already included in completion tokens is not charged a second time.
 | E25 | Disclose historical limits of snapshot pick inventories | Two complete Week 3 arms; 27 offline checks pass | $0.2559 | Inconclusive comparison: control lacked inventory exposure. Treatment explicitly followed the caveat; no general quality or lifecycle promotion. |
 | E26 | Explicitly recompute derived numbers before memory writes | Two frozen proposal continuations | $0.0646 | Reject: both typed-valid proposals repeat the same incorrect difference. No tools executed or season promoted. |
 | E27 | Independent numeric-relation selection plus exact decimal validation | One 14-case advisory batch; 18 offline tests | $0.0033 | Narrow pass: all six relations, three wrong results detected, no extra/missing relations. No runtime integration or quality promotion. |
-| E28 | Give the writer E27's verified arithmetic diagnostic | Two preregistered frozen continuations | In progress | Original article/facts unchanged; no returned memory tools execute. |
+| E28 | Give the writer E27's verified arithmetic diagnostic | Two frozen continuations | $0.0121 | Reject this placement: treatment still asserts the wrong difference in its summary. No writes executed. |
+| E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
+| E30 | Apply the frozen numeric reviewer to accepted E16 facts | Preregistered audit of 546 facts over 17 weeks | In progress | Observational audit only; no new reporter season, article edits or memory changes. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1180,3 +1182,37 @@ question. A correct control, missing/invalid update, ambiguity or incomplete pai
 is inconclusive; no extra turn or reroll is allowed. Inherited historical question
 drift remains a separate limitation, even if arithmetic improves. The pair has
 a $0.08 forecast and $0.50 cap within the shared allowance and executes no writes.
+
+### E28 and E29: finding an error is not the same as repairing memory
+
+E28's treatment retained the incorrect difference in its storyline summary,
+even though it removed that number from the resolution wording. Both arms had
+valid update selectors. The receipt-level advisory placement failed its repair
+discriminator; the pair cost $0.012055824. No tools executed.
+
+E29 then isolated diagnostic detail at a fresh simulated rejected-write boundary.
+Both arms received the same rejection, exact handle and complete original retry
+arguments; treatment alone received E27's concrete arithmetic finding. Generic
+control repaired the card and explicitly corrected the historical error. Detailed
+treatment instead proposed correcting the source-bound brief fact, with no card
+repair in that response. This is inconclusive for a detailed-feedback advantage,
+not a failed arithmetic calculation or a completed memory repair. Cost was
+$0.007736304. No extra turn, reroll, real rollback or production guard was added.
+
+### E30 preregistration: accepted-season arithmetic audit
+
+The frozen E27 reviewer and Decimal checker will review all 546 latest successful
+source-bound facts from E16's seventeen completed weeks, one packet per week.
+The source archive and extracted table hashes are verified. Failed attempts remain
+preserved but are outside this accepted-output audit. No unbound fact was omitted.
+Original claims and bindings are unchanged; no future evidence is added.
+
+This is an observational audit, not a new reporter treatment. Every proposed
+relation, missing/invalid case and mathematical mismatch will be retained.
+Potential errors require manual review of semantic selection, scope, and actual
+article or memory propagation. Lack of flags does not establish exhaustive factual
+correctness: word-only numbers, percentages, rules, causality, source truth and
+retrieval omissions remain outside this checker. No quality retries are allowed;
+a new upstream failure or budget block stops paid execution. The seventeen-call
+forecast is $0.15 with a $0.75 cap within the shared allowance. No embeddings,
+article changes or database writes occur.
