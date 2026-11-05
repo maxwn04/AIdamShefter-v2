@@ -84,3 +84,29 @@ all correct decisions. This is an inconclusive tie. The PR's rationale remains
 the reproduced cross-comparison defect and scoped diagnostic presentation, not
 evidence of reduced live revision churn or better articles. Backend code remains
 unchanged from the head that passed 76 targeted tests.
+
+## Prepared-definition compatibility
+
+The artifact-tool implementation version is incremented for the changed
+verification presentation. Previously prepared definitions must not silently
+execute the new diagnostic implementation. This is a preparation/execution
+compatibility marker, not an additional editorial treatment. The isolated E24
+comparison retains its original frozen runtime and definition throughout both
+arms; its verifier implementation is identical to this candidate.
+
+An additional synthetic regression covers a punctuated team name, preserving
+the whole paragraph and separating the subject's source record from its
+opponent's. All eleven record-context tests pass on that test revision.
+
+## E24 complete reporting comparison
+
+One matched Week 4 generation per arm completed both article submission and
+memory closeout. Control made zero unnecessary record edits, so the primary
+avoided-edit discriminator was unavailable. Treatment's six edits all preceded
+its first verification; it made no edit after the changed diagnostic feedback.
+Control used 25 calls and treatment 28, costing $0.268010484 together. No retry or
+new uncertain charge occurred. The result is inconclusive, not evidence of lower
+revision cost or improved prose. Both retained original memory versions and trade
+identities. Independent temporal, arithmetic and lineup-rule mistakes remained
+in the outputs; source-bound facts alone did not prevent misleading derived
+claims. These are documented limitations, with no post-hoc article correction.
