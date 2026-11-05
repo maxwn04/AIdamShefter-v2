@@ -25,9 +25,10 @@ E31 tested a dedicated original-question field at creation; the treatment still
 combined unrelated questions, so it is not promoted. E32 completed both first-week arms: the exposed roster configuration reached the
 treatment article and league note, but the fresh control did not explicitly assert
 a mandatory second quarterback. The strict comparative discriminator is inconclusive.
-Eighty-six targeted checks pass; no full season is promoted. E33 separately attempted an atomic-edit gate, but its first control request failed
-with an upstream HTTP 503. Treatment was not launched. Paid work is halted, with
-the complete uncertain reservation retained.
+Eighty-six targeted checks pass; no full season is promoted. E33 preserved its first failed control request, then completed one authorized
+infrastructure recovery. The recovered treatment applied five preplanned edits
+in one revision versus one in control. This supports narrow tool feasibility,
+not finished-article quality. E34 now tests complete reporting with that one change.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## Experiment status and decisions
@@ -69,7 +70,8 @@ No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 | E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
 | E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
 | E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms; 86 targeted checks pass | $0.1908 | Mechanism supported, comparative criterion inconclusive: control wording did not explicitly require a second QB. No efficacy promotion. |
-| E33 | Atomic independent artifact edits | First control request failed; treatment unrun; 34 offline checks pass | $0.3543 retained uncertainty | Infrastructure-blocked. No feasibility verdict, reroll, or shipping promotion. |
+| E33 | Atomic independent artifact edits | Failed control preserved; one recovered two-call comparison; 34 offline checks pass | $0.4138, including $0.3543 uncertain | Narrow feasibility pass: five justified edits in one treatment revision versus one control edit. No overall-quality claim. |
+| E34 | Atomic edits during complete reporting | Two matched Week 4 arms preregistered | Pending | Full-run adoption and revision audit; one changed tool, no roster-slot or verifier treatment inherited. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1336,3 +1338,46 @@ and byte-identical replay remain useful implementation evidence, but do not
 establish live adoption, latency or article quality. The shared paid ledger is
 halted. A later recovery must preserve this attempt and its reservation and be
 explicitly labeled; no additional season or runtime promotion follows from it.
+
+### E33 bounded infrastructure recovery — preregistered
+
+An explicitly authorized recovery preserves the original failed control and its
+full uncertain charge. Current environment policy and credential readiness are
+unchanged; one authenticated non-generation health check succeeded. That confirms
+reachability, not generation reliability or settlement. Twenty offline accounting
+and diagnostic checks pass, including repeated recovery and cap exhaustion.
+
+The recovery uses the exact frozen messages, tools and draft, with unchanged
+Flash settings and no additional instructions. One recovered control call is
+allowed, followed by the original one-call treatment only if control succeeds.
+The prior failed arm is not replaced. A new upstream failure stops all paid work;
+no further recovery is allowed. The pair retains its $0.06 forecast and $0.50
+gate cap inside the unchanged global allowance. No denied PR or upload is retried.
+
+### E33 recovery result and E34 preregistration
+
+The recovered control and treatment calls completed for $0.059446644 combined.
+Treatment proposed five independent preplanned edits; its real handler applied
+all five to an isolated draft copy in one revision. Control applied one. Added
+player totals and playoff settings were already in the frozen evidence. No new
+edit-induced numerical error or lost material fact was identified. Both retained
+a misleading statement about a split standings result and a categorical format
+inference. The accepted original article was never modified. This passes the
+narrow feasibility discriminator, not a factual-quality or whole-run cost test.
+The first failed request remains fully charged and separate.
+
+E34 uses the original Week 4 request and identical original Week 3 checkpoint,
+including all 29 original pre-Week 4 vectors. The only treatment change is the
+atomic edit tool from E33; E32 roster slots and earlier verifier, ownership and
+rejected prompt candidates are absent. One fresh complete control and treatment
+run sequentially, with original source pins, prompts, Flash settings and closeout.
+
+The primary audit requires valid adoption of a batch with at least two justified
+independent edits. A comparative efficiency signal additionally requires analogous
+control work serialized despite being already known, without new edit-induced
+errors or dropped facts. Fewer revisions alone do not pass. All changed passages,
+research and closeout costs, saved/retrieved/used memory, question continuity and
+trade callbacks will be inspected. No analogous opportunity, ties, ambiguity or
+partial coverage remain inconclusive. The forecast is $0.35 with a $0.90 pair cap
+inside the unchanged allowance. A new upstream failure stops all paid work; no
+additional recovery or quality reroll is permitted.

@@ -42,7 +42,8 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E30 | Frozen arithmetic reviewer over 546 accepted-season facts. | Seventeen supported relations, no mismatch identified; omission recall and non-arithmetic accuracy remain unmeasured. |
 | E31 | Dedicated original-question field at creation. | Failed coherence discriminator: independent questions still fused into the field. |
 | E32 | Expose configured roster slots in ordinary source overview. | Two complete Week 1 arms; configuration used in treatment, strict comparative criterion inconclusive. |
-| E33 | Atomic independent artifact edits. | Control request failed with upstream HTTP 503; treatment unrun. Full uncertainty retained; 34 offline checks pass. |
+| E33 | Atomic independent artifact edits. | Original HTTP 503 retained; one recovered pair passes narrow atomic-edit feasibility. Full-run quality unproven. |
+| E34 | Atomic edits in complete reporting. | Matched Week 4 pair preregistered; same original checkpoint and only the edit tool changed. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -96,7 +97,7 @@ and one reproduced pre-existing bracket-guidance failure; main CI passed. No
 additional PR has been merged or deployed.
 
 November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
-E32 is complete; its candidate has 86 passing targeted checks. E33 attempted atomic edits separately but stopped at an upstream HTTP 503; no paid verdict. A stale tool-version
+E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 evaluates complete reporting. A stale tool-version
 assertion was reproduced on the baseline and updated to the candidate's declared
 version. The frozen reporter behavior was not changed to satisfy that assertion.
 
@@ -111,8 +112,8 @@ The configured-roster-slot candidate is available on
 [`codex/roster-slot-evidence`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/roster-slot-evidence),
 head `8fdddfd23215a14a6bae4a74ee585651d07274f9`, with 86 targeted checks passing.
 Draft-PR creation was blocked by automatic approval review; it was not retried.
-There is no PR CI result for that branch. E33's batch-edit candidate remains
-offline-only after its first control request failed upstream.
+There is no PR CI result for that branch. E33's batch-edit candidate remains unmerged and unpublished; its full reporting
+comparison is now E34, after a narrow recovered feasibility pass.
 
 The current ledger files supersede the older summary in PR #267's description;
 the earlier metadata update did not succeed. No additional merge or deployment
