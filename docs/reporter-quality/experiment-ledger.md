@@ -41,6 +41,8 @@ already included in completion tokens is not charged a second time.
 | E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
 | E24 | Scoped record diagnostics in complete reporting | Two complete matched Week 4 arms | $0.2680 | Inconclusive: control made no unnecessary record edit; all treatment edits preceded changed feedback. Independent factual errors remained. |
 | E25 | Disclose historical limits of snapshot pick inventories | Two complete Week 3 arms; 27 offline checks pass | $0.2559 | Inconclusive comparison: control lacked inventory exposure. Treatment explicitly followed the caveat; no general quality or lifecycle promotion. |
+| E26 | Explicitly recompute derived numbers before memory writes | Two frozen proposal continuations | $0.0646 | Reject: both typed-valid proposals repeat the same incorrect difference. No tools executed or season promoted. |
+| E27 | Independent numeric-relation selection plus exact decimal validation | One preregistered 14-case advisory batch; 18 offline tests | In progress | No writer feedback, automatic blocking or memory mutation; semantic selection remains distinct from arithmetic verification. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1126,3 +1128,30 @@ is `codex/pick-ownership-evidence`; a draft PR has not been created.
 E26 subsequently starts its separate two-call arithmetic probe. The instruction
 changes an earlier submission receipt while later original assistant turns remain
 frozen: this is a counterfactual continuation, not a whole-run causal estimate.
+
+### E26 result: the arithmetic reminder failed
+
+Both fresh proposals were valid under the typed storyline-update contract and
+repeated the same incorrect difference in the target card's summary and
+resolution. Neither recomputed the correct difference from the cited operands.
+The pair cost $0.064582260, above its rough $0.05 forecast because control had
+substantial uncached input, but within its $0.50 hard cap. No tool executed and
+no article or memory changed. The paragraph is rejected, with no reroll or
+full-season promotion.
+
+### E27 preregistration: independent relation review
+
+The next mechanism separates selecting an explicit numerical relation from
+checking its arithmetic. One independent Flash review receives eight unchanged
+comparison facts and six synthetic controls. It must identify all six supported
+sums/differences, including three incorrect results, without adding false alarms
+to direct scores, records or out-of-scope percentages. Returned operands must
+reference supplied bindings and the stated result must appear in an exact claim
+excerpt. Deterministic Decimal code computes the result separately.
+
+Eighteen offline tests cover exact decimal behavior, binding ranges, invented
+excerpts, normalized numeric literals, punctuation and non-finite values. The
+checker does not certify semantic selection, source truth, temporal availability
+or completeness. This one-call advisory gate has a $0.015 forecast and $0.40 cap,
+inside the shared allowance. It executes no writer or memory tools, and even a
+pass would not justify automatic runtime blocking without further evaluation.
