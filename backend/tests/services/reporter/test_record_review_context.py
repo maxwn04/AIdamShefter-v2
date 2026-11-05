@@ -109,3 +109,20 @@ def test_review_context_is_bounded_and_reports_omissions():
     assert sum(len(d.excerpt) for d in contexts(receipt)) <= 6000
     assert all(len(d.excerpt) <= 1200 for d in contexts(receipt))
     assert all(d.message.count('"ref":') <= 4 for d in contexts(receipt))
+
+
+def test_punctuated_subject_keeps_whole_paragraph_and_opponent_records_separate():
+    first = replace(standing(), subject="Team R.", subject_id="franchise-r", week_to=7,
+                    fields={"wins": 9, "losses": 5, "record_unit": "standings_decisions"})
+    opponent = replace(first, ref="e1_0.r2", subject="Birch", subject_id="franchise-b",
+                       fields={**first.fields, "wins": 10, "losses": 4})
+    draft = "Team R. scored 121.75, lost to Birch, and moved from 8-4 to 9-5 on the second decision."
+    receipt = check(draft, [first, opponent])
+    first_context, opponent_context = contexts(receipt)
+    assert first_context.excerpt == draft
+    assert opponent_context.excerpt == draft
+    assert '"subject_id": "franchise-r"' in first_context.message
+    assert '"wins": 9' in first_context.message
+    assert '"subject_id": "franchise-b"' in opponent_context.message
+    assert '"wins": 10' in opponent_context.message
+    assert not any(d.code == "team_record_attribution" for d in receipt.diagnostics)
