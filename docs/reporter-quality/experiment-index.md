@@ -41,7 +41,8 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E28 / E29 | Verified arithmetic feedback in an earlier receipt, then detailed rejection feedback at the write boundary. | Earlier placement failed; detailed rejection showed no comparative advantage. No executed writes. |
 | E30 | Frozen arithmetic reviewer over 546 accepted-season facts. | Seventeen supported relations, no mismatch identified; omission recall and non-arithmetic accuracy remain unmeasured. |
 | E31 | Dedicated original-question field at creation. | Failed coherence discriminator: independent questions still fused into the field. |
-| E32 | Expose configured roster slots in ordinary source overview. | Two complete Week 1 arms preregistered; paid control running. Grounding outcome pending. |
+| E32 | Expose configured roster slots in ordinary source overview. | Two complete Week 1 arms; configuration used in treatment, strict comparative criterion inconclusive. |
+| E33 | Atomic independent artifact edits. | Control request failed with upstream HTTP 503; treatment unrun. Full uncertainty retained; 34 offline checks pass. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -95,7 +96,7 @@ and one reproduced pre-existing bracket-guidance failure; main CI passed. No
 additional PR has been merged or deployed.
 
 November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
-E32 is active; its candidate has 86 passing targeted checks. A stale tool-version
+E32 is complete; its candidate has 86 passing targeted checks. E33 attempted atomic edits separately but stopped at an upstream HTTP 503; no paid verdict. A stale tool-version
 assertion was reproduced on the baseline and updated to the candidate's declared
 version. The frozen reporter behavior was not changed to satisfy that assertion.
 

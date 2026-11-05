@@ -22,10 +22,12 @@ selected arithmetic relations across the accepted season. This does not clear th
 known non-arithmetic errors. No further season is promoted from these results.
 
 E31 tested a dedicated original-question field at creation; the treatment still
-combined unrelated questions, so it is not promoted. E32 is now preregistered:
-expose configured roster slots in the ordinary source overview, with slot and
-retrospective-setting semantics. Its two complete first-week arms begin from the
-same empty-memory checkpoint. Eighty-six targeted checks pass; paid outcome is pending.
+combined unrelated questions, so it is not promoted. E32 completed both first-week arms: the exposed roster configuration reached the
+treatment article and league note, but the fresh control did not explicitly assert
+a mandatory second quarterback. The strict comparative discriminator is inconclusive.
+Eighty-six targeted checks pass; no full season is promoted. E33 separately attempted an atomic-edit gate, but its first control request failed
+with an upstream HTTP 503. Treatment was not launched. Paid work is halted, with
+the complete uncertain reservation retained.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## Experiment status and decisions
@@ -66,7 +68,8 @@ No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 | E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
 | E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
 | E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
-| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms preregistered; 86 targeted checks pass | Pending | Source-grounding test; no paid outcome yet. |
+| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms; 86 targeted checks pass | $0.1908 | Mechanism supported, comparative criterion inconclusive: control wording did not explicitly require a second QB. No efficacy promotion. |
+| E33 | Atomic independent artifact edits | First control request failed; treatment unrun; 34 offline checks pass | $0.3543 retained uncertainty | Infrastructure-blocked. No feasibility verdict, reroll, or shipping promotion. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1288,3 +1291,48 @@ No full season or production behavior is approved by those tests alone.
 The additional tool checks reproduced a stale version assertion on the unchanged
 baseline (expected 5, actual 6). The candidate expectation now matches its declared
 version 7; no frozen reporter behavior changed for that test correction.
+
+### E32 terminal result and E33 preregistration
+
+E32 completed submission and closeout in 29 control and 31 treatment calls, costing
+$0.190826280. Treatment used the configured superflex and flex slots in its article
+and saved league note. Control inferred a categorical format from observed starters,
+but neither its article nor note explicitly required a second quarterback. The
+preregistered mandatory-rule comparison therefore remains inconclusive. Treatment
+used four edits versus eight in control; this is not an established efficiency
+effect. Both outputs still contain broad one-week judgments and lifecycle risks.
+All evidence bindings were valid; an empty-memory week cannot establish long-term
+pin preservation or repeated-trade behavior. No new uncertain request occurred.
+
+E33 addresses a separate concrete editing bottleneck. An original control trace
+planned multiple independent corrections but serialized them because the tool
+accepted one replacement per revision. The candidate retains that form and adds
+an atomic list of exact, non-overlapping replacements against the same original
+revision. Stale revisions, ambiguous matches, overlapping ranges and partial
+application fail closed. Thirty-four targeted tests pass. An offline replay of
+eight actual edit revisions reproduced the identical final article in two batches;
+that proves replay feasibility, not live adoption or article quality.
+
+One fresh control and one treatment receive the identical original pre-edit
+conversation and draft. Only the edit tool definition/implementation differs;
+roster-slot and rejected memory candidates are absent. Returned edit requests run
+only against separate in-memory draft copies; other tools do not execute. A narrow
+pass requires at least two justified, already-planned independent corrections in
+one treatment revision, without new factual errors or lost material information,
+and no equivalent one-revision control repair. Inspection, ties, invalid output or
+ambiguous corrections are inconclusive. No extra turn or reroll is allowed. The
+two-call forecast is $0.06, with a $0.50 cap inside the existing shared allowance.
+
+### E33 infrastructure stop
+
+The first control request returned HTTP 503 with upstream connection termination
+before response headers, after 7.493 seconds. SDK retries were disabled. No model
+response, proposal, tool execution or article/memory write was received. The full
+$0.3543216 reservation remains charged conservatively because billing is unknown.
+The treatment was not launched; no reroll or alternative provider was used.
+
+This is neither a negative nor positive batch-edit result. The 34 offline checks
+and byte-identical replay remain useful implementation evidence, but do not
+establish live adoption, latency or article quality. The shared paid ledger is
+halted. A later recovery must preserve this attempt and its reservation and be
+explicitly labeled; no additional season or runtime promotion follows from it.
