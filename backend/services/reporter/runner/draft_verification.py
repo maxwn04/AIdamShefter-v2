@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import asdict, dataclass
 
@@ -157,6 +158,64 @@ def _directional_reviews(
     return tuple(cards), tuple(passages.values()), covered, truncated
 
 
+def _record_context_reviews(
+    selected: list[tuple[BriefFact, EvidenceRecord]], text: str, text_truncated: bool,
+) -> tuple[tuple[DraftDiagnostic, ...], bool]:
+    """Show scoped source records; prose proximity does not establish attribution."""
+    groups: dict[tuple[str | None, str], list[tuple[BriefFact, EvidenceRecord]]] = {}
+    for fact, record in selected:
+        if not record.subject or not all(
+            isinstance(record.fields.get(key), int)
+            and not isinstance(record.fields[key], bool)
+            and record.fields[key] >= 0 for key in ("wins", "losses")
+        ):
+            continue
+        if not any(binding.ref == record.ref and binding.field in {"wins", "losses", "ties"}
+                   for binding in fact.bindings):
+            continue
+        members = groups.setdefault((record.subject_id, record.subject), [])
+        if not any(prior.ref == record.ref for _, prior in members):
+            members.append((fact, record))
+
+    paragraphs = [part for part in re.split(r"\r?\n[ \t]*\r?\n", text) if part.strip()]
+    diagnostics: list[DraftDiagnostic] = []
+    truncated = False
+    remaining_characters = 6000
+    for (_subject_id, subject), members in groups.items():
+        matches = [paragraph for paragraph in paragraphs
+                   if subject.casefold() in paragraph.casefold()
+                   and re.search(r"\b\d+-\d+(?:-\d+)?\b", paragraph)]
+        if not matches:
+            continue
+        if len(diagnostics) >= 12:
+            truncated = True
+            break
+        context = "\n\n".join(matches[:2])
+        excerpt = context[:min(1200, remaining_characters)]
+        remaining_characters -= len(excerpt)
+        omitted = (len(members) > 4 or len(matches) > 2 or len(excerpt) < len(context)
+                   or (text_truncated and text.endswith(matches[-1])))
+        observations = [{
+            "ref": record.ref, "fact_id": fact.id, "subject_id": record.subject_id,
+            "season": record.season, "week_from": record.week_from, "week_to": record.week_to,
+            "temporal_kind": record.temporal_kind,
+            "units": record.units,
+            **{key: record.fields[key] for key in ("wins", "losses", "ties", "record_unit") if key in record.fields},
+            "limitations": record.limitations,
+        } for fact, record in members[:4]]
+        message = (
+            f"Selected source records for {subject} (not a mismatch verdict): "
+            + json.dumps(observations, ensure_ascii=False)
+            + ". Compare team, period, ties and record unit against the complete draft. "
+            "A passage may contain other teams or historical records; proximity is not proof of attribution."
+        )
+        if omitted:
+            message += " Review context is truncated; inspect omitted source records or the complete draft."
+        diagnostics.append(DraftDiagnostic("team_record_context", message, excerpt, members[0][0].id))
+        truncated |= omitted
+    return tuple(diagnostics), truncated
+
+
 def verify_draft(
     artifact: ArtifactSnapshot, brief: ResearchBrief, evidence: EvidenceReader,
 ) -> DraftVerification:
@@ -188,14 +247,11 @@ def verify_draft(
                 net = record.fields.get("net_draft_picks")
                 if isinstance(net, (int, float)) and net > 0 and re.search(r"\b(spent|spending|sacrificed|mortgaged)\b.*\b(future|flexibility|capital|picks)\b", sentence, re.I):
                     diagnostics.append(DraftDiagnostic("draft_capital_framing", "Source shows a net gain in draft picks; review claims of spending future flexibility (pick count does not establish pick value).", excerpt, fact.id))
-                wins, losses = record.fields.get("wins"), record.fields.get("losses")
-                if isinstance(wins, int) and isinstance(losses, int):
-                    for match in re.finditer(r"\b(\d+)-(\d+)(?:-(\d+))?\b", sentence):
-                        if (int(match[1]), int(match[2])) != (wins, losses):
-                            diagnostics.append(DraftDiagnostic("team_record_attribution", f"Source record for {record.subject} is {wins}-{losses}; check team and period attribution.", excerpt, fact.id))
                 if record.limitations and not any(word in sentence.casefold() for word in ("available", "partial", "unknown", "incomplete", "among", "through", "could", "may")):
                     diagnostics.append(DraftDiagnostic("source_limitation", "Meaningful source limitations may need to be visible: " + "; ".join(record.limitations), excerpt, fact.id))
     cards, passages, covered, review_truncated = _directional_reviews(selected, text, len(artifact.content) > limit)
+    record_context, record_truncated = _record_context_reviews(selected, text, len(artifact.content) > limit)
+    diagnostics.extend(record_context)
     bracket = bracket_review(text, evidence)
     for sentence in sentences:
         for pattern, category in ((_SUPERLATIVE, "superlative"), (_CHAMPIONSHIP, "championship"), (_COMPARISON, "comparison"), (_DIRECTION, "transaction")):
@@ -212,7 +268,7 @@ def verify_draft(
     for ref in re.findall(r"\b(?:e\d+_\d+|direct\d+)\.r\d+\b", artifact.content):
         if evidence.resolve(ref) is None:
             errors.append(f"Visible reference {ref} does not resolve to this generation's evidence.")
-    truncated = review_truncated or bool(bracket and bracket.truncated) or scanned_records > 100 or len(artifact.content) > limit or len(re.split(r"(?<=[.!?])\s+|\n+", text)) > 160 or len(diagnostics) > 40
+    truncated = review_truncated or record_truncated or bool(bracket and bracket.truncated) or scanned_records > 100 or len(artifact.content) > limit or len(re.split(r"(?<=[.!?])\s+|\n+", text)) > 160 or len(diagnostics) > 40
     return DraftVerification(
         artifact.path, artifact.revision, artifact.content_hash, brief.revision,
         tuple(diagnostics[:40]), tuple(dict.fromkeys(errors)), len(text), truncated,
