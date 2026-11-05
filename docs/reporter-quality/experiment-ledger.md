@@ -42,7 +42,8 @@ already included in completion tokens is not charged a second time.
 | E24 | Scoped record diagnostics in complete reporting | Two complete matched Week 4 arms | $0.2680 | Inconclusive: control made no unnecessary record edit; all treatment edits preceded changed feedback. Independent factual errors remained. |
 | E25 | Disclose historical limits of snapshot pick inventories | Two complete Week 3 arms; 27 offline checks pass | $0.2559 | Inconclusive comparison: control lacked inventory exposure. Treatment explicitly followed the caveat; no general quality or lifecycle promotion. |
 | E26 | Explicitly recompute derived numbers before memory writes | Two frozen proposal continuations | $0.0646 | Reject: both typed-valid proposals repeat the same incorrect difference. No tools executed or season promoted. |
-| E27 | Independent numeric-relation selection plus exact decimal validation | One preregistered 14-case advisory batch; 18 offline tests | In progress | No writer feedback, automatic blocking or memory mutation; semantic selection remains distinct from arithmetic verification. |
+| E27 | Independent numeric-relation selection plus exact decimal validation | One 14-case advisory batch; 18 offline tests | $0.0033 | Narrow pass: all six relations, three wrong results detected, no extra/missing relations. No runtime integration or quality promotion. |
+| E28 | Give the writer E27's verified arithmetic diagnostic | Two preregistered frozen continuations | In progress | Original article/facts unchanged; no returned memory tools execute. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1155,3 +1156,27 @@ checker does not certify semantic selection, source truth, temporal availability
 or completeness. This one-call advisory gate has a $0.015 forecast and $0.40 cap,
 inside the shared allowance. It executes no writer or memory tools, and even a
 pass would not justify automatic runtime blocking without further evaluation.
+
+### E27 result and E28 preregistration
+
+E27 selected all six expected relations across fourteen cases. Decimal validation
+identified all three incorrect results, with no invalid references, missing
+relations or extra relations. Manual review confirmed the selected operands and
+comparison scopes in this small packet. Cost was $0.003343200. This narrow
+advisory pass supports testing writer uptake; it does not establish safe runtime
+blocking, general semantic accuracy or better articles.
+
+E28 adds the actual verified arithmetic finding as one structured field in the
+original successful submission receipt. The finding includes the source-bound
+operands, quoted claimed result and independently computed result. The article,
+brief facts, existing procedure, tools and subsequent original assistant turns
+stay frozen. E26's failed reminder and E25's ownership wording are not inherited;
+the parent remains the exact E24 treatment continuation.
+
+One fresh control and one treatment must produce comparable typed-valid updates
+to the same current card. Treatment must correct or explicitly qualify the bad
+comparison, retain supported development and avoid introducing a different
+question. A correct control, missing/invalid update, ambiguity or incomplete pair
+is inconclusive; no extra turn or reroll is allowed. Inherited historical question
+drift remains a separate limitation, even if arithmetic improves. The pair has
+a $0.08 forecast and $0.50 cap within the shared allowance and executes no writes.
