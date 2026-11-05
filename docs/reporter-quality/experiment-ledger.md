@@ -1057,3 +1057,25 @@ this narrow curated-roster presentation change. No ownership reconstruction,
 source regeneration, favorable reroll or production rollout is authorized by the
 experiment itself. Its conservative forecast is $0.40 with a $1.10 pair cap inside
 the existing shared allowance; paid launch follows E24's terminal audit.
+
+### E24 terminal comparison: inconclusive
+
+Both Week 4 arms completed submission and memory closeout. Control used 25 calls
+and four edits; treatment used 28 calls and six edits. Total cost was $0.268010484,
+with no new uncertain request or embedding call. Control made no unnecessary
+record edit, so the preregistered avoided-edit discriminator cannot pass. Treatment
+received eleven contextual record advisories, with no edit after verification.
+All six of its edits happened before its first changed diagnostic feedback; their
+count and the different article cannot be attributed to that feedback.
+
+Both arms preserved all 29 prior memory versions, original content and valid
+evidence bindings. Repeated trade saves retained their original identities.
+Grounding remains imperfect: control misstated a historical interval; treatment
+miscomputed a points gap and described a flexible lineup slot as mandatory for
+one position. The arithmetic error reached a saved fact and a canonical storyline
+resolution. These are retained failures, not corrected experiment outputs.
+
+Decision: no article-quality or revision-efficiency promotion. The diagnostic
+candidate remains reviewable for its offline correctness rationale. The next
+separately scoped test is E25's ownership-evidence limitation; it inherits the
+unchanged E16 baseline, not this verifier candidate.
