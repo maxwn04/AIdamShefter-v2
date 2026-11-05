@@ -1079,3 +1079,29 @@ Decision: no article-quality or revision-efficiency promotion. The diagnostic
 candidate remains reviewable for its offline correctness rationale. The next
 separately scoped test is E25's ownership-evidence limitation; it inherits the
 unchanged E16 baseline, not this verifier candidate.
+
+### E26 preregistration: derived arithmetic in durable memory
+
+E24 exposed a distinction between source provenance and claim correctness: source
+bindings contained the right operands, but an incorrect computed gap appeared in
+the brief, article and subsequent storyline resolution. The next selected-case
+probe appends one general paragraph to closeout: recompute derived numbers from
+compatible cited operands, recognize that a successful binding does not certify
+arithmetic, and omit or qualify a calculation when operands are unavailable.
+It supplies no target names, numbers, desired storyline status or corrected prose.
+
+One fresh control and one treatment use the exact original pre-write conversation
+from E24's treatment, retaining its record-context verifier and all assistant
+reasoning. E25 and the rejected identity/repair candidates are not inherited.
+No returned tool executes, so neither the published article nor canonical memory
+changes. This is a selected known-error challenge, not a fresh full-week result.
+
+The discriminator requires the fresh control to reproduce the invalid comparison
+and treatment to make a typed-valid substantive update to the same card that
+corrects or explicitly qualifies the derived result, preserving the supported
+development and original question. A correct control, missing update, invalid
+selector, inspection-only response or ambiguous outcome is inconclusive. All
+other numerical claims and scope changes must also be audited. No extra turn or
+reroll is allowed. The pair forecast is $0.05, capped at $0.50 within the existing
+allowance; it cannot launch until E25 is terminal and audited. Even a narrow pass
+would not establish improved published articles or safe automatic memory repair.
