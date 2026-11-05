@@ -343,7 +343,7 @@ def test_full_regular_query_contract_matches_legacy_golden(
             return [legacy_shape(item) for item in value]
         if not isinstance(value, dict):
             return value
-        omitted = {"competition_phase", "standings_through_week", "standings_basis", "record_unit"}
+        omitted = {"roster_positions", "competition_phase", "standings_through_week", "standings_basis", "record_unit"}
         if "as_of_week" in value:
             omitted.add("streak_basis")
         if "asset_type" in value:

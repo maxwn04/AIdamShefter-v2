@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from ._helpers import (
@@ -145,7 +146,7 @@ def get_league_snapshot(
     league = fetch_one(
         conn,
         """
-        SELECT league_id, season, name, sport, playoff_week_start, league_average_match
+        SELECT league_id, season, name, sport, playoff_week_start, league_average_match, roster_positions_json
         FROM leagues
         WHERE league_id = :league_id AND season = :season
         """,
@@ -154,6 +155,8 @@ def get_league_snapshot(
     if not league:
         return {"found": False}
     league["league_average_match"] = bool(league["league_average_match"])
+    raw_positions = league.pop("roster_positions_json", None)
+    league["roster_positions"] = json.loads(raw_positions) if raw_positions else None
 
     effective_week = week
 

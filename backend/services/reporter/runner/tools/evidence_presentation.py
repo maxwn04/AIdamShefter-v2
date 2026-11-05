@@ -426,6 +426,8 @@ def _view_guidance(records: tuple[EvidenceRecord, ...], view: str) -> list[str]:
         guidance.append("Game score_winner (legacy winner) compares game scores; it does not establish a recorded playoff outcome or advancement. Use team_game for player detail; read_evidence view=detail accesses the full catalog.")
         if records[0].tool == "league_snapshot":
             guidance.append("Use transactions for movement detail in the selected week range.")
+    if any(isinstance(record.fields.get("roster_positions"), list) for record in records):
+        guidance.append("roster_positions lists configured slot types, including bench slots (BN); it is not a list of players used. QB requires a quarterback; SUPER_FLEX permits QB, RB, WR or TE and does not require a second quarterback. FLEX permits RB, WR or TE. Observed starters do not establish mandatory position counts. These settings come from the selected snapshot; their historical change dates are not established.")
     if any("source_week" in record.fields for record in records):
         guidance.append("source_week is provider grouping, not postgame timing. occurred_at is the provider created timestamp in UTC; it does not establish a response to a game or a causal motive. status=complete supports completed movement; other statuses do not.")
         guidance.append("Movement claims need movement and team/endpoint fields: add/pick_in means received; drop/pick_out means sent. A player name and complete status alone do not establish a pickup.")

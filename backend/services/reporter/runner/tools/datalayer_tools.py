@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from backend.services.datalayer import FrozenLeagueData
 
 
-DATALAYER_TOOL_IMPLEMENTATION_VERSION = "6"
+DATALAYER_TOOL_IMPLEMENTATION_VERSION = "7"
 
 
 def _week_property(description: str = "Week number (1-18).") -> dict[str, str]:
