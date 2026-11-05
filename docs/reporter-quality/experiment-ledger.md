@@ -21,11 +21,12 @@ detailed rejection feedback, and E30 found no mismatch among its seventeen
 selected arithmetic relations across the accepted season. This does not clear the
 known non-arithmetic errors. No further season is promoted from these results.
 
-The next substantive design question is an explicit stable question representation
-for newly created storylines, evaluated separately from evolving summaries and
-closure decisions. It is a proposed hypothesis, not implemented or demonstrated
-here. More general arithmetic reminders and buried advisory fields are not being
-stacked into the reporter.
+E31 tested a dedicated original-question field at creation; the treatment still
+combined unrelated questions, so it is not promoted. E32 is now preregistered:
+expose configured roster slots in the ordinary source overview, with slot and
+retrospective-setting semantics. Its two complete first-week arms begin from the
+same empty-memory checkpoint. Forty targeted checks pass; paid outcome is pending.
+No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## Experiment status and decisions
 
@@ -64,6 +65,8 @@ stacked into the reporter.
 | E28 | Give the writer E27's verified arithmetic diagnostic | Two frozen continuations | $0.0121 | Reject this placement: treatment still asserts the wrong difference in its summary. No writes executed. |
 | E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
 | E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
+| E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
+| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms preregistered; 40 targeted checks pass | Pending | Source-grounding test; no paid outcome yet. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1249,3 +1252,35 @@ question drift and retrospective ownership problem remain. The audit has no
 exhaustive estimate of omitted relations or other factual errors. The read-only
 prototype is retained; these results do not justify a general automatic grounding
 guard or another full season with an unproven repair mechanism.
+
+
+### E31: explicit question field at creation
+
+Both arms used the original first-week pre-closeout conversation and tools from
+E16. The only treatment difference was a required `original_question` string on
+the storyline tool. The existing identity paragraph remained; E17's extra prose
+and E13's update assessment were absent. Both proposals passed their declared
+JSON schemas. The control combined table interpretation with a separate lineup
+choice; the treatment put both into its new field and supplied no future callback.
+The field therefore failed the preregistered coherence discriminator. No returned
+tool executed, no memory was committed and no article changed. The two calls cost
+$0.033226068. A field's existence is not proof of semantic identity preservation.
+
+### E32: configured roster slots — preregistered
+
+Retained traces repeatedly inferred a mandatory second quarterback from observed
+starters, although the frozen configuration has a quarterback slot and superflex.
+The existing ordinary overview omitted that configuration. The candidate exposes
+the existing source slot list and scoped guidance; it does not rebuild source data
+or infer historical rule-change dates. Superflex accepts QB, RB, WR or TE, as
+[documented by Sleeper](https://support.sleeper.com/en/articles/4172355-how-can-i-add-additional-roster-positions).
+
+Two fresh original Week 1 runs share the original empty-memory boundary and all
+E16 settings. A narrow pass requires an unsupported mandatory-position claim in
+the fresh control and supported treatment behavior after slot exposure, without
+rejecting legitimate observed two-quarterback lineups. Both accurate, no relevant
+exposure/assertion, ambiguous wording or incomplete coverage is inconclusive.
+Source discovery, authored facts, canonical notes, revisions and unrelated errors
+will be reported separately. Forty targeted checks cover source-to-evidence slot
+preservation, absent/unknown slots, overview exposure and existing query behavior.
+No full season or production behavior is approved by those tests alone.
