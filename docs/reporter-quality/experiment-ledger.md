@@ -30,10 +30,15 @@ already included in completion tokens is not charged a second time.
 | E12 | Extend original context to already-selected due-callback storyline links | One completed selected challenge after a preserved infrastructure failure | $0.5232, including $0.3543 unknown | Partial/mixed: historical inversion corrected with source verification; question narrowing and other errors remain. No automatic season promotion. Known-failure control reused. |
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
-| E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
+| E15 | Independent identity reviewer | One frozen 12-case synthetic batch | $0.0101 | Capability passed 12/12, including valid early closure and either/or outcomes. No writer-quality result. |
 | E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | All 17 weeks completed after explicit checkpoint recovery; both original failed attempts retained | $2.7493, including $0.3543 uncertain | Mixed baseline: unique trade identities and correct championship acquisition callback; factual errors and unsupported storyline closure remain. |
 | E17 | Coherent storyline identity at creation | Two fresh matched proposal-only calls | $0.0356 | Not promoted: both proposals still mix the standings question with a separate lineup question. No season or shipping PR. |
 | E18 | Subject-scoped source-record review context | Two matched synthetic reviewer calls, five cases each; 76 offline tests | $0.0056 | Tie: both arms pass 5/5. Draft #268 retains a narrow diagnostic-correctness rationale, not demonstrated editing or efficiency gains. |
+| E19 | Verify ordered periods before saving temporal claims | Two fresh matched proposal calls | $0.0737 | Inconclusive: fresh control and treatment both avoid the historical false streak. No season or PR. |
+| E20 | Independent review on real frozen original questions and evidence | One curated four-case advisory batch | $0.1146 | Narrow discrimination passed; suggested successor remedy remains too permissive for automatic use. |
+| E21 | Give the writer independent pre-save review rejection | Two simulated tool-boundary continuations | $0.0563 | Inconclusive: treatment changes wording/status but omits both required update selectors; neither repair can execute. |
+| E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
+| E23 | Repeat immutable original context in the rejection receipt | Preregistered paired proposal probe | In progress | Tests original-scope repair; no runtime hook or canonical writes. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -501,14 +506,14 @@ that context reset improves identity preservation. There was no extra treatment
 turn or favorable reroll. Two settled completions cost $0.026976372; no embeddings
 or new uncertain request. The intervention was not promoted.
 
-### E15: independent reviewer capability — prepared, not run
+### E15: original preparation checkpoint — subsequently executed November 5
 
 A synthetic reviewer test was prepared to distinguish question substitution,
 partial answers, legitimate early closure, separate successor stories, missing
 origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
 separate from the merged baseline and is not evidence of improved reporting.
 
-### E16: fresh merged baseline — terminal partial coverage
+### E16: original baseline registration and historical partial checkpoint
 
 E16 starts with empty canonical memory and the original chronological 17-week
 source/editorial plan. Reporting changes exactly match the four approved merges.
@@ -705,7 +710,7 @@ particular merge. It motivates a separate hypothesis about source-supported
 temporal claims in memory; neither E17 nor E18 currently addresses that boundary.
 
 
-### E16 terminal result and decisions
+### E16 November 4 budget stop — superseded by the November 5 completion below
 
 E16 completed Weeks 1–16. Week 17 received three settled research responses, then
 stopped before turn 4 was sent because the remaining conservative allowance could
@@ -895,3 +900,79 @@ control without adding another factual or identity regression. Both correct,
 inspection-only, ambiguous or missing proposals are inconclusive, with no rerolls.
 The original observed failure is a correct list of separated bad weeks compressed
 into an unsupported consecutive streak, later exposed and repeated in an article.
+
+
+### E19 paid gate — no fresh control failure
+
+Both fresh arms exercised the selected existing storyline update. Control
+explicitly separated the earlier double loss, an intervening sweep, and the later
+third double loss; treatment also retained the correct separated-week sequence.
+The historical error remains verified, but the fresh control did not reproduce
+it. The primary discriminator therefore failed, and this $0.073723008 pair is
+inconclusive. There were no executed tools, canonical changes, retries or new
+uncertainty. No E19 season or shipping PR is promoted.
+
+### E15 and E20 — independent review has limited positive evidence
+
+The original, unchanged E15 synthetic packet ran once after nine scorer tests
+passed. It correctly handled all twelve cases for $0.0100902: six valid
+continuations/closures, four clear substitutions or unsupported closures, missing
+origin evidence, and an ambiguous payoff criterion. In particular it accepted a
+supported early closure, a negative answer, an explicit either/or outcome and a
+separate successor after the original was answered. This measures reviewer
+capability, not an effect on reporting.
+
+E20 then reviewed four curated real frozen updates, with original and prior cards,
+complete source-tool observations before the proposal, source-bound brief facts,
+and the unchanged submitted article. Each case retained its own cutoff and source
+snapshot. Expected verdicts were withheld. The reviewer flagged both final-week
+scope/status contradictions, accepted the supported final-period comparison,
+and accepted the scope-sensitive early either/or closure without imposing an
+arbitrary duration requirement. The one batch cost $0.1145943.
+
+This is narrow positive advisory evidence. The review sometimes suggests moving
+an unanswered component into a successor without sufficiently preserving the
+original question's identity. Its reasons are not an automatic safe fix. No
+writer feedback, memory mutation or article change occurred in E20. Full evidence
+packets also have a material token cost; no efficiency benefit is assumed.
+
+### E21 — repair wording is not an executable repair
+
+The paired probe continued the exact original final-week post-proposal context.
+Control retained ordinary successful receipts; treatment replaced two receipts
+with explicitly simulated pre-save rejections containing the unchanged E20
+reviewer reasons. Every other message, original assistant tool argument and
+reasoning field, source observation, tool definition and submitted article was
+unchanged. No real tool result or archived database was edited.
+
+Control called the completion tool without repair. Treatment proposed active
+summaries that retained unresolved valuation, but omitted both `id` and
+`update_handle` from each update. The existing typed input validator rejects
+both calls: a creation key or existing update selector is required. Under the
+predeclared malformed/incomplete-proposal rule this is **inconclusive**, not
+successful memory repair. The pair cost $0.056257068; no extra turn, reroll or
+canonical write followed.
+
+E22 separately tests the interface issue by adding an explicit retry object that
+echoes each original update selector and the existing tool contract. Reviewer
+advice and all substantive reporting context stay unchanged. Typed validity is
+checked before semantic quality. This is a new receipt-format comparison, not a
+continuation or favorable reroll of E21, and no production review hook is installed.
+
+### E22 — valid selectors, no demonstrated receipt-format benefit
+
+Both fresh arms supplied the two exact existing update handles and passed the
+real typed argument validator. Both kept the valuation questions active. This is
+an actionability tie, so the added selector echo does not pass the primary
+control-fails/treatment-improves discriminator. More importantly, the treatment
+still rewrote an original valuation question as a question about winning the
+championship. Correct selectors and active status do not establish correct
+question identity. Two calls cost $0.005262288; no tools executed or canonical
+state changed. No season or shipping change is promoted from this result.
+
+E23 separately tests adding the exact immutable original card to each rejection
+receipt. The selector-bearing receipt is an interface choice shared by both
+arms, not an E22 efficacy claim. Reviewer reasons, source context, submitted
+article, tool definitions and all previous assistant reasoning remain unchanged.
+The discriminator requires supported original-scope repairs in treatment and a
+semantic failure in fresh control; equivalent repairs remain inconclusive.
