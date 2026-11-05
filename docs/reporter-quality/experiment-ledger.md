@@ -38,7 +38,8 @@ already included in completion tokens is not charged a second time.
 | E20 | Independent review on real frozen original questions and evidence | One curated four-case advisory batch | $0.1146 | Narrow discrimination passed; suggested successor remedy remains too permissive for automatic use. |
 | E21 | Give the writer independent pre-save review rejection | Two simulated tool-boundary continuations | $0.0563 | Inconclusive: treatment changes wording/status but omits both required update selectors; neither repair can execute. |
 | E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
-| E23 | Repeat immutable original context in the rejection receipt | Preregistered paired proposal probe | In progress | Tests original-scope repair; no runtime hook or canonical writes. |
+| E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
+| E24 | Scoped record diagnostics in complete reporting | Matched Week 4 pair, preregistered; 76 operational-parent tests pass | Preparing | One verifier file differs; factual correction and unnecessary edits assessed separately. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -976,3 +977,39 @@ arms, not an E22 efficacy claim. Reviewer reasons, source context, submitted
 article, tool definitions and all previous assistant reasoning remain unchanged.
 The discriminator requires supported original-scope repairs in treatment and a
 semantic failure in fresh control; equivalent repairs remain inconclusive.
+
+### E23 — original text exposure still does not establish faithful repair
+
+Control again omitted both required selectors and explicitly rewrote the original
+valuation question as a title question. Treatment returned valid handles and kept
+valuation open, but still asserted a title component of that valuation-only
+original. It also centered the other original production/standings-payoff question
+on the championship result. This does not pass complete original-scope repair.
+The pair cost $0.005794656; no tool executed or memory changed. The reviewer
+intervention is not promoted to a live write hook or a longitudinal run.
+
+### E24 — complete reporting test of scoped record diagnostics
+
+This comparison returns to the independently reproduced record-diagnostic defect
+in draft #268. One fresh control and one treatment will each write the original
+Week 4 request from the identical completed Week 3 database, source cutoff and
+pre-Week 4 embeddings. Only the record-verification implementation differs.
+Seventy-six targeted tests also pass on the actual E16 operational parent with
+the candidate applied. No rejected storyline paragraph or review intervention is
+incorporated.
+
+The review will classify each record diagnostic and following edit against the
+correct subject and period. A behavioral improvement requires an unnecessary
+control record edit avoided by treatment without a missed real error. Warning
+counts, different prose and fewer total revisions alone are insufficient. If the
+arms do not expose comparable opportunities, the result remains inconclusive.
+Both complete articles, all attempts and memory changes will be preserved.
+
+Preflight required two recoveries before any E24 paid call: full original embedding
+coordinates were read from the preserved database because the JSON export displays
+abbreviated vectors, and unused restored containers were removed after verifying
+no new generations or committed changes. Both arms will run sequentially to keep
+room for verified exports. Original vector IDs, metadata, source-content hashes
+and timestamps before the original Week 4 generation match; no future memory or
+new embeddings are substituted. The pair has a conservative $0.45 forecast and a
+$1.10 aggregate cap, within the existing shared hard allowance.
