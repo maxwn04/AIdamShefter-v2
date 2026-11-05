@@ -39,7 +39,8 @@ already included in completion tokens is not charged a second time.
 | E21 | Give the writer independent pre-save review rejection | Two simulated tool-boundary continuations | $0.0563 | Inconclusive: treatment changes wording/status but omits both required update selectors; neither repair can execute. |
 | E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
 | E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
-| E24 | Scoped record diagnostics in complete reporting | Matched Week 4 pair, preregistered; 76 operational-parent tests pass | Preparing | One verifier file differs; factual correction and unnecessary edits assessed separately. |
+| E24 | Scoped record diagnostics in complete reporting | Control complete; treatment running; 76 operational-parent tests pass | In progress | Control recognizes record-warning noise and makes no unnecessary record edit; paired factual audit pending. |
+| E25 | Disclose historical limits of snapshot pick inventories | Matched Week 3 pair preregistered; 27 offline checks pass | $0 so far | Source values and original snapshots remain unchanged; no paid launch yet. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1013,3 +1014,46 @@ room for verified exports. Original vector IDs, metadata, source-content hashes
 and timestamps before the original Week 4 generation match; no future memory or
 new embeddings are substituted. The pair has a conservative $0.45 forecast and a
 $1.10 aggregate cap, within the existing shared hard allowance.
+
+### E24 control checkpoint
+
+Control submitted on turn 21 and completed closeout on turn 25 for $0.130382364.
+It received 38 record warnings across two verification calls (19 repeated in each),
+recognized the cross-comparison noise, and made no unnecessary record edit. One
+edit corrected a real trade-asset direction; three adjusted wording. The primary
+efficiency discriminator therefore cannot pass on this sample. Treatment still
+runs for the preregistered factual and completion audit. A temporal description
+remains wrong: evidence from the preceding week is described as several weeks
+old. This is distinct from an incorrect raw standings value.
+
+A synthetic regression now covers a team name ending in a period: paragraph
+context keeps that subject and its opponent's records separate. Eleven tests in
+the changed module pass on the published head; the implementation remains the
+same file used by the running treatment.
+
+### E25: disclose snapshot ownership limitations
+
+A separate offline candidate targets an audited source limitation. The frozen
+pick-inventory view overlays a selected endpoint snapshot; it does not reconstruct
+ownership from each week's dated transfers. Some recorded transfer chains disagree
+with the earlier ownership view. Other apparent discrepancies precede the first
+recorded transfer and cannot alone rule out missing or preseason history.
+
+The change qualifies inventory summaries and pick rows, including empty lists,
+without altering raw values, identities, dates or source snapshots. Dated trade
+assets and unrelated player records remain unaffected. The snapshot is described
+as selected for the reporting cutoff, not proof of historical observation. The
+tool implementation version also changes to identify the presentation revision.
+Twenty-seven targeted checks pass on both the public candidate and actual E16
+operational parent. No record-verifier or rejected memory treatment is inherited.
+
+The preregistered pair uses the original Week 3 request and the identical Week 2
+checkpoint with all 22 original pre-generation embeddings. Treatment must qualify
+or avoid an unsupported historical inventory/resource constraint made by fresh
+control while preserving correct dated transfers. Both arms must encounter
+inventory evidence; no exposure, equivalent qualification, missing analogous
+opportunity or ambiguous scope remains inconclusive. Arbitrary SQL is outside
+this narrow curated-roster presentation change. No ownership reconstruction,
+source regeneration, favorable reroll or production rollout is authorized by the
+experiment itself. Its conservative forecast is $0.40 with a $1.10 pair cap inside
+the existing shared allowance; paid launch follows E24's terminal audit.
