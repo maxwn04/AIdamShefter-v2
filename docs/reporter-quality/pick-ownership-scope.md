@@ -43,5 +43,23 @@ opportunity is inconclusive. No favorable rerolls or source regeneration are
 permitted. Article and memory changes will be assessed separately, and behavior
 before the caveat is encountered will not be attributed to it.
 
-Current decision: offline candidate; paid comparison pending. No production
-rollout or broader quality claim is made.
+## Completed E25 comparison
+
+Both arms completed article submission and memory closeout. Control used 28 calls
+and ten edits; treatment used 36 calls and six edits. The pair cost $0.255850584,
+with no new uncertain request or embedding call. Both preserved all 22 original
+memory versions and valid evidence bindings, with no duplicate trade identity.
+
+Control never used roster inventory, so the primary both-exposure discriminator
+was unavailable and the comparative efficacy result is inconclusive. Treatment
+did encounter inventory twice. Its trace explicitly recognized the caveat,
+rejected a precise historical-inventory assertion, and relied on dated transfers
+instead; the final article retained those recorded movements. That is observed
+compliance with the caveat, not proof that this candidate outperformed control.
+
+Treatment also encountered a SQL permission rejection and corrected two memory
+argument rejections. It continued an inherited storyline whose original identity
+was already mixed and shifted; no general lifecycle or prose improvement is
+claimed. No reroll or full-season promotion follows this pair. The candidate
+remains reviewable for accurate source-scope disclosure, with broader behavioral
+efficacy unresolved.
