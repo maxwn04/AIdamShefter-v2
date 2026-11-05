@@ -71,3 +71,16 @@ conservative spending boundary during Week 17. Both arms remain unrun, with zero
 paid gate calls. This is neither a failed comparison nor an inconclusive paid
 result; the frozen packets and discriminator are retained. No quality promotion
 is made from the offline tests.
+
+
+## November 5 paired gate
+
+The previously frozen synthetic gate has now run once per arm. Both control and
+treatment passed all five cases: preserve two correct records, correct two real
+errors, and decline an unsupported time-period claim. Cost was $0.005562408;
+there were no returned tool executions, retries, embeddings or uncertain requests.
+The predeclared improvement discriminator was not met because control also made
+all correct decisions. This is an inconclusive tie. The PR's rationale remains
+the reproduced cross-comparison defect and scoped diagnostic presentation, not
+evidence of reduced live revision churn or better articles. Backend code remains
+unchanged from the head that passed 76 targeted tests.
