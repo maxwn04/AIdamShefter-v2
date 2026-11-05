@@ -31,9 +31,9 @@ already included in completion tokens is not charged a second time.
 | E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
 | E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
 | E15 | Independent identity reviewer | Synthetic packet prepared, unrun | $0 | No capability or reporting-quality result yet. |
-| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | Sixteen completed weeks; Week 17 stopped before turn 4 dispatch; original interrupted Week 8 retained | $2.6295, including $0.3543 uncertain | Partial baseline: sound trade identity, broader saving and a correct semifinal acquisition callback, alongside verified factual errors and mixed question identity. Championship callback unmeasured. |
-| E17 | Coherent storyline identity at creation | One-factor proposal gate prepared, unrun due to shared budget boundary | $0 | No paid verdict; frozen packets and 14 passing targeted tests retained. |
-| E18 | Subject-scoped source-record review context | Offline candidate, 76 targeted tests; synthetic gate unrun due to budget | $0 | Draft #268: false cross-comparison reproduced; live error correction and efficiency unmeasured. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | All 17 weeks completed after explicit checkpoint recovery; both original failed attempts retained | $2.7493, including $0.3543 uncertain | Mixed baseline: unique trade identities and correct championship acquisition callback; factual errors and unsupported storyline closure remain. |
+| E17 | Coherent storyline identity at creation | Two fresh matched proposal-only calls | $0.0356 | Not promoted: both proposals still mix the standings question with a separate lineup question. No season or shipping PR. |
+| E18 | Subject-scoped source-record review context | Two matched synthetic reviewer calls, five cases each; 76 offline tests | $0.0056 | Tie: both arms pass 5/5. Draft #268 retains a narrow diagnostic-correctness rationale, not demonstrated editing or efficiency gains. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -803,8 +803,95 @@ has no prior article or canonical writes. Its recovery uses the controller's
 explicit failed-attempt retry from the complete Week 16 memory boundary, not an
 in-memory transcript continuation. No earlier week is regenerated.
 
-The Week 17 recovery is running. E17 and E18 will retain their original frozen
+The Week 17 recovery completed. E17 and E18 retain their original frozen
 paired tests and decision rules; the earlier unrun budget outcome remains part
 of their history. Results below will distinguish source discovery, saved memory,
 recall exposure, article use and factual grounding. No additional PR merge or
 production change is authorized or performed by this continuation.
+
+
+### E16 completed season — November 5
+
+The restored Week 17 attempt succeeded in 34 turns: 21 research turns, a first
+draft at turn 22, submission at turn 31, and three closeout turns. The accepted
+article is unchanged. Recovery added $0.119739606 in settled generation cost and
+no uncertainty or embedding charge. Full E16 cost is $2.749263330, comprising
+$2.394941730 settled plus the earlier $0.3543216 unknown request. All 597
+dispatched completion requests and 21 embedding requests are accounted for; the
+old budget-blocked dispatch is not counted as a billed request.
+
+The final article leads with a championship acquisition callback and reconstructs
+the multi-party trade, including the future first-round pick and each player's
+direction. The trace distinguishes the stages: original canonical save in Week
+12; broader storyline exposure in Week 17 without an exact original-event binding;
+fresh transaction research in turns 3–4; a bound trade fact at turn 11; a trade-
+payoff callback at turn 21; and article use at submission. There was no explicit
+memory search or inspection. This is contextual exposure plus source rediscovery
+and use, not proof that direct event retrieval caused the callback.
+
+The repeat trade save reused its original identity. Final totals are 21 source
+transactions, 21 canonical trade items, 30 versions and nine repeat versions,
+with zero duplicate groups, source collisions, changed typed assets or broken
+links. Twenty retained checkpoint visibility/content checks passed.
+
+Lifecycle remains a material failure. The final two active storylines were marked
+resolved; one summary explicitly admits that the second half of the original
+question is unanswered, and another replaces an original pick-valuation question
+with a title question while saying valuation remains open. All seven current arcs
+are now resolved and all twelve current callbacks satisfied. The text is retained
+in history, but no active follow-up preserves those unresolved components. This
+is a scope/status contradiction, not a rule that stories should live longer.
+
+The final article correctly separates the finalists' regular-season records and
+acknowledges unknown eventual pick value. Earlier factual errors remain part of
+the season result. Its temporary-ownership metaphor is not established by the
+transaction record, and emphatic title-causality language exceeds a fully tested
+counterfactual. Successful discovery does not certify all prose or memory claims.
+The retrospective source-ownership limitation remains unchanged.
+
+Across all seventeen completed weeks, E16 used 565 completions and 120 artifact
+edits, versus E08's 537 and 124. Research/drafting/closeout turns were 318/169/78
+versus 285/175/77. Failed attempts are separate from those work counts and included
+in total spending. These are descriptive single-season comparisons, not a causal
+claim for the merged guidance or an efficiency score.
+
+### E17 paid gate — not promoted
+
+Both fresh arms proposed a new storyline at the same original creation boundary.
+Control combined a median-driven standings question with a second-quarterback
+selection question. Treatment retained that same mixture in its headline,
+summary and callback despite the added coherence instruction. Both exercised
+the boundary, so this is observed non-improvement rather than an inspection-only
+result. Under a more permissive interpretation of related scope, it still fails
+the preregistered control-fails/treatment-improves discriminator.
+
+The two calls cost $0.035560248. No proposed tool executed, article changed,
+canonical memory mutated, uncertain request appeared or favorable reroll ran.
+The candidate and raw responses are retained; no E17 full season or shipping PR
+is justified by this result.
+
+
+### E18 paid gate — inconclusive tie
+
+Both control and treatment preserved the correct current and historical records,
+corrected the two genuine record errors, and declined unsupported period attribution.
+Both passed all five predeclared cases, including exact corrected text and relevant
+source references. The control did not make the unnecessary edit required by the
+primary discriminator, so the result is an inconclusive tie, not treatment success.
+Two calls cost $0.005562408, with no tool execution, embedding, uncertainty or
+reroll. Draft #268 retains its separate offline evidence that the old diagnostic
+cross-compares unrelated records. This gate does not establish better real editing
+decisions, fewer revisions or better articles; no season is promoted from it.
+
+### E19 — temporal claims in durable summaries
+
+The next proposal-only comparison uses the original pre-write Week 11 context.
+Its single added paragraph asks the writer to verify the ordered periods behind
+a temporal claim, distinguishing recurrence from a consecutive sequence. All
+original facts, accepted article, tools and assistant reasoning are identical;
+E17 and E18 are not incorporated. Both arms must exercise the selected update,
+and treatment must remove a source-contradicted temporal claim made by the fresh
+control without adding another factual or identity regression. Both correct,
+inspection-only, ambiguous or missing proposals are inconclusive, with no rerolls.
+The original observed failure is a correct list of separated bad weeks compressed
+into an unsupported consecutive streak, later exposed and repeated in an article.
