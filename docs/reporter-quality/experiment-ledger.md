@@ -39,8 +39,8 @@ already included in completion tokens is not charged a second time.
 | E21 | Give the writer independent pre-save review rejection | Two simulated tool-boundary continuations | $0.0563 | Inconclusive: treatment changes wording/status but omits both required update selectors; neither repair can execute. |
 | E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
 | E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
-| E24 | Scoped record diagnostics in complete reporting | Control complete; treatment running; 76 operational-parent tests pass | In progress | Control recognizes record-warning noise and makes no unnecessary record edit; paired factual audit pending. |
-| E25 | Disclose historical limits of snapshot pick inventories | Matched Week 3 pair preregistered; 27 offline checks pass | $0 so far | Source values and original snapshots remain unchanged; no paid launch yet. |
+| E24 | Scoped record diagnostics in complete reporting | Two complete matched Week 4 arms | $0.2680 | Inconclusive: control made no unnecessary record edit; all treatment edits preceded changed feedback. Independent factual errors remained. |
+| E25 | Disclose historical limits of snapshot pick inventories | Matched Week 3 pair active; 27 offline checks pass | In progress | Source values and original snapshots remain unchanged; original Week 2 memory and embeddings validated. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
