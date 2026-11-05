@@ -9,6 +9,24 @@ The cost figures below are aggregate experiment charges, not a financial ledger
 or provider invoice. DeepSeek charges use conservative peak rates; reasoning
 already included in completion tokens is not charged a second time.
 
+## Current review — November 5
+
+E16 is complete through Week 17: source-trade identities remain unique and the
+final acquisition callback is present, while factual attribution and storyline
+closure problems remain. E24 and E25 did not meet their comparative improvement
+criteria; their diagnostic/source-disclosure correctness proposals remain
+reviewable without quality claims. E26 and E28 failed their repair gates. E27
+passed a narrow independent arithmetic-review test, E29 showed no advantage for
+detailed rejection feedback, and E30 found no mismatch among its seventeen
+selected arithmetic relations across the accepted season. This does not clear the
+known non-arithmetic errors. No further season is promoted from these results.
+
+The next substantive design question is an explicit stable question representation
+for newly created storylines, evaluated separately from evolving summaries and
+closure decisions. It is a proposed hypothesis, not implemented or demonstrated
+here. More general arithmetic reminders and buried advisory fields are not being
+stacked into the reporter.
+
 ## Experiment status and decisions
 
 | Arm | Hypothesis / one changed factor | Coverage | Conservative cost | Decision |
@@ -45,7 +63,7 @@ already included in completion tokens is not charged a second time.
 | E27 | Independent numeric-relation selection plus exact decimal validation | One 14-case advisory batch; 18 offline tests | $0.0033 | Narrow pass: all six relations, three wrong results detected, no extra/missing relations. No runtime integration or quality promotion. |
 | E28 | Give the writer E27's verified arithmetic diagnostic | Two frozen continuations | $0.0121 | Reject this placement: treatment still asserts the wrong difference in its summary. No writes executed. |
 | E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
-| E30 | Apply the frozen numeric reviewer to accepted E16 facts | Preregistered audit of 546 facts over 17 weeks | In progress | Observational audit only; no new reporter season, article edits or memory changes. |
+| E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1216,3 +1234,18 @@ retrieval omissions remain outside this checker. No quality retries are allowed;
 a new upstream failure or budget block stops paid execution. The seventeen-call
 forecast is $0.15 with a $0.75 cap within the shared allowance. No embeddings,
 article changes or database writes occur.
+
+### E30 terminal audit
+
+All seventeen review calls completed, covering 546 facts and costing $0.097465824.
+The reviewer selected seventeen supported arithmetic relations. Decimal checking
+found no mismatch, and all case IDs and output contracts were valid. Manual review
+of the returned relations found their operations consistent with the quoted claims
+and supplied operand values. No article or memory changed.
+
+This is limited coverage, not evidence that the season is factually clean. The
+known false temporal summary, record attribution mistakes, unsupported closures,
+question drift and retrospective ownership problem remain. The audit has no
+exhaustive estimate of omitted relations or other factual errors. The read-only
+prototype is retained; these results do not justify a general automatic grounding
+guard or another full season with an unproven repair mechanism.
