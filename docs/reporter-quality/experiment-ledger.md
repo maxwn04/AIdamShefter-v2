@@ -40,7 +40,7 @@ already included in completion tokens is not charged a second time.
 | E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
 | E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
 | E24 | Scoped record diagnostics in complete reporting | Two complete matched Week 4 arms | $0.2680 | Inconclusive: control made no unnecessary record edit; all treatment edits preceded changed feedback. Independent factual errors remained. |
-| E25 | Disclose historical limits of snapshot pick inventories | Matched Week 3 pair active; 27 offline checks pass | In progress | Source values and original snapshots remain unchanged; original Week 2 memory and embeddings validated. |
+| E25 | Disclose historical limits of snapshot pick inventories | Two complete Week 3 arms; 27 offline checks pass | $0.2559 | Inconclusive comparison: control lacked inventory exposure. Treatment explicitly followed the caveat; no general quality or lifecycle promotion. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1105,3 +1105,24 @@ other numerical claims and scope changes must also be audited. No extra turn or
 reroll is allowed. The pair forecast is $0.05, capped at $0.50 within the existing
 allowance; it cannot launch until E25 is terminal and audited. Even a narrow pass
 would not establish improved published articles or safe automatic memory repair.
+
+### E25 terminal comparison
+
+Control completed in 28 calls with ten edits; treatment completed in 36 calls with
+six edits. Together they cost $0.255850584, with no new uncertain request or
+embedding call. Original versions, source pins and trade identities were retained.
+Control never encountered roster inventory, so the preregistered comparative
+criterion could not pass. Treatment encountered it twice and explicitly chose
+dated completed transfers over unsupported historical inventory assertions.
+The final article retained those transfers. This is useful mechanism evidence,
+with no fresh matched-control opportunity to establish an improvement.
+
+Treatment recovered from a prohibited SQL schema query and two typed memory-tool
+rejections. The inherited storyline's identity was already mixed and drifting;
+this candidate did not repair it. The candidate remains a source-disclosure
+correctness proposal, with no reroll or full-season promotion. Its clean branch
+is `codex/pick-ownership-evidence`; a draft PR has not been created.
+
+E26 subsequently starts its separate two-call arithmetic probe. The instruction
+changes an earlier submission receipt while later original assistant turns remain
+frozen: this is a counterfactual continuation, not a whole-run causal estimate.
