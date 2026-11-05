@@ -27,12 +27,21 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E11 | Both Week 15 arms newly saved the same false whole-season no-upgrade claim, despite correct guidance delivery. | Failed primary discriminator; candidate not promoted, no full season or shipping PR. More cautious callback scheduling did not fix factual memory. |
 | E12 | Due-callback original context: one recovery completed after a preserved upstream failure. Historical acquisition claim corrected with fresh source verification. | Partial/mixed: original repair/cost question still narrows, other errors remain. All 143 prior versions preserved. Reused known-failure control is not independent efficacy evidence; no automatic season promotion. Draft #266 stacks on #263. |
 | E13 | Structured identity assessment produced three exact original quotations, but both arms still substituted questions; treatment acknowledged a resolved question while keeping it active. | Rejected proposal-only gate. No canonical writes, article change, shipping PR, reroll or full season. |
-
 | E14 | A reset closeout handoff produced an inspection-only treatment. | Inconclusive; no extra turn or reroll. |
-| E15 | Independent identity-reviewer packet prepared. | Unrun; no capability result. |
-| E16 | Fresh merged baseline completed 16 weeks; Week 17 stopped before turn 4 dispatch at the spending guard. | Zero duplicate trade identities and correct semifinal acquisition/price use, but verified narrative errors and mixed question identity. Final championship callback unmeasured. |
-| E17 | One-paragraph creation-coherence candidate, 14 targeted tests. | Preregistered proposal gate unrun due to the shared budget boundary. |
-| E18 | Scoped record-review contexts, 76 targeted tests, draft #268. | Offline presentation evidence only; synthetic paid gate unrun due to budget. |
+| E15 | Independent identity reviewer passed a frozen twelve-case synthetic batch. | Capability only; no writer-quality or persistence result. |
+| E16 | Completed all 17 weeks after a logged final-week recovery from the last complete checkpoint. | Unique trade identities and correct final acquisition callback, alongside factual attribution and unsupported closure errors. |
+| E17 | Fresh creation-coherence proposals both bundled unrelated questions. | Not promoted. |
+| E18 / E24 | Scoped record context: synthetic tie, then two complete Week 4 arms. | Inconclusive quality result; treatment edits preceded changed feedback. Draft #268 remains a diagnostic correctness candidate. |
+| E19 | Temporal-memory reminder at the original problematic closeout. | Inconclusive: fresh control also avoided the historical false streak. |
+| E20 | Independent review of four real original-question cases. | Narrow discrimination; suggested successor remedy too permissive for automatic use. |
+| E21 / E22 / E23 | Writer repair after review rejection, then selector echo and original-context receipt. | Missing selectors improved, but question substitution persisted; no runtime promotion. |
+| E25 | Snapshot ownership-scope caveat, two complete Week 3 arms. | Inconclusive: control lacked inventory exposure; treatment followed the caveat. Code candidate retained, no quality promotion. |
+| E26 | Recompute derived numbers before saving memory. | Failed: both proposals repeated the incorrect difference. |
+| E27 | Independent relation selection plus exact decimal check. | Narrow pass on fourteen cases; no runtime guard or article-quality proof. |
+| E28 / E29 | Verified arithmetic feedback in an earlier receipt, then detailed rejection feedback at the write boundary. | Earlier placement failed; detailed rejection showed no comparative advantage. No executed writes. |
+| E30 | Frozen arithmetic reviewer over 546 accepted-season facts. | Seventeen supported relations, no mismatch identified; omission recall and non-arithmetic accuracy remain unmeasured. |
+| E31 | Dedicated original-question field at creation. | Failed coherence discriminator: independent questions still fused into the field. |
+| E32 | Expose configured roster slots in ordinary source overview. | Two complete Week 1 arms preregistered; paid control running. Grounding outcome pending. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -80,19 +89,19 @@ did not erase uncertain charges or silently replace the interrupted article.
 Do not reroll for preferred prose.
 
 
-November 4 continuation: approved #261/#260/#263/#264 merged into
-`ddccadd6c51947da2c9c2c539611e69dd2f11b25`. Combined backend checks: 133 pass,
-one reproduced pre-existing bracket-guidance failure; main CI passes. The ledger
-now records rejected E13, inconclusive E14, unrun E15 and the terminal, partially completed E16 baseline.
+The four reviewed merges produced
+`ddccadd6c51947da2c9c2c539611e69dd2f11b25`. Combined backend checks had 133 passes
+and one reproduced pre-existing bracket-guidance failure; main CI passed. No
+additional PR has been merged or deployed.
 
+November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
+E32 is active; its candidate has 86 passing targeted checks. A stale tool-version
+assertion was reproduced on the baseline and updated to the candidate's declared
+version. The frozen reporter behavior was not changed to satisfy that assertion.
 
-E18 is an offline advisory-record-context candidate in draft #268 (76 targeted
-tests); no paid quality comparison has run. E17 is a separately preregistered
-creation-coherence gate with a local one-file candidate and 14 passing tests.
-Neither candidate entered E16. Its budget stop left both paid gates unrun.
-
-The latest [ledger result](experiment-ledger.md#e16-terminal-result-and-decisions)
-records exact frozen hashes, costs, retained failure evidence, matched work counts,
-source→memory→article paths, scope-sensitive lifecycle judgments and the next
-factual-memory hypothesis. [Draft #267](https://github.com/maxwn04/AIdamShefter-v2/pull/267)
-contains this documentation update.
+[Draft #267](https://github.com/maxwn04/AIdamShefter-v2/pull/267) maintains this
+index and the [current review ledger](experiment-ledger.md#current-review--november-5).
+[Draft #268](https://github.com/maxwn04/AIdamShefter-v2/pull/268) holds scoped
+record diagnostics, with explicit inconclusive paid results. Private artifacts
+and account-funding records remain outside this repository; publication of a
+separate ownership candidate is still blocked and has not been retried.

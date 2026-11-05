@@ -25,7 +25,7 @@ E31 tested a dedicated original-question field at creation; the treatment still
 combined unrelated questions, so it is not promoted. E32 is now preregistered:
 expose configured roster slots in the ordinary source overview, with slot and
 retrospective-setting semantics. Its two complete first-week arms begin from the
-same empty-memory checkpoint. Forty targeted checks pass; paid outcome is pending.
+same empty-memory checkpoint. Eighty-six targeted checks pass; paid outcome is pending.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## Experiment status and decisions
@@ -66,7 +66,7 @@ No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 | E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
 | E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
 | E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
-| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms preregistered; 40 targeted checks pass | Pending | Source-grounding test; no paid outcome yet. |
+| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms preregistered; 86 targeted checks pass | Pending | Source-grounding test; no paid outcome yet. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1281,6 +1281,10 @@ the fresh control and supported treatment behavior after slot exposure, without
 rejecting legitimate observed two-quarterback lineups. Both accurate, no relevant
 exposure/assertion, ambiguous wording or incomplete coverage is inconclusive.
 Source discovery, authored facts, canonical notes, revisions and unrelated errors
-will be reported separately. Forty targeted checks cover source-to-evidence slot
+will be reported separately. Eighty-six targeted checks cover source-to-evidence slot
 preservation, absent/unknown slots, overview exposure and existing query behavior.
 No full season or production behavior is approved by those tests alone.
+
+The additional tool checks reproduced a stale version assertion on the unchanged
+baseline (expected 5, actual 6). The candidate expectation now matches its declared
+version 7; no frozen reporter behavior changed for that test correction.
