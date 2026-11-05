@@ -782,3 +782,29 @@ evidence remain available. No new treatment was promoted, merged or deployed.
 The most concrete next unresolved question is how to validate temporal and
 comparative claims in saved narrative without suppressing useful synthesis.
 The known retrospective pick-ownership input limitation still applies.
+
+
+### November 5 continuation
+
+The user renewed authorization to use the remaining provider balance. Historical
+charges and all five uncertain requests remain in the private cumulative ledger;
+the new spendable ceiling subtracts those reservations and does not add the old
+unused allowance a second time. Embedding authority remains separate. Accounting
+checks include repeated recovery and repeated funding renewal without resetting
+historical calls.
+
+After the cloud environment restarted, the disposable database had to be restored
+from its verified terminal export. The original campaign and export are retained.
+A separately recorded infrastructure migration changes only the isolated target
+identity and local asset paths, with the matching campaign receipt hash. The
+campaign UUID, all previous generations, all source and memory pins, and the
+frozen runtime remain unchanged. Full controller reconciliation passed; Week 17
+has no prior article or canonical writes. Its recovery uses the controller's
+explicit failed-attempt retry from the complete Week 16 memory boundary, not an
+in-memory transcript continuation. No earlier week is regenerated.
+
+The Week 17 recovery is running. E17 and E18 will retain their original frozen
+paired tests and decision rules; the earlier unrun budget outcome remains part
+of their history. Results below will distinguish source discovery, saved memory,
+recall exposure, article use and factual grounding. No additional PR merge or
+production change is authorized or performed by this continuation.
