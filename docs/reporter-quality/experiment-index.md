@@ -106,3 +106,14 @@ index and the [current review ledger](experiment-ledger.md#current-review--novem
 record diagnostics, with explicit inconclusive paid results. Private artifacts
 and account-funding records remain outside this repository; publication of a
 separate ownership candidate is still blocked and has not been retried.
+
+The configured-roster-slot candidate is available on
+[`codex/roster-slot-evidence`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/roster-slot-evidence),
+head `8fdddfd23215a14a6bae4a74ee585651d07274f9`, with 86 targeted checks passing.
+Draft-PR creation was blocked by automatic approval review; it was not retried.
+There is no PR CI result for that branch. E33's batch-edit candidate remains
+offline-only after its first control request failed upstream.
+
+The current ledger files supersede the older summary in PR #267's description;
+the earlier metadata update did not succeed. No additional merge or deployment
+has occurred.
