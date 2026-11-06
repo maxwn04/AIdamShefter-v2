@@ -30,8 +30,28 @@ infrastructure recovery. The recovered treatment applied five preplanned edits
 in one revision versus one in control. This supports narrow tool feasibility,
 not finished-article quality. E34 completed both arms: fewer editing calls but no
 whole-run cost or memory-quality gain. E35 passed a narrow temporal-review test;
-E36 now tests chronological batch-edit robustness within the remaining allowance.
+E36 stopped after its first continuation week because an edit introduced a new
+standings contradiction. E37 tests temporal-review feedback uptake separately.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
+
+## What the newer evidence changes
+
+- Atomic editing is a small implementation candidate: the live reporter adopted
+  it, but shorter editing did not make the full run cheaper or repair memory.
+- Independent reviewers can detect selected arithmetic, identity and temporal
+  errors. Earlier feedback experiments show that detection does not guarantee a
+  valid or semantically faithful writer repair; E35 is not an integrated fix.
+- Remaining factual risks include temporal scope, causal interpretation and
+  season-specific future-asset valuation. Traceable fields alone do not entail
+  every sentence written from them.
+- Original context is already visible, yet storyline questions can still migrate.
+  More context, longer-lived cards or a renamed field alone are not established
+  solutions. Keep valid closure and genuinely distinct successor stories possible.
+
+Next useful tests, after current budget-limited coverage, are temporal-review
+feedback uptake with exact retry selectors and a narrowly scoped future-asset
+claim discriminator. These remain proposals, not shipped behavior or completed
+experiments. Do not infer efficacy from the selected reviewer capability tests.
 
 ## Experiment status and decisions
 
@@ -75,7 +95,8 @@ No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 | E33 | Atomic independent artifact edits | Failed control preserved; one recovered two-call comparison; 34 offline checks pass | $0.4138, including $0.3543 uncertain | Narrow feasibility pass: five justified edits in one treatment revision versus one control edit. No overall-quality claim. |
 | E34 | Atomic edits during complete reporting | Two complete matched Week 4 arms | $0.2554 | Narrow adoption/editing signal: 4 versus 7 edit calls; both 29 total calls and treatment more expensive. Memory drift and grounding weaknesses remain. |
 | E35 | Independent ordered-observation temporal review | One advisory call, 12 frozen cases | $0.0091 | Narrow capability pass, 12/12 with valid reasons; no reporter-feedback or quality claim. |
-| E36 | Chronological robustness of the batch-edit tool | Week 5 onward from E34 treatment, budget-limited | Running | Same one-factor candidate; historical E16 suffix is descriptive, not a matched causal control. |
+| E36 | Chronological robustness of the batch-edit tool | One completed Week 5; stopped before Week 6 | $0.1319 including embeddings | No-new-error criterion failed: a valid batch introduced a standings contradiction. Mechanical atomicity passed; no quality promotion. |
+| E37 | Specific temporal-review feedback versus generic rejection | Two completed frozen proposal-only continuations | $0.0662 | Inconclusive comparison: both repair the sequence with valid selectors. Detailed treatment retains an unrelated inherited contradiction. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1457,3 +1478,74 @@ only because the inherited Week 4 trajectory differs. Forecast is approximately
 $0.14 per week; hard reservations may stop a partial week. Any new upstream failure
 stops paid work without another recovery. All accepted articles and failures remain
 unchanged and private.
+
+### Review access
+
+The clean atomic-edit code, synthetic tests and bounded evidence are available on
+[`codex/atomic-artifact-edits`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/atomic-artifact-edits)
+at `559303dbc9298efbce740146519eb9e65ad1f1e9`. Thirty artifact checks passed on
+the final code, in addition to four previously passing definition checks. Draft-PR
+creation was denied by automatic approval review for insufficiently specific
+authorization of that public repository action. No PR was created or retried,
+and no PR CI run exists. The separate ownership and roster-slot PR denials remain
+unchanged. These publication blockers do not interrupt authorized experiments.
+
+### E36 result: stop after a new edit-induced contradiction
+
+Week 5 completed in 29 calls for $0.131364864 plus $0.00052884 of chronological
+indexing. Two two-replacement batches applied correctly. The first changed a
+correct sixth/seventh-place sentence into a statement that those teams occupied
+the last two playoff spots, despite six berths and another team ranked fifth.
+The earlier article and source-bound facts retained the correct positions. This
+removed a correct fact and introduced a contradiction. The final manual audit
+corrected a provisional live check that had confirmed the berth count but missed
+the seventh-place team's position. Week 6 was not launched.
+
+The atomic implementation itself applied the requested edits correctly. Without a
+matched fresh control, this does not prove batching caused the model's error; it
+does fail the preregistered no-new-error criterion and blocks a quality/longitudinal
+promotion. An organic opening-week callback was present, but mandatory-format
+wording, a historical interval and further storyline-question migration remained
+separate weaknesses. All 41 inherited canonical versions and 51 inherited artifact
+versions survived unchanged, with no duplicate trade identity.
+
+A local export initially failed because the helper omitted the frozen runtime
+archive. The exact 382 files were restored and export rerun without generation or
+tool replay. Budget and article hashes were identical before and after recovery.
+The failed controller receipt remains preserved; there was no additional paid call
+or new provider uncertainty. Verified duplicate temporary export bytes were
+removed only after their complete recoverable copies were verified.
+
+### E37 temporal-feedback uptake — preregistered
+
+E35 showed that a separate reviewer could identify a false consecutive-loss claim.
+E37 now tests whether its explanation improves writer repair beyond a generic
+temporal rejection. Two fresh one-response shadow continuations use the exact
+original post-proposal context. Both receive the same simulated pre-save rejection
+and valid retry selectors; treatment alone adds E35's unchanged explanation and
+references to observations already available in that context. Original reasoning,
+other receipts, source pins, tools and the submitted article remain identical.
+
+A comparative pass requires a valid same-card treatment repair preserving the
+supported recurrence and intervening win, without new sequence, question or status
+errors, and no equivalent control repair. Ties, inspection-only output, missing or
+invalid proposals and ambiguity remain inconclusive. Repeating the false sequence
+or inventing another fails. No actual tools execute, no extra turn or reroll is
+allowed, and other inherited weaknesses are not silently fixed. The pair forecast
+is $0.07, with a $0.50 cap inside the existing allowance.
+
+### E37 result
+
+Both proposals passed schema and retry-selector checks and repaired the false
+consecutive-loss characterization. Generic rejection listed the correct winning
+and losing weeks; detailed rejection preserved the third nonconsecutive loss and
+the intervening sweeps. Both retained the same active card and callback scope.
+The pair cost $0.066183420, with no actual tool or memory writes.
+
+The comparative discriminator is inconclusive: the detailed explanation added no
+observed repair advantage. Treatment also retained an inherited contradiction
+about whether deadline additions occurred, whereas control removed that wording;
+the temporal repair does not clear the rest of the summary. Since both received
+rejection, this pair does not isolate rejection itself. A separate comparison
+against ordinary successful receipts is warranted, including a later propagation
+case; neither E37 arm is rerolled or relabeled as that new control.
