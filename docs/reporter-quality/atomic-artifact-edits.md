@@ -1,7 +1,8 @@
 # Atomic independent artifact edits
 
-The reporter sometimes knows several independent corrections but must issue one
-replacement per artifact revision. This candidate adds an optional `edits` list
+The reporter sometimes knows several independent corrections but serializes
+separate replacements across artifact revisions. The existing tool can replace a
+whole passage or article; this candidate avoids requiring that larger rewrite. This candidate adds an optional `edits` list
 to the existing tool. Every exact match is validated against the same original
 content; missing, ambiguous or overlapping matches reject the entire batch. A
 successful batch creates one revision and one recorded mutation. Existing single
@@ -21,8 +22,12 @@ were already present in the frozen evidence. Original factual weaknesses remaine
 and the accepted article was never changed. This supports narrow feasibility only.
 
 E34 is a separately preregistered pair of complete Week 4 runs from the original
-Week 3 checkpoint, changing only this tool. Its result is pending. A quality or
-efficiency conclusion requires inspecting actual adoption, correction scope,
-introduced errors and overall work; fewer revisions alone do not establish it.
+Week 3 checkpoint, changing only this tool. Both arms completed in 29 calls. Treatment used four edit calls, including two
+valid four-replacement batches, versus seven in control. No new edit-induced
+factual error or lost material information was found. However, greater research
+and drafting work made treatment more expensive overall ($0.133525812 versus
+$0.121909464). Storyline-question drift and unsupported future-pick inference
+remained. This supports adoption and local editing efficiency, not better memory,
+article quality or total cost. A chronological robustness follow-up is planned.
 The roster-slot candidate, verifier experiments and rejected memory prompts are
 not inherited. No merge or deployment is proposed by this experiment.
