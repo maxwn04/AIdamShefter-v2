@@ -14,7 +14,7 @@ from backend.services.reporter.runner.tools.context import ToolContext
 from backend.services.reporter.runner.tools.registry import ToolRegistry
 
 
-ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "9"
+ARTIFACT_TOOL_IMPLEMENTATION_VERSION = "10"
 
 
 ARTIFACT_TOOL_SPECS: list[ToolDef] = [
@@ -84,8 +84,10 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
         "function": {
             "name": "edit_artifact",
             "description": (
-                "Replace exactly one literal text occurrence in an existing Markdown "
-                "artifact. Read first and pass its current revision."
+                "Replace literal text in an existing Markdown artifact at its current revision. "
+                "Use edits to batch independent known changes atomically against the same "
+                "original content, or old_text/new_text for one replacement. Every old_text "
+                "must occur exactly once and batch matches cannot overlap. Read first."
             ),
             "parameters": {
                 "type": "object",
@@ -99,13 +101,24 @@ ARTIFACT_TOOL_SPECS: list[ToolDef] = [
                         ),
                     },
                     "new_text": {"type": "string"},
+                    "edits": {
+                        "type": "array", "minItems": 1,
+                        "items": {"type": "object", "additionalProperties": False,
+                                  "properties": {"old_text": {"type": "string", "minLength": 1},
+                                                 "new_text": {"type": "string"}},
+                                  "required": ["old_text", "new_text"]},
+                    },
                     "expected_revision": {
                         "type": "integer",
                         "minimum": 1,
                         "description": "Revision returned by the most recent read or write.",
                     },
                 },
-                "required": ["path", "old_text", "new_text", "expected_revision"],
+                "required": ["path", "expected_revision"],
+                "oneOf": [
+                    {"required": ["old_text", "new_text"], "not": {"required": ["edits"]}},
+                    {"required": ["edits"], "not": {"anyOf": [{"required": ["old_text"]}, {"required": ["new_text"]}]}},
+                ],
             },
         },
     },
@@ -212,15 +225,29 @@ def edit_artifact(
     ctx: ToolContext,
     *,
     path: str,
-    old_text: str,
-    new_text: str,
     expected_revision: int,
+    old_text: str | None = None,
+    new_text: str | None = None,
+    edits: list[dict[str, str]] | None = None,
 ) -> str:
     def operation() -> str:
+        if edits is None:
+            if not isinstance(old_text, str) or not isinstance(new_text, str):
+                raise ArtifactStoreError("invalid_edit", "Supply old_text/new_text or edits.")
+            original, replacement, count = old_text, new_text, 1
+        else:
+            if old_text is not None or new_text is not None:
+                raise ArtifactStoreError("invalid_edit", "Use either old_text/new_text or edits, not both.")
+            snapshot = ctx.artifacts.read(path)
+            if snapshot.revision != expected_revision:
+                raise ArtifactStoreError("revision_conflict", "Read the current artifact revision before editing.", current_revision=snapshot.revision)
+            original = snapshot.content
+            replacement = _batch_replacement(original, edits)
+            count = len(edits)
         artifact, changed = ctx.artifacts.edit(
             path,
-            old_text=old_text,
-            new_text=new_text,
+            old_text=original,
+            new_text=replacement,
             expected_revision=expected_revision,
             on_change=ctx.record_artifact_mutation,
         )
@@ -236,12 +263,38 @@ def edit_artifact(
             {
                 "artifact": artifact.model_dump(),
                 "changed": changed,
-                "replacement_count": 1,
+                "replacement_count": count,
                 "finalized_revision": None,
             }
         )
 
     return _execute(operation)
+
+
+def _batch_replacement(content: str, edits: list[dict[str, str]]) -> str:
+    """Validate every match in the original text before constructing one revision."""
+    if not isinstance(edits, list) or not edits:
+        raise ArtifactStoreError("invalid_edit", "edits must be a non-empty list.")
+    spans: list[tuple[int, int, str]] = []
+    for edit in edits:
+        if (not isinstance(edit, dict) or set(edit) != {"old_text", "new_text"}
+                or not isinstance(edit["old_text"], str) or not edit["old_text"]
+                or not isinstance(edit["new_text"], str)):
+            raise ArtifactStoreError("invalid_edit", "Each edit needs non-empty old_text and string new_text only.")
+        old = edit["old_text"]
+        start = content.find(old)
+        if start < 0:
+            raise ArtifactStoreError("match_not_found", "A batch old_text was not found; no edits applied.")
+        if content.find(old, start + 1) >= 0:
+            raise ArtifactStoreError("match_not_unique", "A batch old_text has multiple occurrences; no edits applied.")
+        spans.append((start, start + len(old), edit["new_text"]))
+    spans.sort()
+    if any(left[1] > right[0] for left, right in zip(spans, spans[1:])):
+        raise ArtifactStoreError("overlapping_edits", "Batch matches overlap; no edits applied.")
+    result = content
+    for start, end, replacement in reversed(spans):
+        result = result[:start] + replacement + result[end:]
+    return result
 
 
 def submit_artifact(
