@@ -33,8 +33,8 @@ whole-run cost or memory-quality gain. E35 passed a narrow temporal-review test;
 E36 stopped after its first continuation week because an edit introduced a new
 unsupported standings implication. E37 found no advantage from detailed rejection;
 E38 passed two selected rejection-versus-success repair cases. E39 failed a rank
-review negative control. E40 audits temporal-claim selection across original saved
-summaries, with source gaps retained rather than treated as contradiction.
+review negative control. E40 stopped after one reviewed week when the next request failed upstream;
+source gaps and the full uncertain reservation are retained. Paid work is stopped.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## What the newer evidence changes
@@ -1636,3 +1636,33 @@ unchanged remaining allowance. Calls proceed chronologically once per week, with
 no rerolls, tools, embeddings or writes. A new upstream failure or inability to
 reserve the next call stops execution, retaining any partial coverage. This is an
 observational audit, not promotion of an automatic memory guard.
+
+
+### E40 terminal result and paid-work stop
+
+Week 1 completed for $0.0044781, selecting five temporal-result claims from its
+one saved summary. All five were correctly classified as insufficient because
+that week's restricted packet contained no standings or schedule observations.
+The original reporter used other query families; these gaps do not establish that
+its claims were false. The known later false sequence was not reached, so no claim
+of automatic error selection or broad accuracy is justified.
+
+The Week 2 request returned HTTP 503 after 11.096 seconds, reporting upstream
+connection termination before response headers. No response, returned tool, article
+or memory write was received. SDK retries were disabled. The full $0.3543216
+reservation is retained because billing is unknown. E40 therefore totals $0.0044781
+settled plus $0.3543216 uncertain, and covers only one of seventeen planned weeks.
+Weeks 3–17 were never dispatched. No recovery or alternative provider followed.
+
+Paid work has stopped under the preregistered repeated-failure rule. The remaining
+conservative allowance also cannot reserve another request. All earlier failures
+and unknown charges remain intact; a successful health GET is not evidence that
+an uncertain completion was free. The current evidence does not identify whether
+the failure originated at the provider or an intervening proxy. No network or
+security setting was changed.
+
+The review packet is complete locally, with unchanged accepted articles and raw
+artifacts preserved privately. The three newly authorized draft PRs are open;
+no additional PR was merged, approved or deployed. Further useful work would
+validate error selection on broader source coverage and safe rejection semantics,
+not promote the failed rank reviewer or reroll the failed batch-edit article.

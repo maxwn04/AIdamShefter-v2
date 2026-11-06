@@ -49,7 +49,7 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E37 | Temporal-review feedback uptake. | Both generic and detailed rejection repair the selected sequence; added-detail advantage inconclusive. |
 | E38 | Generic rejection versus successful receipts. | Both selected cases repaired only after rejection; bounded proposal-only pass, $0.057229284. |
 | E39 | Independent rank/qualification review. | 11/12 classifications; false contradiction on missing clinching evidence. Readiness failed, $0.007605. |
-| E40 | Temporal selection across accepted-season summaries. | Preregistered 45 saved proposals, up to 17 chronological calls; source gaps and partial coverage retained. |
+| E40 | Temporal selection across accepted-season summaries. | Week 1 reviewed; Week 2 HTTP 503 stopped paid work. $0.0044781 settled plus $0.3543216 uncertain; later weeks not dispatched. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -103,7 +103,7 @@ and one reproduced pre-existing bracket-guidance failure; main CI passed. No
 additional PR has been merged or deployed.
 
 November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
-E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 completed its full reporting comparison; E35 passed narrow temporal discrimination and E36 failed its no-new-error discriminator; E37 found no detailed-feedback advantage; E38 passed selected rejection uptake and E39 failed a negative control. E40 audits claim selection. A stale tool-version
+E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 completed its full reporting comparison; E35 passed narrow temporal discrimination and E36 failed its no-new-error discriminator; E37 found no detailed-feedback advantage; E38 passed selected rejection uptake and E39 failed a negative control. E40 stopped after one reviewed week and a new upstream failure. Paid work is stopped. A stale tool-version
 assertion was reproduced on the baseline and updated to the candidate's declared
 version. The frozen reporter behavior was not changed to satisfy that assertion.
 
@@ -121,7 +121,7 @@ creation was checked for an existing PR and retried once; all three succeeded:
 - [Draft #270: configured roster slots](https://github.com/maxwn04/AIdamShefter-v2/pull/270),
   head `8fdddfd23215a14a6bae4a74ee585651d07274f9`, 86 targeted checks.
 - [Draft #271: atomic artifact edits](https://github.com/maxwn04/AIdamShefter-v2/pull/271),
-  head `559303dbc9298efbce740146519eb9e65ad1f1e9`, 30 artifact checks
+  head `3014509f590cd6f41a32a618d1d7b9b134e179ab`, 30 artifact checks
   plus four earlier definition checks. Its description includes E36's negative result.
 
 All three target main and remain drafts. Their Frontend workflows completed
