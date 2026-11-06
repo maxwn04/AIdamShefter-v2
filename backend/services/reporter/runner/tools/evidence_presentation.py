@@ -15,6 +15,12 @@ from backend.services.reporter.runner.evidence import (
 )
 
 PAGE_SIZE = 40
+_PICK_OWNERSHIP_LIMITATION = (
+    "Pick inventory is a snapshot projection, not ownership reconstructed from dated transfers. "
+    "In retrospective inputs it may reflect later ownership. It alone does not establish "
+    "inventory or absence at an earlier reporting cutoff; compare dated completed transfers "
+    "and state unresolved ownership or coverage."
+)
 _PRIVATE = {
     "competition_id", "competition_season_id", "season_roster_id", "franchise_id",
     "sleeper_league_id", "league_id", "snapshot_id", "snapshot_metadata",
@@ -61,7 +67,7 @@ def selected_records(
     if tool == "run_sql":
         limitations.append("SQL field semantics, units and season scope require review; evidence is diagnostic.")
     if tool in {"roster_at_cutoff", "player_summary"}:
-        limitations.append("Snapshot observation at cutoff; not a reconstructed earlier roster or player status.")
+        limitations.append("Snapshot selected for the reporting cutoff; not a reconstructed earlier roster or player status.")
     records: list[EvidenceRecord] = []
     if tool == "run_sql" and isinstance(raw, dict):
         return _sql_records(source, raw, tuple(limitations))
@@ -150,6 +156,10 @@ def selected_records(
         if not node_complete:
             local_limits.append("Source population is incomplete; unrestricted comparisons are not supported.")
         scoped_limits, scope_complete = _scoped_warnings(snapshot_warnings, seasons, node_season, end, tool)
+        if tool == "roster_at_cutoff" and ("picks" in node or "picks" in path.split("/")):
+            # Scope the caveat to the inventory summary (including an empty list)
+            # and pick rows; do not inherit it onto unrelated player records.
+            scoped_limits = [*scoped_limits, _PICK_OWNERSHIP_LIMITATION]
         record_limits = tuple(dict.fromkeys(local_limits + scoped_limits))
         if node.get("found") is False:
             outcome = "not_found"
