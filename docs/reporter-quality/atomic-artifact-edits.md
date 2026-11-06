@@ -29,8 +29,11 @@ and drafting work made treatment more expensive overall ($0.133525812 versus
 $0.121909464). Storyline-question drift and unsupported future-pick inference
 remained. This supports adoption and local editing efficiency, not better memory,
 article quality or total cost. E36 then completed Week 5 but failed its no-new-error criterion: a mechanically
-valid batch changed correct sixth/seventh-place wording into a false implication
-that both teams held playoff berths. That negative result is preserved; no further
+valid batch replaced correct sixth/seventh-place wording with an unsupported
+“last two spots” implication. A later scoped review classified its referent as
+ambiguous: a playoff reading contradicts the known ranks, but the phrase does not
+explicitly repeat “playoff.” The earlier definite-contradiction description was too
+strong; the dropped rank and unsupported implication still block promotion. That negative result is preserved; no further
 continuation week was launched. This does not isolate a causal effect of batching,
 but it blocks a quality promotion. The proposal remains a tool-boundary choice
 requiring review, with no demonstrated whole-run quality or cost benefit.
