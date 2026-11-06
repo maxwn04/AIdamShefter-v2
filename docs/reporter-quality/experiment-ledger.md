@@ -9,7 +9,54 @@ The cost figures below are aggregate experiment charges, not a financial ledger
 or provider invoice. DeepSeek charges use conservative peak rates; reasoning
 already included in completion tokens is not charged a second time.
 
-## Completed experiments and decisions
+## Current review — November 6
+
+E16 is complete through Week 17: source-trade identities remain unique and the
+final acquisition callback is present, while factual attribution and storyline
+closure problems remain. E24 and E25 did not meet their comparative improvement
+criteria; their diagnostic/source-disclosure correctness proposals remain
+reviewable without quality claims. E26 and E28 failed their repair gates. E27
+passed a narrow independent arithmetic-review test, E29 showed no advantage for
+detailed rejection feedback, and E30 found no mismatch among its seventeen
+selected arithmetic relations across the accepted season. This does not clear the
+known non-arithmetic errors. No further season is promoted from these results.
+
+E31 tested a dedicated original-question field at creation; the treatment still
+combined unrelated questions, so it is not promoted. E32 completed both first-week arms: the exposed roster configuration reached the
+treatment article and league note, but the fresh control did not explicitly assert
+a mandatory second quarterback. The strict comparative discriminator is inconclusive.
+Eighty-six targeted checks pass; no full season is promoted. E33 preserved its first failed control request, then completed one authorized
+infrastructure recovery. The recovered treatment applied five preplanned edits
+in one revision versus one in control. This supports narrow tool feasibility,
+not finished-article quality. E34 completed both arms: fewer editing calls but no
+whole-run cost or memory-quality gain. E35 passed a narrow temporal-review test;
+E36 stopped after its first continuation week because an edit introduced a new
+unsupported standings implication. E37 found no advantage from detailed rejection;
+E38 passed two selected rejection-versus-success repair cases. E39 failed a rank
+review negative control. E40 stopped after one reviewed week when the next request failed upstream;
+source gaps and the full uncertain reservation are retained. Paid work is stopped.
+No arithmetic reviewer or rejected storyline candidate is stacked into E32.
+
+## What the newer evidence changes
+
+- Atomic editing is a small implementation candidate: the live reporter adopted
+  it, but shorter editing did not make the full run cheaper or repair memory.
+- Independent reviewers can detect selected arithmetic, identity and temporal
+  errors. Earlier feedback experiments show that detection does not guarantee a
+  valid or semantically faithful writer repair; E35 is not an integrated fix.
+- Remaining factual risks include temporal scope, causal interpretation and
+  season-specific future-asset valuation. Traceable fields alone do not entail
+  every sentence written from them.
+- Original context is already visible, yet storyline questions can still migrate.
+  More context, longer-lived cards or a renamed field alone are not established
+  solutions. Keep valid closure and genuinely distinct successor stories possible.
+
+Next useful tests, after current budget-limited coverage, are temporal-review
+feedback uptake with exact retry selectors and a narrowly scoped future-asset
+claim discriminator. These remain proposals, not shipped behavior or completed
+experiments. Do not infer efficacy from the selected reviewer capability tests.
+
+## Experiment status and decisions
 
 | Arm | Hypothesis / one changed factor | Coverage | Conservative cost | Decision |
 | --- | --- | --- | ---: | --- |
@@ -28,6 +75,32 @@ already included in completion tokens is not charged a second time.
 | E10 | Expose up to three recent trade cards on unfocused requests | Two matched final-week arms | $0.2450 | Exact exposure passed; both arms recovered the callback, so quality improvement is inconclusive. |
 | E11 | Bound historical absence claims to the evidence window | Two matched selected-week arms | $0.1870 | Reject: both arms saved the false whole-season absence claim. No season or shipping PR. |
 | E12 | Extend original context to already-selected due-callback storyline links | One completed selected challenge after a preserved infrastructure failure | $0.5232, including $0.3543 unknown | Partial/mixed: historical inversion corrected with source verification; question narrowing and other errors remain. No automatic season promotion. Known-failure control reused. |
+| E13 | Structured original-scope assessment on storyline updates | Two matched proposal-only closeout calls | $0.1174 | Reject: exact quotes supplied, semantic question substitution and failure to close answered scope persist. No writes or shipping PR. |
+| E14 | Start closeout with an explicit evidence-and-article handoff | Two matched proposal-only calls | $0.0270 | Inconclusive: treatment inspected instead of proposing; no additional turn or reroll. |
+| E15 | Independent identity reviewer | One frozen 12-case synthetic batch | $0.0101 | Capability passed 12/12, including valid early closure and either/or outcomes. No writer-quality result. |
+| E16 | Fresh empty-memory baseline after the four reviewed merges, retaining E08 runtime settings | All 17 weeks completed after explicit checkpoint recovery; both original failed attempts retained | $2.7493, including $0.3543 uncertain | Mixed baseline: unique trade identities and correct championship acquisition callback; factual errors and unsupported storyline closure remain. |
+| E17 | Coherent storyline identity at creation | Two fresh matched proposal-only calls | $0.0356 | Not promoted: both proposals still mix the standings question with a separate lineup question. No season or shipping PR. |
+| E18 | Subject-scoped source-record review context | Two matched synthetic reviewer calls, five cases each; 76 offline tests | $0.0056 | Tie: both arms pass 5/5. Draft #268 retains a narrow diagnostic-correctness rationale, not demonstrated editing or efficiency gains. |
+| E19 | Verify ordered periods before saving temporal claims | Two fresh matched proposal calls | $0.0737 | Inconclusive: fresh control and treatment both avoid the historical false streak. No season or PR. |
+| E20 | Independent review on real frozen original questions and evidence | One curated four-case advisory batch | $0.1146 | Narrow discrimination passed; suggested successor remedy remains too permissive for automatic use. |
+| E21 | Give the writer independent pre-save review rejection | Two simulated tool-boundary continuations | $0.0563 | Inconclusive: treatment changes wording/status but omits both required update selectors; neither repair can execute. |
+| E22 | Echo exact retry selectors in review rejection receipts | Two matched proposal calls | $0.0053 | Inconclusive: both typed-valid; original-question misstatement persists. No runtime promotion. |
+| E23 | Repeat immutable original context in the rejection receipt | Two matched proposal calls | $0.0058 | Not promoted: treatment fixes selectors but still invents a title component of the original valuation question. |
+| E24 | Scoped record diagnostics in complete reporting | Two complete matched Week 4 arms | $0.2680 | Inconclusive: control made no unnecessary record edit; all treatment edits preceded changed feedback. Independent factual errors remained. |
+| E25 | Disclose historical limits of snapshot pick inventories | Two complete Week 3 arms; 27 offline checks pass | $0.2559 | Inconclusive comparison: control lacked inventory exposure. Treatment explicitly followed the caveat; no general quality or lifecycle promotion. |
+| E26 | Explicitly recompute derived numbers before memory writes | Two frozen proposal continuations | $0.0646 | Reject: both typed-valid proposals repeat the same incorrect difference. No tools executed or season promoted. |
+| E27 | Independent numeric-relation selection plus exact decimal validation | One 14-case advisory batch; 18 offline tests | $0.0033 | Narrow pass: all six relations, three wrong results detected, no extra/missing relations. No runtime integration or quality promotion. |
+| E28 | Give the writer E27's verified arithmetic diagnostic | Two frozen continuations | $0.0121 | Reject this placement: treatment still asserts the wrong difference in its summary. No writes executed. |
+| E29 | Generic versus detailed arithmetic rejection at a write boundary | Two simulated rejected-write continuations | $0.0077 | Inconclusive: generic control repairs the card; treatment corrects the upstream fact but does not yet repair the card. No extra turn. |
+| E30 | Apply the frozen numeric reviewer to accepted E16 facts | All 17 weeks, 546 facts, 17 selected relations | $0.0975 | No arithmetic mismatch identified; narrow coverage does not certify factual accuracy or recall. No reporter changes. |
+| E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
+| E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms; 86 targeted checks pass | $0.1908 | Mechanism supported, comparative criterion inconclusive: control wording did not explicitly require a second QB. No efficacy promotion. |
+| E33 | Atomic independent artifact edits | Failed control preserved; one recovered two-call comparison; 34 offline checks pass | $0.4138, including $0.3543 uncertain | Narrow feasibility pass: five justified edits in one treatment revision versus one control edit. No overall-quality claim. |
+| E34 | Atomic edits during complete reporting | Two complete matched Week 4 arms | $0.2554 | Narrow adoption/editing signal: 4 versus 7 edit calls; both 29 total calls and treatment more expensive. Memory drift and grounding weaknesses remain. |
+| E35 | Independent ordered-observation temporal review | One advisory call, 12 frozen cases | $0.0091 | Narrow capability pass, 12/12 with valid reasons; no reporter-feedback or quality claim. |
+| E36 | Chronological robustness of the batch-edit tool | One completed Week 5; stopped before Week 6 | $0.1319 including embeddings | No-new-error criterion failed: a valid batch introduced a standings contradiction. Mechanical atomicity passed; no quality promotion. |
+| E37 | Specific temporal-review feedback versus generic rejection | Two completed frozen proposal-only continuations | $0.0662 | Inconclusive comparison: both repair the sequence with valid selectors. Detailed treatment retains an unrelated inherited contradiction. |
+| E38 | Generic rejection versus ordinary success receipts | Two cases, four fresh proposal calls preregistered | Running | Original and later propagated error; one receipt differs within each pair, no actual writes. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -404,9 +477,40 @@ are not repaired. Total E12 cost/reservation is $0.52320, including the retained
 failure; the reused control was already charged to E11. No reroll or automatic
 full-season promotion. Draft #266 remains reviewable technical work with the
 negative findings. The next offline investigation is the question-identity write
-boundary; no new paid treatment is registered yet.
+boundary; the subsequent E13 and E14 results are recorded below.
 
-## Reviewable drafts
+## E13: explicit identity assessment, rejected
+
+The upsert tool gained an optional assessment quoting the full original summary,
+classifying new evidence as continuing or answering it, and stating the basis.
+Supplied scope was checked against pinned version one; an answers classification
+required resolved status and a resolution summary. Legacy updates and independent
+successors remained compatible. A callback trigger was not substituted for the
+question. Eighty targeted tests passed on both the actual operational parent and
+clean public candidate, including temporal boundaries, retries and valid closure.
+
+The parent was measured E12, with its presentation shared by both arms; no efficacy
+was assumed from stacking those mixed candidates. One fresh control and one
+treatment completion used the same preserved pre-update closeout context. Only
+the upsert definition differed. These were proposals only: no tool execution,
+canonical mutation or new article. The runtime-file SHA256 was
+`4457c599fa0e3ae971c497b70c55cb33a89a4ed297e62654fe2a3ce1d301523e`.
+
+Treatment supplied three exact original summaries, but both arms still replaced
+an unresolved repair/cost question with playoff performance. In the already-
+answered seeding case, treatment explicitly said the original question resolved
+in its basis, yet selected continues/active. The syntactic consistency check could
+not detect that semantic contradiction. Both retained the third arc's genuinely
+unanswered pick-value/ownership components; that did not repair the focal failures.
+
+**Decision: reject.** Exact quotation did not establish question continuity.
+The two calls cost $0.11741: $0.05831 control and $0.05910 treatment, with
+2,344 versus 4,442 output tokens including reasoning. No new uncertainty,
+embedding calls, reroll, shipping PR or full season. The candidate and failures
+remain retained offline. E14 separately tests conversation anchoring using the
+original tools, without this rejected contract.
+
+## Reviewed changes and remaining drafts
 
 - [#260](https://github.com/maxwn04/AIdamShefter-v2/pull/260): E04 question identity,
   based on main; mixed live result, not proven by its compatibility tests.
@@ -430,4 +534,1135 @@ boundary; no new paid treatment is registered yet.
 - [#266](https://github.com/maxwn04/AIdamShefter-v2/pull/266): original context in due
   callbacks, stacked on #263; 45 tests, historical correction with persistent question narrowing; mixed completed challenge.
 
-No merge, PR approval or deployment is authorized by these experiment outcomes.
+Experimental outcomes alone did not authorize merges. On November 4 the user explicitly reviewed and authorized merging #261, #260, #263 and #264; the remaining PRs stay draft. No deployment or PR approval review was performed.
+
+
+## Reviewed baseline and follow-up results — November 4
+
+The user reviewed and requested merging #261, #260, #263 and #264, in that
+order. All four merged without conflicts. The resulting main is
+`ddccadd6c51947da2c9c2c539611e69dd2f11b25`. No approval review was submitted.
+The other experimental PRs remain unmerged.
+
+Combined targeted backend validation: **133 passed, 1 failed**. The failure is
+`test_bracket_identity_survives_public_cards_with_overlapping_matchup_numbers`:
+the assertion expects guidance saying the recorded winner may differ from the
+higher-scoring team. The same assertion fails on pre-merge main
+`5dfeb036fd756ffed1c9b6d9a6ed84757e611525`. It is recorded as a pre-existing
+failure, not silently excluded or treated as a merge regression. Both final-main
+CI checks, quality and migrations, passed.
+
+### E14: explicit closeout handoff — inconclusive
+
+The control retained the full research conversation. Treatment began an explicitly
+new conversation containing the unchanged request, current memory, complete latest
+research brief, unchanged submitted article, verifier/submission receipts, saved
+event arguments and receipts, and closeout guidance. This was a proposal-only
+comparison: no returned tools or canonical memory mutations were executed.
+Seven offline packet-integrity checks passed.
+
+The control made three storyline proposals and retained the known question drift.
+Treatment requested a standings lookup instead of proposing a memory update.
+Under the preregistered inspection-only rule this is **inconclusive**, not evidence
+that context reset improves identity preservation. There was no extra treatment
+turn or favorable reroll. Two settled completions cost $0.026976372; no embeddings
+or new uncertain request. The intervention was not promoted.
+
+### E15: original preparation checkpoint — subsequently executed November 5
+
+A synthetic reviewer test was prepared to distinguish question substitution,
+partial answers, legitimate early closure, separate successor stories, missing
+origin evidence and ambiguous outcomes. No paid call was dispatched. It remains
+separate from the merged baseline and is not evidence of improved reporting.
+
+### E16: original baseline registration and historical partial checkpoint
+
+E16 starts with empty canonical memory and the original chronological 17-week
+source/editorial plan. Reporting changes exactly match the four approved merges.
+Relative to the completed E08 runtime, only the merged median-scoring guidance
+changes. The existing E08 preseason snapshot support, DeepSeek continuation,
+private spending controls and simulation safeguards remain runtime prerequisites;
+this is not a claim that unmodified main includes those unmerged facilities.
+
+Settings remain direct Flash with high reasoning, 32,768 output tokens,
+16,000,000 serialized input bytes, 60 research plus 6 closeout turns, 600-second
+transport timeout, no SDK generation retries or fallback, and chronological
+3,072-dimensional embeddings. Serialized bytes are an application guard, not a
+provider context-token limit. The forecast is approximately $2.30 plus embeddings;
+a hard reservation guard may stop the run with partial coverage.
+
+The audit separates acquisition discovery, saving, automatic exposure, explicit
+retrieval and article use. It also measures original-question retention, valid
+closure versus replacement, unsupported historical claims, duplicate trade
+identities, and research versus revision work. There are no storyline-duration
+quotas or target-specific hints. New interventions require their own recorded
+hypothesis and comparison; rejected E05/E11/E13 and mixed E12 are not inherited.
+
+
+### E17: coherent identity at creation — preregistered, unrun
+
+E16's first new storyline exposed a different failure from update drift: its
+headline and callback concerned a scoring-format trend, while its explicit live
+question concerned a separate lineup decision. The card already lacked a stable
+single development at creation. This observation motivates a new test; it does
+not establish that guidance will fix it.
+
+The candidate adds one paragraph to closeout: keep a new storyline's headline,
+unresolved question and callback about the same coherent development. Independent
+questions should not be combined merely because one article mentions them.
+Related compound questions remain valid, and no-op remains allowed. No minimum
+duration, card count, named target, schema, retrieval or verifier change is added.
+The existing identity and callback rules remain intact.
+
+The gate uses one fresh proposal-only control and one treatment at the first
+eligible creation opportunity in the same completed E16 Week 1 conversation.
+Only the encoded closeout paragraph differs; all 83 messages, the article,
+source state, prior event receipt and 25 assistant reasoning fields are preserved.
+Offline checks verified the exact difference and unchanged surrounding payload.
+Returned tools will not execute. Both arms must actually propose a new storyline;
+inspection-only, no-op and ambiguous cases are inconclusive, as are quality ties.
+Only a coherent treatment versus a bundling control, without a new unsupported
+claim or invented question, supports narrow proposal-level improvement. No reroll
+or automatic full-season promotion is planned. The shared spending guard stopped E16 before the gate could dispatch. Both
+preregistered arms remain unrun; the frozen packets are retained for later review.
+
+Draft #267 changes documentation only, so its paths do not trigger the repository's
+backend/frontend or database CI workflows. The merged main checks and local
+combined backend test results above are the relevant existing validation.
+
+
+### E18: scoped record-review context — offline candidate
+
+A live E16 revision trace prompted a synthetic reproduction: a correct sentence
+listing two teams at different records generated two attribution warnings because
+the verifier compared every record-like number with every named team's source
+record. Historical and current periods were also mixed in those comparisons.
+
+[Draft #268](https://github.com/maxwn04/AIdamShefter-v2/pull/268) replaces that
+heuristic with bounded source-record contexts grouped by subject identity. The
+contexts preserve source references, periods, ties, units, limitations and the
+relevant draft passage. They explicitly make no match/mismatch verdict. Other
+diagnostics, traceability errors and submission behavior remain unchanged; the
+active E16 verifier is untouched, and E17 is not inherited.
+
+The final candidate passed **76 targeted tests**. The correct two-team fixture
+changes from two false attribution warnings to two scoped contexts. A deliberately
+wrong record remains visible beside its authoritative source; this preserves
+review evidence but does not establish that the writer will correct it. Tests
+also cover invalid bindings, poisoned claim text, duplicate references, distinct
+identities with equal display names, unknown periods, ties, units, limitations,
+ordinary prose without records and output truncation.
+
+Decision: reviewable offline presentation candidate, **not promoted as a quality
+or efficiency improvement**. No paid E18 call, full-season treatment or deployment
+has occurred. The next decision requires evaluating unnecessary edits and genuine
+error correction separately, without treating disappearance of warnings as success.
+
+E16 initially completed seven weeks without an upstream failure. Its later Week 8 closeout failure is recorded below.
+The early baseline saved all five observed Week 2 trades as five canonical
+identities; E08 had saved two by that point. This is sample coverage, not attribution
+to the median-guidance difference. Later recall, use and final season quality remain
+pending. E17's one-file candidate passed 14 targeted closeout/definition tests and
+remains unrun locally.
+
+
+E18 evidence clarification: the inspected edit immediately following the live
+record warnings clarified a real sentence ambiguity. It is not counted as wasted
+work caused by those warnings. The synthetic cross-comparison reproduction
+supports the narrower presentation concern; live efficiency remains unmeasured.
+Draft #268's quality CI passed on current head `12389772989c95e4078889da2f78f7500b0d3a5a`. Its final change only clarifies the evidence; production code and tests are identical to the 76-test candidate.
+
+
+### E16 infrastructure checkpoint and bounded recovery
+
+Week 8's article was accepted at turn 25. The completion requested at turn 29
+failed with HTTP 503 after 11.154 seconds, carrying an upstream connection-reset
+message. No useful correlation ID was available; the evidence does not establish
+whether the provider or environment network path originated the failure. No SDK
+retry or provider fallback occurred.
+
+The failed request executed no tools, and Week 8 committed no canonical memory.
+The memory head remains exactly the complete Week 7 checkpoint. The supported
+controller cannot resume that exact in-memory closeout, so one separately labeled
+infrastructure retry is prepared from Week 7. The original accepted article, raw
+trace, failed generation and full uncertain reservation remain preserved. A new
+article from recovery will not replace the original result in the evidence record.
+
+Twenty targeted reconciliation, budget and sanitized-diagnostic tests passed.
+Runtime/source-pin/controller preflight also passed without a provider call.
+Recovery waits for a 15-minute cooldown, retains the unchanged hard allowance and
+may stop with partial season coverage if the next reservation cannot be covered.
+A further upstream failure stops paid work, including new gates; no repeated
+quality retries are permitted.
+
+E18's separately registered synthetic reviewer gate uses two completions over
+five cases: correct multi-team and historical passages, wrong current and tied
+records, and unsupported period attribution. Only record diagnostics differ. Nine
+packet/scorer checks passed. A tie or incomplete response remains inconclusive;
+no paid E18 call has run. See draft #268 for the frozen discriminator and limits.
+
+
+### E16 recovery result and interim quality evidence
+
+The one authorized recovery completed Week 8 in 48 turns, and Week 9 also
+completed in 48 turns. Verification confirmed identical request, settings, source
+snapshot and input memory between the two Week 8 attempts. The failed attempt
+made no canonical memory commit; recovery produced one revision. The original
+accepted article's hash remains unchanged and its trace stays separate. No new
+upstream failure occurred through this checkpoint. The remaining season continues
+under the same guard; full coverage and the later gates are not guaranteed.
+
+Through Week 8, 13 source trades map to 13 identities and 19 versions, with zero
+duplicate groups, changed typed assets or broken links. Ten historical checkpoints
+preserve their original visibility. Through Week 7, 13 of 14 available completed
+trades were saved in their first available week. The unsaved move appeared in two
+source responses: it is a selection/retention observation, not a discovery failure.
+
+Qualitative findings remain mixed:
+
+- A new card combined a scoring-format theme with a separate lineup question
+  before any update drift. That motivates the unrun E17 creation test.
+- A later acquisition-value card explicitly said its purchase was unvalidated,
+  then changed the open question to sustaining a playoff run under the same
+  identity. Its automatic exposure came through a due-callback link without the
+  first version. This identifies a coverage route, not proof that E12 would fix
+  semantic drift; that candidate's prior result remains mixed.
+- A market summary named a pick as the price of a package that also sent two
+  players. The underlying trade and another summary retained the full package.
+  Typed asset correctness therefore does not certify complete narrative prices.
+- One short-lived volatility/standings arc plausibly answered its explicit
+  either/or question. It is not counted as premature merely because it closed
+  before its nominal review week.
+
+Across the seven matched completed weeks, E08 used 223 completions and 58 edit
+calls, versus E16's 216 and 47. These are descriptive single-sample counts with
+failures recorded separately, not causal evidence of efficiency or article quality.
+The Week 8 retry also exposed three stale-revision conflicts from batching edits
+against the same article revision; other edits made useful factual corrections.
+
+
+### E16 checkpoint through Week 13
+
+Thirteen weeks completed, with no additional upstream error after the single
+Week 8 recovery. The season continues under its unchanged per-request spending
+guard. E17 and E18 remain unrun, so neither has a paid quality verdict.
+
+The completed audit through Week 11 found 20 source transactions mapped to 20
+canonical items and 27 versions, with no duplicate source groups, altered typed
+assets or broken links. Thirteen retained checkpoints preserved their original
+visibility. Of 22 source trades available by that boundary, E16 saved 20, versus
+15 for E08 and 14 for E06 at the same boundary and identical source cutoffs. All
+saves in these counts occurred in the source's first available week. Coverage is
+not a quality score, and omitted trades are not automatically editorial failures.
+
+The matched eleven completed weeks used 377 completion calls and 87 article-edit
+calls in E16, versus 357 and 84 in E08. The early seven-week reduction did not
+persist at this boundary. Failed attempts stay in experiment costs but outside
+these completed-week counts; useful factual repairs and stale-revision conflicts
+are distinguished when interpreting edits. These counts do not isolate causality.
+
+Week 12 correctly covered and saved a three-team acquisition, including the
+outgoing first-round pick. Final-week recall and use remain pending. Separately,
+a verified Week 11 memory summary called two double-loss weeks consecutive even
+though frozen standings show two wins in the intervening week. That exact false
+summary was exposed in Week 12 automatic recall, and the next article repeated
+the consecutive-loss assertion. This is evidence of a saved→exposed→repeated
+factual error, not proof of a unique causal path or of a regression caused by a
+particular merge. It motivates a separate hypothesis about source-supported
+temporal claims in memory; neither E17 nor E18 currently addresses that boundary.
+
+
+### E16 November 4 budget stop — superseded by the November 5 completion below
+
+E16 completed Weeks 1–16. Week 17 received three settled research responses, then
+stopped before turn 4 was sent because the remaining conservative allowance could
+not cover the next request reservation. It produced no Week 17 draft or submitted
+article and committed no Week 17 memory. This was an application spending guard,
+not a provider context limit, output limit, empty account or another upstream
+failure. The original accepted Week 8 article and failed closeout remain separate
+from the successful recovery. There was no second recovery or quality reroll.
+
+Aggregate E16 charge is **$2.629523724**: $2.275202124 settled across providers plus
+the retained $0.3543216 uncertain Week 8 request. It includes 563 dispatched
+completion requests (562 settled, one uncertain) and 21 embedding requests costing
+$0.008974680. The blocked request was not sent or charged. Older spending and
+uncertain requests remain in the private cumulative ledger; they were not reset.
+
+The full frozen runtime SHA256 is
+`8c917447d2b187464673bc4ba678468fed48e56a8d9ad7b4c8c6667b6b12cb64`
+(sorted JSON of files, packages, configuration, Python and pricing, using default
+JSON separators). Its 382-file map SHA256 is
+`4d3b3209da0ae8f237ddd1cc22d28fc1f128f559ee8833bf23e66e8ae69a7e4f`
+(sorted compact JSON). All files and the saved pricing manifest remain unchanged.
+The only runtime-file difference from E08 is the merged median-guidance file.
+Observed maxima across recorded attempts were 240,670 prompt tokens, 14,546
+completion tokens including reasoning, and 797,793 serialized input bytes. These
+are observations, not new limits; the frozen limits remain those declared above.
+
+Technical and behavioral findings:
+
+- **Trade identity:** 21 source transactions, 21 canonical identities, 29 versions
+  and eight repeat versions; zero duplicate groups, changed typed assets or broken
+  links. All 19 retained checkpoint visibility/content checks passed.
+- **Coverage:** 21 of 23 available trades were saved in their first available
+  week. At the same Week 16 boundary E08 had saved 16 and E06 had saved 15. These
+  are identical-source single samples, not evidence that the median guidance
+  caused better selection or that every extra card was useful.
+- **Acquisition path:** the acquisition was first encountered and canonically
+  saved in Week 12. Weeks 13–14 mentioned it through broader recalled context,
+  without an exact original-event binding. Week 16 rediscovered the transaction
+  through source tools, saved grounded facts and used the full acquisition/price
+  in the semifinal article. Its repeat save reused the original identity. This
+  demonstrates source rediscovery and use, not direct event-card retrieval. The
+  championship callback is unmeasured because Week 17 never wrote an article.
+- **Original context:** all 26 selected updated leads received their exact
+  immutable origin. Across 36 successful storyline updates, 27 had a first
+  version somewhere in automatic context, including 20 using the added projection;
+  nine did not. Later explicit retrieval can also supply context. Delivery is
+  not semantic adherence.
+- **Lifecycle:** all seven identities were reviewed against their original
+  summaries/callbacks and subsequent question/status transitions. There are
+  legitimate short-scope closures, an ambiguous multi-theme creation, clear
+  acquisition-to-playoff question substitution, and scope-sensitive evolution.
+  The substituted acquisition arc later explicitly hands its remaining payoff
+  to a broader market story; that matters when judging its closure. The handoff
+  is textual, without a structured related-storyline link. No blanket premature-
+  closure count or longevity quota is applied.
+- **Grounding:** the saved→exposed→repeated false streak claim remains a verified
+  failure. A later article incorrectly calls one qualifying record the weakest
+  despite a worse record in its own table. The semifinal closing paragraph assigns
+  an eliminated top seed's record to the finalists. Correct trade assets and
+  useful callbacks therefore do not certify authored summaries or conclusions.
+- **Work and voice:** over sixteen matched completed weeks, E16 used 531
+  completions versus E08's 507, with 110 edit calls in each. E16 used 297
+  pre-draft turns, 159 draft-through-submission turns and 75 closeout turns, versus
+  270, 164 and 73. Failed attempts remain separate in those counts and included
+  in costs. The articles range from 856–1,307 words with 5–9 headings, using short
+  numerical openings, matchup sections, tables and pointed concluding lines.
+  The style is readable in places, but emphatic comparisons and conclusions can
+  outrun the evidence. These observations are not a causal quality score.
+
+**Decision:** retain the merged baseline and its partial result; do not claim a
+new general quality improvement. E17 and E18 are **unrun due to budget**, not
+failed comparisons or favorable ties. Their frozen inputs and offline test
+evidence remain available. No new treatment was promoted, merged or deployed.
+The most concrete next unresolved question is how to validate temporal and
+comparative claims in saved narrative without suppressing useful synthesis.
+The known retrospective pick-ownership input limitation still applies.
+
+
+### November 5 continuation
+
+The user renewed authorization to use the remaining provider balance. Historical
+charges and all five uncertain requests remain in the private cumulative ledger;
+the new spendable ceiling subtracts those reservations and does not add the old
+unused allowance a second time. Embedding authority remains separate. Accounting
+checks include repeated recovery and repeated funding renewal without resetting
+historical calls.
+
+After the cloud environment restarted, the disposable database had to be restored
+from its verified terminal export. The original campaign and export are retained.
+A separately recorded infrastructure migration changes only the isolated target
+identity and local asset paths, with the matching campaign receipt hash. The
+campaign UUID, all previous generations, all source and memory pins, and the
+frozen runtime remain unchanged. Full controller reconciliation passed; Week 17
+has no prior article or canonical writes. Its recovery uses the controller's
+explicit failed-attempt retry from the complete Week 16 memory boundary, not an
+in-memory transcript continuation. No earlier week is regenerated.
+
+The Week 17 recovery completed. E17 and E18 retain their original frozen
+paired tests and decision rules; the earlier unrun budget outcome remains part
+of their history. Results below will distinguish source discovery, saved memory,
+recall exposure, article use and factual grounding. No additional PR merge or
+production change is authorized or performed by this continuation.
+
+
+### E16 completed season — November 5
+
+The restored Week 17 attempt succeeded in 34 turns: 21 research turns, a first
+draft at turn 22, submission at turn 31, and three closeout turns. The accepted
+article is unchanged. Recovery added $0.119739606 in settled generation cost and
+no uncertainty or embedding charge. Full E16 cost is $2.749263330, comprising
+$2.394941730 settled plus the earlier $0.3543216 unknown request. All 597
+dispatched completion requests and 21 embedding requests are accounted for; the
+old budget-blocked dispatch is not counted as a billed request.
+
+The final article leads with a championship acquisition callback and reconstructs
+the multi-party trade, including the future first-round pick and each player's
+direction. The trace distinguishes the stages: original canonical save in Week
+12; broader storyline exposure in Week 17 without an exact original-event binding;
+fresh transaction research in turns 3–4; a bound trade fact at turn 11; a trade-
+payoff callback at turn 21; and article use at submission. There was no explicit
+memory search or inspection. This is contextual exposure plus source rediscovery
+and use, not proof that direct event retrieval caused the callback.
+
+The repeat trade save reused its original identity. Final totals are 21 source
+transactions, 21 canonical trade items, 30 versions and nine repeat versions,
+with zero duplicate groups, source collisions, changed typed assets or broken
+links. Twenty retained checkpoint visibility/content checks passed.
+
+Lifecycle remains a material failure. The final two active storylines were marked
+resolved; one summary explicitly admits that the second half of the original
+question is unanswered, and another replaces an original pick-valuation question
+with a title question while saying valuation remains open. All seven current arcs
+are now resolved and all twelve current callbacks satisfied. The text is retained
+in history, but no active follow-up preserves those unresolved components. This
+is a scope/status contradiction, not a rule that stories should live longer.
+
+The final article correctly separates the finalists' regular-season records and
+acknowledges unknown eventual pick value. Earlier factual errors remain part of
+the season result. Its temporary-ownership metaphor is not established by the
+transaction record, and emphatic title-causality language exceeds a fully tested
+counterfactual. Successful discovery does not certify all prose or memory claims.
+The retrospective source-ownership limitation remains unchanged.
+
+Across all seventeen completed weeks, E16 used 565 completions and 120 artifact
+edits, versus E08's 537 and 124. Research/drafting/closeout turns were 318/169/78
+versus 285/175/77. Failed attempts are separate from those work counts and included
+in total spending. These are descriptive single-season comparisons, not a causal
+claim for the merged guidance or an efficiency score.
+
+### E17 paid gate — not promoted
+
+Both fresh arms proposed a new storyline at the same original creation boundary.
+Control combined a median-driven standings question with a second-quarterback
+selection question. Treatment retained that same mixture in its headline,
+summary and callback despite the added coherence instruction. Both exercised
+the boundary, so this is observed non-improvement rather than an inspection-only
+result. Under a more permissive interpretation of related scope, it still fails
+the preregistered control-fails/treatment-improves discriminator.
+
+The two calls cost $0.035560248. No proposed tool executed, article changed,
+canonical memory mutated, uncertain request appeared or favorable reroll ran.
+The candidate and raw responses are retained; no E17 full season or shipping PR
+is justified by this result.
+
+
+### E18 paid gate — inconclusive tie
+
+Both control and treatment preserved the correct current and historical records,
+corrected the two genuine record errors, and declined unsupported period attribution.
+Both passed all five predeclared cases, including exact corrected text and relevant
+source references. The control did not make the unnecessary edit required by the
+primary discriminator, so the result is an inconclusive tie, not treatment success.
+Two calls cost $0.005562408, with no tool execution, embedding, uncertainty or
+reroll. Draft #268 retains its separate offline evidence that the old diagnostic
+cross-compares unrelated records. This gate does not establish better real editing
+decisions, fewer revisions or better articles; no season is promoted from it.
+
+### E19 — temporal claims in durable summaries
+
+The next proposal-only comparison uses the original pre-write Week 11 context.
+Its single added paragraph asks the writer to verify the ordered periods behind
+a temporal claim, distinguishing recurrence from a consecutive sequence. All
+original facts, accepted article, tools and assistant reasoning are identical;
+E17 and E18 are not incorporated. Both arms must exercise the selected update,
+and treatment must remove a source-contradicted temporal claim made by the fresh
+control without adding another factual or identity regression. Both correct,
+inspection-only, ambiguous or missing proposals are inconclusive, with no rerolls.
+The original observed failure is a correct list of separated bad weeks compressed
+into an unsupported consecutive streak, later exposed and repeated in an article.
+
+
+### E19 paid gate — no fresh control failure
+
+Both fresh arms exercised the selected existing storyline update. Control
+explicitly separated the earlier double loss, an intervening sweep, and the later
+third double loss; treatment also retained the correct separated-week sequence.
+The historical error remains verified, but the fresh control did not reproduce
+it. The primary discriminator therefore failed, and this $0.073723008 pair is
+inconclusive. There were no executed tools, canonical changes, retries or new
+uncertainty. No E19 season or shipping PR is promoted.
+
+### E15 and E20 — independent review has limited positive evidence
+
+The original, unchanged E15 synthetic packet ran once after nine scorer tests
+passed. It correctly handled all twelve cases for $0.0100902: six valid
+continuations/closures, four clear substitutions or unsupported closures, missing
+origin evidence, and an ambiguous payoff criterion. In particular it accepted a
+supported early closure, a negative answer, an explicit either/or outcome and a
+separate successor after the original was answered. This measures reviewer
+capability, not an effect on reporting.
+
+E20 then reviewed four curated real frozen updates, with original and prior cards,
+complete source-tool observations before the proposal, source-bound brief facts,
+and the unchanged submitted article. Each case retained its own cutoff and source
+snapshot. Expected verdicts were withheld. The reviewer flagged both final-week
+scope/status contradictions, accepted the supported final-period comparison,
+and accepted the scope-sensitive early either/or closure without imposing an
+arbitrary duration requirement. The one batch cost $0.1145943.
+
+This is narrow positive advisory evidence. The review sometimes suggests moving
+an unanswered component into a successor without sufficiently preserving the
+original question's identity. Its reasons are not an automatic safe fix. No
+writer feedback, memory mutation or article change occurred in E20. Full evidence
+packets also have a material token cost; no efficiency benefit is assumed.
+
+### E21 — repair wording is not an executable repair
+
+The paired probe continued the exact original final-week post-proposal context.
+Control retained ordinary successful receipts; treatment replaced two receipts
+with explicitly simulated pre-save rejections containing the unchanged E20
+reviewer reasons. Every other message, original assistant tool argument and
+reasoning field, source observation, tool definition and submitted article was
+unchanged. No real tool result or archived database was edited.
+
+Control called the completion tool without repair. Treatment proposed active
+summaries that retained unresolved valuation, but omitted both `id` and
+`update_handle` from each update. The existing typed input validator rejects
+both calls: a creation key or existing update selector is required. Under the
+predeclared malformed/incomplete-proposal rule this is **inconclusive**, not
+successful memory repair. The pair cost $0.056257068; no extra turn, reroll or
+canonical write followed.
+
+E22 separately tests the interface issue by adding an explicit retry object that
+echoes each original update selector and the existing tool contract. Reviewer
+advice and all substantive reporting context stay unchanged. Typed validity is
+checked before semantic quality. This is a new receipt-format comparison, not a
+continuation or favorable reroll of E21, and no production review hook is installed.
+
+### E22 — valid selectors, no demonstrated receipt-format benefit
+
+Both fresh arms supplied the two exact existing update handles and passed the
+real typed argument validator. Both kept the valuation questions active. This is
+an actionability tie, so the added selector echo does not pass the primary
+control-fails/treatment-improves discriminator. More importantly, the treatment
+still rewrote an original valuation question as a question about winning the
+championship. Correct selectors and active status do not establish correct
+question identity. Two calls cost $0.005262288; no tools executed or canonical
+state changed. No season or shipping change is promoted from this result.
+
+E23 separately tests adding the exact immutable original card to each rejection
+receipt. The selector-bearing receipt is an interface choice shared by both
+arms, not an E22 efficacy claim. Reviewer reasons, source context, submitted
+article, tool definitions and all previous assistant reasoning remain unchanged.
+The discriminator requires supported original-scope repairs in treatment and a
+semantic failure in fresh control; equivalent repairs remain inconclusive.
+
+### E23 — original text exposure still does not establish faithful repair
+
+Control again omitted both required selectors and explicitly rewrote the original
+valuation question as a title question. Treatment returned valid handles and kept
+valuation open, but still asserted a title component of that valuation-only
+original. It also centered the other original production/standings-payoff question
+on the championship result. This does not pass complete original-scope repair.
+The pair cost $0.005794656; no tool executed or memory changed. The reviewer
+intervention is not promoted to a live write hook or a longitudinal run.
+
+### E24 — complete reporting test of scoped record diagnostics
+
+This comparison returns to the independently reproduced record-diagnostic defect
+in draft #268. One fresh control and one treatment will each write the original
+Week 4 request from the identical completed Week 3 database, source cutoff and
+pre-Week 4 embeddings. Only the record-verification implementation differs.
+Seventy-six targeted tests also pass on the actual E16 operational parent with
+the candidate applied. No rejected storyline paragraph or review intervention is
+incorporated.
+
+The review will classify each record diagnostic and following edit against the
+correct subject and period. A behavioral improvement requires an unnecessary
+control record edit avoided by treatment without a missed real error. Warning
+counts, different prose and fewer total revisions alone are insufficient. If the
+arms do not expose comparable opportunities, the result remains inconclusive.
+Both complete articles, all attempts and memory changes will be preserved.
+
+Preflight required two recoveries before any E24 paid call: full original embedding
+coordinates were read from the preserved database because the JSON export displays
+abbreviated vectors, and unused restored containers were removed after verifying
+no new generations or committed changes. Both arms will run sequentially to keep
+room for verified exports. Original vector IDs, metadata, source-content hashes
+and timestamps before the original Week 4 generation match; no future memory or
+new embeddings are substituted. The pair has a conservative $0.45 forecast and a
+$1.10 aggregate cap, within the existing shared hard allowance.
+
+### E24 control checkpoint
+
+Control submitted on turn 21 and completed closeout on turn 25 for $0.130382364.
+It received 38 record warnings across two verification calls (19 repeated in each),
+recognized the cross-comparison noise, and made no unnecessary record edit. One
+edit corrected a real trade-asset direction; three adjusted wording. The primary
+efficiency discriminator therefore cannot pass on this sample. Treatment still
+runs for the preregistered factual and completion audit. A temporal description
+remains wrong: evidence from the preceding week is described as several weeks
+old. This is distinct from an incorrect raw standings value.
+
+A synthetic regression now covers a team name ending in a period: paragraph
+context keeps that subject and its opponent's records separate. Eleven tests in
+the changed module pass on the published head; the implementation remains the
+same file used by the running treatment.
+
+### E25: disclose snapshot ownership limitations
+
+A separate offline candidate targets an audited source limitation. The frozen
+pick-inventory view overlays a selected endpoint snapshot; it does not reconstruct
+ownership from each week's dated transfers. Some recorded transfer chains disagree
+with the earlier ownership view. Other apparent discrepancies precede the first
+recorded transfer and cannot alone rule out missing or preseason history.
+
+The change qualifies inventory summaries and pick rows, including empty lists,
+without altering raw values, identities, dates or source snapshots. Dated trade
+assets and unrelated player records remain unaffected. The snapshot is described
+as selected for the reporting cutoff, not proof of historical observation. The
+tool implementation version also changes to identify the presentation revision.
+Twenty-seven targeted checks pass on both the public candidate and actual E16
+operational parent. No record-verifier or rejected memory treatment is inherited.
+
+The preregistered pair uses the original Week 3 request and the identical Week 2
+checkpoint with all 22 original pre-generation embeddings. Treatment must qualify
+or avoid an unsupported historical inventory/resource constraint made by fresh
+control while preserving correct dated transfers. Both arms must encounter
+inventory evidence; no exposure, equivalent qualification, missing analogous
+opportunity or ambiguous scope remains inconclusive. Arbitrary SQL is outside
+this narrow curated-roster presentation change. No ownership reconstruction,
+source regeneration, favorable reroll or production rollout is authorized by the
+experiment itself. Its conservative forecast is $0.40 with a $1.10 pair cap inside
+the existing shared allowance; paid launch follows E24's terminal audit.
+
+### E24 terminal comparison: inconclusive
+
+Both Week 4 arms completed submission and memory closeout. Control used 25 calls
+and four edits; treatment used 28 calls and six edits. Total cost was $0.268010484,
+with no new uncertain request or embedding call. Control made no unnecessary
+record edit, so the preregistered avoided-edit discriminator cannot pass. Treatment
+received eleven contextual record advisories, with no edit after verification.
+All six of its edits happened before its first changed diagnostic feedback; their
+count and the different article cannot be attributed to that feedback.
+
+Both arms preserved all 29 prior memory versions, original content and valid
+evidence bindings. Repeated trade saves retained their original identities.
+Grounding remains imperfect: control misstated a historical interval; treatment
+miscomputed a points gap and described a flexible lineup slot as mandatory for
+one position. The arithmetic error reached a saved fact and a canonical storyline
+resolution. These are retained failures, not corrected experiment outputs.
+
+Decision: no article-quality or revision-efficiency promotion. The diagnostic
+candidate remains reviewable for its offline correctness rationale. The next
+separately scoped test is E25's ownership-evidence limitation; it inherits the
+unchanged E16 baseline, not this verifier candidate.
+
+### E26 preregistration: derived arithmetic in durable memory
+
+E24 exposed a distinction between source provenance and claim correctness: source
+bindings contained the right operands, but an incorrect computed gap appeared in
+the brief, article and subsequent storyline resolution. The next selected-case
+probe appends one general paragraph to closeout: recompute derived numbers from
+compatible cited operands, recognize that a successful binding does not certify
+arithmetic, and omit or qualify a calculation when operands are unavailable.
+It supplies no target names, numbers, desired storyline status or corrected prose.
+
+One fresh control and one treatment use the exact original pre-write conversation
+from E24's treatment, retaining its record-context verifier and all assistant
+reasoning. E25 and the rejected identity/repair candidates are not inherited.
+No returned tool executes, so neither the published article nor canonical memory
+changes. This is a selected known-error challenge, not a fresh full-week result.
+
+The discriminator requires the fresh control to reproduce the invalid comparison
+and treatment to make a typed-valid substantive update to the same card that
+corrects or explicitly qualifies the derived result, preserving the supported
+development and original question. A correct control, missing update, invalid
+selector, inspection-only response or ambiguous outcome is inconclusive. All
+other numerical claims and scope changes must also be audited. No extra turn or
+reroll is allowed. The pair forecast is $0.05, capped at $0.50 within the existing
+allowance; it cannot launch until E25 is terminal and audited. Even a narrow pass
+would not establish improved published articles or safe automatic memory repair.
+
+### E25 terminal comparison
+
+Control completed in 28 calls with ten edits; treatment completed in 36 calls with
+six edits. Together they cost $0.255850584, with no new uncertain request or
+embedding call. Original versions, source pins and trade identities were retained.
+Control never encountered roster inventory, so the preregistered comparative
+criterion could not pass. Treatment encountered it twice and explicitly chose
+dated completed transfers over unsupported historical inventory assertions.
+The final article retained those transfers. This is useful mechanism evidence,
+with no fresh matched-control opportunity to establish an improvement.
+
+Treatment recovered from a prohibited SQL schema query and two typed memory-tool
+rejections. The inherited storyline's identity was already mixed and drifting;
+this candidate did not repair it. The candidate remains a source-disclosure
+correctness proposal, with no reroll or full-season promotion. Its clean branch
+is `codex/pick-ownership-evidence`; a draft PR has not been created.
+
+E26 subsequently starts its separate two-call arithmetic probe. The instruction
+changes an earlier submission receipt while later original assistant turns remain
+frozen: this is a counterfactual continuation, not a whole-run causal estimate.
+
+### E26 result: the arithmetic reminder failed
+
+Both fresh proposals were valid under the typed storyline-update contract and
+repeated the same incorrect difference in the target card's summary and
+resolution. Neither recomputed the correct difference from the cited operands.
+The pair cost $0.064582260, above its rough $0.05 forecast because control had
+substantial uncached input, but within its $0.50 hard cap. No tool executed and
+no article or memory changed. The paragraph is rejected, with no reroll or
+full-season promotion.
+
+### E27 preregistration: independent relation review
+
+The next mechanism separates selecting an explicit numerical relation from
+checking its arithmetic. One independent Flash review receives eight unchanged
+comparison facts and six synthetic controls. It must identify all six supported
+sums/differences, including three incorrect results, without adding false alarms
+to direct scores, records or out-of-scope percentages. Returned operands must
+reference supplied bindings and the stated result must appear in an exact claim
+excerpt. Deterministic Decimal code computes the result separately.
+
+Eighteen offline tests cover exact decimal behavior, binding ranges, invented
+excerpts, normalized numeric literals, punctuation and non-finite values. The
+checker does not certify semantic selection, source truth, temporal availability
+or completeness. This one-call advisory gate has a $0.015 forecast and $0.40 cap,
+inside the shared allowance. It executes no writer or memory tools, and even a
+pass would not justify automatic runtime blocking without further evaluation.
+
+### E27 result and E28 preregistration
+
+E27 selected all six expected relations across fourteen cases. Decimal validation
+identified all three incorrect results, with no invalid references, missing
+relations or extra relations. Manual review confirmed the selected operands and
+comparison scopes in this small packet. Cost was $0.003343200. This narrow
+advisory pass supports testing writer uptake; it does not establish safe runtime
+blocking, general semantic accuracy or better articles.
+
+E28 adds the actual verified arithmetic finding as one structured field in the
+original successful submission receipt. The finding includes the source-bound
+operands, quoted claimed result and independently computed result. The article,
+brief facts, existing procedure, tools and subsequent original assistant turns
+stay frozen. E26's failed reminder and E25's ownership wording are not inherited;
+the parent remains the exact E24 treatment continuation.
+
+One fresh control and one treatment must produce comparable typed-valid updates
+to the same current card. Treatment must correct or explicitly qualify the bad
+comparison, retain supported development and avoid introducing a different
+question. A correct control, missing/invalid update, ambiguity or incomplete pair
+is inconclusive; no extra turn or reroll is allowed. Inherited historical question
+drift remains a separate limitation, even if arithmetic improves. The pair has
+a $0.08 forecast and $0.50 cap within the shared allowance and executes no writes.
+
+### E28 and E29: finding an error is not the same as repairing memory
+
+E28's treatment retained the incorrect difference in its storyline summary,
+even though it removed that number from the resolution wording. Both arms had
+valid update selectors. The receipt-level advisory placement failed its repair
+discriminator; the pair cost $0.012055824. No tools executed.
+
+E29 then isolated diagnostic detail at a fresh simulated rejected-write boundary.
+Both arms received the same rejection, exact handle and complete original retry
+arguments; treatment alone received E27's concrete arithmetic finding. Generic
+control repaired the card and explicitly corrected the historical error. Detailed
+treatment instead proposed correcting the source-bound brief fact, with no card
+repair in that response. This is inconclusive for a detailed-feedback advantage,
+not a failed arithmetic calculation or a completed memory repair. Cost was
+$0.007736304. No extra turn, reroll, real rollback or production guard was added.
+
+### E30 preregistration: accepted-season arithmetic audit
+
+The frozen E27 reviewer and Decimal checker will review all 546 latest successful
+source-bound facts from E16's seventeen completed weeks, one packet per week.
+The source archive and extracted table hashes are verified. Failed attempts remain
+preserved but are outside this accepted-output audit. No unbound fact was omitted.
+Original claims and bindings are unchanged; no future evidence is added.
+
+This is an observational audit, not a new reporter treatment. Every proposed
+relation, missing/invalid case and mathematical mismatch will be retained.
+Potential errors require manual review of semantic selection, scope, and actual
+article or memory propagation. Lack of flags does not establish exhaustive factual
+correctness: word-only numbers, percentages, rules, causality, source truth and
+retrieval omissions remain outside this checker. No quality retries are allowed;
+a new upstream failure or budget block stops paid execution. The seventeen-call
+forecast is $0.15 with a $0.75 cap within the shared allowance. No embeddings,
+article changes or database writes occur.
+
+### E30 terminal audit
+
+All seventeen review calls completed, covering 546 facts and costing $0.097465824.
+The reviewer selected seventeen supported arithmetic relations. Decimal checking
+found no mismatch, and all case IDs and output contracts were valid. Manual review
+of the returned relations found their operations consistent with the quoted claims
+and supplied operand values. No article or memory changed.
+
+This is limited coverage, not evidence that the season is factually clean. The
+known false temporal summary, record attribution mistakes, unsupported closures,
+question drift and retrospective ownership problem remain. The audit has no
+exhaustive estimate of omitted relations or other factual errors. The read-only
+prototype is retained; these results do not justify a general automatic grounding
+guard or another full season with an unproven repair mechanism.
+
+
+### E31: explicit question field at creation
+
+Both arms used the original first-week pre-closeout conversation and tools from
+E16. The only treatment difference was a required `original_question` string on
+the storyline tool. The existing identity paragraph remained; E17's extra prose
+and E13's update assessment were absent. Both proposals passed their declared
+JSON schemas. The control combined table interpretation with a separate lineup
+choice; the treatment put both into its new field and supplied no future callback.
+The field therefore failed the preregistered coherence discriminator. No returned
+tool executed, no memory was committed and no article changed. The two calls cost
+$0.033226068. A field's existence is not proof of semantic identity preservation.
+
+### E32: configured roster slots — preregistered
+
+Retained traces repeatedly inferred a mandatory second quarterback from observed
+starters, although the frozen configuration has a quarterback slot and superflex.
+The existing ordinary overview omitted that configuration. The candidate exposes
+the existing source slot list and scoped guidance; it does not rebuild source data
+or infer historical rule-change dates. Superflex accepts QB, RB, WR or TE, as
+[documented by Sleeper](https://support.sleeper.com/en/articles/4172355-how-can-i-add-additional-roster-positions).
+
+Two fresh original Week 1 runs share the original empty-memory boundary and all
+E16 settings. A narrow pass requires an unsupported mandatory-position claim in
+the fresh control and supported treatment behavior after slot exposure, without
+rejecting legitimate observed two-quarterback lineups. Both accurate, no relevant
+exposure/assertion, ambiguous wording or incomplete coverage is inconclusive.
+Source discovery, authored facts, canonical notes, revisions and unrelated errors
+will be reported separately. Eighty-six targeted checks cover source-to-evidence slot
+preservation, absent/unknown slots, overview exposure and existing query behavior.
+No full season or production behavior is approved by those tests alone.
+
+The additional tool checks reproduced a stale version assertion on the unchanged
+baseline (expected 5, actual 6). The candidate expectation now matches its declared
+version 7; no frozen reporter behavior changed for that test correction.
+
+### E32 terminal result and E33 preregistration
+
+E32 completed submission and closeout in 29 control and 31 treatment calls, costing
+$0.190826280. Treatment used the configured superflex and flex slots in its article
+and saved league note. Control inferred a categorical format from observed starters,
+but neither its article nor note explicitly required a second quarterback. The
+preregistered mandatory-rule comparison therefore remains inconclusive. Treatment
+used four edits versus eight in control; this is not an established efficiency
+effect. Both outputs still contain broad one-week judgments and lifecycle risks.
+All evidence bindings were valid; an empty-memory week cannot establish long-term
+pin preservation or repeated-trade behavior. No new uncertain request occurred.
+
+E33 addresses a separate concrete editing bottleneck. An original control trace
+planned multiple independent corrections but serialized them because the tool
+accepted one replacement per revision. The candidate retains that form and adds
+an atomic list of exact, non-overlapping replacements against the same original
+revision. Stale revisions, ambiguous matches, overlapping ranges and partial
+application fail closed. Thirty-four targeted tests pass. An offline replay of
+eight actual edit revisions reproduced the identical final article in two batches;
+that proves replay feasibility, not live adoption or article quality.
+
+One fresh control and one treatment receive the identical original pre-edit
+conversation and draft. Only the edit tool definition/implementation differs;
+roster-slot and rejected memory candidates are absent. Returned edit requests run
+only against separate in-memory draft copies; other tools do not execute. A narrow
+pass requires at least two justified, already-planned independent corrections in
+one treatment revision, without new factual errors or lost material information,
+and no equivalent one-revision control repair. Inspection, ties, invalid output or
+ambiguous corrections are inconclusive. No extra turn or reroll is allowed. The
+two-call forecast is $0.06, with a $0.50 cap inside the existing shared allowance.
+
+### E33 infrastructure stop
+
+The first control request returned HTTP 503 with upstream connection termination
+before response headers, after 7.493 seconds. SDK retries were disabled. No model
+response, proposal, tool execution or article/memory write was received. The full
+$0.3543216 reservation remains charged conservatively because billing is unknown.
+The treatment was not launched; no reroll or alternative provider was used.
+
+This is neither a negative nor positive batch-edit result. The 34 offline checks
+and byte-identical replay remain useful implementation evidence, but do not
+establish live adoption, latency or article quality. The shared paid ledger is
+halted. A later recovery must preserve this attempt and its reservation and be
+explicitly labeled; no additional season or runtime promotion follows from it.
+
+### E33 bounded infrastructure recovery — preregistered
+
+An explicitly authorized recovery preserves the original failed control and its
+full uncertain charge. Current environment policy and credential readiness are
+unchanged; one authenticated non-generation health check succeeded. That confirms
+reachability, not generation reliability or settlement. Twenty offline accounting
+and diagnostic checks pass, including repeated recovery and cap exhaustion.
+
+The recovery uses the exact frozen messages, tools and draft, with unchanged
+Flash settings and no additional instructions. One recovered control call is
+allowed, followed by the original one-call treatment only if control succeeds.
+The prior failed arm is not replaced. A new upstream failure stops all paid work;
+no further recovery is allowed. The pair retains its $0.06 forecast and $0.50
+gate cap inside the unchanged global allowance. No denied PR or upload is retried.
+
+### E33 recovery result and E34 preregistration
+
+The recovered control and treatment calls completed for $0.059446644 combined.
+Treatment proposed five independent preplanned edits; its real handler applied
+all five to an isolated draft copy in one revision. Control applied one. Added
+player totals and playoff settings were already in the frozen evidence. No new
+edit-induced numerical error or lost material fact was identified. Both retained
+a misleading statement about a split standings result and a categorical format
+inference. The accepted original article was never modified. This passes the
+narrow feasibility discriminator, not a factual-quality or whole-run cost test.
+The first failed request remains fully charged and separate.
+
+E34 uses the original Week 4 request and identical original Week 3 checkpoint,
+including all 29 original pre-Week 4 vectors. The only treatment change is the
+atomic edit tool from E33; E32 roster slots and earlier verifier, ownership and
+rejected prompt candidates are absent. One fresh complete control and treatment
+run sequentially, with original source pins, prompts, Flash settings and closeout.
+
+The primary audit requires valid adoption of a batch with at least two justified
+independent edits. A comparative efficiency signal additionally requires analogous
+control work serialized despite being already known, without new edit-induced
+errors or dropped facts. Fewer revisions alone do not pass. All changed passages,
+research and closeout costs, saved/retrieved/used memory, question continuity and
+trade callbacks will be inspected. No analogous opportunity, ties, ambiguity or
+partial coverage remain inconclusive. The forecast is $0.35 with a $0.90 pair cap
+inside the unchanged allowance. A new upstream failure stops all paid work; no
+additional recovery or quality reroll is permitted.
+
+### E35 temporal-relation review — prepared, not yet dispatched
+
+A separate known failure confuses repeated losses with consecutive losses and
+persists into later memory. E35 tests an advisory reviewer supplied ordered source
+observations: three exact historical memory excerpts and nine synthetic controls.
+The frozen cases cover recurrence, consecutive outcomes, historical endpoints,
+head-to-head versus median decisions, missing periods and uncompleted games. Two
+real excerpts share one summary, so these are not independent accuracy samples.
+
+One completion must classify all twelve predeclared cases correctly, quote exact
+claims, cite valid observations and use the correct time and decision scope. A
+wrong or missing verdict or unsupported reason fails readiness. No reporter tool,
+article or canonical memory is modified. Even a pass requires a later uptake test
+before any automatic rejection or repair. The forecast is $0.02 with a $0.40 cap
+inside the existing allowance. Launch is conditional on E34's terminal audit and
+a healthy budget; no reroll or additional upstream recovery is permitted.
+
+### E34 result: batching works; total cost and memory quality do not improve
+
+Both full Week 4 arms completed in 29 calls. Treatment used four edit calls,
+including two valid four-replacement batches, versus seven single replacements
+in control. Control had explicitly planned several independent repairs before
+serializing them. Treatment repaired a historical interval and clarified a split
+result alongside prose cleanup; exact edit review found no new factual error or
+lost material information caused by batching. The workloads were not identical.
+
+The revision/verification/submission phase cost $0.017085600 in treatment versus
+$0.019755900 in control, but greater research and drafting work made the full
+treatment more expensive: $0.133525812 versus $0.121909464 ($0.255435276 total).
+Its article was also longer: 1,142 versus 989 words against a target around 950.
+No input, output or turn limit stopped either arm. One guarded SQL introspection
+error recovered ordinarily in treatment; no infrastructure retry was needed.
+
+Both used prior acquisition memory and fresh transaction/player evidence for
+organic callbacks. All 29 prior memory versions and evidence bindings survived;
+no duplicate trade identity appeared, although neither arm exercised a repeat save.
+Treatment still replaced a narrowed storyline's live question on the same card
+and carried an overly certain future-pick-value inference into durable memory.
+That inference existed before editing. The control resolved the narrowed question;
+neither establishes preservation of the original compound question.
+
+Decision: retain the small edit-tool candidate for review and a bounded chronological
+robustness follow-up, without claiming cheaper runs or improved lifecycle/content.
+The offline diff audit was corrected to match artifact identity as well as revision
+number, and all diffs were regenerated before this verdict. Articles remain unchanged.
+
+### E35 result and E36 preregistration
+
+E35 completed its one advisory call for $0.0090888. All twelve verdicts matched
+the frozen labels and passed exact-quote/evidence-index validation. Manual review
+confirmed correct consecutive-versus-repeated reasoning, historical scope,
+decision type and abstention for missing or unplayed periods. The real false
+sequence was caught without rejecting the valid historical claim. This selected
+capability test does not establish general accuracy or effective writer uptake.
+No article or canonical record was changed.
+
+E36 continues chronologically from E34 treatment's verified Week 4 checkpoint,
+retaining original E16 Weeks 1–3 and only the atomic-edit tool change. It does not
+incorporate the temporal reviewer or any roster, ownership, verifier or rejected
+prompt candidate. Original later-week requests, snapshots, cutoffs and settings
+remain frozen. Only new canonical documents receive chronological embeddings.
+
+The hypothesis is repeatable valid batching across evolving memory and varied
+editorial requests, without edit-induced factual errors or dropped material facts.
+Every completed week's edits, costs, callbacks and question lifecycle are audited.
+Missing opportunities and partial coverage remain inconclusive; no longevity quota
+or quality reroll is imposed. Historical E16 articles are descriptive references
+only because the inherited Week 4 trajectory differs. Forecast is approximately
+$0.14 per week; hard reservations may stop a partial week. Any new upstream failure
+stops paid work without another recovery. All accepted articles and failures remain
+unchanged and private.
+
+### Review access
+
+The clean atomic-edit code, synthetic tests and bounded evidence are available on
+[`codex/atomic-artifact-edits`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/atomic-artifact-edits)
+at `559303dbc9298efbce740146519eb9e65ad1f1e9`. Thirty artifact checks passed on
+the final code, in addition to four previously passing definition checks. Earlier
+draft-creation denials were resolved by new explicit authorization. After checking
+that each PR did not exist, one retry created [ownership #269](https://github.com/maxwn04/AIdamShefter-v2/pull/269),
+[roster slots #270](https://github.com/maxwn04/AIdamShefter-v2/pull/270), and
+[atomic edits #271](https://github.com/maxwn04/AIdamShefter-v2/pull/271).
+All target main and remain drafts; no merge occurred. Each Frontend workflow
+succeeded, separately from the targeted backend checks. The batch PR explicitly
+retains E36's negative quality result. Private artifact upload restrictions remain.
+
+### E36 result: stop after a new edit-induced contradiction
+
+Week 5 completed in 29 calls for $0.131364864 plus $0.00052884 of chronological
+indexing. Two two-replacement batches applied correctly. The first changed a
+correct sixth/seventh-place sentence into a statement that those teams occupied
+the last two playoff spots, despite six berths and another team ranked fifth.
+The earlier article and source-bound facts retained the correct positions. This
+removed a correct fact and introduced a contradiction. The final manual audit
+corrected a provisional live check that had confirmed the berth count but missed
+the seventh-place team's position. Week 6 was not launched.
+
+The atomic implementation itself applied the requested edits correctly. Without a
+matched fresh control, this does not prove batching caused the model's error; it
+does fail the preregistered no-new-error criterion and blocks a quality/longitudinal
+promotion. An organic opening-week callback was present, but mandatory-format
+wording, a historical interval and further storyline-question migration remained
+separate weaknesses. All 41 inherited canonical versions and 51 inherited artifact
+versions survived unchanged, with no duplicate trade identity.
+
+A local export initially failed because the helper omitted the frozen runtime
+archive. The exact 382 files were restored and export rerun without generation or
+tool replay. Budget and article hashes were identical before and after recovery.
+The failed controller receipt remains preserved; there was no additional paid call
+or new provider uncertainty. Verified duplicate temporary export bytes were
+removed only after their complete recoverable copies were verified.
+
+### E37 temporal-feedback uptake — preregistered
+
+E35 showed that a separate reviewer could identify a false consecutive-loss claim.
+E37 now tests whether its explanation improves writer repair beyond a generic
+temporal rejection. Two fresh one-response shadow continuations use the exact
+original post-proposal context. Both receive the same simulated pre-save rejection
+and valid retry selectors; treatment alone adds E35's unchanged explanation and
+references to observations already available in that context. Original reasoning,
+other receipts, source pins, tools and the submitted article remain identical.
+
+A comparative pass requires a valid same-card treatment repair preserving the
+supported recurrence and intervening win, without new sequence, question or status
+errors, and no equivalent control repair. Ties, inspection-only output, missing or
+invalid proposals and ambiguity remain inconclusive. Repeating the false sequence
+or inventing another fails. No actual tools execute, no extra turn or reroll is
+allowed, and other inherited weaknesses are not silently fixed. The pair forecast
+is $0.07, with a $0.50 cap inside the existing allowance.
+
+### E37 result
+
+Both proposals passed schema and retry-selector checks and repaired the false
+consecutive-loss characterization. Generic rejection listed the correct winning
+and losing weeks; detailed rejection preserved the third nonconsecutive loss and
+the intervening sweeps. Both retained the same active card and callback scope.
+The pair cost $0.066183420, with no actual tool or memory writes.
+
+The comparative discriminator is inconclusive: the detailed explanation added no
+observed repair advantage. Treatment also retained an inherited contradiction
+about whether deadline additions occurred, whereas control removed that wording;
+the temporal repair does not clear the rest of the summary. Since both received
+rejection, this pair does not isolate rejection itself. A separate comparison
+against ordinary successful receipts is warranted, including a later propagation
+case; neither E37 arm is rerolled or relabeled as that new control.
+
+### E38 rejection-boundary comparison — preregistered
+
+E38 separates the effect of rejection from the detail of its explanation. Four
+fresh proposal-only calls cover the original Week 11 error and its later Week 13
+propagation. Within each pair, control retains the original successful receipt;
+treatment receives the same generic temporal rejection and valid selectors used
+in E37. All other original messages, reasoning, source pins and tools are equal.
+No reviewer explanation, new source observation or future evidence is added.
+
+Each case requires a valid same-card repair without an equivalent control repair.
+Week 11 must preserve the supported nonconsecutive recurrence; Week 13 must also
+preserve its valid current winning streak and distinguish historical from current
+scope. Both cases must pass for a replicated result. Equivalent repairs, missing
+or invalid proposals, inspection, abstention and ambiguity remain inconclusive.
+No extra turns, rerolls or actual writes are allowed. The four-call forecast is
+$0.09 with a $0.50 cap inside the remaining allowance. This is a simulated
+rejection test, not automatic error selection or production commit enforcement.
+
+
+### E38 result
+
+Both selected cases passed the proposal-only discriminator. Ordinary success
+receipts led to no target-summary repair. Generic rejection prompted valid same-card
+updates: the first retained the correct third nonconsecutive loss; the later case
+removed the false historical sequence while keeping the valid current four-decision
+winning streak. Both retained active status and exact evidence aliases. Four calls
+cost $0.057229284. No returned tool executed and no article or memory changed.
+
+This is bounded repair uptake, not proof of automatic error detection or safe
+commit enforcement. The control was told its earlier write had succeeded, while
+treatment was explicitly asked to retry it. Other inherited lifecycle problems
+remain: the later proposals still characterize one week's lineup as removing a
+risk and propose resolving a callback. No general quality promotion follows.
+
+### E39: rank-relation reviewer — failed readiness
+
+One independent review call assessed the exact E36 edit before and after, plus
+ten frozen synthetic controls for rank, tied records, qualification positions,
+clinching and missing context. The predeclared gate required every classification,
+exact quote and evidence reference to be valid. The real edited phrase was allowed
+to be classified as either contradicted or insufficient because its referent was
+not explicit; no forced playoff interpretation was supplied to the reviewer.
+
+Eleven of twelve classifications passed, for $0.007605. The reviewer wrongly
+called a clinching claim contradicted when only current standings were supplied.
+Those observations neither establish nor disprove mathematical clinching; the
+required verdict was insufficient. This false contradiction blocks automatic
+review readiness. No repair follow-up or runtime integration follows.
+
+The real original ranked sentence was supported, while the edited phrase was
+classified as insufficient because “last two spots” lacked a clear referent.
+This refines the earlier E36 audit: a playoff interpretation conflicts with the
+known ranks, but the phrase did not explicitly repeat “playoff.” The earlier
+categorical contradiction wording was too strong. The edit still dropped a
+correct seventh-place fact and introduced an unsupported qualification implication,
+so E36 remains stopped and unpromoted. The accepted article is unchanged.
+
+### E40: temporal-claim population audit — preregistered
+
+E40 moves beyond curated suspect excerpts. It audits all 45 successful saved
+storyline-summary proposals from the accepted E16 season, one advisory call per
+week. Each exact summary is matched to its canonical version and receives only
+original standings and schedule observations executed before that save. Failed
+season attempts remain retained but are outside this accepted-output population.
+No future source, later memory, regenerated data or proposed runtime fix is added.
+
+The reviewer selects temporal-result claims itself, with exact excerpts and
+case-specific evidence references. Missing source intervals must be reported as
+insufficient, not contradicted. All flagged claims and selected supported claims
+will be reviewed; the known original and propagated false sequence is a held-out
+audit check, not named in the reviewer prompt. Other source-tool families are
+intentionally excluded, so missing coverage will not prove an original claim false.
+There is no exhaustive accuracy denominator for claims the reviewer omits.
+
+The seventeen-call maximum forecast is $0.15, with a $0.50 gate cap inside the
+unchanged remaining allowance. Calls proceed chronologically once per week, with
+no rerolls, tools, embeddings or writes. A new upstream failure or inability to
+reserve the next call stops execution, retaining any partial coverage. This is an
+observational audit, not promotion of an automatic memory guard.
+
+
+### E40 terminal result and paid-work stop
+
+Week 1 completed for $0.0044781, selecting five temporal-result claims from its
+one saved summary. All five were correctly classified as insufficient because
+that week's restricted packet contained no standings or schedule observations.
+The original reporter used other query families; these gaps do not establish that
+its claims were false. The known later false sequence was not reached, so no claim
+of automatic error selection or broad accuracy is justified.
+
+The Week 2 request returned HTTP 503 after 11.096 seconds, reporting upstream
+connection termination before response headers. No response, returned tool, article
+or memory write was received. SDK retries were disabled. The full $0.3543216
+reservation is retained because billing is unknown. E40 therefore totals $0.0044781
+settled plus $0.3543216 uncertain, and covers only one of seventeen planned weeks.
+Weeks 3–17 were never dispatched. No recovery or alternative provider followed.
+
+Paid work has stopped under the preregistered repeated-failure rule. The remaining
+conservative allowance also cannot reserve another request. All earlier failures
+and unknown charges remain intact; a successful health GET is not evidence that
+an uncertain completion was free. The current evidence does not identify whether
+the failure originated at the provider or an intervening proxy. No network or
+security setting was changed.
+
+The review packet is complete locally, with unchanged accepted articles and raw
+artifacts preserved privately. The three newly authorized draft PRs are open;
+no additional PR was merged, approved or deployed. Further useful work would
+validate error selection on broader source coverage and safe rejection semantics,
+not promote the failed rank reviewer or reroll the failed batch-edit article.
