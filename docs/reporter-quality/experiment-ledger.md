@@ -9,7 +9,7 @@ The cost figures below are aggregate experiment charges, not a financial ledger
 or provider invoice. DeepSeek charges use conservative peak rates; reasoning
 already included in completion tokens is not charged a second time.
 
-## Current review — November 5
+## Current review — November 6
 
 E16 is complete through Week 17: source-trade identities remain unique and the
 final acquisition callback is present, while factual attribution and storyline
@@ -28,7 +28,9 @@ a mandatory second quarterback. The strict comparative discriminator is inconclu
 Eighty-six targeted checks pass; no full season is promoted. E33 preserved its first failed control request, then completed one authorized
 infrastructure recovery. The recovered treatment applied five preplanned edits
 in one revision versus one in control. This supports narrow tool feasibility,
-not finished-article quality. E34 now tests complete reporting with that one change.
+not finished-article quality. E34 completed both arms: fewer editing calls but no
+whole-run cost or memory-quality gain. E35 passed a narrow temporal-review test;
+E36 now tests chronological batch-edit robustness within the remaining allowance.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## Experiment status and decisions
@@ -71,7 +73,9 @@ No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 | E31 | Required original-question field separate from evolving summary | Two matched creation proposals | $0.0332 | Reject: the explicit field still fuses independent standings and lineup questions. No persistence change or reroll. |
 | E32 | Expose configured roster slots instead of inferring requirements from starters | Two complete Week 1 arms; 86 targeted checks pass | $0.1908 | Mechanism supported, comparative criterion inconclusive: control wording did not explicitly require a second QB. No efficacy promotion. |
 | E33 | Atomic independent artifact edits | Failed control preserved; one recovered two-call comparison; 34 offline checks pass | $0.4138, including $0.3543 uncertain | Narrow feasibility pass: five justified edits in one treatment revision versus one control edit. No overall-quality claim. |
-| E34 | Atomic edits during complete reporting | Two matched Week 4 arms preregistered | Pending | Full-run adoption and revision audit; one changed tool, no roster-slot or verifier treatment inherited. |
+| E34 | Atomic edits during complete reporting | Two complete matched Week 4 arms | $0.2554 | Narrow adoption/editing signal: 4 versus 7 edit calls; both 29 total calls and treatment more expensive. Memory drift and grounding weaknesses remain. |
+| E35 | Independent ordered-observation temporal review | One advisory call, 12 frozen cases | $0.0091 | Narrow capability pass, 12/12 with valid reasons; no reporter-feedback or quality claim. |
+| E36 | Chronological robustness of the batch-edit tool | Week 5 onward from E34 treatment, budget-limited | Running | Same one-factor candidate; historical E16 suffix is descriptive, not a matched causal control. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1381,3 +1385,75 @@ trade callbacks will be inspected. No analogous opportunity, ties, ambiguity or
 partial coverage remain inconclusive. The forecast is $0.35 with a $0.90 pair cap
 inside the unchanged allowance. A new upstream failure stops all paid work; no
 additional recovery or quality reroll is permitted.
+
+### E35 temporal-relation review — prepared, not yet dispatched
+
+A separate known failure confuses repeated losses with consecutive losses and
+persists into later memory. E35 tests an advisory reviewer supplied ordered source
+observations: three exact historical memory excerpts and nine synthetic controls.
+The frozen cases cover recurrence, consecutive outcomes, historical endpoints,
+head-to-head versus median decisions, missing periods and uncompleted games. Two
+real excerpts share one summary, so these are not independent accuracy samples.
+
+One completion must classify all twelve predeclared cases correctly, quote exact
+claims, cite valid observations and use the correct time and decision scope. A
+wrong or missing verdict or unsupported reason fails readiness. No reporter tool,
+article or canonical memory is modified. Even a pass requires a later uptake test
+before any automatic rejection or repair. The forecast is $0.02 with a $0.40 cap
+inside the existing allowance. Launch is conditional on E34's terminal audit and
+a healthy budget; no reroll or additional upstream recovery is permitted.
+
+### E34 result: batching works; total cost and memory quality do not improve
+
+Both full Week 4 arms completed in 29 calls. Treatment used four edit calls,
+including two valid four-replacement batches, versus seven single replacements
+in control. Control had explicitly planned several independent repairs before
+serializing them. Treatment repaired a historical interval and clarified a split
+result alongside prose cleanup; exact edit review found no new factual error or
+lost material information caused by batching. The workloads were not identical.
+
+The revision/verification/submission phase cost $0.017085600 in treatment versus
+$0.019755900 in control, but greater research and drafting work made the full
+treatment more expensive: $0.133525812 versus $0.121909464 ($0.255435276 total).
+Its article was also longer: 1,142 versus 989 words against a target around 950.
+No input, output or turn limit stopped either arm. One guarded SQL introspection
+error recovered ordinarily in treatment; no infrastructure retry was needed.
+
+Both used prior acquisition memory and fresh transaction/player evidence for
+organic callbacks. All 29 prior memory versions and evidence bindings survived;
+no duplicate trade identity appeared, although neither arm exercised a repeat save.
+Treatment still replaced a narrowed storyline's live question on the same card
+and carried an overly certain future-pick-value inference into durable memory.
+That inference existed before editing. The control resolved the narrowed question;
+neither establishes preservation of the original compound question.
+
+Decision: retain the small edit-tool candidate for review and a bounded chronological
+robustness follow-up, without claiming cheaper runs or improved lifecycle/content.
+The offline diff audit was corrected to match artifact identity as well as revision
+number, and all diffs were regenerated before this verdict. Articles remain unchanged.
+
+### E35 result and E36 preregistration
+
+E35 completed its one advisory call for $0.0090888. All twelve verdicts matched
+the frozen labels and passed exact-quote/evidence-index validation. Manual review
+confirmed correct consecutive-versus-repeated reasoning, historical scope,
+decision type and abstention for missing or unplayed periods. The real false
+sequence was caught without rejecting the valid historical claim. This selected
+capability test does not establish general accuracy or effective writer uptake.
+No article or canonical record was changed.
+
+E36 continues chronologically from E34 treatment's verified Week 4 checkpoint,
+retaining original E16 Weeks 1–3 and only the atomic-edit tool change. It does not
+incorporate the temporal reviewer or any roster, ownership, verifier or rejected
+prompt candidate. Original later-week requests, snapshots, cutoffs and settings
+remain frozen. Only new canonical documents receive chronological embeddings.
+
+The hypothesis is repeatable valid batching across evolving memory and varied
+editorial requests, without edit-induced factual errors or dropped material facts.
+Every completed week's edits, costs, callbacks and question lifecycle are audited.
+Missing opportunities and partial coverage remain inconclusive; no longevity quota
+or quality reroll is imposed. Historical E16 articles are descriptive references
+only because the inherited Week 4 trajectory differs. Forecast is approximately
+$0.14 per week; hard reservations may stop a partial week. Any new upstream failure
+stops paid work without another recovery. All accepted articles and failures remain
+unchanged and private.

@@ -43,7 +43,9 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E31 | Dedicated original-question field at creation. | Failed coherence discriminator: independent questions still fused into the field. |
 | E32 | Expose configured roster slots in ordinary source overview. | Two complete Week 1 arms; configuration used in treatment, strict comparative criterion inconclusive. |
 | E33 | Atomic independent artifact edits. | Original HTTP 503 retained; one recovered pair passes narrow atomic-edit feasibility. Full-run quality unproven. |
-| E34 | Atomic edits in complete reporting. | Matched Week 4 pair preregistered; same original checkpoint and only the edit tool changed. |
+| E34 | Atomic edits in complete reporting. | Both arms completed: 4 versus 7 edit calls, but same total calls and higher treatment cost; memory weaknesses remain. |
+| E35 | Independent temporal-relation review. | 12/12 selected cases correct; advisory capability only, no reporter writes. |
+| E36 | Chronological batch-edit robustness. | Week 5 onward from E34 treatment, continuing within the hard allowance; partial coverage possible. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -97,12 +99,12 @@ and one reproduced pre-existing bracket-guidance failure; main CI passed. No
 additional PR has been merged or deployed.
 
 November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
-E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 evaluates complete reporting. A stale tool-version
+E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 completed its full reporting comparison; E35 passed narrow temporal discrimination and E36 tests chronological robustness. A stale tool-version
 assertion was reproduced on the baseline and updated to the candidate's declared
 version. The frozen reporter behavior was not changed to satisfy that assertion.
 
 [Draft #267](https://github.com/maxwn04/AIdamShefter-v2/pull/267) maintains this
-index and the [current review ledger](experiment-ledger.md#current-review--november-5).
+index and the [current review ledger](experiment-ledger.md#current-review--november-6).
 [Draft #268](https://github.com/maxwn04/AIdamShefter-v2/pull/268) holds scoped
 record diagnostics, with explicit inconclusive paid results. Private artifacts
 and account-funding records remain outside this repository; publication of a
