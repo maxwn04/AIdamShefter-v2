@@ -28,6 +28,11 @@ factual error or lost material information was found. However, greater research
 and drafting work made treatment more expensive overall ($0.133525812 versus
 $0.121909464). Storyline-question drift and unsupported future-pick inference
 remained. This supports adoption and local editing efficiency, not better memory,
-article quality or total cost. A chronological robustness follow-up is planned.
+article quality or total cost. E36 then completed Week 5 but failed its no-new-error criterion: a mechanically
+valid batch changed correct sixth/seventh-place wording into a false implication
+that both teams held playoff berths. That negative result is preserved; no further
+continuation week was launched. This does not isolate a causal effect of batching,
+but it blocks a quality promotion. The proposal remains a tool-boundary choice
+requiring review, with no demonstrated whole-run quality or cost benefit.
 The roster-slot candidate, verifier experiments and rejected memory prompts are
 not inherited. No merge or deployment is proposed by this experiment.
