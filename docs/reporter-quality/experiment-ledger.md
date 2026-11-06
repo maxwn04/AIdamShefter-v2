@@ -31,7 +31,10 @@ in one revision versus one in control. This supports narrow tool feasibility,
 not finished-article quality. E34 completed both arms: fewer editing calls but no
 whole-run cost or memory-quality gain. E35 passed a narrow temporal-review test;
 E36 stopped after its first continuation week because an edit introduced a new
-standings contradiction. E37 tests temporal-review feedback uptake separately.
+unsupported standings implication. E37 found no advantage from detailed rejection;
+E38 passed two selected rejection-versus-success repair cases. E39 failed a rank
+review negative control. E40 audits temporal-claim selection across original saved
+summaries, with source gaps retained rather than treated as contradiction.
 No arithmetic reviewer or rejected storyline candidate is stacked into E32.
 
 ## What the newer evidence changes
@@ -97,6 +100,7 @@ experiments. Do not infer efficacy from the selected reviewer capability tests.
 | E35 | Independent ordered-observation temporal review | One advisory call, 12 frozen cases | $0.0091 | Narrow capability pass, 12/12 with valid reasons; no reporter-feedback or quality claim. |
 | E36 | Chronological robustness of the batch-edit tool | One completed Week 5; stopped before Week 6 | $0.1319 including embeddings | No-new-error criterion failed: a valid batch introduced a standings contradiction. Mechanical atomicity passed; no quality promotion. |
 | E37 | Specific temporal-review feedback versus generic rejection | Two completed frozen proposal-only continuations | $0.0662 | Inconclusive comparison: both repair the sequence with valid selectors. Detailed treatment retains an unrelated inherited contradiction. |
+| E38 | Generic rejection versus ordinary success receipts | Two cases, four fresh proposal calls preregistered | Running | Original and later propagated error; one receipt differs within each pair, no actual writes. |
 
 E04's cost includes one fully retained uncertain request. E06's original season
 attempts include two additional uncertain requests, each at the same full
@@ -1484,11 +1488,14 @@ unchanged and private.
 The clean atomic-edit code, synthetic tests and bounded evidence are available on
 [`codex/atomic-artifact-edits`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/atomic-artifact-edits)
 at `559303dbc9298efbce740146519eb9e65ad1f1e9`. Thirty artifact checks passed on
-the final code, in addition to four previously passing definition checks. Draft-PR
-creation was denied by automatic approval review for insufficiently specific
-authorization of that public repository action. No PR was created or retried,
-and no PR CI run exists. The separate ownership and roster-slot PR denials remain
-unchanged. These publication blockers do not interrupt authorized experiments.
+the final code, in addition to four previously passing definition checks. Earlier
+draft-creation denials were resolved by new explicit authorization. After checking
+that each PR did not exist, one retry created [ownership #269](https://github.com/maxwn04/AIdamShefter-v2/pull/269),
+[roster slots #270](https://github.com/maxwn04/AIdamShefter-v2/pull/270), and
+[atomic edits #271](https://github.com/maxwn04/AIdamShefter-v2/pull/271).
+All target main and remain drafts; no merge occurred. Each Frontend workflow
+succeeded, separately from the targeted backend checks. The batch PR explicitly
+retains E36's negative quality result. Private artifact upload restrictions remain.
 
 ### E36 result: stop after a new edit-induced contradiction
 
@@ -1549,3 +1556,83 @@ the temporal repair does not clear the rest of the summary. Since both received
 rejection, this pair does not isolate rejection itself. A separate comparison
 against ordinary successful receipts is warranted, including a later propagation
 case; neither E37 arm is rerolled or relabeled as that new control.
+
+### E38 rejection-boundary comparison — preregistered
+
+E38 separates the effect of rejection from the detail of its explanation. Four
+fresh proposal-only calls cover the original Week 11 error and its later Week 13
+propagation. Within each pair, control retains the original successful receipt;
+treatment receives the same generic temporal rejection and valid selectors used
+in E37. All other original messages, reasoning, source pins and tools are equal.
+No reviewer explanation, new source observation or future evidence is added.
+
+Each case requires a valid same-card repair without an equivalent control repair.
+Week 11 must preserve the supported nonconsecutive recurrence; Week 13 must also
+preserve its valid current winning streak and distinguish historical from current
+scope. Both cases must pass for a replicated result. Equivalent repairs, missing
+or invalid proposals, inspection, abstention and ambiguity remain inconclusive.
+No extra turns, rerolls or actual writes are allowed. The four-call forecast is
+$0.09 with a $0.50 cap inside the remaining allowance. This is a simulated
+rejection test, not automatic error selection or production commit enforcement.
+
+
+### E38 result
+
+Both selected cases passed the proposal-only discriminator. Ordinary success
+receipts led to no target-summary repair. Generic rejection prompted valid same-card
+updates: the first retained the correct third nonconsecutive loss; the later case
+removed the false historical sequence while keeping the valid current four-decision
+winning streak. Both retained active status and exact evidence aliases. Four calls
+cost $0.057229284. No returned tool executed and no article or memory changed.
+
+This is bounded repair uptake, not proof of automatic error detection or safe
+commit enforcement. The control was told its earlier write had succeeded, while
+treatment was explicitly asked to retry it. Other inherited lifecycle problems
+remain: the later proposals still characterize one week's lineup as removing a
+risk and propose resolving a callback. No general quality promotion follows.
+
+### E39: rank-relation reviewer — failed readiness
+
+One independent review call assessed the exact E36 edit before and after, plus
+ten frozen synthetic controls for rank, tied records, qualification positions,
+clinching and missing context. The predeclared gate required every classification,
+exact quote and evidence reference to be valid. The real edited phrase was allowed
+to be classified as either contradicted or insufficient because its referent was
+not explicit; no forced playoff interpretation was supplied to the reviewer.
+
+Eleven of twelve classifications passed, for $0.007605. The reviewer wrongly
+called a clinching claim contradicted when only current standings were supplied.
+Those observations neither establish nor disprove mathematical clinching; the
+required verdict was insufficient. This false contradiction blocks automatic
+review readiness. No repair follow-up or runtime integration follows.
+
+The real original ranked sentence was supported, while the edited phrase was
+classified as insufficient because “last two spots” lacked a clear referent.
+This refines the earlier E36 audit: a playoff interpretation conflicts with the
+known ranks, but the phrase did not explicitly repeat “playoff.” The earlier
+categorical contradiction wording was too strong. The edit still dropped a
+correct seventh-place fact and introduced an unsupported qualification implication,
+so E36 remains stopped and unpromoted. The accepted article is unchanged.
+
+### E40: temporal-claim population audit — preregistered
+
+E40 moves beyond curated suspect excerpts. It audits all 45 successful saved
+storyline-summary proposals from the accepted E16 season, one advisory call per
+week. Each exact summary is matched to its canonical version and receives only
+original standings and schedule observations executed before that save. Failed
+season attempts remain retained but are outside this accepted-output population.
+No future source, later memory, regenerated data or proposed runtime fix is added.
+
+The reviewer selects temporal-result claims itself, with exact excerpts and
+case-specific evidence references. Missing source intervals must be reported as
+insufficient, not contradicted. All flagged claims and selected supported claims
+will be reviewed; the known original and propagated false sequence is a held-out
+audit check, not named in the reviewer prompt. Other source-tool families are
+intentionally excluded, so missing coverage will not prove an original claim false.
+There is no exhaustive accuracy denominator for claims the reviewer omits.
+
+The seventeen-call maximum forecast is $0.15, with a $0.50 gate cap inside the
+unchanged remaining allowance. Calls proceed chronologically once per week, with
+no rerolls, tools, embeddings or writes. A new upstream failure or inability to
+reserve the next call stops execution, retaining any partial coverage. This is an
+observational audit, not promotion of an automatic memory guard.

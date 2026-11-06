@@ -47,6 +47,9 @@ examples and decisions, see the [review ledger](experiment-ledger.md).
 | E35 | Independent temporal-relation review. | 12/12 selected cases correct; advisory capability only, no reporter writes. |
 | E36 | Chronological batch-edit robustness. | Week 5 completed; stopped after a batch introduced a standings contradiction. No quality promotion. |
 | E37 | Temporal-review feedback uptake. | Both generic and detailed rejection repair the selected sequence; added-detail advantage inconclusive. |
+| E38 | Generic rejection versus successful receipts. | Both selected cases repaired only after rejection; bounded proposal-only pass, $0.057229284. |
+| E39 | Independent rank/qualification review. | 11/12 classifications; false contradiction on missing clinching evidence. Readiness failed, $0.007605. |
+| E40 | Temporal selection across accepted-season summaries. | Preregistered 45 saved proposals, up to 17 chronological calls; source gaps and partial coverage retained. |
 
 The Flash seasons and E06 gate used high reasoning, 32,768 completion-token
 headroom, a 16 MB serialized-input guard, original source cutoffs and chronological
@@ -100,7 +103,7 @@ and one reproduced pre-existing bracket-guidance failure; main CI passed. No
 additional PR has been merged or deployed.
 
 November 5 continued E16 to completion and evaluated E17–E31 as recorded above.
-E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 completed its full reporting comparison; E35 passed narrow temporal discrimination and E36 failed its no-new-error discriminator; E37 tests temporal feedback uptake. A stale tool-version
+E32 is complete; its candidate has 86 passing targeted checks. E33 completed one logged infrastructure recovery after an upstream HTTP 503; E34 completed its full reporting comparison; E35 passed narrow temporal discrimination and E36 failed its no-new-error discriminator; E37 found no detailed-feedback advantage; E38 passed selected rejection uptake and E39 failed a negative control. E40 audits claim selection. A stale tool-version
 assertion was reproduced on the baseline and updated to the candidate's declared
 version. The frozen reporter behavior was not changed to satisfy that assertion.
 
@@ -108,20 +111,22 @@ version. The frozen reporter behavior was not changed to satisfy that assertion.
 index and the [current review ledger](experiment-ledger.md#current-review--november-6).
 [Draft #268](https://github.com/maxwn04/AIdamShefter-v2/pull/268) holds scoped
 record diagnostics, with explicit inconclusive paid results. Private artifacts
-and account-funding records remain outside this repository; publication of a
-separate ownership candidate is still blocked and has not been retried.
+and account-funding records remain outside this repository.
 
-The configured-roster-slot candidate is available on
-[`codex/roster-slot-evidence`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/roster-slot-evidence),
-head `8fdddfd23215a14a6bae4a74ee585651d07274f9`, with 86 targeted checks passing.
-Draft-PR creation was blocked by automatic approval review; it was not retried.
-There is no PR CI result for that branch. The atomic-edit candidate is available on
-[`codex/atomic-artifact-edits`](https://github.com/maxwn04/AIdamShefter-v2/tree/codex/atomic-artifact-edits),
-head `559303dbc9298efbce740146519eb9e65ad1f1e9`, with 30 artifact checks passing
-and four earlier passing definition checks. Its draft-PR creation was also blocked
-by automatic approval review and was not retried. No PR CI run exists. E34 supports
-local batching but not lower total cost; E36 failed its quality guard despite mechanically valid batching.
+New explicit authorization resolved the earlier draft-creation denials. Each
+creation was checked for an existing PR and retried once; all three succeeded:
 
-The current ledger files supersede the older summary in PR #267's description;
-the earlier metadata update did not succeed. No additional merge or deployment
-has occurred.
+- [Draft #269: ownership evidence](https://github.com/maxwn04/AIdamShefter-v2/pull/269),
+  head `00dc24c881ad5ddd83be3c4cfb74435ff3ea90e3`, 27 targeted checks.
+- [Draft #270: configured roster slots](https://github.com/maxwn04/AIdamShefter-v2/pull/270),
+  head `8fdddfd23215a14a6bae4a74ee585651d07274f9`, 86 targeted checks.
+- [Draft #271: atomic artifact edits](https://github.com/maxwn04/AIdamShefter-v2/pull/271),
+  head `559303dbc9298efbce740146519eb9e65ad1f1e9`, 30 artifact checks
+  plus four earlier definition checks. Its description includes E36's negative result.
+
+All three target main and remain drafts. Their Frontend workflows completed
+successfully; these workflows do not replace the targeted backend checks.
+E25 and E32 remain comparatively inconclusive. E34 supports local batching but
+not lower total cost; E36 failed its quality guard despite mechanically valid
+batching. Opening a draft does not promote these candidates or approve a merge.
+No additional merge or deployment has occurred.
